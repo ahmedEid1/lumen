@@ -6,11 +6,16 @@ import { AuthProvider } from "@/lib/auth/store";
 import { LocaleProvider } from "@/lib/i18n/provider";
 import { SiteHeader } from "@/components/shared/site-header";
 import { SiteFooter } from "@/components/shared/site-footer";
+import { fraunces, lora } from "@/lib/fonts";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Lumen — Learn anything", template: "%s · Lumen" },
-  description: "A modern, self-hostable e-learning platform.",
+  title: {
+    default: "Lumen · The library of Thoth, opened",
+    template: "%s · Lumen",
+  },
+  description:
+    "A scholar's platform for any discipline. Inscribe a course in an evening, gather a cohort by torchlight, keep your scrolls forever.",
   applicationName: "Lumen",
   authors: [{ name: "Lumen Maintainers" }],
   openGraph: { title: "Lumen", siteName: "Lumen", type: "website" },
@@ -19,16 +24,20 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0f1a" },
+    { media: "(prefers-color-scheme: light)", color: "#F4ECD8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0B0E14" },
   ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${fraunces.variable} ${lora.variable}`}
+    >
       <body className="min-h-screen bg-background text-foreground antialiased">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <LocaleProvider>
             <QueryProvider>
               <AuthProvider>
@@ -45,7 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </main>
                   <SiteFooter />
                 </div>
-                <Toaster richColors position="top-center" />
+                <Toaster richColors position="top-center" theme="dark" />
               </AuthProvider>
             </QueryProvider>
           </LocaleProvider>

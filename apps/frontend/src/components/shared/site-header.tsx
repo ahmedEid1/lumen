@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Moon, Sun, GraduationCap, LogOut, Menu, X } from "lucide-react";
+import { Moon, Sun, LogOut, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { HeaderSearch } from "@/components/shared/header-search";
 import { LocaleSwitcher } from "@/components/shared/locale-switcher";
 import { NotificationsBell } from "@/components/shared/notifications-bell";
+import { Glyph } from "@/components/lumen/glyph";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
@@ -21,10 +22,13 @@ function ThemeToggle() {
       variant="ghost"
       size="icon"
       aria-label="Toggle theme"
+      className="text-gold/80 hover:text-gold"
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
     >
       <Sun className="h-5 w-5 dark:hidden" />
-      <Moon className="hidden h-5 w-5 dark:block" />
+      <Moon
+        className="hidden h-5 w-5 drop-shadow-[0_0_6px_hsl(var(--gold-leaf)/0.5)] dark:block"
+      />
     </Button>
   );
 }
@@ -65,11 +69,17 @@ export function SiteHeader() {
   const links = navLinksFor(user?.role);
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-40 w-full border-b border-gold/15 bg-background/75 backdrop-blur supports-[backdrop-filter]:bg-background/55">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <GraduationCap className="h-6 w-6 text-primary" aria-hidden />
-          <span className="text-lg tracking-tight">Lumen</span>
+        <Link href="/" className="group flex items-center gap-2.5">
+          <Glyph
+            name="eye"
+            size={28}
+            className="text-gold drop-shadow-[0_0_8px_hsl(var(--gold-leaf)/0.45)] transition-transform group-hover:scale-110"
+          />
+          <span className="font-display text-xl font-medium leading-none tracking-[0.18em] text-gold">
+            LVMEN
+          </span>
         </Link>
 
         <nav className="hidden gap-6 text-sm md:flex" aria-label="Primary">
