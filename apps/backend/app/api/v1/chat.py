@@ -7,11 +7,12 @@ import json
 from typing import Annotated
 
 import jwt
-from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, Query, Request, WebSocket, WebSocketDisconnect, status
 
 from app.api.deps import CurrentUser, DBSession
 from app.core.errors import ForbiddenError, NotFoundError
 from app.core.logging import get_logger
+from app.core.ratelimit import limiter
 from app.core.security import decode_token
 from app.db.base import get_sessionmaker
 from app.repositories import chat as chat_repo
@@ -52,8 +53,13 @@ async def history(
 
 
 @router.post("/courses/{course_id}/messages", response_model=ChatMessageOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def post_message(
-    course_id: str, payload: ChatSendRequest, user: CurrentUser, db: DBSession
+    course_id: str,
+    payload: ChatSendRequest,
+    user: CurrentUser,
+    db: DBSession,
+    request: Request,
 ) -> ChatMessageOut:
     course = await chat_service.ensure_can_chat(db, user=user, course_id=course_id)
     msg = await chat_repo.add_message(db, course_id=course.id, author_id=user.id, body=payload.body)

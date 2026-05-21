@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, DBSession
 from app.api.v1 import _builders
 from app.core.errors import NotFoundError, ValidationAppError
+from app.core.ratelimit import limiter
 from app.models.course import LessonType
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
@@ -117,14 +118,23 @@ class QuizSubmitResponse(BaseModel):
 
 
 @router.post("/progress/lessons/{lesson_id}/quiz", response_model=QuizSubmitResponse)
+@limiter.limit("20/minute")
 async def submit_quiz(
-    lesson_id: str, payload: QuizSubmitRequest, user: CurrentUser, db: DBSession
+    lesson_id: str,
+    payload: QuizSubmitRequest,
+    user: CurrentUser,
+    db: DBSession,
+    request: Request,
 ) -> QuizSubmitResponse:
     """Server-graded quiz submission.
 
     The client may grade locally for instant feedback, but this endpoint is
     the authoritative source of the score that gets persisted on
     ``LessonProgress``. Passing the quiz also marks the lesson complete.
+
+    Rate-limited (20/minute) because grading walks the full question list
+    and writes to LessonProgress — without a cap a learner could replay
+    a 50-question quiz in a tight loop and burn CPU + DB writes.
     """
     lesson = await courses_repo.get_lesson(db, lesson_id)
     if not lesson or lesson.deleted_at is not None:

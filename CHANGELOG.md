@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 53)
+- **Rate-limit the two heavy authenticated write endpoints.**
+  Before iter 53 only the auth surface had explicit limits. Quiz
+  submit (`POST /me/progress/lessons/{id}/quiz`) and chat post
+  (`POST /chat/courses/{id}/messages`) were both DOS-able by any
+  authenticated learner — the quiz path runs a full grader pass
+  and writes `LessonProgress` plus a potential cert; chat fans
+  out via Redis pub/sub to every WS subscriber. Added
+  `@limiter.limit("20/minute")` to quiz and `@limiter.limit("30/minute")`
+  to chat. Covered by `tests/test_rate_limit_writes.py` (3 tests:
+  quiz drains to 429, chat drains to 429, fresh-bucket isolation
+  between tests).
+
 ### Security (iteration 52)
 - **Optional HIBP breach-list check on every password-set path.**
   Iter 39's docstring flagged "HIBP / breach-list lookup is future
