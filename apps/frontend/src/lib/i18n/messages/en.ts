@@ -95,6 +95,10 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Site footer
+  "footer.copyright": "© {year} Lumen · MIT licensed",
+  "footer.docs": "Docs",
+
   // Admin / courses — curator's shelf
   "adminCourses.cartouche": "Curator's shelf",
   "adminCourses.title": "Courses",

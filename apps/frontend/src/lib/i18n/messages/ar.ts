@@ -102,6 +102,10 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // تذييل الموقع
+  "footer.copyright": "© {year} لومن · رخصة MIT",
+  "footer.docs": "الوثائق",
+
   // Admin / courses — رفّ القيّم
   "adminCourses.cartouche": "رفّ القيّم",
   "adminCourses.title": "الدورات",
