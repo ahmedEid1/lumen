@@ -180,12 +180,17 @@ async def _transition_status(course: Course, target: CourseStatus) -> None:
 
 
 async def _unique_slug(db: AsyncSession, title: str, *, exclude_id: str | None = None) -> str:
+    """Mint a course slug that isn't claimed by any existing row.
+
+    The check must include soft-deleted courses because the DB unique
+    constraint on ``courses.slug`` is unconditional — handing back a
+    soft-deleted course's slug would crash the next INSERT.
+    """
     base = slugify(title)[:180] or "course"
     candidate = base
     n = 1
     while True:
-        existing = await courses_repo.get_course_by_slug(db, candidate)
-        if not existing or existing.id == exclude_id:
+        if not await courses_repo.slug_is_taken(db, candidate, exclude_id=exclude_id):
             return candidate
         n += 1
         candidate = f"{base}-{n}"

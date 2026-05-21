@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 25)
+- **Course slug minting now sees through soft-deletes.** `_unique_slug`
+  used `get_course_by_slug`, which hides `deleted_at IS NOT NULL` rows.
+  Recreating a course with the same title as a soft-deleted one looked
+  fine to the minter then crashed the INSERT against the unconditional
+  `UNIQUE(courses.slug)` constraint. Added
+  `repositories.courses.slug_is_taken(db, slug, exclude_id=...)` which
+  reads the raw table, and switched the slug minter to use it. Three
+  regression tests cover delete-then-recreate, repeated duplication, and
+  rename-to-same-title.
+
 ### Fixed (iteration 24)
 - **Archiving (or un-publishing) a course no longer locks out already-
   enrolled learners.** `GET /api/v1/courses/{slug}` previously routed

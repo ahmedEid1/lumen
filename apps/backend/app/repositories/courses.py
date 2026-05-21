@@ -76,6 +76,19 @@ async def get_course_by_slug(db: AsyncSession, slug: str, *, with_modules: bool 
     return res.scalar_one_or_none()
 
 
+async def slug_is_taken(db: AsyncSession, slug: str, *, exclude_id: str | None = None) -> bool:
+    """Has any row (alive or soft-deleted) claimed this slug?
+
+    The DB enforces ``UNIQUE(courses.slug)`` regardless of ``deleted_at``,
+    so callers minting new slugs must check against the raw table — not
+    via ``get_course_by_slug`` which already hides deleted rows.
+    """
+    stmt = select(Course.id).where(Course.slug == slug).limit(1)
+    if exclude_id is not None:
+        stmt = stmt.where(Course.id != exclude_id)
+    return (await db.execute(stmt)).first() is not None
+
+
 async def search_courses(
     db: AsyncSession,
     *,
