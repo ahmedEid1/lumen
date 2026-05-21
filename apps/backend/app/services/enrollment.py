@@ -38,8 +38,22 @@ async def enroll(db: AsyncSession, *, user: User, course: Course) -> Enrollment:
 
 async def unenroll(db: AsyncSession, *, user: User, course: Course) -> None:
     enrollment = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
-    if enrollment:
-        await db.delete(enrollment)
+    if not enrollment:
+        return
+    # A completed enrollment owns the learner's certificate_id and all of
+    # their lesson_progress. Deleting it cascades through both, so the
+    # cert becomes unverifiable (/verify/{certificate_id} → 404) and the
+    # achievement record is silently destroyed. Treat completed
+    # enrollments as a permanent transcript entry; unenroll is for
+    # mid-progress course abandonment, not for retracting credentials.
+    if enrollment.completed_at is not None:
+        raise ConflictError(
+            "Cannot unenroll from a completed course — your certificate"
+            " would no longer verify. Contact support if you need this"
+            " record removed.",
+            code="enrollment.completed",
+        )
+    await db.delete(enrollment)
 
 
 async def record_quiz_attempt(

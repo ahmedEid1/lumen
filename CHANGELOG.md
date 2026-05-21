@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 44)
+- **Block unenroll on a completed enrollment.** `DELETE
+  /api/v1/me/enrollments/{course_id}` issued a hard
+  `db.delete(enrollment)` regardless of completion state. The
+  Enrollment row owns the learner's `certificate_id` and (FK
+  `ondelete=CASCADE`) all their `lesson_progress` rows, so a single
+  DELETE silently invalidated the certificate (`/verify/{cert_id}`
+  → 404), threw away every completion timestamp, and lost the quiz
+  scores stored on `lesson_progress.payload`. No frontend surface
+  currently exposes unenroll, but the API client does — one rogue
+  call destroys an achievement record permanently. Refuse with 409
+  `enrollment.completed` once the cert has been issued; mid-progress
+  unenroll still works as before. Covered by
+  `tests/test_unenroll_after_complete.py` (3 tests: refused after
+  completion + cert still verifies, mid-progress still allowed,
+  unenroll-when-never-enrolled remains an idempotent 200).
+
 ### Fixed (iteration 43)
 - **Block publishing a course with zero live lessons.**
   `_transition_status` checked only `title` and `overview` before
