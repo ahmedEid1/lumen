@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 41)
+- **Module / lesson reorder rejects partial and malformed mappings.**
+  Both reorder paths set every row's `order` to a negative temp value
+  (to dodge the `(parent, order)` unique constraint), then assigned
+  new orders only to the rows the caller named. A *partial* mapping
+  left the unnamed rows stuck at `-1, -2, -3, ...` permanently — and
+  since SQL ORDER BY puts negatives first, the syllabus silently
+  hoisted them to the top on next render. The official client always
+  sends the full ordering, but a buggy mobile build, a network replay,
+  or an authenticated bad actor could trigger the bug. We now require
+  the mapping to cover every existing id exactly once, reject negative
+  or duplicate target values up front (explicit 422 instead of an
+  eventual unique-constraint 5xx), and — for lessons — park soft-
+  deleted rows just past the live range so they can't collide with a
+  new target value either. Covered by
+  `tests/test_reorder_completeness.py` (6 tests: partial / negative /
+  duplicate / full mappings for modules, plus soft-deleted-skip and
+  partial-lesson rejection at the service layer).
+
 ### Fixed (iteration 40)
 - **Blocked self-reviews on owned courses.** Instructors can enroll in
   their own published course (handy for previewing what learners see)

@@ -25,6 +25,41 @@ if TYPE_CHECKING:
     )
 
 
+def _validate_complete_order(
+    mapping: dict[str, int], *, present_ids: set[str], kind: str
+) -> None:
+    """Reject reorder payloads that would leave rows in an inconsistent state.
+
+    Both reorder paths set every row's order to a negative temp value to
+    side-step the unique constraint, then assign the new orders. A
+    *partial* mapping leaves the unmentioned rows stuck at the temp value
+    (so they appear *first* in the syllabus on next render — a silent
+    rearrangement). Duplicate target values would crash the unique
+    constraint at flush; negative targets would do the same on the next
+    reorder. Catch all three up front with explicit error codes.
+    """
+    mapping_ids = set(mapping.keys())
+    if mapping_ids != present_ids:
+        missing = sorted(present_ids - mapping_ids)
+        unknown = sorted(mapping_ids - present_ids)
+        raise ValidationAppError(
+            f"Reorder must cover every {kind[:-1]} exactly once",
+            code=f"{kind}.partial_order",
+            details={"missing": missing, "unknown": unknown},
+        )
+    values = list(mapping.values())
+    if any(v < 0 for v in values):
+        raise ValidationAppError(
+            "Order values must be non-negative",
+            code=f"{kind}.negative_order",
+        )
+    if len(set(values)) != len(values):
+        raise ValidationAppError(
+            "Order values must be unique",
+            code=f"{kind}.duplicate_order",
+        )
+
+
 # ---------- Course ----------
 
 
@@ -230,9 +265,9 @@ async def reorder_modules(db: AsyncSession, *, course_id: str, owner: User, mapp
     course = await _owned_course(db, course_id, owner)
     modules = await courses_repo.list_modules_for_course(db, course.id)
     by_id = {m.id: m for m in modules}
-    unknown = [k for k in mapping if k not in by_id]
-    if unknown:
-        raise ValidationAppError("Unknown module ids", code="modules.unknown", details={"ids": unknown})
+    _validate_complete_order(
+        mapping, present_ids=set(by_id.keys()), kind="modules"
+    )
     # Two-phase update to avoid uq constraint conflicts.
     for m in modules:
         m.order = -1 - m.order  # temp negative
@@ -291,15 +326,32 @@ async def reorder_lessons(
     db: AsyncSession, *, module_id: str, owner: User, mapping: dict[str, int]
 ) -> None:
     mod = await _owned_module(db, module_id, owner)
-    by_id = {lesson.id: lesson for lesson in mod.lessons}
-    unknown = [k for k in mapping if k not in by_id]
-    if unknown:
-        raise ValidationAppError("Unknown lesson ids", code="lessons.unknown", details={"ids": unknown})
-    for lesson in mod.lessons:
-        lesson.order = -1 - lesson.order
+    # The relationship returns soft-deleted lessons too. Callers shouldn't
+    # have to know about them, so the mapping is validated against *live*
+    # ids only — but we still have to nudge soft-deleted rows out of the
+    # way during the two-phase update or they collide with the new
+    # positive orders via the (module_id, order) unique constraint.
+    all_lessons = list(mod.lessons)
+    live = [lesson for lesson in all_lessons if lesson.deleted_at is None]
+    by_id = {lesson.id: lesson for lesson in live}
+    _validate_complete_order(
+        mapping, present_ids=set(by_id.keys()), kind="lessons"
+    )
+    for lesson in all_lessons:
+        lesson.order = -1 - lesson.order  # temp negative
     await db.flush()
     for lid, target in mapping.items():
         by_id[lid].order = int(target)
+    # Park soft-deleted rows just past the live range so they can't
+    # collide with another lesson's order on the next reorder either.
+    n = len(live)
+    for i, lesson in enumerate(
+        sorted(
+            (l for l in all_lessons if l.deleted_at is not None),
+            key=lambda l: l.id,  # deterministic ordering
+        )
+    ):
+        lesson.order = n + i
 
 
 # ---------- ownership guards ----------
