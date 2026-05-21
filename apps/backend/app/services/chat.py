@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 import redis.asyncio as redis
@@ -17,7 +17,6 @@ from app.models.course import Course
 from app.models.user import User
 from app.repositories import chat as chat_repo
 from app.repositories import courses as courses_repo
-
 
 CHANNEL_FMT = "lumen:chat:{course_id}"
 PRESENCE_FMT = "lumen:presence:{course_id}"

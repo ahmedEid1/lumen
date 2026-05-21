@@ -16,7 +16,6 @@ from __future__ import annotations
 
 from httpx import AsyncClient
 
-
 _PUBLIC = "public, max-age=60, stale-while-revalidate=300"
 _PRIVATE = "private, max-age=0, no-store"
 

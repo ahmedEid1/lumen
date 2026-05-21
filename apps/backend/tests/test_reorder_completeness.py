@@ -26,7 +26,7 @@ can't collide with them either.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -238,8 +238,9 @@ async def test_lesson_reorder_partial_mapping_rejected(
         lessons.append(l)
     await db_session.commit()
 
-    from app.core.errors import ValidationAppError
     import pytest
+
+    from app.core.errors import ValidationAppError
 
     with pytest.raises(ValidationAppError) as exc:
         await courses_service.reorder_lessons(

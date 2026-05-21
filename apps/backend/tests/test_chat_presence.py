@@ -13,7 +13,7 @@ the WS loop is one line of code.
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 

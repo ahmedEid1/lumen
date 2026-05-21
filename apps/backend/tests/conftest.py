@@ -33,11 +33,11 @@ os.environ["SECRET_KEY"] = (
 )
 
 from app.core.config import get_settings
+from app.core.security import hash_password
 from app.db import base as db_base
 from app.db.session import get_db
 from app.main import create_app
 from app.models import *  # noqa: F403  ensure mappers registered
-from app.core.security import hash_password
 from app.models.user import Role, User
 
 

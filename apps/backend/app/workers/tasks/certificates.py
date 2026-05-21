@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from io import BytesIO
 
 from reportlab.lib.pagesizes import landscape, letter

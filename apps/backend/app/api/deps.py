@@ -9,10 +9,10 @@ from fastapi import Cookie, Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ForbiddenError, UnauthorizedError
+from app.core.security import decode_token
 from app.db.session import get_db
 from app.models.user import Role, User
 from app.repositories import users as users_repo
-from app.core.security import decode_token
 
 DBSession = Annotated[AsyncSession, Depends(get_db)]
 

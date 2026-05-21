@@ -27,7 +27,6 @@ from __future__ import annotations
 
 from httpx import AsyncClient
 
-
 _EXPECTED_DEFAULTS = {
     "x-content-type-options": "nosniff",
     "x-frame-options": "DENY",

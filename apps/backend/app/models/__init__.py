@@ -4,8 +4,6 @@ from app.models.asset import Asset
 from app.models.audit import AuditEvent
 from app.models.bookmark import Bookmark
 from app.models.chat import ChatMessage
-from app.models.discussion import Discussion, DiscussionReply
-from app.models.discussion_subscription import DiscussionSubscription
 from app.models.course import (
     Course,
     CourseStatus,
@@ -20,6 +18,8 @@ from app.models.course import (
     Tag,
     course_tags,
 )
+from app.models.discussion import Discussion, DiscussionReply
+from app.models.discussion_subscription import DiscussionSubscription
 from app.models.notification import Notification, NotificationKind
 from app.models.quiz_attempt import QuizAttempt
 from app.models.user import RefreshToken, Role, User

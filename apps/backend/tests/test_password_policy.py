@@ -23,7 +23,6 @@ from app.schemas.auth import (
 )
 from app.services import password_reset as reset
 
-
 # ---------------- Pure validator ----------------
 
 

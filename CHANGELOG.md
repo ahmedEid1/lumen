@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 4) — isort across the backend
+Ran `ruff --fix --select I001` over `app/` and `tests/`. 32
+import blocks were reflowed into canonical isort order (stdlib
+→ third-party → first-party, alphabetical within each band).
+Pure cosmetic; reproducible from `ruff check` going forward.
+
+Side fix: iter 3 had stripped the `# noqa: S104` from
+`app/core/config.py:39` (the em-dash separator made ruff
+itself misclassify the pragma as "non-enabled"). Restored
+the noqa with the conventional double-space-prose syntax
+that ruff parses correctly. Backend pytest 321/321 (153s).
+
 ### Changed (simplify iter 3) — drop unused noqa pragmas
 Ruff flagged 28 `# noqa:` directives whose target rules
 aren't in our active config (`BLE001`, `D401`, `E402`, `A002`,

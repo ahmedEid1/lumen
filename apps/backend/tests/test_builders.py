@@ -6,7 +6,7 @@ it, so an isolated test guards against accidental drift.
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 from app.api.v1 import _builders
 from app.models.course import Course, CourseStatus, Difficulty, Module, Subject, Tag

@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     tz: str = "UTC"
 
     # ---------- API ----------
-    api_host: str = "0.0.0.0"  # intentional, bind in container
+    api_host: str = "0.0.0.0"  # noqa: S104  intentional, bind in container
     api_port: int = 8000
     api_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8000")
     # User-facing frontend origin — embedded in transactional emails

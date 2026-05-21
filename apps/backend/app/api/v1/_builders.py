@@ -9,7 +9,14 @@ from __future__ import annotations
 from typing import Any
 
 from app.models.course import Course, Module
-from app.schemas.course import CourseDetail, CourseListItem, LessonOut, ModuleOut, SubjectOut, TagOut
+from app.schemas.course import (
+    CourseDetail,
+    CourseListItem,
+    LessonOut,
+    ModuleOut,
+    SubjectOut,
+    TagOut,
+)
 from app.schemas.user import UserPublic
 
 

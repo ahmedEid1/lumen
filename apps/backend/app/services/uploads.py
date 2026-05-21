@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import boto3

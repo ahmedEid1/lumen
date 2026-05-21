@@ -11,7 +11,6 @@ from app.models.course import Subject
 from app.models.user import Role
 from app.services import quiz as quiz_service
 
-
 # ---------- pure grader ----------
 
 

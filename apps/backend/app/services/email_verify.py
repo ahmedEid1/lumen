@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 import jwt
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.errors import UnauthorizedError
 from app.core.logging import get_logger
 from app.models.user import User
 from app.repositories import audit as audit_repo
-from sqlalchemy.ext.asyncio import AsyncSession
 
 log = get_logger(__name__)
 

@@ -16,7 +16,6 @@ from httpx import AsyncClient
 
 from app.services.email_template import render_branded_html
 
-
 # ---------------- pure template ----------------
 
 
