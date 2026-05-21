@@ -140,27 +140,40 @@ def sign_upload(
     key = f"{kind}/{user.id}/{today}/{new_id()}/{_safe_filename(filename)}"
     client = _client()
 
+    # Switched from generate_presigned_url(PUT) to generate_presigned_post
+    # so we can attach a ``content-length-range`` policy condition. With
+    # PUT, ``size_bytes`` was advisory — S3 didn't actually enforce the
+    # cap — and a client could upload a 1GB file claiming 1KB. POST
+    # presign returns a policy that S3 *does* enforce on the upload, so
+    # the per-kind size cap is now hard.
+    max_bytes = MAX_BYTES_PER_KIND[kind]
     try:
-        url = client.generate_presigned_url(
-            ClientMethod="put_object",
-            Params={
-                "Bucket": s.s3_bucket,
-                "Key": key,
-                "ContentType": content_type,
-            },
+        presigned = client.generate_presigned_post(
+            Bucket=s.s3_bucket,
+            Key=key,
+            Fields={"Content-Type": content_type},
+            Conditions=[
+                {"Content-Type": content_type},
+                ["content-length-range", 1, max_bytes],
+            ],
             ExpiresIn=s.s3_presign_ttl_seconds,
-            HttpMethod="PUT",
         )
     except ClientError as exc:  # pragma: no cover - network in dev
         raise ValidationAppError("Failed to sign upload", code="upload.sign_failed") from exc
 
     public_url = f"{s.s3_public_base_url.rstrip('/')}/{s.s3_bucket}/{key}"
     return {
-        "url": url,
+        "url": presigned["url"],
+        # Client must POST multipart/form-data with these fields plus a
+        # final ``file`` field containing the bytes. S3 verifies the
+        # policy (content-length-range + Content-Type) against the
+        # actual upload — so the cap is enforced server-side, not just
+        # promised by the client.
+        "fields": presigned["fields"],
         "key": key,
-        "headers": {"Content-Type": content_type},
         "expires_in": s.s3_presign_ttl_seconds,
         "public_url": public_url,
+        "max_bytes": max_bytes,
     }
 
 

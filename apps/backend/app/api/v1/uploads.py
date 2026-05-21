@@ -22,8 +22,9 @@ async def sign_upload(payload: PresignRequest, user: CurrentUser) -> PresignResp
     )
     return PresignResponse(
         url=str(info["url"]),
+        fields=info["fields"],  # type: ignore[arg-type]
         key=str(info["key"]),
-        headers=info["headers"],  # type: ignore[arg-type]
         expires_in=int(info["expires_in"]),  # type: ignore[arg-type]
         public_url=str(info["public_url"]),
+        max_bytes=int(info["max_bytes"]),  # type: ignore[arg-type]
     )

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 56) — BREAKING (upload contract)
+- **S3 upload size cap is now enforced by S3, not the client.** The
+  presign endpoint switched from `generate_presigned_url(PUT)` to
+  `generate_presigned_post` with a `["content-length-range", 1, max]`
+  policy condition. Before this change `size_bytes` in the presign
+  request was advisory — the server's per-kind cap was checked against
+  the client-claimed size, then a PUT URL was returned that S3 would
+  accept any size of upload against. A malicious or buggy client
+  could PUT a 1GB blob into a 5MB avatar slot. Now S3 verifies the
+  policy against the actual upload and rejects oversize at the source.
+  **Contract change:** the presign response shape went from
+  `{url, headers, ...}` (PUT-with-headers) to `{url, fields, max_bytes, ...}`
+  (POST-with-form-fields). Frontend updated; external API consumers
+  that hit `/api/v1/uploads/sign` directly need to switch to multipart
+  POST with the returned `fields` plus a final `file` form field.
+  Covered by `tests/test_uploads_size_enforcement.py` (4 tests:
+  method/fields contract, per-kind max_bytes matrix, pre-flight
+  too-large still 422s, old `headers` key explicitly absent).
+
 ### Added (iteration 55)
 - **Mark-all-read for notifications.** Previously a learner with N
   unread notifications had to issue N round trips to clear the badge.

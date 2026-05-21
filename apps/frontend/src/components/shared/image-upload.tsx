@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
 
 type PresignResponse = {
-  method: "PUT";
+  method: "POST";
   url: string;
+  fields: Record<string, string>;
   key: string;
-  headers: Record<string, string>;
   expires_in: number;
   public_url: string;
+  max_bytes: number;
 };
 
 type Props = {
@@ -69,12 +70,25 @@ export function ImageUpload({
           size_bytes: file.size,
         },
       });
-      const put = await fetch(presign.url, {
-        method: presign.method,
-        headers: presign.headers,
-        body: file,
+      // S3 multipart POST: all server-signed fields, then the file
+      // last (S3 expects the bytes under the "file" field name).
+      const formData = new FormData();
+      Object.entries(presign.fields).forEach(([k, v]) => formData.append(k, v));
+      formData.append("file", file);
+      const upload = await fetch(presign.url, {
+        method: "POST",
+        body: formData,
       });
-      if (!put.ok) throw new Error(`Upload failed (${put.status})`);
+      if (!upload.ok) {
+        // S3 enforces content-length-range as a 403 EntityTooLarge —
+        // surface a friendly message instead of the raw status.
+        if (upload.status === 403) {
+          throw new Error(
+            `File exceeds the ${Math.round(presign.max_bytes / (1024 * 1024))} MB limit for ${kind} uploads`,
+          );
+        }
+        throw new Error(`Upload failed (${upload.status})`);
+      }
       onChange(presign.public_url);
       toast.success("Uploaded");
     } catch (e: any) {
