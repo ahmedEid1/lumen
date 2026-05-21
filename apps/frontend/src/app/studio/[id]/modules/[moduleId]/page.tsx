@@ -78,7 +78,7 @@ export default function ModuleEditorPage({
         href={`/studio/${id}`}
         className="mb-4 inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="mr-1 h-4 w-4" /> Back to course
+        <ArrowLeft className="me-1 h-4 w-4" /> Back to course
       </Link>
       <header className="mb-6">
         <div className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -199,7 +199,7 @@ function SortableLesson({
         <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground" aria-label="Drag handle">
           <GripVertical className="h-4 w-4" />
         </button>
-        <button onClick={onClick} className="flex-1 truncate text-left">
+        <button onClick={onClick} className="flex-1 truncate text-start">
           {lesson.title}
         </button>
         <Badge variant="muted" className="capitalize">

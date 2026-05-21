@@ -38,7 +38,7 @@ export default async function HomePage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link href="/courses">
               <Button size="lg">
-                Browse courses <ArrowRight className="ml-1 h-4 w-4" />
+                Browse courses <ArrowRight className="ms-1 h-4 w-4" />
               </Button>
             </Link>
             <Link href="/register">
@@ -90,7 +90,7 @@ export default async function HomePage() {
           </div>
           <Link href="/courses">
             <Button variant="outline" size="sm">
-              View all <ArrowRight className="ml-1 h-4 w-4" />
+              View all <ArrowRight className="ms-1 h-4 w-4" />
             </Button>
           </Link>
         </div>

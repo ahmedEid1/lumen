@@ -28,7 +28,7 @@ export default function PreviewLessonPage({ params }: { params: Promise<Params> 
         href={`/courses/${slug}`}
         className="mb-4 inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="mr-1 h-4 w-4" /> Back to course
+        <ArrowLeft className="me-1 h-4 w-4" /> Back to course
       </Link>
 
       <Card>
@@ -60,7 +60,7 @@ export default function PreviewLessonPage({ params }: { params: Promise<Params> 
             </p>
             <Link href={`/courses/${slug}`}>
               <Button>
-                <GraduationCap className="mr-1 h-4 w-4" /> Enroll
+                <GraduationCap className="me-1 h-4 w-4" /> Enroll
               </Button>
             </Link>
           </div>

@@ -104,7 +104,7 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
                     <li key={lesson.id}>
                       <button
                         onClick={() => setSelectedId(lesson.id)}
-                        className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-muted ${
+                        className={`flex w-full items-center gap-2 rounded px-2 py-1 text-start hover:bg-muted ${
                           selectedId === lesson.id ? "bg-muted" : ""
                         }`}
                       >
@@ -152,7 +152,7 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
                     }}
                     disabled={lessons.findIndex((l) => l.id === selected.id) <= 0}
                   >
-                    <ArrowLeft className="mr-1 h-4 w-4" /> Previous
+                    <ArrowLeft className="me-1 h-4 w-4" /> Previous
                   </Button>
                   <Button
                     variant="outline"
@@ -164,7 +164,7 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
                       lessons.findIndex((l) => l.id === selected.id) >= lessons.length - 1
                     }
                   >
-                    Next <ArrowRight className="ml-1 h-4 w-4" />
+                    Next <ArrowRight className="ms-1 h-4 w-4" />
                   </Button>
                 </div>
                 <Button
@@ -174,7 +174,7 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
                     if (i >= 0 && i < lessons.length - 1) setSelectedId(lessons[i + 1].id);
                   }}
                 >
-                  <CheckCircle2 className="mr-2 h-4 w-4" /> Mark complete &amp; continue
+                  <CheckCircle2 className="me-2 h-4 w-4" /> Mark complete &amp; continue
                 </Button>
               </div>
             </CardContent>

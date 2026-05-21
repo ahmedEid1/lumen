@@ -56,7 +56,7 @@ export default function AdminAudit() {
         </CardHeader>
         <CardContent className="p-0">
           <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-left">
+            <thead className="bg-muted/40 text-start">
               <tr>
                 <th className="px-4 py-2">When</th>
                 <th className="px-4 py-2">Action</th>

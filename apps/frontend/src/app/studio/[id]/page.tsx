@@ -206,7 +206,7 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
               onClick={() => createModule.mutate()}
               disabled={!newModuleTitle.trim() || createModule.isPending}
             >
-              <Plus className="mr-1 h-4 w-4" /> Add module
+              <Plus className="me-1 h-4 w-4" /> Add module
             </Button>
           </div>
 
@@ -439,7 +439,7 @@ function LearningOutcomesEditor({
           onClick={() => setItems([...items, ""])}
           disabled={items.length >= 12}
         >
-          <Plus className="mr-1 h-4 w-4" /> Add outcome
+          <Plus className="me-1 h-4 w-4" /> Add outcome
         </Button>
         <Button size="sm" onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
           {save.isPending ? "Saving…" : "Save"}

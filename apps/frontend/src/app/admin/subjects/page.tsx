@@ -56,7 +56,7 @@ export default function AdminSubjects() {
             />
             <Input placeholder="Slug (optional)" value={slug} onChange={(e) => setSlug(e.target.value)} />
             <Button type="submit" disabled={!title || create.isPending}>
-              <Plus className="mr-1 h-4 w-4" /> Add
+              <Plus className="me-1 h-4 w-4" /> Add
             </Button>
           </form>
         </CardContent>

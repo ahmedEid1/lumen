@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 95)
+- **RTL polish sweep — 48 directional Tailwind classes → logical
+  properties across 23 files.** `pl-N` → `ps-N`, `pr-N` → `pe-N`,
+  `ml-N`/`mr-N` → `ms-N`/`me-N`, `left-N`/`right-N` → `start-N`/
+  `end-N`, `text-left`/`text-right` → `text-start`/`text-end`,
+  `rounded-l-`/`rounded-r-` → `rounded-s-`/`rounded-e-`. These
+  compile to CSS `margin-inline-*` / `inset-inline-*` /
+  `padding-inline-*` which the browser flips automatically under
+  `dir="rtl"`. Switching to Arabic via the iter 93 switcher now
+  gets icon-before-text spacing, search-icon position, table
+  column alignment, and the skip-to-content focus indicator all
+  mirrored correctly without per-locale CSS. One-shot
+  `scripts/rtl-sweep.py` kept in-tree so the next contributor
+  adding a directional class has a reference for the convention.
+
 ### Added (iteration 94)
 - **SiteHeader + HeaderSearch translated.** First production
   consumers of iter 93's `t()`. NavLink data shape switched from

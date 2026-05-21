@@ -240,7 +240,7 @@ function Quiz({
                         onClick={() => toggle(q, c.id)}
                         disabled={submitted}
                         className={[
-                          "w-full rounded border px-3 py-2 text-left text-sm",
+                          "w-full rounded border px-3 py-2 text-start text-sm",
                           selected ? "border-primary bg-primary/5" : "",
                           isCorrect ? "border-emerald-500 bg-emerald-500/10" : "",
                         ].join(" ")}

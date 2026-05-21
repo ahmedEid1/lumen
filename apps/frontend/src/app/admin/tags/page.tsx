@@ -52,7 +52,7 @@ export default function AdminTags() {
               required
             />
             <Button type="submit" disabled={!name || create.isPending}>
-              <Plus className="mr-1 h-4 w-4" /> Add
+              <Plus className="me-1 h-4 w-4" /> Add
             </Button>
           </form>
         </CardContent>

@@ -31,7 +31,7 @@ export function CohortCard({ courseId }: { courseId: string }) {
             download={`cohort-${courseId}.csv`}
           >
             <Button variant="outline" size="sm">
-              <Download className="mr-1 h-4 w-4" /> Export CSV
+              <Download className="me-1 h-4 w-4" /> Export CSV
             </Button>
           </a>
         )}
@@ -48,7 +48,7 @@ export function CohortCard({ courseId }: { courseId: string }) {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-left text-xs uppercase text-muted-foreground">
+              <thead className="text-start text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="pb-2">Student</th>
                   <th className="pb-2">Enrolled</th>

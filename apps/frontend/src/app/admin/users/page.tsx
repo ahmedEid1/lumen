@@ -53,12 +53,12 @@ export default function AdminUsers() {
           <p className="text-muted-foreground">Promote instructors, deactivate accounts.</p>
         </div>
         <div className="relative w-72">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search email or name…"
-            className="pl-9"
+            className="ps-9"
           />
         </div>
       </header>
@@ -70,13 +70,13 @@ export default function AdminUsers() {
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-left">
+              <thead className="bg-muted/40 text-start">
                 <tr>
                   <th className="px-4 py-2">User</th>
                   <th className="px-4 py-2">Role</th>
                   <th className="px-4 py-2">Active</th>
                   <th className="px-4 py-2">Last login</th>
-                  <th className="px-4 py-2 text-right">Actions</th>
+                  <th className="px-4 py-2 text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>

@@ -135,7 +135,7 @@ export function ImageUpload({
           </label>
           {value && (
             <Button variant="ghost" size="sm" onClick={() => onChange(null)} disabled={busy}>
-              <X className="mr-1 h-4 w-4" /> Remove
+              <X className="me-1 h-4 w-4" /> Remove
             </Button>
           )}
         </div>

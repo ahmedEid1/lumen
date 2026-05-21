@@ -132,11 +132,11 @@ export default function ThreadPage({
                 >
                   {t.is_subscribed ? (
                     <>
-                      <BellOff className="mr-1 h-3.5 w-3.5" /> Subscribed
+                      <BellOff className="me-1 h-3.5 w-3.5" /> Subscribed
                     </>
                   ) : (
                     <>
-                      <Bell className="mr-1 h-3.5 w-3.5" /> Subscribe
+                      <Bell className="me-1 h-3.5 w-3.5" /> Subscribe
                     </>
                   )}
                 </Button>

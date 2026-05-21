@@ -50,12 +50,12 @@ export default function AdminCourses() {
         </div>
         <div className="flex items-center gap-2">
           <div className="relative w-72">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search title or overview…"
-              className="pl-9"
+              className="ps-9"
             />
           </div>
           <label className="inline-flex items-center gap-2 text-sm">
@@ -76,13 +76,13 @@ export default function AdminCourses() {
         </CardHeader>
         <CardContent className="p-0">
           <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-left">
+            <thead className="bg-muted/40 text-start">
               <tr>
                 <th className="px-4 py-2">Course</th>
                 <th className="px-4 py-2">Owner</th>
                 <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2">Featured</th>
-                <th className="px-4 py-2 text-right">Action</th>
+                <th className="px-4 py-2 text-end">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -109,7 +109,7 @@ export default function AdminCourses() {
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="px-4 py-2 text-end">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -118,11 +118,11 @@ export default function AdminCourses() {
                     >
                       {c.is_featured ? (
                         <>
-                          <StarOff className="mr-1 h-4 w-4" /> Unfeature
+                          <StarOff className="me-1 h-4 w-4" /> Unfeature
                         </>
                       ) : (
                         <>
-                          <Star className="mr-1 h-4 w-4" /> Feature
+                          <Star className="me-1 h-4 w-4" /> Feature
                         </>
                       )}
                     </Button>

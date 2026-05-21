@@ -81,11 +81,11 @@ export function LessonEditor({ courseId, moduleId, lesson, newType, onSaved, onD
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>
-            {lesson ? "Edit lesson" : "New lesson"} <Badge variant="muted" className="ml-2 capitalize">{type}</Badge>
+            {lesson ? "Edit lesson" : "New lesson"} <Badge variant="muted" className="ms-2 capitalize">{type}</Badge>
           </CardTitle>
           {lesson && (
             <Button variant="ghost" size="sm" onClick={() => remove.mutate()} disabled={remove.isPending}>
-              <Trash2 className="mr-1 h-4 w-4" /> Delete
+              <Trash2 className="me-1 h-4 w-4" /> Delete
             </Button>
           )}
         </div>
@@ -413,7 +413,7 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
                     }))
                   }
                 >
-                  <Plus className="mr-1 h-4 w-4" /> Add choice
+                  <Plus className="me-1 h-4 w-4" /> Add choice
                 </Button>
               </ul>
             )}
@@ -421,7 +421,7 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
         ))}
       </ul>
       <Button variant="outline" onClick={addQ}>
-        <Plus className="mr-1 h-4 w-4" /> Add question
+        <Plus className="me-1 h-4 w-4" /> Add question
       </Button>
     </div>
   );

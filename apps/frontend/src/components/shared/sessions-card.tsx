@@ -64,7 +64,7 @@ export function SessionsCard() {
               onClick={() => revokeAll.mutate()}
               disabled={revokeAll.isPending}
             >
-              <LogOut className="mr-1 h-4 w-4" /> Sign out everywhere
+              <LogOut className="me-1 h-4 w-4" /> Sign out everywhere
             </Button>
           )}
         </div>

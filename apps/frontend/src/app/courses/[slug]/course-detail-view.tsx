@@ -234,7 +234,7 @@ export function CourseDetailView({ slug }: { slug: string }) {
                           <AvatarFallback>{r.author.full_name.slice(0, 1)}</AvatarFallback>
                         </Avatar>
                         <span className="font-medium">{r.author.full_name}</span>
-                        <span className="ml-auto inline-flex items-center gap-0.5">
+                        <span className="ms-auto inline-flex items-center gap-0.5">
                           {Array.from({ length: r.rating }).map((_, i) => (
                             <Star key={i} className="h-3.5 w-3.5 fill-current text-amber-500" />
                           ))}
@@ -312,11 +312,11 @@ export function CourseDetailView({ slug }: { slug: string }) {
                 >
                   {course.is_bookmarked ? (
                     <>
-                      <BookmarkCheck className="mr-2 h-4 w-4 fill-current" /> Bookmarked
+                      <BookmarkCheck className="me-2 h-4 w-4 fill-current" /> Bookmarked
                     </>
                   ) : (
                     <>
-                      <Bookmark className="mr-2 h-4 w-4" /> Bookmark
+                      <Bookmark className="me-2 h-4 w-4" /> Bookmark
                     </>
                   )}
                 </Button>

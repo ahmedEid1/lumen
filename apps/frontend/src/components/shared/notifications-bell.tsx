@@ -77,7 +77,7 @@ export function NotificationsBell() {
       >
         <Bell className="h-5 w-5" />
         {unread > 0 && (
-          <span className="absolute right-1.5 top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+          <span className="absolute end-1.5 top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -86,7 +86,7 @@ export function NotificationsBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-md border bg-card shadow-lg">
+          <div className="absolute end-0 z-40 mt-2 w-80 overflow-hidden rounded-md border bg-card shadow-lg">
             <div className="flex items-center justify-between border-b px-3 py-2 text-sm">
               <span className="font-semibold">Notifications</span>
               {unread > 0 && (

@@ -59,7 +59,7 @@ export default function StudioPage() {
         </div>
         <Link href="/studio/new">
           <Button>
-            <Plus className="mr-2 h-4 w-4" /> New course
+            <Plus className="me-2 h-4 w-4" /> New course
           </Button>
         </Link>
       </header>
