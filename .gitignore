@@ -21,6 +21,14 @@ coverage/
 playwright-report/
 test-results/
 .swc/
+# Next.js auto-generates this on every dev/build — committing it
+# creates merge noise across branches.
+apps/frontend/next-env.d.ts
+
+# ---- celery beat runtime ----
+# Celery writes schedule state next to the working dir on each tick;
+# never check it in.
+celerybeat-schedule*
 
 # ---- python ----
 __pycache__/
