@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 107) — instructor-flow lesson-button + save-button labels
+- `instructor flow › create a course, add a lesson, publish`
+  failed `locator.click: Timeout 15000ms exceeded` on
+  `getByRole("button", { name: /^text$/i })` because the actual
+  button text in the lesson editor is `"+ Text"` (with a literal
+  plus and space). The anchored regex demanded *exactly* "text"
+  and matched nothing. Fixed to `/^\+ text$/i`.
+- The same test then failed on the next click for the same
+  reason — `/^save$/i` doesn't match the actual button which
+  says `"Save lesson"`. Fixed to `/^save lesson$/i`. No
+  regression test — Playwright's role-name matching IS the
+  regression check (a label rename would fail the next run).
+- Result: the spec now flaky-passes on chromium (publish status
+  badge timing is the next layer of jitter, separate concern).
+
 ### Fixed (iteration 106) — api accepts both `__Host-access` and dev `access` cookies
 - After iters 99-105 every cookie-authenticated browser request
   still came back 401 — login succeeded, the proxy preserved the

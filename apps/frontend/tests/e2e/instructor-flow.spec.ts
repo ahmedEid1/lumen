@@ -42,12 +42,14 @@ test.describe("instructor flow", () => {
     await page.getByRole("link", { name: /edit lessons/i }).first().click();
     await expect(page).toHaveURL(/\/studio\/[^/]+\/modules\/[^/]+$/);
 
-    // Add a text lesson via the "Add lesson" + Text button.
-    await page.getByRole("button", { name: /^text$/i }).click();
+    // Add a text lesson via the "Add lesson" buttons. Iter 107:
+    // the actual button text is "+ Text" (the `+` is part of the
+    // accessible name), so the original `/^text$/i` matched nothing.
+    await page.getByRole("button", { name: /^\+ text$/i }).click();
     await page.getByLabel(/^title$/i).first().fill("Hello world");
     // Markdown body
     await page.locator("textarea").first().fill("# Hi\n\nFirst lesson.");
-    await page.getByRole("button", { name: /^save$/i }).click();
+    await page.getByRole("button", { name: /^save lesson$/i }).click();
 
     // Back to course studio.
     await page.goto(page.url().replace(/\/modules\/[^/]+$/, ""));
