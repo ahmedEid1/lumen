@@ -102,6 +102,37 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Verify email + confirm email change + cert verification
+  "verifyEmail.cartouche": "ختم الحارس",
+  "verifyEmail.title": "وثّق بريدك الإلكتروني",
+  "verifyEmail.checking": "جارٍ التأكيد…",
+  "verifyEmail.success": "تم توثيق بريدك.",
+  "verifyEmail.error.missingToken": "رمز التوثيق مفقود في الرابط.",
+  "verifyEmail.error.generic": "تعذّر توثيق الرابط.",
+  "verifyEmail.continue": "إلى لوحة التحكم",
+  "verifyEmail.goSignIn": "إلى تسجيل الدخول",
+
+  "confirmEmail.cartouche": "اختم العنوان الجديد",
+  "confirmEmail.title": "تأكيد تغيير البريد",
+  "confirmEmail.success": "بريدك الآن {email}. استخدمه عند تسجيل الدخول القادم.",
+  "confirmEmail.successToast": "تم تحديث البريد. سجّل الدخول بالعنوان الجديد.",
+  "confirmEmail.invalid": "رابط التأكيد هذا غير صالح أو منتهي الصلاحية.",
+  "confirmEmail.stale": "هذا الرابط لم يعد ساريًا — غيّرت كلمة المرور بعد طلب التغيير.",
+  "confirmEmail.taken": "هذا البريد مستخدم الآن من قبل حساب آخر.",
+  "confirmEmail.generic": "تعذّر التأكيد",
+  "confirmEmail.missingToken": "الرمز مفقود",
+  "confirmEmail.backToProfile": "العودة للملف الشخصي",
+
+  "verifyCert.cartouche": "قاعة السجلات",
+  "verifyCert.title": "التحقق من الشهادة",
+  "verifyCert.subtitle": "ابحث عن شهادة لومن بواسطة رقمها التعريفي.",
+  "verifyCert.checking": "جارٍ التحقق…",
+  "verifyCert.notFound": "لا توجد شهادة بهذا الرقم.",
+  "verifyCert.goHome": "العودة للرئيسية",
+  "verifyCert.issuedTo": "مُنحت الشهادة لـ",
+  "verifyCert.forCompleting": "لإتمامه",
+  "verifyCert.issuedOn": "أُصدرت في {date}",
+
   // Profile — نقشك
   "profile.cartouche": "نقشك الشخصي",
   "profile.badge.verified": "موثَّق",

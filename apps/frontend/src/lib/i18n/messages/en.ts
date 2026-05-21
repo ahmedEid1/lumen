@@ -95,6 +95,37 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Verify email + confirm email change + cert verification
+  "verifyEmail.cartouche": "Mark of the watcher",
+  "verifyEmail.title": "Verify your email",
+  "verifyEmail.checking": "Confirming…",
+  "verifyEmail.success": "Your email is verified.",
+  "verifyEmail.error.missingToken": "Missing token in the link.",
+  "verifyEmail.error.generic": "Could not verify the link.",
+  "verifyEmail.continue": "Continue to dashboard",
+  "verifyEmail.goSignIn": "Go to sign in",
+
+  "confirmEmail.cartouche": "Seal the new address",
+  "confirmEmail.title": "Confirm email change",
+  "confirmEmail.success": "Your email is now {email}. Use that address next time you sign in.",
+  "confirmEmail.successToast": "Email updated. Sign in with the new address.",
+  "confirmEmail.invalid": "This confirmation link is invalid or has expired.",
+  "confirmEmail.stale": "This link is stale — you rotated your password after requesting the change.",
+  "confirmEmail.taken": "That email is now in use by another account.",
+  "confirmEmail.generic": "Could not confirm",
+  "confirmEmail.missingToken": "Missing token",
+  "confirmEmail.backToProfile": "Back to profile",
+
+  "verifyCert.cartouche": "Hall of records",
+  "verifyCert.title": "Certificate verification",
+  "verifyCert.subtitle": "Look up a Lumen certificate by its ID.",
+  "verifyCert.checking": "Checking…",
+  "verifyCert.notFound": "No certificate with that ID.",
+  "verifyCert.goHome": "Go home",
+  "verifyCert.issuedTo": "Certificate issued to",
+  "verifyCert.forCompleting": "for completing",
+  "verifyCert.issuedOn": "Issued {date}",
+
   // Profile — your inscription
   "profile.cartouche": "Your inscription",
   "profile.badge.verified": "verified",
