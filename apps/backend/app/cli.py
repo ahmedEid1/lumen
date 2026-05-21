@@ -29,6 +29,20 @@ cli = typer.Typer(no_args_is_help=True)
 console = Console()
 
 
+async def _get_or_create(db, model, *, lookup: dict, defaults: dict):
+    """Idempotent upsert by single-column lookup. Used by `seed` so a
+    re-run reuses existing rows. Defaults are only constructed when a
+    new row is needed; pass a precomputed dict for callers that don't
+    care about lazy construction."""
+    res = await db.execute(select(model).filter_by(**lookup))
+    obj = res.scalar_one_or_none()
+    if obj is None:
+        obj = model(**lookup, **defaults)
+        db.add(obj)
+        await db.flush()
+    return obj
+
+
 @cli.command()
 def bootstrap_admin(email: str = "admin@lumen.test", password: str = "Admin!2026", full_name: str = "Admin") -> None:
     """Create or upsert an admin user."""
@@ -44,13 +58,12 @@ async def _bootstrap_admin(email: str, password: str, full_name: str) -> None:
             user.role = Role.admin
             user.is_active = True
             user.full_name = full_name
-            await db.commit()
-            console.print(f"[green]Updated existing user {email} → admin[/green]")
-            return
-        u = User(email=email, password_hash=hash_password(password), full_name=full_name, role=Role.admin)
-        db.add(u)
+            msg = f"Updated existing user {email} → admin"
+        else:
+            db.add(User(email=email, password_hash=hash_password(password), full_name=full_name, role=Role.admin))
+            msg = f"Created admin {email}"
         await db.commit()
-        console.print(f"[green]Created admin {email}[/green]")
+        console.print(f"[green]{msg}[/green]")
 
 
 @cli.command()
@@ -62,42 +75,29 @@ def seed() -> None:
 async def _seed() -> None:
     Session = get_sessionmaker()
     async with Session() as db:
-        # Subjects
-        subjects = {}
-        for title, slug in [
-            ("Programming", "programming"),
-            ("Data Science", "data-science"),
-            ("Design", "design"),
-            ("Business", "business"),
-            ("Mathematics", "mathematics"),
-        ]:
-            res = await db.execute(select(Subject).where(Subject.slug == slug))
-            s = res.scalar_one_or_none()
-            if not s:
-                s = Subject(title=title, slug=slug)
-                db.add(s)
-                await db.flush()
-            subjects[slug] = s
-
-        # Tags
-        tags = {}
-        for name, slug in [
-            ("Beginner", "beginner"),
-            ("Python", "python"),
-            ("FastAPI", "fastapi"),
-            ("React", "react"),
-            ("TypeScript", "typescript"),
-            ("Machine Learning", "machine-learning"),
-            ("Algorithms", "algorithms"),
-            ("UX", "ux"),
-        ]:
-            res = await db.execute(select(Tag).where(Tag.slug == slug))
-            t = res.scalar_one_or_none()
-            if not t:
-                t = Tag(name=name, slug=slug)
-                db.add(t)
-                await db.flush()
-            tags[slug] = t
+        subjects = {
+            slug: await _get_or_create(db, Subject, lookup={"slug": slug}, defaults={"title": title})
+            for title, slug in [
+                ("Programming", "programming"),
+                ("Data Science", "data-science"),
+                ("Design", "design"),
+                ("Business", "business"),
+                ("Mathematics", "mathematics"),
+            ]
+        }
+        tags = {
+            slug: await _get_or_create(db, Tag, lookup={"slug": slug}, defaults={"name": name})
+            for name, slug in [
+                ("Beginner", "beginner"),
+                ("Python", "python"),
+                ("FastAPI", "fastapi"),
+                ("React", "react"),
+                ("TypeScript", "typescript"),
+                ("Machine Learning", "machine-learning"),
+                ("Algorithms", "algorithms"),
+                ("UX", "ux"),
+            ]
+        }
 
         # Users
         users = {

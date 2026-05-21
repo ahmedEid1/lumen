@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 41) — seed CLI DRY via simplifier
+Twenty-fourth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/cli.py`. Applied 2 of its 5 recommendations:
+
+- **`_get_or_create(db, model, *, lookup, defaults)` helper** for
+  the idempotent SELECT-then-INSERT pattern repeated in
+  `_seed`. Subjects + Tags loops collapse from 14 lines each to
+  one dict-comprehension call site. Kept the User loop as-is
+  because eagerly constructing the defaults would hash the
+  password even on the re-run / user-exists path (argon2 is
+  ~100 ms — preserve the lazy form for re-runs).
+- **`_bootstrap_admin`: unified commit + print path**. The
+  existing-user and new-user branches both end at the same
+  `await db.commit()` + console print; only the message differs.
+  Same DB ops, same idempotency.
+
+Skipped: the giant lesson-list extraction (`_build_course_content`
+helper) — it's a one-shot data literal, splitting it doesn't pay
+off. Also skipped: dropping `# Subjects` / `# Tags` section
+comments (they're navigation aids in a 200-line CLI, not
+restating code).
+
+Backend pytest 321/321. `python -m app.cli seed` runs clean
+end-to-end.
+
 ### Changed (simplify iter 40) — discussions repo tidy via simplifier
 Twenty-third dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/repositories/discussions.py`. Applied 3 of its
