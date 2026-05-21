@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Bookmark, BookmarkCheck, Layers, Star, Users, Award } from "lucide-react";
+import { Bookmark, BookmarkCheck, Layers, MessageSquare, Star, Users, Award } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -112,6 +112,16 @@ export function CourseDetailView({ slug }: { slug: string }) {
                 <div className="text-muted-foreground">Instructor</div>
               </div>
             </div>
+          </div>
+
+          <div>
+            <Link
+              href={`/courses/${course.slug}/discussions`}
+              className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Discussion forum
+            </Link>
           </div>
 
           <Card>

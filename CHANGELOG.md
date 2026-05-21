@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 78)
+- **Discussions UI: list + thread detail pages, link from course
+  detail.** `/courses/[slug]/discussions` lists threads (avatar,
+  title, author, last-activity relative, reply count chip) with
+  an inline "Start a thread" form for signed-in viewers.
+  `/courses/[slug]/discussions/[id]` shows the thread body + flat
+  replies with avatars, plus a reply composer at the bottom. Trash
+  icon appears for the author or admin on both threads and replies
+  (the course-owner moderation path is server-enforced; UI just
+  shows the affordance when the viewer is the author/admin to keep
+  the surface predictable). Link to the discussion forum added to
+  the course-detail sidebar.
+
 ### Added (iteration 77)
 - **Course discussion threads (forum-style Q&A).** Real LMS gap:
   chat scrolls and isn't threadable; reviews are 1-rating-per-learner.
