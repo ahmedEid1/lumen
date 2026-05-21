@@ -142,15 +142,28 @@ async def password_reset_request(
         # In production this kicks off a Celery email task. In dev, log the link so it's visible
         # in the API container logs and in Mailpit once the worker is wired.
         try:
+            from app.services.email_template import render_branded_html
             from app.workers.tasks.email import send
 
             # web_base_url, not api_base_url — the reset page is a Next.js
             # route, the FastAPI host has no /reset-password handler.
             link = f"{str(get_settings().web_base_url).rstrip('/')}/reset-password?token={token}"
+            text = f"Click the link to reset your password (valid 30 min):\n\n{link}\n"
+            html = render_branded_html(
+                heading="Reset your password",
+                body_paragraphs=[
+                    "We received a request to reset your Lumen password. "
+                    "Click the button below to choose a new one. The link is "
+                    "valid for 30 minutes.",
+                ],
+                cta_url=link,
+                cta_label="Reset password",
+            )
             send.delay(
                 to=user.email,
                 subject="Reset your Lumen password",
-                text=f"Click the link to reset your password (valid 30 min):\n\n{link}\n",
+                text=text,
+                html=html,
             )
         except Exception:  # noqa: BLE001  - dev path without broker shouldn't 500 the API
             from app.core.logging import get_logger

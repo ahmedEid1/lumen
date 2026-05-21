@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 83)
+- **Branded HTML emails alongside plain text.** Every transactional
+  email (password reset, verify, email-change confirm) now goes out
+  as multipart — plain text *and* a self-contained HTML alternative
+  with inlined CSS so it renders consistently across Gmail / Outlook
+  / Apple Mail. Table-based CTA button (the only thing every email
+  client respects), with a "or paste this link" plaintext fallback
+  for screen readers and clients that strip buttons. No template
+  engine — Python f-strings against a tiny shape via
+  `app/services/email_template.py`. Heading and paragraphs are
+  HTML-escaped so a malicious display name can't inject script.
+  Covered by `tests/test_email_html.py` (4 tests).
+
 ### Added (iteration 82)
 - **WebVTT captions for video lessons.** Accessibility gap — every
   video lesson should be captionable. `VideoLessonData` gains

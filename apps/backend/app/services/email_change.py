@@ -122,19 +122,32 @@ def queue_confirmation_email(*, user: User, new_email: str, token: str) -> str |
     """Best-effort: send the confirmation link to the *new* mailbox."""
     s = get_settings()
     link = f"{str(s.web_base_url).rstrip('/')}/confirm-email-change?token={token}"
+    text = (
+        f"Hi,\n\n"
+        f"You requested to change your Lumen email to this address. "
+        f"Confirm within the next hour:\n\n{link}\n\n"
+        f"If you didn't request this, ignore the message — nothing changes "
+        f"until you click the link.\n"
+    )
     try:
+        from app.services.email_template import render_branded_html
         from app.workers.tasks.email import send
 
+        html = render_branded_html(
+            heading="Confirm your new email",
+            body_paragraphs=[
+                "You requested to change your Lumen email to this address. "
+                "Click the button below to confirm. The link is valid for "
+                "one hour.",
+            ],
+            cta_url=link,
+            cta_label="Confirm email change",
+        )
         send.delay(
             to=new_email,
             subject="Confirm your new Lumen email",
-            text=(
-                f"Hi,\n\n"
-                f"You requested to change your Lumen email to this address. "
-                f"Confirm within the next hour:\n\n{link}\n\n"
-                f"If you didn't request this, ignore the message — nothing changes "
-                f"until you click the link.\n"
-            ),
+            text=text,
+            html=html,
         )
     except Exception:  # noqa: BLE001 — dev w/o broker
         log.info("email_change_email_skipped", new_email=new_email, token=token)
