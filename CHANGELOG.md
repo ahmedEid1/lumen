@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 34)
+- `LessonOut.completed` (per-viewer) on the course-detail endpoint. The
+  syllabus on the course page and the lesson outline in `/learn` now show
+  a green check next to each lesson the learner has finished, plus a
+  strikethrough title style. Anonymous and non-enrolled viewers always
+  see `completed: false`. Backed by `repositories.courses.completed_lesson_ids`
+  which excludes soft-deleted lessons so the marks line up with what's
+  actually in the syllabus. Three regression tests in
+  `test_lesson_completion_flag.py` cover the per-viewer flag flip,
+  per-viewer isolation, and the anon / non-enrolled fallback.
+
 ### Fixed (iteration 33)
 - **Certificate PDF's verify URL now points at the real public page.**
   The rendered PDF embedded `verify at /certificates/<id>` — a route

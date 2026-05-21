@@ -105,8 +105,21 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
                           selectedId === lesson.id ? "bg-muted" : ""
                         }`}
                       >
-                        <Circle className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="truncate">{lesson.title}</span>
+                        {lesson.completed ? (
+                          <CheckCircle2
+                            className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400"
+                            aria-label="Completed"
+                          />
+                        ) : (
+                          <Circle className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                        )}
+                        <span
+                          className={`truncate ${
+                            lesson.completed ? "text-muted-foreground" : ""
+                          }`}
+                        >
+                          {lesson.title}
+                        </span>
                       </button>
                     </li>
                   ))}

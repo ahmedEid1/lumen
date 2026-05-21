@@ -36,6 +36,13 @@ def list_item(course: Course, stats: dict[str, Any] | None = None) -> CourseList
     )
 
 
+def _lesson_out(lesson: Any, completed_ids: set[str]) -> LessonOut:
+    base = LessonOut.model_validate(lesson)
+    if lesson.id in completed_ids:
+        base = base.model_copy(update={"completed": True})
+    return base
+
+
 def detail(
     course: Course,
     modules: list[Module],
@@ -44,8 +51,10 @@ def detail(
     is_enrolled: bool = False,
     is_bookmarked: bool = False,
     progress_pct: float = 0.0,
+    completed_lesson_ids: set[str] | None = None,
 ) -> CourseDetail:
     base = list_item(course, stats)
+    done = completed_lesson_ids or set()
     return CourseDetail(
         **base.model_dump(),
         modules=[
@@ -55,7 +64,7 @@ def detail(
                 description=m.description,
                 order=m.order,
                 lessons=[
-                    LessonOut.model_validate(lesson)
+                    _lesson_out(lesson, done)
                     for lesson in m.lessons
                     if getattr(lesson, "deleted_at", None) is None
                 ],

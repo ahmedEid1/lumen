@@ -61,6 +61,8 @@ export interface LessonOut {
   order: number;
   duration_seconds: number | null;
   is_preview: boolean;
+  /** Populated by the course-detail endpoint when the viewer is enrolled. */
+  completed?: boolean;
   data: Record<string, unknown>;
 }
 

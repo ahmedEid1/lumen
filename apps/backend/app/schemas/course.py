@@ -120,6 +120,9 @@ class LessonOut(BaseModel):
     type: LessonType
     order: int
     is_preview: bool = False
+    # Populated by the course-detail builder when the viewer is enrolled.
+    # Other endpoints leave it at False — they don't have a learner context.
+    completed: bool = False
     duration_seconds: int | None = None
     data: dict[str, Any]
 

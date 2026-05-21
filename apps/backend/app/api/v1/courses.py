@@ -66,11 +66,13 @@ async def get_course(key: str, viewer: OptionalUser, db: DBSession) -> CourseDet
     is_enrolled = False
     is_bookmarked = False
     pct = 0.0
+    done: set[str] = set()
     if viewer:
         enrollment = await courses_repo.get_enrollment(db, user_id=viewer.id, course_id=course.id)
         if enrollment:
             is_enrolled = True
             pct = await enrollment_service.progress_pct(db, enrollment=enrollment)
+            done = await courses_repo.completed_lesson_ids(db, enrollment.id)
         is_bookmarked = (
             await db.execute(
                 select(Bookmark.id).where(
@@ -85,6 +87,7 @@ async def get_course(key: str, viewer: OptionalUser, db: DBSession) -> CourseDet
         is_enrolled=is_enrolled,
         is_bookmarked=is_bookmarked,
         progress_pct=pct,
+        completed_lesson_ids=done,
     )
 
 

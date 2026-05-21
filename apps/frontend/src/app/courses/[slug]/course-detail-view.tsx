@@ -143,7 +143,20 @@ export function CourseDetailView({ slug }: { slug: string }) {
                             <span className="flex items-center gap-2">
                               <Badge variant="muted">{lesson.type}</Badge>
                               {lesson.is_preview && <Badge variant="secondary">free preview</Badge>}
-                              <span>{lesson.title}</span>
+                              <span
+                                className={lesson.completed ? "text-muted-foreground line-through" : ""}
+                              >
+                                {lesson.title}
+                              </span>
+                              {lesson.completed && (
+                                <span
+                                  aria-label="completed"
+                                  title="Completed"
+                                  className="text-emerald-600 dark:text-emerald-400"
+                                >
+                                  ✓
+                                </span>
+                              )}
                             </span>
                             <span className="flex items-center gap-3">
                               {lesson.is_preview && course.status === "published" && (

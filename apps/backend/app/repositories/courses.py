@@ -266,6 +266,24 @@ async def count_lessons_in_course(db: AsyncSession, course_id: str) -> int:
     return int(res.scalar_one())
 
 
+async def completed_lesson_ids(db: AsyncSession, enrollment_id: str) -> set[str]:
+    """Set of lesson ids the learner has completed in an enrollment.
+
+    Filters out completions for soft-deleted lessons so the syllabus
+    check-marks line up with what's actually still in the course.
+    """
+    res = await db.execute(
+        select(LessonProgress.lesson_id)
+        .join(Lesson, Lesson.id == LessonProgress.lesson_id)
+        .where(
+            LessonProgress.enrollment_id == enrollment_id,
+            LessonProgress.completed_at.is_not(None),
+            Lesson.deleted_at.is_(None),
+        )
+    )
+    return {row[0] for row in res.all()}
+
+
 async def count_completed_lessons(db: AsyncSession, enrollment_id: str) -> int:
     """Count completions for lessons that still exist.
 
