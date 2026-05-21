@@ -21,6 +21,7 @@ from app.core.security import (
 from app.models.user import RefreshToken, Role, User
 from app.repositories import audit as audit_repo
 from app.repositories import users as users_repo
+from app.services import password_hibp
 
 if TYPE_CHECKING:
     from app.schemas.auth import LoginRequest, RegisterRequest
@@ -45,6 +46,9 @@ async def register(
     existing = await users_repo.get_by_email(db, str(payload.email))
     if existing:
         raise ConflictError("Email is already registered", code="auth.email_taken")
+    # Reject passwords known to be breached *before* persisting the
+    # account — the user can pick a fresh value without dirtying state.
+    await password_hibp.assert_not_pwned(payload.password)
     user = await users_repo.create(
         db,
         email=str(payload.email),

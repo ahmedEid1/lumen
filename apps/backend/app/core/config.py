@@ -101,6 +101,17 @@ class Settings(BaseSettings):
     rate_limit_auth_per_minute: int = 10
     rate_limit_user_per_minute: int = 240
 
+    # ---------- HIBP (breach-list lookup) ----------
+    # Opt-in because (a) it adds a ~200ms external call to register/reset
+    # and (b) some deployments don't want any third-party callout. When
+    # enabled, the password is k-anonymized (first 5 chars of its SHA-1
+    # sent over the wire — never the full hash, never the password) and
+    # rejected if HIBP reports any breaches. Network failures fail open
+    # so an upstream outage can't lock users out.
+    hibp_enabled: bool = False
+    hibp_api_base: str = "https://api.pwnedpasswords.com"
+    hibp_timeout_seconds: float = 2.0
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_cors_origins(cls, v: object) -> object:

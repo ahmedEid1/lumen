@@ -76,6 +76,12 @@ async def change_password(
         raise UnauthorizedError("Current password is incorrect", code="auth.invalid_credentials")
     if payload.new_password == payload.current_password:
         raise ValidationAppError("New password must differ", code="auth.password_reused")
+    # Same HIBP gate the register / reset flows run, so all three
+    # password-setting paths share one policy (iter 39) AND one
+    # breach-list lookup (iter 52).
+    from app.services import password_hibp
+
+    await password_hibp.assert_not_pwned(payload.new_password)
     user.password_hash = hash_password(payload.new_password)
     await users_repo.revoke_all_refresh_tokens(db, user.id)
     await audit_repo.record(

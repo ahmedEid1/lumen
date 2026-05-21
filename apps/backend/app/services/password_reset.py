@@ -62,6 +62,11 @@ async def confirm_reset(db: AsyncSession, *, token: str, new_password: str) -> U
         # Token was issued against a different password hash → already consumed or rotated.
         raise UnauthorizedError("Reset link already used", code="auth.reset_used")
 
+    # Run the same HIBP gate as register/change-password so a reset
+    # can't be used to downgrade into a known-breached password.
+    from app.services import password_hibp
+
+    await password_hibp.assert_not_pwned(new_password)
     user.password_hash = hash_password(new_password)
     user.failed_login_attempts = 0
     user.locked_until = None

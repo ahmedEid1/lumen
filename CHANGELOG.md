@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 52)
+- **Optional HIBP breach-list check on every password-set path.**
+  Iter 39's docstring flagged "HIBP / breach-list lookup is future
+  work" — now wired via k-anonymity (only the first 5 chars of the
+  password's SHA-1 leave the process; the full hash and the password
+  itself never do). Applied to register, password-reset confirm, and
+  change-password — all three share the new `assert_not_pwned` helper
+  so the policy is enforced uniformly. Gated behind `HIBP_ENABLED`
+  (off by default) to avoid surprising third-party callouts in dev /
+  CI / air-gapped deployments. Fails *open* on timeout or 5xx — a
+  HIBP outage cannot lock users out of registration. Pads / count=0
+  padding rows are explicitly ignored to prevent false-positive
+  "breached" verdicts. Covered by `tests/test_password_hibp.py` (12
+  tests: k-anonymity contract verification, padding-row handling,
+  fail-open on timeout + 5xx, plus end-to-end rejection through all
+  three endpoints and the happy-path-when-disabled regression).
+
 ### Security (iteration 51)
 - **Defense-in-depth security headers on every API response.** Added
   `SecurityHeadersMiddleware` setting `X-Content-Type-Options: nosniff`,
