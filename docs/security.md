@@ -38,6 +38,22 @@
   invalidates outstanding tokens; replays are idempotent.
 - Optional 2FA (TOTP) post-MVP — schema already supports it.
 
+### Rate limiting
+- `slowapi` is mounted as middleware with a Redis-backed bucket (memory in
+  tests). Per-IP limits today:
+
+  | Endpoint | Limit |
+  |----------|-------|
+  | `POST /api/v1/auth/login` | 10 / minute |
+  | `POST /api/v1/auth/register` | 5 / minute |
+  | `POST /api/v1/auth/password-reset/request` | 3 / minute |
+  | `POST /api/v1/auth/verify/request` | 3 / minute |
+
+- Over-limit responses use the standard error envelope with
+  `code: "rate_limited"` and carry a `Retry-After: 60` header.
+- Reverse proxy `X-Forwarded-For` is trusted for the key; operators behind
+  a load balancer that doesn't set XFF should adjust the proxy config.
+
 ### Data
 - PII columns marked in models; logging filter redacts emails by default.
 - GDPR endpoints: `GET /api/v1/users/me/export` and `DELETE /api/v1/users/me`

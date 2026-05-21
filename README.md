@@ -120,21 +120,42 @@ Start with **[docs/product-requirements.md](docs/product-requirements.md)** for 
 
 ## Features at a glance
 
-- **Catalog** — searchable courses with subject filters, tags, difficulty, ratings
-- **Authoring** — instructors create courses with modules and lessons (text, video, image, file, quiz)
+### Learners
+- **Catalog** — searchable courses with subject, tag, and difficulty filters; clickable taxonomy chips
+- **Enrollment & progress** — granular per-lesson completion, course-level %, prev/next navigation
+- **Quizzes** — multi-choice and short-answer, **server-graded** with persisted scores
+- **Bookmarks** — favourite courses; surfaced on the learner dashboard
+- **Reviews & ratings** — write/update/delete a 1–5 star review inline; one per enrolled course
+- **Free preview lessons** — instructors can mark lessons as free; visible without enrolment
+- **Real-time chat** — per-course room with persistence, presence, **auto-reconnect with backoff**
+- **Notifications** — in-app bell with unread badge, email on enrol / certificate / review received
+- **Certificates** — auto-issued PDF on 100% completion plus a **public verification page** (no PII)
+
+### Instructors
+- **Studio** — courses filtered by status (All / Drafts / Published / Archived)
 - **Drag & drop ordering** — modules and lessons reorder live via dnd-kit
-- **Enrollment & progress** — granular per-lesson completion, course-level %
-- **Quizzes** — multiple-choice and short-answer with auto-grading
-- **Reviews & ratings** — students rate enrolled courses
-- **Real-time chat** — per-course room with persistence, typing & presence
-- **Notifications** — in-app + email (Mailpit in dev, SES/SMTP in prod)
-- **Certificates** — auto-issued PDF on 100% completion
-- **Search** — Meilisearch-powered full-text across catalog
-- **Accessibility** — WCAG 2.2 AA, keyboard nav, prefers-reduced-motion
-- **i18n** — first-class EN, scaffolded for AR/ES
+- **Authoring** — text / video / image / file / quiz lessons with type-specific editors
+- **Course duplication** — fork any course into a personal draft
+- **Per-course analytics** — enrolments, completion rate, avg rating, new-7d / new-30d
+- **Cohort view** — see every enrolled student's progress %, status, and certificate id
+- **Preview as student** — one-click preview of a draft using the public course detail page
+
+### Admins
+- **Subjects, tags, users, courses, audit log** — full CRUD where it makes sense
+- **Featured courses** — toggle the featured flag with an audit trail
+- **Platform stats** — at-a-glance totals (users, instructors, courses by status, enrolments)
+- **Manual search reindex** — queue a full Meilisearch reindex
+
+### Cross-cutting
+- **Account control** — email verification, password change/reset, active-sessions UI with per-row revoke
+- **Search** — Meilisearch when configured, automatic Postgres ILIKE fallback if it's down
+- **Rate limiting** — slowapi-backed per-IP limits on login / register / password-reset / verify
+- **Audit log** — append-only record of admin actions
+- **GDPR** — account export & delete (scrambles PII, revokes refresh tokens)
+- **Accessibility** — skip-to-content link, aria-current on nav, keyboard nav, prefers-reduced-motion
 - **Dark mode** — system / light / dark
-- **Audit log** — append-only record of authoritative actions
-- **GDPR** — account export & delete
+- **i18n-ready** — first-class EN; the data model accommodates more languages
+- **Production hardening** — refuses to boot with default secrets or localhost CORS
 
 ## License
 

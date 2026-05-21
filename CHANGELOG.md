@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (iteration 16)
+- README "Features at a glance" rewritten as Learner / Instructor / Admin /
+  Cross-cutting sections that match what actually shipped (bookmarks,
+  server-graded quizzes, cohort view, sessions UI, cert verification,
+  rate limiting, prod-secret guard, studio status tabs, …).
+- `docs/security.md` gains a "Rate limiting" section with the per-endpoint
+  thresholds and a note on `X-Forwarded-For` trust.
+
+### Added (iteration 16)
+- Frontend test for `LessonEditor`: existing-lesson seeding, patch round-
+  trip (incl. `is_preview` toggle), create round-trip for a new lesson,
+  delete invokes `deleteLesson` + `onDeleted`, quiz "Add question" path,
+  Save disabled until a title is entered.
+
 ### Fixed (iteration 15)
 - **Rate limiting was configured but never wired**. The `slowapi` limiter
   is now mounted on the FastAPI app via `SlowAPIMiddleware`, and the
