@@ -40,6 +40,22 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
       toast.success("Status updated");
       qc.invalidateQueries({ queryKey: qk.course(id) });
     },
+    onError: (e: any) => {
+      // Server can refuse the transition for a few reasons (missing
+      // fields, invalid transition, no lessons). Without this toast the
+      // instructor would see no feedback at all and assume the click
+      // didn't register.
+      const code = e?.code as string | undefined;
+      if (code === "course.no_lessons") {
+        toast.error("Add at least one lesson before publishing.");
+      } else if (code === "course.missing_fields") {
+        toast.error("A title and overview are required to publish.");
+      } else if (code === "course.invalid_transition") {
+        toast.error("That status change isn't allowed from the current state.");
+      } else {
+        toast.error(e?.message ?? "Could not update status");
+      }
+    },
   });
 
   const duplicate = useMutation({

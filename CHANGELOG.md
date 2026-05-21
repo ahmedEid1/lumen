@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 48)
+- **Studio publish button surfaces server errors.** The publish
+  mutation in `/studio/[id]` had only an `onSuccess` handler; the
+  TanStack mutation silently swallowed any rejection. So the iter
+  43 `course.no_lessons` guard (and the older `course.missing_fields`
+  / `course.invalid_transition` cases) produced *no* feedback — the
+  instructor clicked Publish on an empty course and saw exactly
+  nothing, with no way to tell the click had even registered. Added
+  a typed `onError` that maps the three known rejection codes to
+  helpful messages and falls back to the server's message otherwise.
+
 ### Security (iteration 47)
 - **Bookmark endpoint respects course visibility.** `add_bookmark`
   loaded the course via `courses_repo.get_course` (filters only
