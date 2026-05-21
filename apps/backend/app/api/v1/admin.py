@@ -65,6 +65,32 @@ async def delete_subject(subject_id: str, _: RequireAdmin, db: DBSession) -> OkR
     s = await db.get(Subject, subject_id)
     if not s:
         raise NotFoundError("Subject not found", code="subject.not_found")
+    # Course.subject_id is FK ondelete=RESTRICT — the DB refuses the DELETE
+    # if any course row (live OR soft-deleted) still references the subject.
+    # Count all rows and refuse with a clear 409 the admin can act on,
+    # rather than letting it bubble up as an IntegrityError → 500.
+    total = int(
+        (
+            await db.execute(
+                select(func.count(Course.id)).where(Course.subject_id == s.id)
+            )
+        ).scalar_one()
+    )
+    if total > 0:
+        live = int(
+            (
+                await db.execute(
+                    select(func.count(Course.id)).where(
+                        Course.subject_id == s.id, Course.deleted_at.is_(None)
+                    )
+                )
+            ).scalar_one()
+        )
+        raise ConflictError(
+            "Subject still has courses attached",
+            code="subject.in_use",
+            details={"courses": live, "courses_including_deleted": total},
+        )
     await db.delete(s)
     return OkResponse()
 

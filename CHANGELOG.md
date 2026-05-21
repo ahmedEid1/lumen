@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 28)
+- **Admin subject deletion no longer 500s when courses are attached.**
+  `DELETE /api/v1/admin/subjects/{id}` issued an unconditional DELETE
+  and let `Course.subject_id FK ondelete=RESTRICT` crash into the
+  unhandled-exception path. The endpoint now pre-counts referencing
+  courses (live + soft-deleted, because the FK ignores `deleted_at`)
+  and refuses with a clean 409 `subject.in_use` carrying both counts
+  in `details`. Four regression tests in `test_admin_subject_delete.py`
+  cover the live-course block, the soft-deleted-course block, the
+  no-courses success path, and unknown-id 404.
+
 ### Fixed (iteration 27)
 - **Progress writes against a soft-deleted lesson now 404 cleanly.**
   `POST /me/progress/lessons/{id}` and the quiz submission both routed
