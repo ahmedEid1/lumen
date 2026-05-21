@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
@@ -57,7 +57,13 @@ async def my_courses(user: RequireInstructor, db: DBSession) -> list[CourseListI
 
 
 @router.get("/{key}", response_model=CourseDetail)
-async def get_course(key: str, viewer: OptionalUser, db: DBSession) -> CourseDetail:
+async def get_course(
+    key: str,
+    viewer: OptionalUser,
+    db: DBSession,
+    request: Request,
+    response: Response,
+) -> CourseDetail:
     course = await courses_service.slug_or_id(db, key, with_modules=True)
     if not await courses_service.can_view_course(db, course, viewer):
         raise NotFoundError("Course not found", code="course.not_found")
@@ -80,6 +86,39 @@ async def get_course(key: str, viewer: OptionalUser, db: DBSession) -> CourseDet
                 )
             )
         ).first() is not None
+
+    # Weak ETag covering everything that goes into the response body:
+    # the course row's update timestamp + the viewer-derived flags.
+    # Re-render-on-mismatch is short (in microseconds), and the
+    # If-None-Match shortcut saves a few KB of JSON per repeat hit —
+    # huge cumulative win for clients (mobile, returning learner)
+    # that poll the detail page.
+    import hashlib
+
+    fingerprint = "|".join(
+        [
+            course.id,
+            course.updated_at.isoformat() if course.updated_at else "",
+            "1" if is_enrolled else "0",
+            "1" if is_bookmarked else "0",
+            f"{pct:.1f}",
+            str(len(done)),
+            str(stats.get("modules_count", 0)),
+            str(stats.get("enrollments_count", 0)),
+            f"{stats.get('avg_rating') or 0:.2f}",
+        ]
+    )
+    etag = 'W/"' + hashlib.sha256(fingerprint.encode()).hexdigest()[:32] + '"'
+    if_none_match = request.headers.get("if-none-match", "")
+    if if_none_match == etag:
+        # Returning a Response with no body from a typed endpoint
+        # requires raising — FastAPI would otherwise serialise None
+        # against response_model. Status 304 also forbids a body.
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=304, headers={"ETag": etag})
+    response.headers["ETag"] = etag
+
     return _builders.detail(
         course,
         list(course.modules),

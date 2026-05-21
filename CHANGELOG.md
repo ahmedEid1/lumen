@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance (iteration 76)
+- **ETag / If-None-Match on course detail.** The detail endpoint is
+  the highest-traffic personalised-but-cacheable read in the API
+  (every catalog click, every return to `/learn`). Weak ETag derived
+  from `(course_id, updated_at, viewer flags, stats counters)` —
+  covers every field that goes into the response, so any
+  consequential server-side change (publish, new enrollment, rating
+  shift, viewer enrolling, marking a lesson complete) invalidates
+  it automatically. Matching `If-None-Match` returns 304 with the
+  same ETag and no body; a returning learner / mobile client saves
+  the per-detail JSON payload (~ tens of KB once modules + lessons
+  are dense). Covered by `tests/test_course_detail_etag.py` (5
+  tests: ETag present, 304 on match, ETag changes on rename,
+  per-viewer ETag differs (no anon→authed cross-leak), stale
+  If-None-Match returns full body).
+
 ### Added (iteration 74)
 - **Quiz player shows attempt history.** Surfaces iter 73's
   `/me/progress/lessons/{id}/quiz/attempts` endpoint as a "Past
