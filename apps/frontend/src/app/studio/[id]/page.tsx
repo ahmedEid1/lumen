@@ -19,7 +19,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Courses } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import type { ModuleOut } from "@/lib/api/types";

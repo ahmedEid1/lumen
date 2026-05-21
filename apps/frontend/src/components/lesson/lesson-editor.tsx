@@ -9,7 +9,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { api } from "@/lib/api/client";
 import { Courses } from "@/lib/api/endpoints";
 import type { LessonOut, LessonType } from "@/lib/api/types";
 

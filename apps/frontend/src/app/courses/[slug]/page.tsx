@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Catalog, Courses, Me, Reviews } from "@/lib/api/endpoints";
+import { Courses, Me, Reviews } from "@/lib/api/endpoints";
 import type { CourseDetail } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/store";
 import { qk } from "@/lib/query/keys";
