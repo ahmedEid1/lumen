@@ -21,6 +21,7 @@ from app.schemas.auth import PASSWORD_MIN, validate_password_strength
 from app.schemas.common import OkResponse
 from app.schemas.user import UserOut, UserUpdate
 from app.services import email_change as email_change_service
+from app.services import password_hibp
 
 router = APIRouter()
 
@@ -79,10 +80,7 @@ async def change_password(
     if payload.new_password == payload.current_password:
         raise ValidationAppError("New password must differ", code="auth.password_reused")
     # Same HIBP gate the register / reset flows run, so all three
-    # password-setting paths share one policy AND one
-    # breach-list lookup.
-    from app.services import password_hibp
-
+    # password-setting paths share one policy AND one breach-list lookup.
     await password_hibp.assert_not_pwned(payload.new_password)
     user.password_hash = hash_password(payload.new_password)
     await users_repo.revoke_all_refresh_tokens(db, user.id)
@@ -104,17 +102,12 @@ async def export_my_data(user: CurrentUser, db: DBSession) -> dict:
     zip including chat history, reviews, and enrollment data. For v1 we expose
     the profile inline.
     """
-    enrollments = int(
-        (await db.execute(select(func.count(Enrollment.id)).where(Enrollment.user_id == user.id))).scalar_one()
-    )
-    reviews = int(
-        (await db.execute(select(func.count(Review.id)).where(Review.author_id == user.id))).scalar_one()
-    )
-    messages = int(
-        (
-            await db.execute(select(func.count(ChatMessage.id)).where(ChatMessage.author_id == user.id))
-        ).scalar_one()
-    )
+    async def _count(stmt) -> int:
+        return int((await db.execute(stmt)).scalar_one())
+
+    enrollments = await _count(select(func.count(Enrollment.id)).where(Enrollment.user_id == user.id))
+    reviews = await _count(select(func.count(Review.id)).where(Review.author_id == user.id))
+    messages = await _count(select(func.count(ChatMessage.id)).where(ChatMessage.author_id == user.id))
     return {
         "profile": UserOut.model_validate(user).model_dump(mode="json"),
         "counts": {

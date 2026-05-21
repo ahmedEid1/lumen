@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 36) — users router DRY via simplifier
+Twentieth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/api/v1/users.py`. Applied 2 of its 5
+recommendations:
+
+- **Hoisted `from app.services import password_hibp`** out of
+  `change_password` (was inside the function body) to the
+  module-level import block. The deferral was historical, not a
+  cycle-break — `auth.py` already imports it at module scope.
+- **`_count(stmt)` local helper** in `export_my_data` for the
+  three `int((await db.execute(...)).scalar_one())` calls
+  (enrollments / reviews / chat messages). Drops the
+  inconsistent extra parens on the `messages` line as a side
+  effect.
+
+Skipped: the `update_me` field-copy → `setattr` loop (would
+require verifying `UserUpdate` null-vs-omit semantics), the
+`revoke_my_session` guard removal (would need to verify
+`revoke_refresh_token` idempotency wrt timestamp), and the
+docstring trim (low value, not restating-the-code).
+
+User tests 5/5, backend pytest 321/321.
+
 ### Changed (simplify iter 35) — app/main.py: hoist deferred imports
 Nineteenth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/main.py` (301 → 296 lines). Applied all 5
