@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageUpload } from "@/components/shared/image-upload";
+import { SessionsCard } from "@/components/shared/sessions-card";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 
@@ -196,6 +197,8 @@ export default function ProfilePage() {
           </form>
         </CardContent>
       </Card>
+
+      <SessionsCard />
 
       <Card>
         <CardHeader>

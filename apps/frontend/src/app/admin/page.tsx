@@ -19,6 +19,7 @@ export default function AdminHome() {
   const tiles = [
     { href: "/admin/subjects", title: "Subjects", body: "Manage the taxonomy of the catalog." },
     { href: "/admin/tags", title: "Tags", body: "Curate the public tag list." },
+    { href: "/admin/courses", title: "Courses", body: "Oversee the catalog, set featured." },
     { href: "/admin/users", title: "Users", body: "Promote instructors, manage activity." },
     { href: "/admin/audit", title: "Audit log", body: "Track sensitive admin actions." },
   ];

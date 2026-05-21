@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 9)
+- Active-sessions panel on `/profile` — lists each refresh-token session
+  with user-agent + IP + age, per-row revoke, and a "Sign out everywhere"
+  button.
+- Admin `GET /api/v1/admin/courses` returns the full catalog (filterable
+  by `q` and `only_featured`); `PATCH /admin/courses/{id}/feature` toggles
+  the featured flag and writes an `admin.course.featured` audit row.
+- New `/admin/courses` UI lists every course with status badges and a
+  Feature / Unfeature button; admin home tile grid links to it.
+
+### Changed (iteration 9)
+- Hoisted the admin router's mid-block imports (selectinload, builders,
+  repo, model, schema) to the top of the file for consistency with the
+  rest of the codebase.
+
 ### Changed (iteration 8)
 - Centralized `CourseListItem` / `CourseDetail` construction in
   `app/api/v1/_builders.py`. catalog, courses, enrollments, bookmarks, and

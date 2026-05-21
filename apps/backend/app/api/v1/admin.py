@@ -8,15 +8,18 @@ from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from slugify import slugify
 from sqlalchemy import desc, select
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import DBSession, RequireAdmin
+from app.api.v1 import _builders
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.models.audit import AuditEvent
-from app.models.course import Subject, Tag
+from app.models.course import Course, Subject, Tag
 from app.models.user import Role, User
 from app.repositories import audit as audit_repo
+from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
-from app.schemas.course import SubjectOut, TagOut
+from app.schemas.course import CourseListItem, SubjectOut, TagOut
 
 router = APIRouter()
 
@@ -169,6 +172,63 @@ async def set_user_active(
         data={"is_active": payload.is_active},
     )
     return UserAdminOut.model_validate(user)
+
+
+# ---------- Courses (admin overview) ----------
+
+
+class FeatureUpdate(BaseModel):
+    is_featured: bool
+
+
+@router.get("/courses", response_model=list[CourseListItem])
+async def list_all_courses(
+    _: RequireAdmin,
+    db: DBSession,
+    q: str | None = Query(default=None, max_length=200),
+    only_featured: bool = Query(default=False),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[CourseListItem]:
+    stmt = (
+        select(Course)
+        .where(Course.deleted_at.is_(None))
+        .order_by(desc(Course.created_at))
+        .limit(limit)
+        .options(
+            selectinload(Course.subject),
+            selectinload(Course.owner),
+            selectinload(Course.tags),
+        )
+    )
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where((Course.title.ilike(like)) | (Course.overview.ilike(like)))
+    if only_featured:
+        stmt = stmt.where(Course.is_featured.is_(True))
+    rows = list((await db.execute(stmt)).scalars().unique().all())
+    stats = await courses_repo.stats_for_courses(db, [c.id for c in rows])
+    return [_builders.list_item(c, stats.get(c.id, {})) for c in rows]
+
+
+@router.patch("/courses/{course_id}/feature", response_model=CourseListItem)
+async def set_course_featured(
+    course_id: str, payload: FeatureUpdate, admin: RequireAdmin, db: DBSession
+) -> CourseListItem:
+    course = await courses_repo.get_course(db, course_id)
+    if not course:
+        raise NotFoundError("Course not found", code="course.not_found")
+    if course.is_featured != payload.is_featured:
+        course.is_featured = payload.is_featured
+        await audit_repo.record(
+            db,
+            actor_id=admin.id,
+            action="admin.course.featured",
+            target_type="course",
+            target_id=course.id,
+            data={"is_featured": payload.is_featured},
+        )
+    stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
+    return _builders.list_item(course, stats)
 
 
 # ---------- Audit log ----------
