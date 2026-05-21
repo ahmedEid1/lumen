@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 28) — users repo tidy via simplifier
+Twelfth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/repositories/users.py` (already a small,
+clean file). Applied 2 of its 5 recommendations after verifying
+both prereqs:
+
+- **`revoke_all_refresh_tokens` collapsed to a single
+  bulk `UPDATE`** instead of `SELECT` + per-row attribute
+  writes. Same WHERE clause, same column set. Only called from
+  the refresh-reuse detection path, which immediately raises
+  after this — so the identity-map mismatch a bulk UPDATE
+  introduces is irrelevant here. Verified no
+  `@event.listens_for(RefreshToken, ...)` listeners that
+  would have been bypassed.
+- **`update_login_failure` drops the `or 0` defensive guard**.
+  `User.failed_login_attempts` is declared
+  `Mapped[int] = mapped_column(default=0, nullable=False)`,
+  so `+= 1` is safe and the falsy fallback was only running
+  for `0` (which already increments correctly).
+
+Skipped: `_utcnow()` helper (cosmetic; low value without a
+test-clock to swap), `scalars().first()` swap (current
+`scalar_one_or_none()` is more defensive — leave alone).
+
+Auth tests 13/13, backend pytest 321/321.
+
 ### Changed (simplify iter 27) — enrollments router tidy via simplifier
 Eleventh dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/api/v1/enrollments.py` (235 → 233 lines).

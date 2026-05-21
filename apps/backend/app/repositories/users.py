@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import RefreshToken, Role, User
@@ -39,7 +39,9 @@ async def update_login_success(db: AsyncSession, user: User) -> None:
 
 
 async def update_login_failure(db: AsyncSession, user: User, *, lockout_threshold: int = 5) -> None:
-    user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+    # failed_login_attempts is NOT NULL DEFAULT 0 (see User model), so plain
+    # `+= 1` is safe — no need to guard against None on freshly-seeded rows.
+    user.failed_login_attempts += 1
     if user.failed_login_attempts >= lockout_threshold:
         user.locked_until = datetime.now(UTC) + timedelta(minutes=15)
     await db.flush()
@@ -80,9 +82,11 @@ async def revoke_refresh_token(
 
 
 async def revoke_all_refresh_tokens(db: AsyncSession, user_id: str) -> None:
-    now = datetime.now(UTC)
-    res = await db.execute(
-        select(RefreshToken).where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+    # Single bulk UPDATE instead of SELECT-then-N-writes. Only called from the
+    # refresh-reuse detection path, which immediately raises after this so the
+    # session's identity map doesn't need to see the revoked rows again.
+    await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=datetime.now(UTC))
     )
-    for tok in res.scalars().all():
-        tok.revoked_at = now
