@@ -24,18 +24,18 @@ from app.schemas.course import CourseListItem, SubjectOut, TagOut
 router = APIRouter()
 
 
-async def _scalar_count(db: DBSession, stmt) -> int:  # type: ignore[valid-type]
+async def _scalar_count(db: DBSession, stmt) -> int:
     """Run a `select(func.count(...))` and coerce the scalar to int."""
     return int((await db.execute(stmt)).scalar_one())
 
 
-async def _slug_taken(db: DBSession, model, slug: str) -> bool:  # type: ignore[valid-type]
+async def _slug_taken(db: DBSession, model, slug: str) -> bool:
     return (
         await db.execute(select(model.id).where(model.slug == slug))
     ).scalar_one_or_none() is not None
 
 
-async def _load_user_or_404(db: DBSession, user_id: str) -> User:  # type: ignore[valid-type]
+async def _load_user_or_404(db: DBSession, user_id: str) -> User:
     user = await db.get(User, user_id)
     if not user:
         raise NotFoundError("User not found", code="user.not_found")

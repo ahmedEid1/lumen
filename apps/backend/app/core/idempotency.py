@@ -147,7 +147,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         # call_next already returned a Response; iterate its body to
         # capture, then re-stream it to the actual client.
         chunks: list[bytes] = []
-        async for chunk in response.body_iterator:  # type: ignore[attr-defined]
+        async for chunk in response.body_iterator:
             chunks.append(chunk)
         body_bytes = b"".join(chunks)
 
@@ -199,7 +199,7 @@ async def _replay_body(request: Request, body: bytes) -> None:
         sent["value"] = True
         return {"type": "http.request", "body": body, "more_body": False}
 
-    request._receive = _receive  # type: ignore[attr-defined]
+    request._receive = _receive
 
 
 def _replay_response(entry: dict[str, Any]) -> Response:

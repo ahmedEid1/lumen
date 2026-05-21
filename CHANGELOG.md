@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 19) — purge unused `# type: ignore` comments
+Same shape as iter 3's noqa cleanup. `mypy` already runs with
+`warn_unused_ignores = true` per `pyproject.toml`, but the
+flagged ignores had been carrying anyway. Dropped 9 of them
+across 5 files; mypy is happier and the lines no longer suggest
+"there's something the type checker can't handle here" when
+there isn't.
+
+- `app/api/v1/admin.py` (×3) — defensive `[valid-type]` ignores
+  I added in iter 14 on the new helpers (`_scalar_count`,
+  `_slug_taken`, `_load_user_or_404`). Mypy resolves `DBSession`
+  fine via the `from app.api.deps import DBSession` already at
+  the top.
+- `app/api/v1/uploads.py` (×3) — `[arg-type]` ignores on
+  `info[...]` dict accesses where the dict value is already
+  the right runtime type.
+- `app/core/idempotency.py` (×2) — `[attr-defined]` ignores
+  on `response.body_iterator` and `request._receive` that
+  modern starlette types properly now.
+- `app/services/uploads.py` — `[name-defined]` ignore on
+  `boto3.client` return annotation; mypy resolves it from
+  `import boto3` at the top.
+
+Backend pytest 321/321.
+
 ### Changed (simplify iter 18) — repo-layer refactor via simplifier
 Third dispatch of the `code-simplifier` plugin agent, this time
 on `apps/backend/app/repositories/courses.py` (393 lines).
