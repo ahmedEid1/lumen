@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 94)
+- **SiteHeader + HeaderSearch translated.** First production
+  consumers of iter 93's `t()`. NavLink data shape switched from
+  `{href, label}` to `{href, labelKey: MessageKey}` so the type
+  system catches a typo'd key at compile time. While translating
+  I also swapped `mr-1` / `left-2.5` / `pl-8` / `text-left` for
+  Tailwind's logical-property variants (`me-1`, `start-2.5`,
+  `ps-8`, `text-start`) — those flip automatically under
+  `dir="rtl"` so the icon spacing and search affordance work in
+  Arabic without per-locale CSS.
+
 ### Added (iteration 93)
 - **i18n scaffolding with English + Arabic.** In-house zero-dep
   module (`src/lib/i18n/`): `Locale` type, per-locale message

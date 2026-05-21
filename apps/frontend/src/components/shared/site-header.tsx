@@ -11,6 +11,8 @@ import { HeaderSearch } from "@/components/shared/header-search";
 import { LocaleSwitcher } from "@/components/shared/locale-switcher";
 import { NotificationsBell } from "@/components/shared/notifications-bell";
 import { useAuth } from "@/lib/auth/store";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -38,14 +40,14 @@ function initials(name: string) {
   );
 }
 
-type NavLink = { href: string; label: string };
+type NavLink = { href: string; labelKey: MessageKey };
 
 function navLinksFor(role: "student" | "instructor" | "admin" | undefined): NavLink[] {
-  const links: NavLink[] = [{ href: "/courses", label: "Catalog" }];
+  const links: NavLink[] = [{ href: "/courses", labelKey: "nav.catalog" }];
   if (!role) return links;
-  links.push({ href: "/dashboard", label: "Dashboard" });
-  if (role === "instructor" || role === "admin") links.push({ href: "/studio", label: "Studio" });
-  if (role === "admin") links.push({ href: "/admin", label: "Admin" });
+  links.push({ href: "/dashboard", labelKey: "nav.dashboard" });
+  if (role === "instructor" || role === "admin") links.push({ href: "/studio", labelKey: "nav.studio" });
+  if (role === "admin") links.push({ href: "/admin", labelKey: "nav.admin" });
   return links;
 }
 
@@ -53,6 +55,7 @@ export function SiteHeader() {
   const { user, logout, ready } = useAuth();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const t = useT();
 
   // Close the mobile menu on any route change.
   useEffect(() => {
@@ -81,7 +84,7 @@ export function SiteHeader() {
                   active ? "text-foreground" : "text-muted-foreground"
                 }`}
               >
-                {l.label}
+                {t(l.labelKey)}
               </Link>
             );
           })}
@@ -103,19 +106,19 @@ export function SiteHeader() {
                 </Avatar>
               </Link>
               <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => logout()}>
-                <LogOut className="mr-1 h-4 w-4" />
-                Sign out
+                <LogOut className="me-1 h-4 w-4" />
+                {t("nav.signOut")}
               </Button>
             </>
           ) : (
             <>
               <Link href="/login" className="hidden sm:block">
                 <Button variant="ghost" size="sm">
-                  Sign in
+                  {t("nav.signIn")}
                 </Button>
               </Link>
               <Link href="/register" className="hidden sm:block">
-                <Button size="sm">Get started</Button>
+                <Button size="sm">{t("nav.signUp")}</Button>
               </Link>
             </>
           )}
@@ -148,7 +151,7 @@ export function SiteHeader() {
                     active ? "bg-muted font-medium" : ""
                   }`}
                 >
-                  {l.label}
+                  {t(l.labelKey)}
                 </Link>
               );
             })}
@@ -166,18 +169,18 @@ export function SiteHeader() {
                 </Link>
                 <button
                   onClick={() => logout()}
-                  className="flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-start text-sm hover:bg-muted"
                 >
-                  <LogOut className="h-4 w-4" /> Sign out
+                  <LogOut className="h-4 w-4" /> {t("nav.signOut")}
                 </button>
               </>
             ) : (
               <>
                 <Link href="/login" className="rounded-md px-3 py-2 text-sm hover:bg-muted">
-                  Sign in
+                  {t("nav.signIn")}
                 </Link>
                 <Link href="/register" className="rounded-md px-3 py-2 text-sm hover:bg-muted">
-                  Get started
+                  {t("nav.signUp")}
                 </Link>
               </>
             )}
