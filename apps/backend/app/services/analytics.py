@@ -15,6 +15,33 @@ from app.models.user import User
 from app.repositories import courses as courses_repo
 
 
+async def _scalar_count(db: AsyncSession, stmt) -> int:
+    """Run a `select(func.count(...))` and coerce to int."""
+    return int((await db.execute(stmt)).scalar_one())
+
+
+async def _total_lessons(db: AsyncSession, course_id: str) -> int:
+    """Count non-deleted lessons in the course."""
+    return await _scalar_count(
+        db,
+        select(func.count(Lesson.id))
+        .join(Module, Module.id == Lesson.module_id)
+        .where(Module.course_id == course_id, Lesson.deleted_at.is_(None)),
+    )
+
+
+async def _load_owned_course(
+    db: AsyncSession, course_id: str, viewer: User, *, forbid_code: str
+):
+    """Fetch course → 404 → owner-or-admin → 403, returning the row."""
+    course = await courses_repo.get_course(db, course_id)
+    if not course:
+        raise NotFoundError("Course not found", code="course.not_found")
+    if not (viewer.is_admin() or course.owner_id == viewer.id):
+        raise ForbiddenError("Not your course", code=forbid_code)
+    return course
+
+
 @dataclass(slots=True)
 class CourseAnalytics:
     course_id: str
@@ -29,27 +56,17 @@ class CourseAnalytics:
 
 
 async def for_course(db: AsyncSession, *, course_id: str, viewer: User) -> CourseAnalytics:
-    course = await courses_repo.get_course(db, course_id)
-    if not course:
-        raise NotFoundError("Course not found", code="course.not_found")
-    if not (viewer.is_admin() or course.owner_id == viewer.id):
-        raise ForbiddenError("Not your course", code="analytics.forbidden")
+    course = await _load_owned_course(db, course_id, viewer, forbid_code="analytics.forbidden")
 
     now = datetime.now(UTC)
     seven = now - timedelta(days=7)
     thirty = now - timedelta(days=30)
 
-    enrollments = int(
-        (await db.execute(select(func.count(Enrollment.id)).where(Enrollment.course_id == course.id))).scalar_one()
-    )
-    completions = int(
-        (
-            await db.execute(
-                select(func.count(Enrollment.id)).where(
-                    Enrollment.course_id == course.id, Enrollment.completed_at.is_not(None)
-                )
-            )
-        ).scalar_one()
+    by_course = Enrollment.course_id == course.id
+    enrollments = await _scalar_count(db, select(func.count(Enrollment.id)).where(by_course))
+    completions = await _scalar_count(
+        db,
+        select(func.count(Enrollment.id)).where(by_course, Enrollment.completed_at.is_not(None)),
     )
 
     avg_rating_row = await db.execute(
@@ -59,15 +76,7 @@ async def for_course(db: AsyncSession, *, course_id: str, viewer: User) -> Cours
     avg_rating_val, rating_count = avg_rating_row.one()
     avg_rating: float | None = float(avg_rating_val) if avg_rating_val is not None else None
 
-    total_lessons = int(
-        (
-            await db.execute(
-                select(func.count(Lesson.id))
-                .join(Module, Module.id == Lesson.module_id)
-                .where(Module.course_id == course.id, Lesson.deleted_at.is_(None))
-            )
-        ).scalar_one()
-    )
+    total_lessons = await _total_lessons(db, course.id)
 
     avg_progress = 0.0
     if total_lessons and enrollments:
@@ -96,23 +105,13 @@ async def for_course(db: AsyncSession, *, course_id: str, viewer: User) -> Cours
         ratios = [float(done) / total_lessons for _, done in completed_per_enrollment.all()]
         avg_progress = round(sum(ratios) / len(ratios) * 100.0, 1) if ratios else 0.0
 
-    enrollments_7 = int(
-        (
-            await db.execute(
-                select(func.count(Enrollment.id)).where(
-                    Enrollment.course_id == course.id, Enrollment.created_at >= seven
-                )
-            )
-        ).scalar_one()
+    enrollments_7 = await _scalar_count(
+        db,
+        select(func.count(Enrollment.id)).where(by_course, Enrollment.created_at >= seven),
     )
-    enrollments_30 = int(
-        (
-            await db.execute(
-                select(func.count(Enrollment.id)).where(
-                    Enrollment.course_id == course.id, Enrollment.created_at >= thirty
-                )
-            )
-        ).scalar_one()
+    enrollments_30 = await _scalar_count(
+        db,
+        select(func.count(Enrollment.id)).where(by_course, Enrollment.created_at >= thirty),
     )
 
     completion_rate = (completions / enrollments) if enrollments else 0.0
@@ -148,21 +147,9 @@ async def cohort_for_course(db: AsyncSession, *, course_id: str, viewer: User) -
     enrolment time (newest first) and capped at 500 rows; bigger cohorts
     can be paginated in a follow-up.
     """
-    course = await courses_repo.get_course(db, course_id)
-    if not course:
-        raise NotFoundError("Course not found", code="course.not_found")
-    if not (viewer.is_admin() or course.owner_id == viewer.id):
-        raise ForbiddenError("Not your course", code="cohort.forbidden")
+    course = await _load_owned_course(db, course_id, viewer, forbid_code="cohort.forbidden")
 
-    total_lessons = int(
-        (
-            await db.execute(
-                select(func.count(Lesson.id))
-                .join(Module, Module.id == Lesson.module_id)
-                .where(Module.course_id == course.id, Lesson.deleted_at.is_(None))
-            )
-        ).scalar_one()
-    )
+    total_lessons = await _total_lessons(db, course.id)
 
     rows = (
         await db.execute(

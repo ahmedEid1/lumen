@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 25) — analytics service DRY via simplifier
+Ninth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/services/analytics.py`. Applied 3 of its 5
+recommendations (209 → 196 lines).
+
+- **`_scalar_count(db, stmt)` helper** for the
+  `int((await db.execute(stmt)).scalar_one())` pattern that
+  appeared four times across `for_course` (enrollments,
+  completions, enrollments_7, enrollments_30) and once in
+  `cohort_for_course` (lesson total). Same shape as iter 14
+  already adopted in `api/v1/admin.py`.
+- **`_total_lessons(db, course_id)` helper** for the
+  count-non-deleted-lessons-in-course query. The exact 5-line
+  `JOIN Module ... WHERE ... Lesson.deleted_at.is_(None)` block
+  was duplicated verbatim across `for_course` and
+  `cohort_for_course`; now one source of truth, easier to
+  audit the soft-delete invariant.
+- **`_load_owned_course(db, course_id, viewer, *, forbid_code)`
+  helper** for the `get_course → 404 → owner-or-admin → 403`
+  preamble both public functions opened with. Only difference
+  is the forbid-error code (`analytics.forbidden` vs
+  `cohort.forbidden`), kept as a kwarg.
+- **`by_course = Enrollment.course_id == course.id`** local
+  in `for_course` so the four `Enrollment.course_id == ...`
+  copies become one binding shared across each `.where(...)`.
+
+Skipped: the algebraic refactor of `avg_progress` and dropping
+the defensive `int(...)` casts on COUNT results — both small
+wins, both with a non-zero "could I read this wrong" cost.
+
+Behaviour preserved end-to-end. Analytics tests 7/7, full
+backend pytest 321/321.
+
 ### Changed (simplify iter 24) — uploads service tidy via simplifier
 Eighth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/services/uploads.py`. Applied 3 of its 5
