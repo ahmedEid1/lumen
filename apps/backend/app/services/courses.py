@@ -351,8 +351,36 @@ async def slug_or_id(db: AsyncSession, key: str, *, with_modules: bool = False) 
 
 
 async def can_view_unpublished(course: Course, viewer: User | None) -> bool:
+    """Synchronous yes/no without enrollment lookup.
+
+    Prefer :func:`can_view_course` in handlers that already have a db session
+    — it also lets enrolled learners keep reading courses after they're
+    archived or moved back to draft.
+    """
     if course.status == CourseStatus.published:
         return True
     if viewer is None:
         return False
     return viewer.is_admin() or course.owner_id == viewer.id
+
+
+async def can_view_course(
+    db: AsyncSession, course: Course, viewer: User | None
+) -> bool:
+    """Authoritative visibility check for the course detail endpoint.
+
+    Returns True for published courses, owners, admins, OR for learners who
+    are currently enrolled (regardless of course status). The last branch is
+    important: an instructor who archives a course must not lock out the
+    learners already paying it down.
+    """
+    if course.status == CourseStatus.published:
+        return True
+    if viewer is None:
+        return False
+    if viewer.is_admin() or course.owner_id == viewer.id:
+        return True
+    enrollment = await courses_repo.get_enrollment(
+        db, user_id=viewer.id, course_id=course.id
+    )
+    return enrollment is not None

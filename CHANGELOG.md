@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 24)
+- **Archiving (or un-publishing) a course no longer locks out already-
+  enrolled learners.** `GET /api/v1/courses/{slug}` previously routed
+  visibility through `can_view_unpublished`, which returned True only
+  for the course owner and admins. Existing students of a course an
+  instructor then archived would start getting a 404 on the syllabus —
+  losing the chat link, lesson navigation, and certificate download CTA
+  they earned. Introduced `can_view_course(db, course, viewer)` which
+  also accepts a current enrolment as proof of access. Anonymous and
+  not-enrolled viewers still see 404 for non-published courses. Three
+  regression tests in `test_archived_access.py`.
+
 ### Fixed (iteration 23)
 - **Failing a quiz retake no longer un-passes a previously-passed lesson.**
   The quiz endpoint previously routed through `mark_lesson(completed=…)`,

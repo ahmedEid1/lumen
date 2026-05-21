@@ -59,7 +59,7 @@ async def my_courses(user: RequireInstructor, db: DBSession) -> list[CourseListI
 @router.get("/{key}", response_model=CourseDetail)
 async def get_course(key: str, viewer: OptionalUser, db: DBSession) -> CourseDetail:
     course = await courses_service.slug_or_id(db, key, with_modules=True)
-    if not await courses_service.can_view_unpublished(course, viewer):
+    if not await courses_service.can_view_course(db, course, viewer):
         raise NotFoundError("Course not found", code="course.not_found")
 
     stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
