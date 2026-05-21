@@ -15,7 +15,7 @@ displayed event.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,7 +27,7 @@ from app.models.user import Role
 async def _seed_events(db: AsyncSession, *, actor_id: str, n: int) -> list[str]:
     """Seed N events spread across N seconds so created_at is unique
     and ordering is deterministic. Returns ids in newest-first order."""
-    base = datetime.now(timezone.utc)
+    base = datetime.now(UTC)
     events: list[AuditEvent] = []
     for i in range(n):
         ev = AuditEvent(

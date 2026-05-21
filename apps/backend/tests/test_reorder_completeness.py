@@ -26,7 +26,7 @@ can't collide with them either.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -181,7 +181,7 @@ async def test_lesson_reorder_skips_soft_deleted_and_avoids_collision(
     await db_session.commit()
 
     # Soft-delete the middle one (was at order=1).
-    lessons[1].deleted_at = datetime.now(timezone.utc)
+    lessons[1].deleted_at = datetime.now(UTC)
     await db_session.commit()
 
     # Reorder the two live lessons; the deleted one (still at order=1)

@@ -20,7 +20,7 @@ change tokens — same pattern password-reset uses.
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 import jwt
 
@@ -105,7 +105,7 @@ async def confirm_change(db: AsyncSession, *, token: str) -> User:
     old_email = user.email
     user.email = new_email
     # Force re-verification of the new address — same posture as register.
-    user.email_verified_at = datetime.now(timezone.utc)  # they just clicked a link in it
+    user.email_verified_at = datetime.now(UTC)  # they just clicked a link in it
     await users_repo.revoke_all_refresh_tokens(db, user.id)
     await audit_repo.record(
         db,

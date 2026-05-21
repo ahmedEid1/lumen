@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 import typer
 from rich.console import Console
@@ -131,7 +131,7 @@ async def _seed() -> None:  # noqa: PLR0915
                 difficulty=Difficulty.beginner,
                 cover_url=None,
                 status=CourseStatus.published,
-                published_at=datetime.now(timezone.utc),
+                published_at=datetime.now(UTC),
                 is_featured=True,
             )
             course.tags = [tags["python"], tags["fastapi"], tags["beginner"]]

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -100,7 +100,7 @@ async def record_quiz_attempt(
         score=max(0, min(100, score)),
         passed=passed,
         answers=(payload or {}).get("answers", {}),
-        submitted_at=datetime.now(timezone.utc),
+        submitted_at=datetime.now(UTC),
     )
     db.add(attempt)
     await db.flush()
@@ -110,7 +110,7 @@ async def record_quiz_attempt(
     pct = (done / total * 100.0) if total else 0.0
 
     if total and done == total and not enrollment.completed_at:
-        enrollment.completed_at = datetime.now(timezone.utc)
+        enrollment.completed_at = datetime.now(UTC)
         enrollment.certificate_id = f"cert_{new_id()}"
         await notifications_repo.create(
             db,
@@ -159,7 +159,7 @@ async def mark_lesson(
     pct = (done / total * 100.0) if total else 0.0
 
     if total and done == total and not enrollment.completed_at:
-        enrollment.completed_at = datetime.now(timezone.utc)
+        enrollment.completed_at = datetime.now(UTC)
         enrollment.certificate_id = f"cert_{new_id()}"
         await notifications_repo.create(
             db,

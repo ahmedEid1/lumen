@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import TYPE_CHECKING
 
 from slugify import slugify
@@ -132,7 +132,7 @@ async def update_course(
 
 async def delete_course(db: AsyncSession, *, course_id: str, owner: User) -> None:
     course = await _owned_course(db, course_id, owner)
-    course.deleted_at = datetime.now(timezone.utc)
+    course.deleted_at = datetime.now(UTC)
     _schedule_index(course.id)
 
 
@@ -249,7 +249,7 @@ async def _transition_status(
                 "Add at least one lesson before publishing",
                 code="course.no_lessons",
             )
-        course.published_at = datetime.now(timezone.utc)
+        course.published_at = datetime.now(UTC)
     course.status = target
 
 
@@ -394,7 +394,7 @@ async def update_lesson(
 
 async def delete_lesson(db: AsyncSession, *, lesson_id: str, owner: User) -> None:
     lesson = await _owned_lesson(db, lesson_id, owner)
-    lesson.deleted_at = datetime.now(timezone.utc)
+    lesson.deleted_at = datetime.now(UTC)
 
 
 async def reorder_lessons(

@@ -6,7 +6,7 @@ it, so an isolated test guards against accidental drift.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from app.api.v1 import _builders
 from app.models.course import Course, CourseStatus, Difficulty, Module, Subject, Tag
@@ -22,8 +22,8 @@ def _user(**overrides) -> User:
         role=Role.instructor,
         is_active=True,
         failed_login_attempts=0,
-        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
     base.update(overrides)
     user = User(**base)
@@ -35,8 +35,8 @@ def _subject() -> Subject:
         id="s_1",
         title="Programming",
         slug="programming",
-        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
 
 
@@ -54,9 +54,9 @@ def _course(*, with_tags: bool = True, status: CourseStatus = CourseStatus.publi
         difficulty=Difficulty.beginner,
         status=status,
         is_featured=True,
-        published_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
-        created_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        published_at=datetime(2026, 5, 1, tzinfo=UTC),
+        created_at=datetime(2026, 5, 1, tzinfo=UTC),
+        updated_at=datetime(2026, 5, 1, tzinfo=UTC),
     )
     course.owner = owner
     course.subject = subject
@@ -66,8 +66,8 @@ def _course(*, with_tags: bool = True, status: CourseStatus = CourseStatus.publi
                 id="t_1",
                 name="Python",
                 slug="python",
-                created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-                updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                created_at=datetime(2026, 1, 1, tzinfo=UTC),
+                updated_at=datetime(2026, 1, 1, tzinfo=UTC),
             )
         ]
         if with_tags
@@ -109,8 +109,8 @@ def test_detail_passes_through_enrollment_and_bookmark_flags() -> None:
         title="Intro",
         description="",
         order=0,
-        created_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        created_at=datetime(2026, 5, 1, tzinfo=UTC),
+        updated_at=datetime(2026, 5, 1, tzinfo=UTC),
     )
     module.lessons = []
     detail = _builders.detail(
@@ -138,8 +138,8 @@ def test_detail_filters_deleted_lessons() -> None:
         title="M",
         description="",
         order=0,
-        created_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        created_at=datetime(2026, 5, 1, tzinfo=UTC),
+        updated_at=datetime(2026, 5, 1, tzinfo=UTC),
     )
     alive = Lesson(
         id="l_1",
@@ -151,8 +151,8 @@ def test_detail_filters_deleted_lessons() -> None:
         is_preview=False,
         data={"type": "text", "body_markdown": "x"},
         deleted_at=None,
-        created_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        created_at=datetime(2026, 5, 1, tzinfo=UTC),
+        updated_at=datetime(2026, 5, 1, tzinfo=UTC),
     )
     dead = Lesson(
         id="l_2",
@@ -163,9 +163,9 @@ def test_detail_filters_deleted_lessons() -> None:
         duration_seconds=None,
         is_preview=False,
         data={"type": "text", "body_markdown": "x"},
-        deleted_at=datetime(2026, 5, 2, tzinfo=timezone.utc),
-        created_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        deleted_at=datetime(2026, 5, 2, tzinfo=UTC),
+        created_at=datetime(2026, 5, 1, tzinfo=UTC),
+        updated_at=datetime(2026, 5, 1, tzinfo=UTC),
     )
     module.lessons = [alive, dead]
 

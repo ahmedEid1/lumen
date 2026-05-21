@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,4 +57,4 @@ async def delete(db: AsyncSession, *, author: User, course: Course) -> None:
     existing = await courses_repo.get_review(db, author_id=author.id, course_id=course.id)
     if not existing:
         raise NotFoundError("Review not found", code="review.not_found")
-    existing.deleted_at = datetime.now(timezone.utc)
+    existing.deleted_at = datetime.now(UTC)

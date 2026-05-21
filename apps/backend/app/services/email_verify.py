@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 import jwt
 
@@ -58,7 +58,7 @@ async def confirm(db: AsyncSession, *, token: str) -> User:
         # Already verified — idempotent success rather than an error.
         return user
 
-    user.email_verified_at = datetime.now(timezone.utc)
+    user.email_verified_at = datetime.now(UTC)
     await audit_repo.record(db, actor_id=user.id, action="auth.email_verified")
     return user
 

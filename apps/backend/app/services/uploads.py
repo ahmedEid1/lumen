@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import TYPE_CHECKING
 
 import boto3
@@ -140,7 +140,7 @@ def sign_upload(
         raise ValidationAppError("File too large", code="upload.too_large")
 
     s = get_settings()
-    today = datetime.now(timezone.utc).strftime("%Y/%m/%d")
+    today = datetime.now(UTC).strftime("%Y/%m/%d")
     key = f"{kind}/{user.id}/{today}/{new_id()}/{_safe_filename(filename)}"
     client = _client()
 

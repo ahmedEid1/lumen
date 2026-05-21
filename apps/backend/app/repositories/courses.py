@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -364,7 +364,7 @@ async def get_or_create_progress(
 
 async def mark_completed(db: AsyncSession, lp: LessonProgress, *, payload: dict[str, object] | None = None) -> None:
     if not lp.completed_at:
-        lp.completed_at = datetime.now(timezone.utc)
+        lp.completed_at = datetime.now(UTC)
     if payload:
         lp.payload = {**(lp.payload or {}), **payload}
 

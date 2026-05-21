@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 2) — adopt `datetime.UTC` alias
+Mechanical modernisation: every `datetime.now(timezone.utc)` and
+`datetime.fromtimestamp(..., tz=timezone.utc)` call now uses the
+shorter `datetime.UTC` alias added in Python 3.11. The project
+already targets 3.13, so this is purely a readability win.
+
+- **51 call sites swapped** across 15 backend modules
+  (`app/services`, `app/repositories`, `app/workers`, `app/cli`)
+  and 4 test modules.
+- **19 now-redundant `timezone` imports removed** by a follow-up
+  ruff F401 pass — the swap left some import lines stranded with
+  only `timezone` referenced.
+- Verified by full backend pytest (321 passed, 160s).
+
+Why: `datetime.UTC` is the documented preferred form in 3.11+
+and `timezone.utc` is a legacy spelling. Same singleton object,
+shorter to read, fewer imports. Zero behaviour change.
+
 ### Changed (simplify iter 1) — purge static-analysis dead code
 First pass of the simplify-without-regressions loop. Scope is
 intentionally narrow: only changes ruff flags as F-rule violations.

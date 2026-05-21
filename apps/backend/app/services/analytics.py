@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,7 +35,7 @@ async def for_course(db: AsyncSession, *, course_id: str, viewer: User) -> Cours
     if not (viewer.is_admin() or course.owner_id == viewer.id):
         raise ForbiddenError("Not your course", code="analytics.forbidden")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     seven = now - timedelta(days=7)
     thirty = now - timedelta(days=30)
 

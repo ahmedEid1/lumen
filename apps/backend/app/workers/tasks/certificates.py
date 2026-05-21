@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from io import BytesIO
 
 from reportlab.lib.pagesizes import landscape, letter
@@ -46,7 +46,7 @@ def render(*, learner_name: str, course_title: str, certificate_id: str) -> byte
     pdf.drawCentredString(width / 2, height - 320, course_title)
 
     pdf.setFont("Helvetica", 12)
-    today = datetime.now(timezone.utc).strftime("%B %d, %Y")
+    today = datetime.now(UTC).strftime("%B %d, %Y")
     pdf.drawCentredString(width / 2, 90, f"Issued {today}")
     pdf.drawCentredString(width / 2, 70, f"Certificate ID: {certificate_id}")
     pdf.drawCentredString(

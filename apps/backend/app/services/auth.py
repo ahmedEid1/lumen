@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -83,7 +83,7 @@ async def authenticate(
         # emails are registered.
         verify_password(payload.password, _DUMMY_HASH)
         raise UnauthorizedError("Invalid credentials", code="auth.invalid_credentials")
-    if user.locked_until and user.locked_until > datetime.now(timezone.utc):
+    if user.locked_until and user.locked_until > datetime.now(UTC):
         raise ForbiddenError("Account temporarily locked", code="auth.locked")
 
     if not verify_password(payload.password, user.password_hash):
@@ -112,7 +112,7 @@ async def rotate_refresh(
         await users_repo.revoke_all_refresh_tokens(db, stored.user_id)
         await audit_repo.record(db, actor_id=stored.user_id, action="auth.refresh_reuse", ip_address=ip, user_agent=user_agent)
         raise UnauthorizedError("Refresh token reuse detected", code="auth.refresh_reuse")
-    if stored.expires_at < datetime.now(timezone.utc):
+    if stored.expires_at < datetime.now(UTC):
         raise UnauthorizedError("Refresh token expired", code="auth.refresh_expired")
 
     user = await users_repo.get_by_id(db, stored.user_id)
@@ -151,7 +151,7 @@ async def _issue_tokens_returning(
     # / "admin" cleanly.
     access, exp = create_access_token(subject=user.id, role=str(user.role))
     raw, digest = new_refresh_token()
-    rt_expires = datetime.now(timezone.utc) + timedelta(seconds=s.refresh_token_ttl_seconds)
+    rt_expires = datetime.now(UTC) + timedelta(seconds=s.refresh_token_ttl_seconds)
     stored = await users_repo.add_refresh_token(
         db,
         user=user,

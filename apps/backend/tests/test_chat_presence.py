@@ -13,7 +13,7 @@ the WS loop is one line of code.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import Any
 
 
@@ -49,7 +49,7 @@ async def test_mark_present_overwrites_the_score():
     await chat_service.mark_present(r, course_id="c1", user_id="u1")
     # Force the stored score back in time so the freshness window would drop us
     key = "lumen:presence:c1"
-    r._sets[key]["u1"] = datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp()
+    r._sets[key]["u1"] = datetime(2020, 1, 1, tzinfo=UTC).timestamp()
     listed_before = await chat_service.list_present(r, course_id="c1", within_seconds=60)
     assert listed_before == []
 
@@ -78,5 +78,5 @@ async def test_list_present_excludes_stale_users():
     await chat_service.mark_present(r, course_id="c3", user_id="fresh")
     await chat_service.mark_present(r, course_id="c3", user_id="stale")
     key = "lumen:presence:c3"
-    r._sets[key]["stale"] = datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp()
+    r._sets[key]["stale"] = datetime(2020, 1, 1, tzinfo=UTC).timestamp()
     assert await chat_service.list_present(r, course_id="c3") == ["fresh"]

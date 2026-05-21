@@ -12,7 +12,7 @@ author of the thread/reply OR an admin OR the course owner.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
@@ -96,7 +96,7 @@ async def delete_discussion(
     course = await courses_repo.get_course(db, d.course_id)
     if not _can_edit(d, user, course_owner_id=course.owner_id if course else None):
         raise ForbiddenError("Cannot delete this discussion", code="discussion.forbidden")
-    d.deleted_at = datetime.now(timezone.utc)
+    d.deleted_at = datetime.now(UTC)
 
 
 async def reply(
@@ -113,7 +113,7 @@ async def reply(
     db.add(r)
     # Bump parent updated_at so list_for_course's last-activity
     # sort surfaces the bumped thread.
-    d.updated_at = datetime.now(timezone.utc)
+    d.updated_at = datetime.now(UTC)
     await db.flush()
     # Iter 90: subscription fanout. Auto-subscribe the replier
     # (they've shown interest — same shape as GitHub's auto-
@@ -138,7 +138,7 @@ async def delete_reply(
     )
     if not _can_edit(r, user, course_owner_id=course.owner_id if course else None):
         raise ForbiddenError("Cannot delete this reply", code="reply.forbidden")
-    r.deleted_at = datetime.now(timezone.utc)
+    r.deleted_at = datetime.now(UTC)
 
 
 _FANOUT_CAP = 200

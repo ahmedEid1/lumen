@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import Any
 
 import redis.asyncio as redis
@@ -75,7 +75,7 @@ async def subscribe(r: redis.Redis, course_id: str) -> AsyncIterator[redis.clien
 
 
 async def mark_present(r: redis.Redis, *, course_id: str, user_id: str) -> None:
-    await r.zadd(PRESENCE_FMT.format(course_id=course_id), {user_id: datetime.now(timezone.utc).timestamp()})
+    await r.zadd(PRESENCE_FMT.format(course_id=course_id), {user_id: datetime.now(UTC).timestamp()})
 
 
 async def mark_absent(r: redis.Redis, *, course_id: str, user_id: str) -> None:
@@ -83,5 +83,5 @@ async def mark_absent(r: redis.Redis, *, course_id: str, user_id: str) -> None:
 
 
 async def list_present(r: redis.Redis, *, course_id: str, within_seconds: int = 60) -> list[str]:
-    threshold = datetime.now(timezone.utc).timestamp() - within_seconds
+    threshold = datetime.now(UTC).timestamp() - within_seconds
     return await r.zrangebyscore(PRESENCE_FMT.format(course_id=course_id), threshold, "+inf")
