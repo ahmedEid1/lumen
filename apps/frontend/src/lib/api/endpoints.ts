@@ -125,6 +125,8 @@ export const Reviews = {
       body: input,
       token,
     }),
+  remove: (courseId: string, token?: string) =>
+    api<{ ok: true }>(`/api/v1/courses/${courseId}/reviews`, { method: "DELETE", token }),
 };
 
 // ---------- Chat ----------

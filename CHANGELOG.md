@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+### Added (iteration 4)
+- `/api/v1/search/courses` endpoint backed by Meilisearch with an automatic
+  Postgres ILIKE fallback when the search service is unavailable.
+- Presigned image upload widget wired into the profile avatar and the
+  new-course cover image fields.
+- `MyReviewEditor` lets enrolled learners post, update, or delete their review
+  inline on the course detail page.
+- "Preview as student" link on the studio course page.
+- Mobile navigation with hamburger toggle that collapses on route change.
+- Notifications bell in the header with unread badge and click-to-read.
+- Project-level `CLAUDE.md` to orient future agent sessions.
+
+### Changed (iteration 4)
+- Quiz grading extracted into `lib/quiz.ts` so the lesson player and tests
+  share one implementation.
+- `Courses.create` typed signature now accepts `cover_url` and `tag_ids`.
+- Site header tracks active route to highlight the current section.
+
+### Fixed (iteration 4)
+- Course publish/unpublish/delete now best-effort enqueues a search reindex
+  (tolerates a missing Celery broker in dev/tests).
+
+### Foundation
 - Complete rewrite from Django prototype to FastAPI + Next.js 15.
 - Repository skeleton (monorepo with `apps/backend`, `apps/frontend`).
 - SDLC documentation: PRD, architecture, ADRs (0001–0007), SDLC, API conventions, security model, deployment guide.

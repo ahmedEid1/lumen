@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Courses, Me, Reviews } from "@/lib/api/endpoints";
+import { MyReviewEditor } from "@/components/course/my-review-editor";
 import type { CourseDetail } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/store";
 import { qk } from "@/lib/query/keys";
@@ -133,7 +134,13 @@ export default function CourseDetailPage({ params }: { params: Promise<{ slug: s
             <CardHeader>
               <CardTitle>Reviews</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {user && course.is_enrolled && (
+                <MyReviewEditor
+                  courseId={course.id}
+                  myReview={reviewsQ.data?.find((r) => r.author.id === user.id) ?? null}
+                />
+              )}
               {reviewsQ.data && reviewsQ.data.length > 0 ? (
                 <ul className="space-y-4">
                   {reviewsQ.data.map((r) => (

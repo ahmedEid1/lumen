@@ -80,6 +80,9 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
           <p className="text-muted-foreground">Manage modules and lessons.</p>
         </div>
         <div className="flex gap-2">
+          <Link href={`/courses/${course.slug}`} target="_blank">
+            <Button variant="outline">Preview as student</Button>
+          </Link>
           {course.status !== "published" && (
             <Button onClick={() => publish.mutate("published")}>Publish</Button>
           )}
