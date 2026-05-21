@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 102) — browser-side API base URL inside the e2e container
+- The dev bundle is built with `NEXT_PUBLIC_API_BASE_URL=
+  http://localhost:8000` so a host browser can reach the
+  published api port. But when Playwright loads the same bundle
+  inside the `e2e` container — page served from `http://web:3000`
+  — `localhost` resolves to the e2e container itself and every
+  API call hits "nothing". `apps/frontend/src/lib/env.ts` now
+  exposes `API_BASE_URL` / `WS_BASE_URL` as getters that detect
+  `window.location.hostname === "web"` at runtime and swap to
+  the docker-network hostname `api:8000` for that case only;
+  host browsing (hostname `localhost`) and prod
+  (`lumen.example.com` etc.) keep the bundled value.
+- **Regression test**:
+  `apps/frontend/tests/env-api-base.test.ts` covers all three
+  hostname branches with a stubbed `window.location` so a
+  revert back to a constant fails CI before login starts
+  silently failing in the e2e run.
+- **Visible result**: still 4/12 specs green — the bundle now
+  correctly POSTs to `http://api:8000/api/v1/auth/login` (verified
+  in the Playwright trace), but the api itself returns
+  `400 Disallowed CORS origin` because `CORS_ORIGINS` only
+  whitelists `http://localhost:3000`. That's iter 103.
+
 ### Fixed (iteration 101) — strict-mode `Sign in` selector clash in e2e
 - All three sign-in-required e2e specs failed
   `locator.click: strict mode violation: getByRole('button',
