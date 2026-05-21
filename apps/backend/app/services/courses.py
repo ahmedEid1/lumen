@@ -99,6 +99,64 @@ def _schedule_index(course_id: str) -> None:
         get_logger(__name__).info("search_index_skipped", course_id=course_id)
 
 
+async def duplicate_course(db: AsyncSession, *, source_id: str, owner: User) -> Course:
+    """Clone a course (modules + lessons) as a draft owned by ``owner``.
+
+    The caller does not need to own the source — instructors can copy any
+    published course to remix it. Drafts are not visible to anyone but the
+    owner / admins.
+    """
+    if not owner.is_instructor_or_admin():
+        raise ForbiddenError("Only instructors can duplicate courses", code="courses.forbidden")
+
+    source = await courses_repo.get_course(db, source_id, with_modules=True)
+    if not source:
+        raise NotFoundError("Course not found", code="course.not_found")
+
+    new_title = f"{source.title} (copy)"
+    slug = await _unique_slug(db, new_title)
+    cloned = Course(
+        owner_id=owner.id,
+        subject_id=source.subject_id,
+        title=new_title,
+        slug=slug,
+        overview=source.overview,
+        cover_url=source.cover_url,
+        difficulty=source.difficulty,
+        status=CourseStatus.draft,
+        is_featured=False,
+    )
+    # tags are shared; the relationship is many-to-many so we can re-attach by reference.
+    cloned.tags = list(source.tags)
+    db.add(cloned)
+    await db.flush()
+
+    for src_module in sorted(source.modules, key=lambda m: m.order):
+        mod = Module(
+            course_id=cloned.id,
+            title=src_module.title,
+            description=src_module.description,
+            order=src_module.order,
+        )
+        db.add(mod)
+        await db.flush()
+        for src_lesson in sorted(src_module.lessons, key=lambda lesson: lesson.order):
+            if src_lesson.deleted_at is not None:
+                continue
+            db.add(
+                Lesson(
+                    module_id=mod.id,
+                    title=src_lesson.title,
+                    type=src_lesson.type,
+                    order=src_lesson.order,
+                    duration_seconds=src_lesson.duration_seconds,
+                    data=dict(src_lesson.data or {}),
+                )
+            )
+    await db.flush()
+    return cloned
+
+
 async def _transition_status(course: Course, target: CourseStatus) -> None:
     if course.status == target:
         return

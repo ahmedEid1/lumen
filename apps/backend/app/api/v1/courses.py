@@ -23,6 +23,7 @@ from app.schemas.course import (
     TagOut,
 )
 from app.schemas.user import UserPublic
+from app.services import analytics as analytics_service
 from app.services import courses as courses_service
 from app.services import enrollment as enrollment_service
 
@@ -245,3 +246,61 @@ async def reorder_lessons(
 ) -> OkResponse:
     await courses_service.reorder_lessons(db, module_id=module_id, owner=user, mapping=payload.order)
     return OkResponse()
+
+
+# ---------- Analytics ----------
+
+
+from pydantic import BaseModel, ConfigDict
+
+
+class CourseAnalyticsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    course_id: str
+    enrollments: int
+    completions: int
+    completion_rate: float
+    avg_rating: float | None = None
+    rating_count: int
+    avg_progress_pct: float
+    enrollments_last_7d: int
+    enrollments_last_30d: int
+
+
+@router.get("/{course_id}/analytics", response_model=CourseAnalyticsOut)
+async def course_analytics(course_id: str, user: RequireInstructor, db: DBSession) -> CourseAnalyticsOut:
+    data = await analytics_service.for_course(db, course_id=course_id, viewer=user)
+    return CourseAnalyticsOut.model_validate(data)
+
+
+# ---------- Duplication ----------
+
+
+@router.post("/{course_id}/duplicate", response_model=CourseListItem, status_code=status.HTTP_201_CREATED)
+async def duplicate_course(course_id: str, user: RequireInstructor, db: DBSession) -> CourseListItem:
+    course = await courses_service.duplicate_course(db, source_id=course_id, owner=user)
+    refreshed = await courses_repo.get_course(db, course.id)
+    if refreshed is None:
+        from app.core.errors import NotFoundError
+
+        raise NotFoundError("Course not found", code="course.not_found")
+    stats = (await courses_repo.stats_for_courses(db, [refreshed.id])).get(refreshed.id, {})
+    return CourseListItem(
+        id=refreshed.id,
+        title=refreshed.title,
+        slug=refreshed.slug,
+        overview=refreshed.overview,
+        difficulty=refreshed.difficulty,
+        cover_url=refreshed.cover_url,
+        status=refreshed.status,
+        is_featured=refreshed.is_featured,
+        published_at=refreshed.published_at,
+        created_at=refreshed.created_at,
+        owner=UserPublic.model_validate(refreshed.owner),
+        subject=SubjectOut.model_validate(refreshed.subject),
+        tags=[TagOut.model_validate(t) for t in refreshed.tags],
+        modules_count=int(stats.get("modules_count", 0) or 0),
+        enrollments_count=int(stats.get("enrollments_count", 0) or 0),
+        avg_rating=stats.get("avg_rating"),
+    )

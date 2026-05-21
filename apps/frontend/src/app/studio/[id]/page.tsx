@@ -27,6 +27,10 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
   const { id } = use(params);
   const qc = useQueryClient();
   const courseQ = useQuery({ queryKey: qk.course(id), queryFn: () => Courses.get(id) });
+  const analyticsQ = useQuery({
+    queryKey: ["course", id, "analytics"],
+    queryFn: () => Courses.analytics(id),
+  });
   const [newModuleTitle, setNewModuleTitle] = useState("");
 
   const publish = useMutation({
@@ -35,6 +39,16 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
       toast.success("Status updated");
       qc.invalidateQueries({ queryKey: qk.course(id) });
     },
+  });
+
+  const duplicate = useMutation({
+    mutationFn: () => Courses.duplicate(id),
+    onSuccess: (c) => {
+      toast.success("Course duplicated");
+      qc.invalidateQueries({ queryKey: qk.myCourses });
+      window.location.href = `/studio/${c.id}`;
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Could not duplicate"),
   });
 
   const createModule = useMutation({
@@ -79,10 +93,13 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
           <h1 className="mt-1 text-3xl font-bold tracking-tight">{course.title}</h1>
           <p className="text-muted-foreground">Manage modules and lessons.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href={`/courses/${course.slug}`} target="_blank">
             <Button variant="outline">Preview as student</Button>
           </Link>
+          <Button variant="outline" onClick={() => duplicate.mutate()} disabled={duplicate.isPending}>
+            {duplicate.isPending ? "Duplicating…" : "Duplicate"}
+          </Button>
           {course.status !== "published" && (
             <Button onClick={() => publish.mutate("published")}>Publish</Button>
           )}
@@ -93,6 +110,36 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
           )}
         </div>
       </header>
+
+      {analyticsQ.data && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Analytics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+              <StatTile label="Enrollments" value={analyticsQ.data.enrollments} />
+              <StatTile
+                label="Completions"
+                value={`${analyticsQ.data.completions} (${Math.round(
+                  analyticsQ.data.completion_rate * 100,
+                )}%)`}
+              />
+              <StatTile
+                label="Avg rating"
+                value={
+                  analyticsQ.data.avg_rating != null
+                    ? `${analyticsQ.data.avg_rating.toFixed(1)} (${analyticsQ.data.rating_count})`
+                    : "—"
+                }
+              />
+              <StatTile label="Avg progress" value={`${analyticsQ.data.avg_progress_pct}%`} />
+              <StatTile label="New (7d)" value={analyticsQ.data.enrollments_last_7d} />
+              <StatTile label="New (30d)" value={analyticsQ.data.enrollments_last_30d} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -167,5 +214,14 @@ function SortableModule({ module: m, courseId }: { module: ModuleOut; courseId: 
         </Link>
       </div>
     </li>
+  );
+}
+
+function StatTile({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-md border bg-background p-3">
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+    </div>
   );
 }

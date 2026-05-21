@@ -61,6 +61,9 @@ make test.api                      # backend only
 make test.web                      # frontend unit only
 make lint / make fmt
 make shell.api / make shell.web / make shell.db
+make openapi                       # dump apps/backend/openapi.json (in-container)
+make openapi.local                 # same but on the host (needs local deps)
+make api-client                    # regenerate the TS client from OpenAPI
 ```
 
 Default seeded accounts (dev only):

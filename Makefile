@@ -137,6 +137,14 @@ prod.logs:
 api-client: ## Regenerate the TypeScript client from OpenAPI.
 	$(COMPOSE) exec web pnpm openapi:generate
 
+.PHONY: openapi
+openapi: ## Dump OpenAPI schema to apps/backend/openapi.json (no running stack needed).
+	$(COMPOSE) exec api python -m scripts.export_openapi --out openapi.json --pretty
+
+.PHONY: openapi.local
+openapi.local: ## Same as `openapi` but runs on the host (requires deps installed locally).
+	cd apps/backend && python -m scripts.export_openapi --out openapi.json --pretty
+
 .PHONY: precommit
 precommit: ## Run pre-commit on all files.
 	pre-commit run --all-files

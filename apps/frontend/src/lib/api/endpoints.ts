@@ -98,6 +98,22 @@ export const Courses = {
       body: { order },
       token,
     }),
+
+  analytics: (courseId: string, token?: string) =>
+    api<{
+      course_id: string;
+      enrollments: number;
+      completions: number;
+      completion_rate: number;
+      avg_rating: number | null;
+      rating_count: number;
+      avg_progress_pct: number;
+      enrollments_last_7d: number;
+      enrollments_last_30d: number;
+    }>(`/api/v1/courses/${courseId}/analytics`, { token }),
+
+  duplicate: (courseId: string, token?: string) =>
+    api<CourseListItem>(`/api/v1/courses/${courseId}/duplicate`, { method: "POST", token }),
 };
 
 // ---------- Enrollments ----------

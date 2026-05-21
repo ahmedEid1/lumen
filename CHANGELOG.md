@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 6)
+- `GET /api/v1/courses/{course_id}/analytics` returns per-course metrics
+  (enrollments, completions, completion rate, avg rating + count, avg
+  progress, new-7d and new-30d enrollments). Surfaced on the studio page.
+- `POST /api/v1/courses/{course_id}/duplicate` clones a course (modules +
+  lessons) as a draft owned by the caller, with a unique slug. Any instructor
+  can duplicate a published course to remix it.
+- `scripts/export_openapi.py` + `make openapi` / `make openapi.local` dump
+  the OpenAPI schema without a running stack.
+
 ### Added (iteration 5)
 - Course bookmarks: `GET/PUT/DELETE /api/v1/me/bookmarks/{course_id}`, with
   `is_bookmarked` exposed on the course detail and a Bookmarks section on the
