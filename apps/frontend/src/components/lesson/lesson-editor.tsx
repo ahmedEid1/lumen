@@ -139,16 +139,58 @@ export function LessonEditor({ courseId, moduleId, lesson, newType, onSaved, onD
         )}
 
         {type === "video" && (
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="video-url">
-              Video URL
-            </label>
-            <Input
-              id="video-url"
-              value={data.url ?? ""}
-              onChange={(e) => setData({ ...data, url: e.target.value })}
-              placeholder="https://..."
-            />
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="video-url">
+                Video URL
+              </label>
+              <Input
+                id="video-url"
+                value={data.url ?? ""}
+                onChange={(e) => setData({ ...data, url: e.target.value })}
+                placeholder="https://..."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="video-captions">
+                Captions URL (WebVTT, optional)
+              </label>
+              <Input
+                id="video-captions"
+                value={data.captions_url ?? ""}
+                onChange={(e) => setData({ ...data, captions_url: e.target.value || null })}
+                placeholder="https://.../captions.vtt"
+              />
+              <p className="text-xs text-muted-foreground">
+                Add WebVTT captions so the lesson stays accessible to deaf
+                / hard-of-hearing learners. Default: on.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium" htmlFor="captions-label">
+                  Caption track label
+                </label>
+                <Input
+                  id="captions-label"
+                  value={data.captions_label ?? "English"}
+                  onChange={(e) => setData({ ...data, captions_label: e.target.value })}
+                  placeholder="English"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium" htmlFor="captions-lang">
+                  Language code (BCP-47)
+                </label>
+                <Input
+                  id="captions-lang"
+                  value={data.captions_lang ?? "en"}
+                  onChange={(e) => setData({ ...data, captions_lang: e.target.value })}
+                  placeholder="en"
+                  maxLength={10}
+                />
+              </div>
+            </div>
           </div>
         )}
 
@@ -392,7 +434,13 @@ function normalizeData(type: LessonType, raw: any): any {
     case "text":
       return { body_markdown: copy.body_markdown ?? "" };
     case "video":
-      return { url: copy.url ?? "", asset_key: copy.asset_key ?? null };
+      return {
+        url: copy.url ?? "",
+        asset_key: copy.asset_key ?? null,
+        captions_url: copy.captions_url ?? null,
+        captions_label: copy.captions_label ?? "English",
+        captions_lang: copy.captions_lang ?? "en",
+      };
     case "image":
       return { asset_key: copy.asset_key ?? "", alt: copy.alt ?? "" };
     case "file":

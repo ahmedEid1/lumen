@@ -47,6 +47,10 @@ ALLOWED_PER_KIND = {
         "text/plain",
         "text/markdown",
         "application/zip",
+        # WebVTT captions for video lessons (iter 82). text/vtt is the
+        # IANA-registered type. Some browsers also accept text/plain
+        # for VTT, but the spec says text/vtt so we require it.
+        "text/vtt",
     },
     "cover": {"image/png", "image/jpeg", "image/webp"},
     # Attachments used to wildcard ("*") — that let any authenticated

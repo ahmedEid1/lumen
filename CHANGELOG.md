@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 82)
+- **WebVTT captions for video lessons.** Accessibility gap — every
+  video lesson should be captionable. `VideoLessonData` gains
+  optional `captions_url`, `captions_label` (default "English"),
+  `captions_lang` (BCP-47, default "en"). The lesson player
+  renders `<track kind="captions" default>` so captions are on
+  out of the gate (opt-out, not opt-in). The lesson editor gains
+  three fields under the video URL — URL, label, language. The
+  presign allow-list for `kind="lesson"` adds `text/vtt` so
+  instructors can upload captions through the normal flow.
+  Covered by `tests/test_video_captions.py` (4 tests: schema
+  round-trip, optional with sensible defaults, 500-char URL cap,
+  upload allow-list contains text/vtt).
+
 ### Docs (iteration 81)
 - **ADR-0013 documenting the discussion-thread design.** Captures
   the two-table flat-reply model from iter 77, the "why not

@@ -20,7 +20,25 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
     case "video":
       return (
         <div className="aspect-video w-full overflow-hidden rounded-lg border bg-black">
-          <video controls className="h-full w-full" src={String(data.url ?? "")} />
+          <video
+            controls
+            crossOrigin={data.captions_url ? "anonymous" : undefined}
+            className="h-full w-full"
+            src={String(data.url ?? "")}
+          >
+            {data.captions_url && (
+              // iter 82: instructor-uploaded WebVTT. ``default`` so
+              // captions are on out of the gate — accessibility is
+              // an opt-out, not an opt-in.
+              <track
+                kind="captions"
+                src={String(data.captions_url)}
+                srcLang={String(data.captions_lang ?? "en")}
+                label={String(data.captions_label ?? "English")}
+                default
+              />
+            )}
+          </video>
         </div>
       );
     case "image":

@@ -40,6 +40,14 @@ class VideoLessonData(BaseModel):
     type: Literal["video"] = "video"
     url: str = Field(min_length=1, max_length=500)
     asset_key: str | None = None
+    # Optional WebVTT captions URL. Surfaced as <track kind="captions"
+    # default> on the lesson player so the video is accessible to deaf /
+    # hard-of-hearing learners and to anyone studying in a noisy or
+    # silent environment. Stored as a presigned public URL the same way
+    # ``url`` is — no separate auth.
+    captions_url: str | None = Field(default=None, max_length=500)
+    captions_label: str = Field(default="English", max_length=40)
+    captions_lang: str = Field(default="en", max_length=10)
 
 
 class ImageLessonData(BaseModel):
