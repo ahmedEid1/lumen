@@ -67,7 +67,9 @@ def queue_verification_email(*, user: User) -> str | None:
     """Best-effort: dispatch the verification email via Celery; returns the link or None."""
     token = make_token(user)
     s = get_settings()
-    link = f"{s.api_base_url}/verify-email?token={token}"
+    # web_base_url, not api_base_url — the verification page is a Next.js
+    # route, the FastAPI host has no /verify-email handler.
+    link = f"{str(s.web_base_url).rstrip('/')}/verify-email?token={token}"
     try:
         from app.workers.tasks.email import send
 

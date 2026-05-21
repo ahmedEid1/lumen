@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 37)
+- **Password-reset and email-verify links pointed at the API host.**
+  Both link builders used `settings.api_base_url` (FastAPI, port 8000
+  dev, typically `api.example.com` prod) but the actual reset and
+  verification pages are Next.js routes that only exist on the user-
+  facing web host (`example.com`). Anyone clicking the link in their
+  inbox in prod landed on a 404. Introduced `WEB_BASE_URL` (default
+  `http://localhost:3000`) and routed both emails through it; the
+  prod-readiness guard now refuses to boot if it's still the dev
+  default, mirroring the existing `cors_origins` check. Covered by
+  `tests/test_email_link_host.py` (4 tests: prod guard accept/reject,
+  reset link host, verify link host).
+
 ### Security (iteration 36)
 - **Chat WebSocket re-authorises on every post.** The connection
   validated the user and enrollment once at connect, then cached both in

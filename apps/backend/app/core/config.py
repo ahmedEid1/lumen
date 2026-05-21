@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"  # noqa: S104 — intentional, bind in container
     api_port: int = 8000
     api_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8000")
+    # User-facing frontend origin — embedded in transactional emails
+    # (password reset, email verification) so links resolve to the Next.js
+    # app, not the FastAPI host where those routes don't exist.
+    web_base_url: AnyHttpUrl = AnyHttpUrl("http://localhost:3000")
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
     # ---------- Crypto ----------
@@ -121,6 +125,8 @@ class Settings(BaseSettings):
             problems.append("S3_SECRET_ACCESS_KEY is still the dev default")
         if any("localhost" in o for o in self.cors_origins):
             problems.append("CORS_ORIGINS contains localhost in production")
+        if "localhost" in str(self.web_base_url):
+            problems.append("WEB_BASE_URL is still the localhost default — emails would link to a dev host")
         if problems:
             raise RuntimeError(
                 "Refusing to start: " + "; ".join(problems) + ". Update your .env."

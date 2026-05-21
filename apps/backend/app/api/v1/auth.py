@@ -144,7 +144,9 @@ async def password_reset_request(
         try:
             from app.workers.tasks.email import send
 
-            link = f"{get_settings().api_base_url}/reset-password?token={token}"
+            # web_base_url, not api_base_url — the reset page is a Next.js
+            # route, the FastAPI host has no /reset-password handler.
+            link = f"{str(get_settings().web_base_url).rstrip('/')}/reset-password?token={token}"
             send.delay(
                 to=user.email,
                 subject="Reset your Lumen password",
