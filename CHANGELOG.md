@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Tests (iteration 63)
+- **Extracted and pinned the iter 35 lesson-resume logic.** The
+  "land on the first incomplete lesson, fall back to lesson 1 if
+  the course is done" heuristic was inlined in a useEffect inside
+  the `/learn/[slug]` page — untestable without spinning up TanStack
+  + auth + router mocks. Moved to `src/lib/lesson-resume.ts` as a
+  pure `pickResumeLessonId(lessons)` helper and covered in
+  `tests/lesson-resume.test.ts` (5 cases: empty course returns
+  null, nothing-completed returns lesson 1, mixed returns first
+  incomplete, all-complete falls back to lesson 1, single-lesson
+  edge cases).
+
 ### Tests (iteration 62)
 - **Aligned frontend tests with iter 55 + 56 contract changes.**
   `tests/image-upload.test.tsx` was still asserting the old PUT

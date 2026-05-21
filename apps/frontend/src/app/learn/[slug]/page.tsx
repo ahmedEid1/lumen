@@ -14,6 +14,7 @@ import { qk } from "@/lib/query/keys";
 import { LessonPlayer } from "@/components/lesson/lesson-player";
 import { ChatRoom } from "@/components/chat/chat-room";
 import { useAuth } from "@/lib/auth/store";
+import { pickResumeLessonId } from "@/lib/lesson-resume";
 
 export default function LearnPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -29,11 +30,9 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
   }, [courseQ.data]);
 
   useEffect(() => {
-    if (selectedId || lessons.length === 0) return;
-    // Resume where the learner left off: first not-completed lesson, falling
-    // back to the very first lesson when everything is already done.
-    const next = lessons.find((l) => !l.completed) ?? lessons[0];
-    setSelectedId(next.id);
+    if (selectedId) return;
+    const next = pickResumeLessonId(lessons);
+    if (next) setSelectedId(next);
   }, [lessons, selectedId]);
 
   // Redirect visitors who aren't enrolled to the course detail page so they
