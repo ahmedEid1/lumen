@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.email_type import Email
 from app.models.user import Role
 
 
@@ -22,7 +23,7 @@ class UserPublic(BaseModel):
 class UserOut(UserPublic):
     """Profile fields for the authenticated user."""
 
-    email: EmailStr
+    email: Email
     is_active: bool
     email_verified_at: datetime | None = None
     created_at: datetime

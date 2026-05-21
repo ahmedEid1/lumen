@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.email_type import Email
 
 from app.schemas.user import UserOut
 
@@ -20,7 +22,7 @@ def validate_password_strength(v: str) -> str:
 
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
+    email: Email
     password: str = Field(min_length=PASSWORD_MIN, max_length=128)
     full_name: str = Field(min_length=1, max_length=120)
 
@@ -31,7 +33,7 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: Email
     password: str = Field(min_length=1, max_length=128)
 
 
@@ -43,7 +45,7 @@ class TokenResponse(BaseModel):
 
 
 class PasswordResetRequest(BaseModel):
-    email: EmailStr
+    email: Email
 
 
 class PasswordResetConfirm(BaseModel):

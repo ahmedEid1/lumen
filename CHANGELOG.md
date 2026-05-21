@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 98) — six real bugs uncovered by actually running the stack
+- **Backend Dockerfile** `deps` stage failed on a clean checkout
+  (no `uv.lock`): the fallback `uv pip install -e '.'` needs an
+  `app/` directory that doesn't exist yet. Added a stub
+  `mkdir app && touch app/__init__.py`; the real source is copied
+  in later stages and overrides the stub.
+- **Meilisearch host port 7700** sits in Windows / WSL2's
+  reserved `7681-7780` range — `docker compose up` failed with
+  "ports are not available". Removed the host binding (the API
+  reaches search via the docker network anyway); documented how
+  to re-enable on a different host port.
+- **Meilisearch healthcheck** used `wget http://localhost:7700`
+  but busybox wget resolves `localhost` to `::1` first and the
+  daemon listens IPv4-only — pinned to `127.0.0.1`.
+- **`CORS_ORIGINS`**: pydantic-settings v2 parses `list[str]`
+  fields as JSON before the `mode="before"` validator runs;
+  comma-separated was rejected. Switched the docker-compose
+  default + `.env` to JSON-array syntax with a comment.
+- **Structlog config** registered `add_logger_name` with a
+  `PrintLoggerFactory` — incompatible (PrintLogger has no
+  `.name`), so the first log call after startup crashed. Dropped
+  the processor; `CallsiteParameterAdder` already provides
+  MODULE / FUNC_NAME / LINENO which is strictly more useful.
+- **`EmailStr` rejected `student@lumen.test`** — the upstream
+  `email-validator` enforces RFC 6761 and refuses reserved TLDs.
+  New `app.core.email_type.Email` Pydantic type uses
+  `test_environment=True` so seed accounts and test fixtures
+  keep working; swapped at every `EmailStr` site.
+- **`user.role.value` AttributeError on first login** — column
+  typed `Mapped[Role]` but stored as `String(20)` without a
+  TypeDecorator, so SQLAlchemy returns a plain str on read.
+  Wrapped the access with `str(user.role)` (correct for both
+  StrEnum instances and plain strings).
+- **Live verification via Chrome**: signed in as the seeded
+  student, dashboard renders, course detail (forum link +
+  syllabus) renders, language switcher flips `<html lang="ar"
+  dir="rtl">` and nav strings switch to Arabic. All green.
+
 ### Tests (iteration 97)
 - **Two new Playwright e2e specs** beyond the existing smoke
   test:

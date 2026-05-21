@@ -144,7 +144,12 @@ async def _issue_tokens_returning(
     db: AsyncSession, user: User, *, ip: str | None, user_agent: str | None
 ) -> tuple[TokenPair, RefreshToken]:
     s = get_settings()
-    access, exp = create_access_token(subject=user.id, role=user.role.value)
+    # str(user.role) works whether SQLAlchemy hands us a Role enum
+    # (when typed via Enum column type) or a plain str (current
+    # schema uses String(20) so reads come back as bare strings).
+    # Role is a StrEnum so both paths yield "student" / "instructor"
+    # / "admin" cleanly.
+    access, exp = create_access_token(subject=user.id, role=str(user.role))
     raw, digest = new_refresh_token()
     rt_expires = datetime.now(timezone.utc) + timedelta(seconds=s.refresh_token_ttl_seconds)
     stored = await users_repo.add_refresh_token(

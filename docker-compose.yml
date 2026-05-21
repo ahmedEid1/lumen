@@ -9,7 +9,10 @@ x-api-env: &api-env
   JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
   ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
   REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-1209600}
-  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+  # pydantic-settings v2 parses ``list[str]`` env vars as JSON before
+  # the @field_validator(mode="before") gets a chance, so the value
+  # must be a JSON array — not a comma-separated string.
+  CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
   DATABASE_URL: ${DATABASE_URL}
   DATABASE_URL_SYNC: ${DATABASE_URL_SYNC}
   REDIS_URL: ${REDIS_URL}
@@ -117,9 +120,19 @@ services:
       - search-data:/meili_data
     healthcheck:
       <<: *healthcheck-defaults
-      test: ["CMD", "wget", "-qO-", "http://localhost:7700/health"]
-    ports:
-      - "7700:7700"
+      # Force IPv4 — meilisearch listens on 0.0.0.0 only; the
+      # busybox wget in the image resolves ``localhost`` to ::1
+      # (IPv6) first which then refuses the connection.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7700/health"]
+    # Host-side 7700 binding intentionally omitted — Windows / WSL2
+    # reserves 7681-7780 on common installs
+    # (``netsh interface ipv4 show excludedportrange``). The API
+    # container reaches search via the internal docker network at
+    # ``http://search:7700`` so the host binding only matters for
+    # direct curl / web-UI debugging. Re-enable locally on a free
+    # port if you need it:
+    #   ports:
+    #     - "7780:7700"
 
   mail:
     image: axllent/mailpit:v1.20

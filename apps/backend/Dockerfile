@@ -22,6 +22,13 @@ WORKDIR /app
 # ---------------- deps ----------------
 FROM base AS deps
 COPY pyproject.toml uv.lock* ./
+# Stub package layout so ``uv pip install -e '.'`` succeeds on the
+# deps-only stage when there's no uv.lock to lean on. The real
+# ``app/`` is copied over in the dev / build stages below. Without
+# this stub, ``uv pip install -e '.'`` fails with "package
+# directory 'app' does not exist" because nothing has copied the
+# source yet at this point in the build.
+RUN mkdir -p app && touch app/__init__.py
 RUN uv venv /opt/venv \
  && uv sync --frozen --no-install-project --no-dev 2>/dev/null || uv pip install -e '.'
 
@@ -30,6 +37,7 @@ FROM deps AS dev
 RUN uv sync --frozen --group dev 2>/dev/null || uv pip install -e '.[dev]' \
       pytest pytest-asyncio pytest-cov pytest-httpx anyio ruff mypy types-redis types-passlib \
       factory-boy freezegun respx faker
+# Real source goes on top of the stub — overrides app/__init__.py.
 COPY . .
 EXPOSE 8000
 ENTRYPOINT ["/usr/bin/tini", "--"]

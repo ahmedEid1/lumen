@@ -5,10 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import desc, func, select
 
 from app.api.deps import CurrentUser, DBSession, client_ip, user_agent
+from app.core.email_type import Email
 from app.core.errors import NotFoundError, UnauthorizedError, ValidationAppError
 from app.core.security import hash_password, verify_password
 from app.models.chat import ChatMessage
@@ -154,7 +155,7 @@ async def revoke_my_session(session_id: str, user: CurrentUser, db: DBSession) -
 
 
 class EmailChangeRequest(BaseModel):
-    new_email: EmailStr
+    new_email: Email
     current_password: str = Field(min_length=1, max_length=128)
 
 

@@ -46,7 +46,12 @@ def configure_logging(level: str = "INFO", *, json: bool = True) -> None:
     shared_processors: list[Any] = [
         merge_contextvars,
         structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
+        # NB: ``add_logger_name`` requires a stdlib LoggerFactory (it
+        # reads logger.name); we use PrintLoggerFactory below for
+        # zero-config console output. CallsiteParameterAdder gives us
+        # MODULE / FUNC_NAME / LINENO which is strictly more useful
+        # than the logger-name field anyway, so dropping it costs
+        # nothing.
         TimeStamper(fmt="iso", utc=True),
         CallsiteParameterAdder(
             parameters={CallsiteParameter.MODULE, CallsiteParameter.FUNC_NAME, CallsiteParameter.LINENO}
