@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs (iteration 60)
+- **Three new ADRs documenting the seams the audit sweep hardened.**
+  ADR-0008 captures the soft-delete / unpublished-course visibility
+  rules and the two predicates (`get_course`, `can_view_course`)
+  that every endpoint should pick from. ADR-0009 records the
+  unified password policy + opt-in HIBP gate, including the
+  fail-open and padding-row decisions. ADR-0010 pins the request
+  hardening middleware order (CSRF → Idempotency → SecurityHeaders
+  → RequestId → GZip) with reasoning for why each pair sits where
+  it does — so a future contributor inserting a new middleware
+  doesn't accidentally widen a hole.
+
 ### Added (iteration 59)
 - **Email change flow.** Previously email was immutable post-
   registration. New two-step flow: `POST /users/me/email/request`
