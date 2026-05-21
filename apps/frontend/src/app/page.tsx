@@ -13,7 +13,7 @@ export const revalidate = 60;
 
 const PILLARS: { glyph: GlyphName; deity: string; title: string; body: string }[] = [
   {
-    glyph: "scroll",
+    glyph: "feather",
     deity: "Thoth",
     title: "Inscribe a course in an evening",
     body: "Lessons, video, files, and auto-graded quizzes. Drag-and-drop modules. Idempotent publishing — no fear of double-clicks.",
@@ -97,12 +97,13 @@ export default async function HomePage() {
             style={{ animationDelay: "280ms" }}
             aria-hidden
           >
-            {(["eye", "ankh", "djed", "feather", "scroll", "was", "sun"] as GlyphName[]).map(
+            {(["eye", "ankh", "djed", "feather", "was", "sun-disk"] as GlyphName[]).map(
               (g, i) => (
                 <Glyph
                   key={g}
                   name={g}
-                  size={20}
+                  size={26}
+                  mode="tint"
                   className="transition-transform hover:-translate-y-1 hover:text-gold"
                   style={{ animation: `drift 5s ease-in-out ${i * 0.4}s infinite` }}
                 />
@@ -179,7 +180,12 @@ export default async function HomePage() {
 
         {featured.items.length === 0 ? (
           <div className="rounded-md border border-dashed border-gold/30 bg-card/40 p-16 text-center scroll-paper">
-            <Glyph name="scroll" size={48} className="mx-auto mb-4 text-gold/40" />
+            <Glyph
+              name="feather"
+              size={56}
+              mode="tint"
+              className="mx-auto mb-4 text-gold/40"
+            />
             <p className="font-display text-xl italic text-muted-foreground">
               The shelves are still being stocked.
             </p>
@@ -210,9 +216,10 @@ export default async function HomePage() {
         />
         <div className="container mx-auto flex flex-col items-center gap-6 px-4 py-24 text-center">
           <Glyph
-            name="sun"
-            size={56}
-            className="text-gold drop-shadow-[0_0_20px_hsl(var(--gold-leaf)/0.6)]"
+            name="aten"
+            size={84}
+            mode="art"
+            className="drop-shadow-[0_0_24px_hsl(var(--gold-leaf)/0.55)]"
           />
           <h2 className="reveal max-w-3xl font-display text-4xl font-medium leading-tight tracking-tight sm:text-6xl">
             Apprentice yourself to the masters.

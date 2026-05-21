@@ -242,7 +242,12 @@ function CatalogInner() {
           </div>
         ) : (
           <div className="rounded-md border border-dashed border-gold/30 bg-card/40 p-16 text-center scroll-paper">
-            <Glyph name="feather" size={48} className="mx-auto mb-4 text-gold/40" />
+            <Glyph
+              name="feather"
+              size={56}
+              mode="tint"
+              className="mx-auto mb-4 text-gold/40"
+            />
             <p className="font-display text-xl italic text-muted-foreground">
               No scrolls match those filters.
             </p>

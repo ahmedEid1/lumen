@@ -40,8 +40,9 @@ export function CourseCard({ course }: { course: CourseListItem }) {
         ) : (
           <div className="flex h-full items-center justify-center bg-[radial-gradient(ellipse_at_center,hsl(var(--gold-leaf)/0.12),transparent_65%)]">
             <Glyph
-              name="scroll"
-              size={56}
+              name="ankh"
+              size={72}
+              mode="tint"
               className="text-gold/35 transition-transform duration-700 group-hover:scale-110 group-hover:text-gold/60"
             />
           </div>
