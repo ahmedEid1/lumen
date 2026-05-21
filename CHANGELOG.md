@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 61)
+- **Rate-limit buckets are now per-user, not per-IP.** slowapi's
+  default `get_remote_address` keyed every bucket by remote address,
+  so two learners behind the same NAT (office, school, coffee shop)
+  shared one bucket — a single noisy account could lock out every
+  colleague on the same gateway. New `_identity_key` derives the
+  bucket from the JWT `sub` when an Authorization header is present,
+  the hashed auth cookie when not, and only falls back to the IP for
+  fully anonymous traffic (where IP is the best identity we have).
+  Covered by `tests/test_rate_limit_per_user.py` (2 tests: noisy
+  account drains its bucket but a second account on the "same IP"
+  in tests can still post; anonymous still keys by IP).
+
 ### Docs (iteration 60)
 - **Three new ADRs documenting the seams the audit sweep hardened.**
   ADR-0008 captures the soft-delete / unpublished-course visibility
