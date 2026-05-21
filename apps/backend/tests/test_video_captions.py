@@ -1,10 +1,10 @@
 """Captions support for video lessons (WebVTT).
 
-Iter 82 extends ``VideoLessonData`` with ``captions_url``,
-``captions_label``, and ``captions_lang`` for accessibility — every
-video should be captionable. The upload allow-list also gains
-``text/vtt`` so an instructor can presign the upload through the
-normal flow rather than hosting the VTT externally.
+``VideoLessonData`` carries ``captions_url``, ``captions_label``,
+and ``captions_lang`` for accessibility — every video should be
+captionable. The upload allow-list also includes ``text/vtt`` so
+an instructor can presign the upload through the normal flow
+rather than hosting the VTT externally.
 """
 
 from __future__ import annotations

@@ -239,9 +239,9 @@ class CourseDetail(CourseListItem):
     is_enrolled: bool = False
     is_bookmarked: bool = False
     progress_pct: float = 0.0
-    # "What you'll learn" bullet list, iter 86. Empty list means
-    # the instructor hasn't filled it in — the detail page hides
-    # the section in that case.
+    # "What you'll learn" bullet list. Empty list means the
+    # instructor hasn't filled it in — the detail page hides the
+    # section in that case.
     learning_outcomes: list[str] = Field(default_factory=list)
 
 

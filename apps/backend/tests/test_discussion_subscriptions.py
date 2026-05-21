@@ -1,7 +1,7 @@
 """Discussion subscriptions — opt-in follow with notification fanout.
 
-Iter 90 extends iter 79's "notify thread author on reply" with a
-proper subscribe/follow path:
+Extends the "notify thread author on reply" path with a proper
+subscribe/follow flow:
 
 * the thread author is auto-subscribed at create;
 * a replier is auto-subscribed at reply (GitHub pattern: showing

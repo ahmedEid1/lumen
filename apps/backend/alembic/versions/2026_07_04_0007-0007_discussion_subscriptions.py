@@ -1,6 +1,6 @@
 """discussion_subscriptions
 
-Adds opt-in subscriptions per thread (iter 90). Authors auto-
+Adds opt-in subscriptions per thread. Authors auto-
 subscribe at thread create; repliers auto-subscribe at reply.
 
 Revision ID: 0007

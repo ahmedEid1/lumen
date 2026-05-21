@@ -1,7 +1,7 @@
 """Idempotency-Key middleware: replay on same body, conflict on diff.
 
-CLAUDE.md flagged Idempotency-Key support as planned in v1. Iter 58
-adds it as opt-in via the ``Idempotency-Key`` header on mutating
+CLAUDE.md flagged Idempotency-Key support as planned in v1. It is
+wired in as opt-in via the ``Idempotency-Key`` header on mutating
 methods. Behaviour matches the draft RFC:
 
 * same key + same body within TTL → cached response replayed (with

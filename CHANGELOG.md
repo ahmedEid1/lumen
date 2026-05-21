@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 15) — strip remaining inline "iter NN" prose
+Follow-up to iter 9 which only handled `# Iter NN:` *prefixes*.
+This pass rewrites the ~37 inline references — "Iter 73 adds
+…", "Pre-iter 53 only the auth endpoints…", "(iter 99 found
+this)" — to describe the *current* code rather than its
+historical timeline.
+
+- **9 parenthetical `(iter NN)` mentions** removed by a one-shot
+  regex script across `app/` + `tests/` + `alembic/`.
+- **~28 file-level docstrings, inline comments, and Alembic
+  migration headers** rephrased manually to drop iter
+  references while keeping the WHY prose intact:
+  - `Iter 73 adds an append-only quiz_attempts table` →
+    `Append-only table of quiz submissions…`
+  - `Iter 100 regression: Next.js dev mode compiles…` →
+    `Regression guard: Next.js dev mode compiles…`
+  - `Pre-iter-53 only the auth endpoints carried rate limits` →
+    `The auth endpoints alone are not enough; two write
+    paths each present a DOS surface…`
+  - …and so on.
+
+No code changed; pure comment rewording. Backend pytest stays
+321/321, frontend vitest 95/95.
+
 ### Changed (simplify iter 14) — DRY-up `api/v1/admin.py`
 Dispatched the `code-simplifier` plugin agent again, this
 time on the admin router (396 lines). Adopted three of its

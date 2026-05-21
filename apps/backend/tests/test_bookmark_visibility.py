@@ -1,9 +1,8 @@
 """Regression: bookmarks must not expose courses the viewer can't see.
 
-Before iteration 47 ``add_bookmark`` only checked
-``courses_repo.get_course`` (filters ``deleted_at`` but not status), so
-a user who knew (or guessed) the id of another instructor's *draft*
-course could:
+A naive ``add_bookmark`` that only checked ``courses_repo.get_course``
+(filters ``deleted_at`` but not status) would let a user who knew (or
+guessed) the id of another instructor's *draft* course:
 
 * POST ``/api/v1/me/bookmarks/{id}`` → 201;
 * GET ``/api/v1/me/bookmarks`` → the bookmark listing renders the
@@ -11,8 +10,8 @@ course could:
   cover, subject, tags, and stats — every field the catalog hides
   from non-owners.
 
-This is the same shape as the duplicate-course leak fixed in iter 46.
-We now run ``can_view_course`` at both bookmark-add time and list
+Same shape as the duplicate-course leak. We run ``can_view_course``
+at both bookmark-add time and list
 time, so a bookmark can never surface a course the viewer wouldn't
 see on the detail page or in the catalog. Existing bookmarks pointing
 at a course that has since gone draft are silently filtered from the
@@ -137,8 +136,8 @@ async def test_owner_can_bookmark_their_own_draft(
 async def test_enrolled_learner_can_bookmark_archived_course(
     client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
-    """Iter 24 lets enrolled learners keep reading archived courses —
-    bookmark should follow the same posture."""
+    """Enrolled learners keep reading archived courses, so a bookmark
+    on one should remain valid — same posture."""
     owner = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)

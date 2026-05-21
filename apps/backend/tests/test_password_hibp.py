@@ -1,10 +1,9 @@
 """Regression: HIBP breach-list check on every password-setting path.
 
-Iter 39 unified the structural strength policy but explicitly flagged
-HIBP / breach-list lookup as future work. Iter 52 wires that in via
-k-anonymity (only the first 5 chars of SHA-1 leave the process) and
-applies the gate to register, password-reset confirm, and
-change-password.
+The unified structural strength policy is paired with a HIBP /
+breach-list lookup using k-anonymity (only the first 5 chars of
+SHA-1 leave the process). The gate applies to register,
+password-reset confirm, and change-password.
 
 The feature is opt-in via ``hibp_enabled`` — test infra defaults to
 disabled to avoid hitting api.pwnedpasswords.com during ``make test``,

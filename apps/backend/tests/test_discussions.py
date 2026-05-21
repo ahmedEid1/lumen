@@ -1,8 +1,8 @@
 """Course discussion threads — create, list, reply, delete, authz.
 
-Iter 77 introduces a forum-style alternative to the flat chat:
-threaded Q&A with title + body, replies underneath, soft-delete for
-moderation, and the same course-visibility rule the catalog uses.
+Forum-style alternative to the flat chat: threaded Q&A with title +
+body, replies underneath, soft-delete for moderation, and the same
+course-visibility rule the catalog uses.
 """
 
 from __future__ import annotations

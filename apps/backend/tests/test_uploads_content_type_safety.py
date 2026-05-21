@@ -103,7 +103,7 @@ async def test_sign_allows_a_typical_attachment(
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["key"].startswith("attachment/")
-    # POST presign (iter 56) — Content-Type lives in the signed
+    # POST presign — Content-Type lives in the signed
     # ``fields`` dict; the client must POST it as a form field so S3
     # can compare it against the policy condition.
     assert body["fields"]["Content-Type"] == "application/pdf"

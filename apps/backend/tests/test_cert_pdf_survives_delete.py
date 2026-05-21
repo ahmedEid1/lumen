@@ -72,7 +72,7 @@ async def test_pdf_still_downloads_after_course_soft_delete(
     rm = await client.delete(f"/api/v1/courses/{course_id}", headers=teacher)
     assert rm.status_code == 200
 
-    # The catalog hides the course (as iter 22-23 work expected) …
+    # The catalog hides the soft-deleted course …
     catalog = await client.get("/api/v1/courses?page=1&page_size=50")
     assert all(c["id"] != course_id for c in catalog.json()["items"])
 

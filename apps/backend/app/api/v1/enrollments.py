@@ -118,7 +118,7 @@ class QuizSubmitResponse(BaseModel):
 
 
 class QuizAttemptOut(BaseModel):
-    """One entry in the learner's quiz attempt history (iter 73)."""
+    """One entry in the learner's quiz attempt history."""
 
     id: str
     score: int

@@ -70,8 +70,7 @@ async def test_password_reset_link_uses_web_base_url(
     captured: dict[str, str] = {}
 
     class _StubSend:
-        # the endpoint now sends `html` too (iter 83
-        # branded-email work); accept and store it so the stub
+        # the endpoint now sends `html` too; accept and store it so the stub
         # doesn't raise TypeError and silently get swallowed
         # by the password-reset endpoint's broker-tolerant
         # try/except.

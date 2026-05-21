@@ -1,10 +1,10 @@
 """Branded HTML alongside the plain-text email body.
 
-Iter 83 wraps every transactional email (password reset, verify,
-email-change confirm) in a self-contained HTML alternative so it
-renders consistently across Gmail / Outlook / Apple Mail. Tests
-pin the template structure and the wire-up: the worker stub
-receives both ``text`` and ``html`` arguments.
+Every transactional email (password reset, verify, email-change
+confirm) ships a self-contained HTML alternative so it renders
+consistently across Gmail / Outlook / Apple Mail. Tests pin the
+template structure and the wire-up: the worker stub receives both
+``text`` and ``html`` arguments.
 """
 
 from __future__ import annotations

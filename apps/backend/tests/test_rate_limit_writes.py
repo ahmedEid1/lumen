@@ -1,7 +1,7 @@
 """Rate limits on the heavier write endpoints.
 
-Pre-iter-53 only the auth endpoints carried explicit rate limits.
-Two real DOS surfaces were left wide open for an authenticated user:
+The auth endpoints alone are not enough; two write paths each
+present a DOS surface for an authenticated user:
 
 * ``/me/progress/lessons/{id}/quiz`` — grading walks the full question
   list and writes ``LessonProgress`` rows / can issue certificates.
@@ -11,9 +11,9 @@ Two real DOS surfaces were left wide open for an authenticated user:
   out via Redis pub/sub, and broadcasts to every WS subscriber. An
   enrolled bad actor could trivially flood a course's chat.
 
-Iter 53 adds 20/minute on quiz submit and 30/minute on chat POST.
-The autouse limiter-reset fixture in conftest ensures these tests
-start with fresh buckets.
+The current limits are 20/minute on quiz submit and 30/minute on
+chat POST. The autouse limiter-reset fixture in conftest ensures
+these tests start with fresh buckets.
 """
 
 from __future__ import annotations

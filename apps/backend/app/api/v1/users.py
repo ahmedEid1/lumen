@@ -79,8 +79,8 @@ async def change_password(
     if payload.new_password == payload.current_password:
         raise ValidationAppError("New password must differ", code="auth.password_reused")
     # Same HIBP gate the register / reset flows run, so all three
-    # password-setting paths share one policy (iter 39) AND one
-    # breach-list lookup (iter 52).
+    # password-setting paths share one policy AND one
+    # breach-list lookup.
     from app.services import password_hibp
 
     await password_hibp.assert_not_pwned(payload.new_password)

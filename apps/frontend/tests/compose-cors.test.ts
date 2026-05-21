@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// Iter 103 regression: the e2e container's browser loads the
+// Regression guard: the e2e container's browser loads the
 // dev bundle from `http://web:3000`, so api requests originate
 // from that origin. If `CORS_ORIGINS` in the api environment
 // doesn't include `http://web:3000`, the api returns

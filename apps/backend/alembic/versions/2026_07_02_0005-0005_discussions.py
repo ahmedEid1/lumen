@@ -1,6 +1,6 @@
 """discussions and discussion_replies
 
-Two-table flat-thread discussion forum per course (iter 77).
+Two-table flat-thread discussion forum per course.
 Top-level Discussion has title + body + author + soft-delete;
 DiscussionReply is a flat list under it with author + body +
 soft-delete. We deliberately don't nest replies — Stack-Overflow

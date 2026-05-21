@@ -1,8 +1,8 @@
 """quiz attempts
 
-Iter 73 adds an append-only table of quiz submissions so learners
-and instructors can see attempt history rather than just the latest
-score that ``LessonProgress.payload`` happens to be holding.
+Append-only table of quiz submissions so learners and instructors
+can see attempt history rather than just the latest score that
+``LessonProgress.payload`` happens to be holding.
 
 Revision ID: 0004
 Revises: 0003

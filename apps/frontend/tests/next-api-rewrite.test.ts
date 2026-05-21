@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import nextConfig from "../next.config";
 
-// Iter 105 regression: the e2e + cookies story relies on
+// Regression guard: the e2e + cookies story relies on
 // next.config.ts's `rewrites()` proxying /api/v1/* through to the
 // internal api host. Drop that and same-origin requests fall
-// back to cross-origin direct fetches — CORS preflight succeeds
-// (iter 103) but the auth cookies (SameSite=Strict) don't
-// follow, so any post-login mutation silently fails.
+// back to cross-origin direct fetches — CORS preflight succeeds,
+// but the auth cookies (SameSite=Strict) don't follow, so any
+// post-login mutation silently fails.
 //
 // This test reads the resolved rewrites config and asserts that
 // /api/v1/* still routes to the internal api host.

@@ -87,7 +87,8 @@ async def test_csp_set_on_json_responses(client: AsyncClient) -> None:
 
 async def test_csp_absent_on_html_docs(client: AsyncClient) -> None:
     """Swagger UI uses inline scripts + a CDN; a strict CSP would
-    break it. Iter 70 gates CSP on application/json content-type."""
+    break it. The middleware gates CSP on application/json
+    content-type."""
     r = await client.get("/docs")
     assert r.status_code == 200
     assert "content-security-policy" not in {k.lower() for k in r.headers}

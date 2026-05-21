@@ -90,7 +90,7 @@ async def record_quiz_attempt(
     if passed:
         await courses_repo.mark_completed(db, lp, payload=None)
 
-    # Append-only attempt history (iter 73). Captures the verbatim
+    # Append-only attempt history. Captures the verbatim
     # answers so a future "review your attempt" UI can highlight
     # which questions were missed; persists even if the lesson is
     # later soft-deleted (FK cascades only on hard-delete).

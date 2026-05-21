@@ -1,14 +1,14 @@
 """Discussion subscriptions — "watch this thread for updates".
 
-Iter 79 already notifies the thread *author* on every reply, which
-closes the "did anyone answer my question?" loop. But a non-author
-who finds a useful thread had no way to get pinged on subsequent
-replies — they'd have to manually re-visit.
+The thread *author* is notified on every reply, which closes the
+"did anyone answer my question?" loop. A non-author who finds a
+useful thread can also subscribe explicitly to get pinged on
+subsequent replies.
 
-Iter 90 adds an opt-in subscribe per thread. GitHub's pattern: the
-author is auto-subscribed; anyone who replies is auto-subscribed
-(they've shown interest and probably want to know about followups);
-anyone else can subscribe via an explicit button.
+GitHub-style pattern: the author is auto-subscribed; anyone who
+replies is auto-subscribed (they've shown interest and probably
+want to know about followups); anyone else can subscribe via an
+explicit button.
 
 Stored as a single row per (user, discussion). Hard-delete on
 unsubscribe — no soft-delete because the question of "is this user

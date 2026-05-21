@@ -2,7 +2,7 @@
 #
 # Playwright e2e runner. Inherits chromium / firefox / webkit
 # pre-built against glibc (the alpine `web` image can't run
-# them — see CHANGELOG iter 99).
+# them).
 #
 # node_modules is installed at build time so it lives in an
 # image layer (fast NTFS-passthrough is a non-issue) rather

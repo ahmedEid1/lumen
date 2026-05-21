@@ -53,7 +53,7 @@ async def test_two_users_share_ip_but_not_bucket(
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=noisy)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=quiet)
 
-    # Drain noisy's bucket (30/minute, iter 53).
+    # Drain noisy's bucket (30/minute).
     noisy_last = None
     for i in range(32):
         noisy_last = await client.post(
@@ -79,7 +79,7 @@ async def test_anonymous_still_keys_by_ip(client: AsyncClient) -> None:
     that an unauthed request still drains the bucket and 429s, proving
     the fallback is wired."""
     last = None
-    # /auth/login is 10/minute (iter 39-ish). Anonymous → keyed by IP.
+    # /auth/login is 10/minute. Anonymous → keyed by IP.
     for _ in range(12):
         last = await client.post(
             "/api/v1/auth/login",

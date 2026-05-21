@@ -1,11 +1,9 @@
 """Cursor pagination on the admin audit log.
 
-CLAUDE.md specifies "cursor for messages/audit" — chat history already
-uses it but the audit endpoint only supported ``limit`` until iter 54.
-That made it impossible to inspect events older than the top 500
-(``limit`` max). The new ``?before=<id>`` filter returns events
-strictly older than the named anchor, same shape as
-``chat.history``.
+CLAUDE.md specifies "cursor for messages/audit" — chat history
+already used it; the audit endpoint now does too. The ``?before=<id>``
+filter returns events strictly older than the named anchor, same
+shape as ``chat.history``.
 
 Backwards-compatible: the response is still ``list[AuditEventOut]``,
 the existing frontend call without ``before`` still gets the head
@@ -105,9 +103,9 @@ async def test_audit_requires_admin(
 async def test_response_shape_unchanged(
     client: AsyncClient, auth_headers, db_session: AsyncSession, make_user
 ) -> None:
-    """Iter 54 added a query param but kept the response as a flat list
-    so the existing frontend call (no `before`) keeps working with no
-    breaking client change. Lock that in."""
+    """The `?before` query param was added without changing the
+    response shape, so the existing frontend call (no `before`) keeps
+    working with no breaking client change. Lock that in."""
     admin = await auth_headers(role=Role.admin)
     actor = await make_user()
     await _seed_events(db_session, actor_id=actor.id, n=2)

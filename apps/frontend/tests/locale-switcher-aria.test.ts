@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { en } from "../src/lib/i18n/messages/en";
 import { ar } from "../src/lib/i18n/messages/ar";
 
-// Iter 104 regression: the LocaleSwitcher's `aria-label` is
+// Regression guard: the LocaleSwitcher's `aria-label` is
 // `${t("common.language")}: ${LOCALE_LABELS[locale]}`, so it
 // localises along with the rest of the UI. The e2e
 // "language switcher toggles document direction" spec needs to

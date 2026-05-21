@@ -60,7 +60,7 @@ async def add_bookmark(course_id: str, user: CurrentUser, db: DBSession) -> OkRe
     if not await courses_service.can_view_course(db, course, user):
         # 404 (not 403) so we don't confirm the course exists to a
         # caller who shouldn't see it — same posture as the duplicate
-        # endpoint hardened in iter 46.
+        # endpoint.
         raise NotFoundError("Course not found", code="course.not_found")
     existing = (
         await db.execute(

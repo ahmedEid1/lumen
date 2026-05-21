@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import playwrightConfig from "../playwright.config";
 
-// Iter 100 regression: Next.js dev mode compiles each route on the
+// Regression guard: Next.js dev mode compiles each route on the
 // first hit on a single thread. With Playwright's default 6
 // parallel workers, six cold compiles serialise behind one mutex
 // and the slow ones blew past 60s — every spec failed

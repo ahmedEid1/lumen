@@ -94,9 +94,10 @@ async def test_presign_still_rejects_oversized_at_request_time(
 async def test_presign_response_no_longer_carries_put_headers(
     client: AsyncClient, auth_headers
 ) -> None:
-    """Iter 56 contract change: ``headers`` is gone, replaced by
-    ``fields``. Pin so a future API client doesn't keep reading the
-    stale key and silently send nothing."""
+    """Contract pin: the presign response carries ``fields`` (POST
+    multipart), not ``headers`` (the old PUT spelling). Lock so a
+    future API client doesn't keep reading the stale key and
+    silently send nothing."""
     h = await auth_headers()
     r = await client.post(
         "/api/v1/uploads/sign",

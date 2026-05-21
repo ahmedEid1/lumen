@@ -1,8 +1,8 @@
 """Course "What you'll learn" bullet list.
 
-Iter 86 adds a JSONB ``learning_outcomes`` list to courses. Pydantic
-trims whitespace, drops empties, caps each item at 240 chars, and
-caps the list at 12 items (past that the section stops being a
+JSONB ``learning_outcomes`` list on courses. Pydantic trims
+whitespace, drops empties, caps each item at 240 chars, and caps
+the list at 12 items (past that the section stops being a
 conversion tool and starts being a wall of text).
 """
 

@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// Iter 99 regression: the `web` dev image is alpine (musl), so
+// Regression guard: the `web` dev image is alpine (musl), so
 // Playwright's browser binaries — which only ship for glibc —
 // don't run inside it. The fix is a dedicated `e2e` service
 // built from `apps/frontend/Dockerfile.e2e`, which extends
@@ -61,7 +61,7 @@ describe("Playwright image pin", () => {
       "@playwright/test missing from devDependencies",
     ).toBeTruthy();
 
-    // Iter 99 found this: without a pnpm-lock.yaml, `^1.49.1`
+    // Without a pnpm-lock.yaml, the `^1.49.1`
     // resolved to 1.60.0 on a fresh install while the docker
     // image stayed pinned to v1.49.1 — playwright then couldn't
     // find its browsers. Until we commit a lockfile, the only

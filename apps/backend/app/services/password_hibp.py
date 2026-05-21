@@ -9,8 +9,8 @@ doesn't perform third-party callouts during ``make test``.
 Failure mode is *fail-open*: a HIBP outage or timeout returns False
 (don't block the password) and logs a warning. Refusing to let users
 register because an external API is down would be its own incident,
-and the rest of the password policy (length + character classes,
-iter 39) is still enforced.
+and the rest of the password policy (length + character classes)
+is still enforced.
 """
 
 from __future__ import annotations

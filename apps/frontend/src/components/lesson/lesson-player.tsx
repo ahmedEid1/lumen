@@ -27,7 +27,7 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
             src={String(data.url ?? "")}
           >
             {data.captions_url && (
-              // iter 82: instructor-uploaded WebVTT. ``default`` so
+              // Instructor-uploaded WebVTT. `default` so
               // captions are on out of the gate — accessibility is
               // an opt-out, not an opt-in.
               <track
