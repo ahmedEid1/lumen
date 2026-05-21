@@ -39,6 +39,13 @@ _PURPOSE = "email-change"
 _TTL_SECONDS = 60 * 60  # 1 hour
 
 
+def _pwh_fingerprint(user: User) -> str:
+    """Last 16 chars of the password hash — rotating the password
+    rotates the salt+digest tail, which invalidates outstanding
+    email-change tokens."""
+    return user.password_hash[-16:]
+
+
 def make_token(user: User, *, new_email: str) -> str:
     s = get_settings()
     now = int(time.time())
@@ -48,8 +55,7 @@ def make_token(user: User, *, new_email: str) -> str:
         "exp": now + _TTL_SECONDS,
         "purpose": _PURPOSE,
         "new_email": new_email,
-        # Bind to current password hash — rotating it invalidates the token.
-        "pwh": user.password_hash[-16:],
+        "pwh": _pwh_fingerprint(user),
         "iss": "lumen",
     }
     return jwt.encode(payload, s.jwt_secret.get_secret_value(), algorithm=s.jwt_algorithm)
@@ -67,14 +73,15 @@ async def request_change(
     Token is None when the new email matches the current — no-op
     success rather than an error so the UI can be friendly.
     """
-    if new_email.strip().lower() == user.email.lower():
+    target = new_email.strip().lower()
+    if target == user.email.lower():
         return user, None
     if not verify_password(current_password, user.password_hash):
         raise UnauthorizedError("Current password is incorrect", code="auth.invalid_credentials")
-    existing = await users_repo.get_by_email(db, new_email)
+    existing = await users_repo.get_by_email(db, target)
     if existing and existing.id != user.id:
         raise ConflictError("Email is already registered", code="auth.email_taken")
-    token = make_token(user, new_email=new_email)
+    token = make_token(user, new_email=target)
     return user, token
 
 
@@ -91,7 +98,7 @@ async def confirm_change(db: AsyncSession, *, token: str) -> User:
     user = await users_repo.get_by_id(db, str(payload.get("sub", "")))
     if not user or not user.is_active:
         raise UnauthorizedError("Account not found", code="email_change.invalid")
-    if payload.get("pwh") != user.password_hash[-16:]:
+    if payload.get("pwh") != _pwh_fingerprint(user):
         raise UnauthorizedError("Link is stale (password was rotated)", code="email_change.stale")
     new_email = str(payload.get("new_email", "")).strip()
     if not new_email:

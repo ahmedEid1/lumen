@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 33) — email-change service tidy via simplifier
+Seventeenth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/services/email_change.py`. Applied 2 of its 5
+recommendations:
+
+- **`_pwh_fingerprint(user)` helper** for the
+  `user.password_hash[-16:]` literal that appeared twice
+  (mint + verify). The WHY ("rotating the password
+  invalidates outstanding tokens") now lives on the helper —
+  single grep target if the binding strategy ever changes.
+- **`target = new_email.strip().lower()`** computed once at the
+  top of `request_change` and threaded through. The earlier
+  inline `.strip().lower()` was on the no-op-success comparison
+  only; the `get_by_email` lookup and the minted token both
+  used the raw `new_email`, so a mixed-case input would mint
+  a token with mixed case while the no-op check ran on
+  lowercase. Now everything in the request path normalises
+  consistently with register/login (where addresses are
+  always stored lowercase).
+
+Skipped on purpose: the `payload.get(..., "")` → `try/except
+KeyError` refactor (tests assert `ValidationAppError`; changing
+to `UnauthorizedError` would shift contract) and the broad
+`except Exception` narrowing on the email-send block (the
+"dev w/o broker" WHY genuinely needs the broad catch —
+multiple kombu/connection/template paths).
+
+Email-change tests 8/8, backend pytest 321/321.
+
 ### Changed (simplify iter 32) — search service tidy via simplifier
 Sixteenth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/services/search.py` (62-line file). Applied
