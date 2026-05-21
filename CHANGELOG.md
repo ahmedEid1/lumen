@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 69)
+- **Strip the `Server` header from every response.** uvicorn
+  advertises itself as `Server: uvicorn` by default — common
+  information-disclosure finding (helps attackers fingerprint a
+  known-version stack). SecurityHeadersMiddleware now removes it
+  on the way out. Test added to `test_security_headers.py` (1).
+
 ### Added (iteration 68)
 - **Export CSV button on the cohort card.** Surfaces the iter 67
   endpoint from the studio cohort view. Plain anchor with `download`

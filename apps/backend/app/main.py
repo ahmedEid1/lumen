@@ -72,6 +72,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         headers = response.headers
+        # Strip server-software advertising. uvicorn sets ``Server:
+        # uvicorn`` by default; auditors flag this as information
+        # disclosure (helps attackers fingerprint a known-version stack).
+        # del with a missing key is a KeyError, so check first.
+        if "server" in (k.lower() for k in headers.keys()):
+            try:
+                del headers["server"]
+            except KeyError:
+                pass
         # Don't clobber a header the inner handler set deliberately.
         headers.setdefault("X-Content-Type-Options", "nosniff")
         headers.setdefault("X-Frame-Options", "DENY")
