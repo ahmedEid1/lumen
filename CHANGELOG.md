@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs (iteration 81)
+- **ADR-0013 documenting the discussion-thread design.** Captures
+  the two-table flat-reply model from iter 77, the "why not
+  nested" rationale (every modern Q&A forum has converged on
+  Stack-Overflow's answer + comments shape), the visibility
+  reuse from ADR-0008, and the notification feedback loop iter
+  79 + 80 closed.
+
 ### Added (iteration 80)
 - **Notification bell deep-links to the relevant entity.** Click on
   a notification now both marks it read and (when the kind carries
