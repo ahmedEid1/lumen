@@ -191,8 +191,9 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         try:
             http_requests_total.labels(request.method, path, str(response.status_code)).inc()
             http_request_duration_seconds.labels(request.method, path).observe(duration)
-        except Exception:
-            pass
+        except Exception as exc:
+            # Don't let a broken Prometheus collector fail the request.
+            log.debug("metrics_observe_failed", error=str(exc))
         log.info(
             "http_request",
             method=request.method,

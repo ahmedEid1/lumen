@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 8) — readability + one real fix
+Six fixes that each have a small but real upside.
+
+- **`E741` — renamed ambiguous single-letter `l`** in
+  `app/services/courses.py` (soft-deleted-lesson reorder
+  block) and `tests/test_reorder_completeness.py` (two
+  Lesson factories). `l` is hard to distinguish from `1` in
+  most fonts; this code already had a `lesson` variable in
+  the same scope, so the rename also reads more naturally.
+- **`RUF012` — `type_annotation_map: ClassVar[...] = {}`** on
+  `app.db.base.Base`. The mutable-default warning is a real
+  trap for instance attributes, but on `DeclarativeBase` this
+  is the documented class-level pattern — the right answer is
+  to annotate it as `ClassVar` so static checkers see "shared
+  by design," not "missing `None` default."
+- **`S110` — log instead of swallow** in
+  `app.main.AccessLogMiddleware.dispatch`. Prometheus
+  `.labels()` raising used to silently `pass`; now it
+  `log.debug("metrics_observe_failed", error=...)` so a
+  broken collector at least leaves a trace without crashing
+  the request.
+
+Backend pytest 321/321 (153s).
+
 ### Changed (simplify iter 7) — bundle of small ruff simplifications
 Nine micro-fixes that ruff flagged across the backend. Each one
 is cosmetic in isolation; the bundle clears a band of low-value

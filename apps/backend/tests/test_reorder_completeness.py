@@ -169,15 +169,15 @@ async def test_lesson_reorder_skips_soft_deleted_and_avoids_collision(
     await db_session.flush()
     lessons = []
     for i in range(3):
-        l = Lesson(
+        lesson = Lesson(
             module_id=mod.id,
             title=f"L{i}",
             order=i,
             type=LessonType.text,
             data={"type": "text", "body_markdown": "x"},
         )
-        db_session.add(l)
-        lessons.append(l)
+        db_session.add(lesson)
+        lessons.append(lesson)
     await db_session.commit()
 
     # Soft-delete the middle one (was at order=1).
@@ -227,15 +227,15 @@ async def test_lesson_reorder_partial_mapping_rejected(
     await db_session.flush()
     lessons = []
     for i in range(3):
-        l = Lesson(
+        lesson = Lesson(
             module_id=mod.id,
             title=f"L{i}",
             order=i,
             type=LessonType.text,
             data={"type": "text", "body_markdown": "x"},
         )
-        db_session.add(l)
-        lessons.append(l)
+        db_session.add(lesson)
+        lessons.append(lesson)
     await db_session.commit()
 
     import pytest

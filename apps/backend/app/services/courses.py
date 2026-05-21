@@ -422,8 +422,8 @@ async def reorder_lessons(
     n = len(live)
     for i, lesson in enumerate(
         sorted(
-            (l for l in all_lessons if l.deleted_at is not None),
-            key=lambda l: l.id,  # deterministic ordering
+            (lsn for lsn in all_lessons if lsn.deleted_at is not None),
+            key=lambda lsn: lsn.id,  # deterministic ordering
         )
     ):
         lesson.order = n + i
