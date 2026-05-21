@@ -95,6 +95,19 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Studio / [id] / modules / [moduleId] — lesson editor
+  "moduleEdit.cartouche": "Lesson editor",
+  "moduleEdit.notFound": "Module not found.",
+  "moduleEdit.backToCourse": "Back to course",
+  "moduleEdit.lessons": "Lessons",
+  "moduleEdit.addLesson": "Add lesson",
+  "moduleEdit.empty": "Pick a lesson on the left, or add a new one to start editing.",
+  "lessonType.text": "text",
+  "lessonType.video": "video",
+  "lessonType.image": "image",
+  "lessonType.file": "file",
+  "lessonType.quiz": "quiz",
+
   // Studio / [id] — course editor
   "studioEdit.cartouche": "Course editor",
   "studioEdit.subtitle": "Manage modules and lessons.",

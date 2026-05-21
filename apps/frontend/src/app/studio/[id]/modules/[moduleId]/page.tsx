@@ -3,7 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, GripVertical } from "lucide-react";
+import { ArrowLeft, GripVertical, Plus } from "lucide-react";
 import {
   DndContext,
   PointerSensor,
@@ -22,10 +22,22 @@ import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Cartouche } from "@/components/lumen/cartouche";
+import { Glyph } from "@/components/lumen/glyph";
 import { Courses } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import type { LessonOut, LessonType } from "@/lib/api/types";
 import { LessonEditor } from "@/components/lesson/lesson-editor";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
+
+const LESSON_TYPES: { value: LessonType; key: MessageKey }[] = [
+  { value: "text", key: "lessonType.text" },
+  { value: "video", key: "lessonType.video" },
+  { value: "image", key: "lessonType.image" },
+  { value: "file", key: "lessonType.file" },
+  { value: "quiz", key: "lessonType.quiz" },
+];
 
 export default function ModuleEditorPage({
   params,
@@ -34,6 +46,7 @@ export default function ModuleEditorPage({
 }) {
   const { id, moduleId } = use(params);
   const qc = useQueryClient();
+  const t = useT();
   const courseQ = useQuery({ queryKey: qk.course(id), queryFn: () => Courses.get(id) });
 
   const module = useMemo(
@@ -59,9 +72,21 @@ export default function ModuleEditorPage({
     if (creatingType) setEditing(null);
   }, [creatingType]);
 
-  if (courseQ.isLoading) return <div className="container mx-auto px-4 py-10">Loading…</div>;
+  if (courseQ.isLoading)
+    return (
+      <div className="container mx-auto px-4 py-14 text-center font-body text-muted-foreground">
+        {t("common.loading")}
+      </div>
+    );
   if (!courseQ.data || !module)
-    return <div className="container mx-auto px-4 py-10">Module not found.</div>;
+    return (
+      <div className="container mx-auto flex flex-col items-center gap-3 px-4 py-20 text-center">
+        <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
+        <p className="font-display text-xl italic text-muted-foreground">
+          {t("moduleEdit.notFound")}
+        </p>
+      </div>
+    );
 
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -73,25 +98,28 @@ export default function ModuleEditorPage({
   }
 
   return (
-    <div className="container mx-auto px-4 py-10">
+    <div className="container mx-auto px-4 py-14">
       <Link
         href={`/studio/${id}`}
-        className="mb-4 inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
+        className="mb-4 inline-flex items-center font-body text-sm text-muted-foreground transition-colors hover:text-gold"
       >
-        <ArrowLeft className="me-1 h-4 w-4" /> Back to course
+        <ArrowLeft className="me-1 h-4 w-4" /> {t("moduleEdit.backToCourse")}
       </Link>
-      <header className="mb-6">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-          {courseQ.data.title} — Module {module.order + 1}
+      <header className="mb-8 flex flex-col gap-3">
+        <Cartouche>{t("moduleEdit.cartouche")}</Cartouche>
+        <div className="text-[0.65rem] uppercase tracking-[0.28em] text-gold/70">
+          {courseQ.data.title} · {t("courseDetail.module", { n: module.order + 1 })}
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">{module.title}</h1>
-        {module.description && <p className="text-muted-foreground">{module.description}</p>}
+        <h1 className="font-display text-4xl font-medium tracking-tight">{module.title}</h1>
+        {module.description && (
+          <p className="font-body text-muted-foreground">{module.description}</p>
+        )}
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        <Card>
+        <Card className="scroll-paper border-gold/20">
           <CardHeader>
-            <CardTitle className="text-base">Lessons</CardTitle>
+            <CardTitle className="font-display text-lg">{t("moduleEdit.lessons")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -112,23 +140,22 @@ export default function ModuleEditorPage({
               </SortableContext>
             </DndContext>
 
-            <div className="border-t pt-3">
-              <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
-                Add lesson
+            <div className="border-t border-gold/15 pt-3">
+              <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-gold/70">
+                {t("moduleEdit.addLesson")}
               </p>
               <div className="grid grid-cols-3 gap-1">
-                {(["text", "video", "image", "file", "quiz"] as LessonType[]).map((t) => (
+                {LESSON_TYPES.map(({ value, key }) => (
                   <Button
-                    key={t}
+                    key={value}
                     variant="outline"
                     size="sm"
-                    className="capitalize"
                     onClick={() => {
-                      setCreatingType(t);
+                      setCreatingType(value);
                       setEditing(null);
                     }}
                   >
-                    + {t}
+                    <Plus className="me-1 h-3 w-3" /> {t(key)}
                   </Button>
                 ))}
               </div>
@@ -158,9 +185,10 @@ export default function ModuleEditorPage({
               onCancel={() => setCreatingType(null)}
             />
           ) : (
-            <Card>
-              <CardContent className="py-16 text-center text-muted-foreground">
-                Pick a lesson on the left, or add a new one to start editing.
+            <Card className="scroll-paper border-gold/20">
+              <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+                <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
+                <p className="font-body italic text-muted-foreground">{t("moduleEdit.empty")}</p>
               </CardContent>
             </Card>
           )}
@@ -179,6 +207,7 @@ function SortableLesson({
   selected: boolean;
   onClick: () => void;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lesson.id,
   });
@@ -187,22 +216,28 @@ function SortableLesson({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+  const typeKey = `lessonType.${lesson.type}` as MessageKey;
   return (
     <li ref={setNodeRef} style={style}>
       <div
-        className={`flex items-center gap-2 rounded-md border bg-background p-2 text-sm ${
-          selected ? "border-primary bg-primary/5" : ""
+        className={`flex items-center gap-2 rounded-md border bg-background/60 p-2 text-sm transition-colors ${
+          selected
+            ? "border-gold/60 bg-gold/10 text-gold"
+            : "border-border hover:border-gold/30"
         }`}
       >
-        <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground" aria-label="Drag handle">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab text-muted-foreground hover:text-gold"
+          aria-label={t("studioEdit.dragHandle")}
+        >
           <GripVertical className="h-4 w-4" />
         </button>
-        <button onClick={onClick} className="flex-1 truncate text-start">
+        <button onClick={onClick} className="flex-1 truncate text-start font-body">
           {lesson.title}
         </button>
-        <Badge variant="muted" className="capitalize">
-          {lesson.type}
-        </Badge>
+        <Badge variant="muted">{t(typeKey)}</Badge>
       </div>
     </li>
   );

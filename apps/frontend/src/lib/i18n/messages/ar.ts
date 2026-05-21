@@ -102,6 +102,19 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Studio / [id] / modules / [moduleId] — محرّر الدرس
+  "moduleEdit.cartouche": "محرّر الدرس",
+  "moduleEdit.notFound": "الوحدة غير موجودة.",
+  "moduleEdit.backToCourse": "العودة إلى الدورة",
+  "moduleEdit.lessons": "الدروس",
+  "moduleEdit.addLesson": "إضافة درس",
+  "moduleEdit.empty": "اختر درسًا من القائمة، أو أضف درسًا جديدًا لتبدأ التعديل.",
+  "lessonType.text": "نص",
+  "lessonType.video": "فيديو",
+  "lessonType.image": "صورة",
+  "lessonType.file": "ملف",
+  "lessonType.quiz": "اختبار",
+
   // Studio / [id] — محرّر الدورة
   "studioEdit.cartouche": "محرّر الدورة",
   "studioEdit.subtitle": "أدر الوحدات والدروس.",
