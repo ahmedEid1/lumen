@@ -25,6 +25,17 @@ import { Courses } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import type { ModuleOut } from "@/lib/api/types";
 
+const PUBLISH_REJECTION_MSGS: Record<string, string> = {
+  "course.no_lessons": "Add at least one lesson before publishing.",
+  "course.missing_fields": "A title and overview are required to publish.",
+  "course.invalid_transition": "That status change isn't allowed from the current state.",
+};
+
+/** Standard onError factory — shows the server's message or a fallback. */
+function toastErr(fallback: string) {
+  return (e: Error) => toast.error(e?.message ?? fallback);
+}
+
 export default function StudioCoursePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const qc = useQueryClient();
@@ -47,15 +58,11 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
       // instructor would see no feedback at all and assume the click
       // didn't register.
       const code = e instanceof ApiError ? e.code : undefined;
-      if (code === "course.no_lessons") {
-        toast.error("Add at least one lesson before publishing.");
-      } else if (code === "course.missing_fields") {
-        toast.error("A title and overview are required to publish.");
-      } else if (code === "course.invalid_transition") {
-        toast.error("That status change isn't allowed from the current state.");
-      } else {
-        toast.error(e?.message ?? "Could not update status");
-      }
+      toast.error(
+        (code ? PUBLISH_REJECTION_MSGS[code] : undefined) ??
+          e?.message ??
+          "Could not update status",
+      );
     },
   });
 
@@ -66,7 +73,7 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
       qc.invalidateQueries({ queryKey: qk.myCourses });
       window.location.href = `/studio/${c.id}`;
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not duplicate"),
+    onError: toastErr("Could not duplicate"),
   });
 
   const createModule = useMutation({
@@ -311,7 +318,7 @@ function CourseDetailsEditor({
       toast.success("Details saved");
       qc.invalidateQueries({ queryKey: qk.course(courseId) });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not save"),
+    onError: toastErr("Could not save"),
   });
 
   return (
@@ -400,7 +407,7 @@ function LearningOutcomesEditor({
       toast.success("Outcomes saved");
       qc.invalidateQueries({ queryKey: qk.course(courseId) });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not save"),
+    onError: toastErr("Could not save"),
   });
 
   return (
@@ -415,17 +422,15 @@ function LearningOutcomesEditor({
             <Input
               value={s}
               maxLength={240}
-              onChange={(e) => {
-                const next = [...items];
-                next[i] = e.target.value;
-                setItems(next);
-              }}
+              onChange={(e) =>
+                setItems((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
+              }
               placeholder={`Outcome #${i + 1}`}
             />
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setItems(items.filter((_, j) => j !== i))}
+              onClick={() => setItems((prev) => prev.filter((_, j) => j !== i))}
               aria-label="Remove"
             >
               <Trash2 className="h-4 w-4" />
@@ -437,7 +442,7 @@ function LearningOutcomesEditor({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setItems([...items, ""])}
+          onClick={() => setItems((prev) => [...prev, ""])}
           disabled={items.length >= 12}
         >
           <Plus className="me-1 h-4 w-4" /> Add outcome

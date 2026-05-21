@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 43) — frontend studio/[id] tidy via simplifier
+Twenty-sixth dispatch of the `code-simplifier` plugin agent —
+first frontend file. Applied 3 of its 5 recommendations:
+
+- **`PUBLISH_REJECTION_MSGS` lookup table** replaces the 4-arm
+  `if/else if` chain on the publish `onError` handler. Same
+  strings, same fallback order (lookup → `e.message` →
+  generic), `e instanceof ApiError` narrowing preserved from
+  iter 16.
+- **`toastErr(fallback)` factory** for the three identical
+  `(e: Error) => toast.error(e?.message ?? "...")` callbacks
+  scattered across the file. Closure over the fallback string
+  keeps each call site terse.
+- **Functional `setItems` updaters** in
+  `LearningOutcomesEditor` (`onChange` / remove / add). Same
+  semantics, more robust against any future concurrent
+  producer; aligns with React 19 best practice.
+
+Skipped: switching `qk` for the analytics queryKey (no
+matching helper in `qk` — would require adding one, out of
+scope) and the `useMemo` on the sorted-modules array (the
+dnd-kit area is sensitive to reference identity and the
+current behaviour is correct).
+
+Frontend vitest 95/95, TypeScript clean.
+
 ### Changed (simplify iter 42) — small repo tidy via simplifier
 Twenty-fifth dispatch of the `code-simplifier` plugin agent
 across two small, never-audited repo files. Both wins are
