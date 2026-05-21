@@ -4,8 +4,15 @@ import userEvent from "@testing-library/user-event";
 import { ImageUpload } from "@/components/shared/image-upload";
 import * as apiClient from "@/lib/api/client";
 
-const toastError = vi.fn();
-const toastSuccess = vi.fn();
+// Iter 108: `vi.mock()` is hoisted to the top of the module by the
+// vitest transformer, so references inside the factory are
+// evaluated BEFORE module-level `const`s exist. Wrap the toast
+// spies in `vi.hoisted()` so they're available when the factory
+// runs — vitest's documented escape hatch for this exact pattern.
+const { toastError, toastSuccess } = vi.hoisted(() => ({
+  toastError: vi.fn(),
+  toastSuccess: vi.fn(),
+}));
 vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }));
 
 // Iter 56: presign switched from PUT to POST so S3 enforces the

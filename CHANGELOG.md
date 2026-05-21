@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 108) — vitest router + i18n + hoisted-mock failures
+- The full frontend vitest suite was 9 failures before this
+  iteration:
+  - 5 in `notifications-bell.test.tsx`:
+    `useRouter()` from `next/navigation` threw
+    `invariant expected app router to be mounted` outside a
+    real Next page tree.
+  - 4 in `header-search.test.tsx`:
+    `useT()` / `useLocale()` from `@/lib/i18n/provider` threw
+    `useLocale must be used inside <LocaleProvider>` for the
+    same reason.
+  - 1 file (`image-upload.test.tsx`) failed to even load with
+    `Cannot access 'toastError' before initialization` because
+    a `vi.mock` factory referenced module-level `const`s that
+    don't exist yet when the factory runs (vitest hoists
+    `vi.mock` to the top of the file).
+- **Fixes** in `tests/setup.ts`:
+  - Stubbed `next/navigation` (`useRouter`, `useSearchParams`,
+    `usePathname`, `useParams`, `redirect`, `notFound`) with
+    no-op fakes.
+  - Stubbed `@/lib/i18n/provider` (`useT`, `useLocale`,
+    `LocaleProvider`) so `useT()(key)` returns the real EN
+    string (looks it up in `messages/en.ts`) — keeping
+    accessibility-name selectors intact instead of letting
+    them match raw keys like `"nav.search.placeholder"`.
+  - In `image-upload.test.tsx`, wrapped the toast spies in
+    `vi.hoisted()` so they exist when the auto-hoisted
+    `vi.mock("sonner", ...)` factory runs.
+- **Result**: vitest is now 22/22 files, **95/95 tests green**
+  (was 9 failed / 79 passed → 0 failed / 95 passed; the
+  notifications-bell suite alone grew from "skipped on load
+  failure" to all 5 specs green).
+
 ### Fixed (iteration 107) — instructor-flow lesson-button + save-button labels
 - `instructor flow › create a course, add a lesson, publish`
   failed `locator.click: Timeout 15000ms exceeded` on
