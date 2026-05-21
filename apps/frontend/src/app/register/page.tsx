@@ -6,13 +6,17 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Cartouche } from "@/components/lumen/cartouche";
+import { Glyph } from "@/components/lumen/glyph";
 import { useAuth } from "@/lib/auth/store";
 import { ApiError } from "@/lib/api/client";
+import { useT } from "@/lib/i18n/provider";
 
 export default function RegisterPage() {
   const router = useRouter();
   const { register } = useAuth();
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -23,10 +27,10 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await register({ email, password, full_name: fullName });
-      toast.success("Account created — check your inbox to verify your email");
+      toast.success(t("auth.register.successToast"));
       router.push("/dashboard");
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Could not create account";
+      const msg = err instanceof ApiError ? err.message : t("auth.register.error");
       toast.error(msg);
     } finally {
       setSubmitting(false);
@@ -34,28 +38,39 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="container mx-auto flex max-w-md flex-col px-4 py-16">
-      <Card>
-        <CardHeader>
-          <CardTitle>Create your account</CardTitle>
-          <CardDescription>It takes about 30 seconds.</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="container mx-auto flex max-w-md flex-col items-center px-4 py-20">
+      <Cartouche className="mb-5">{t("auth.register.cartouche")}</Cartouche>
+      <Card className="w-full scroll-paper border-gold/20">
+        <CardContent className="space-y-6 pt-8">
+          <header className="flex flex-col items-center gap-3 text-center">
+            <Glyph
+              name="ankh"
+              size={42}
+              mode="tint"
+              className="text-gold/85 drop-shadow-[0_0_10px_hsl(var(--gold-leaf)/0.4)]"
+            />
+            <h1 className="font-display text-3xl font-medium tracking-tight">
+              {t("auth.register.heading")}
+            </h1>
+            <p className="font-body text-sm text-muted-foreground">{t("auth.register.subtitle")}</p>
+          </header>
+
           <form className="space-y-4" onSubmit={onSubmit}>
             <div className="space-y-1.5">
-              <label htmlFor="full_name" className="text-sm font-medium">
-                Full name
+              <label htmlFor="full_name" className="font-body text-sm font-medium">
+                {t("auth.register.fullName")}
               </label>
               <Input
                 id="full_name"
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
+                className="border-gold/25 bg-background/60 focus-visible:border-gold/60"
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="email" className="text-sm font-medium">
-                Email
+              <label htmlFor="email" className="font-body text-sm font-medium">
+                {t("auth.login.email")}
               </label>
               <Input
                 id="email"
@@ -64,11 +79,12 @@ export default function RegisterPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="border-gold/25 bg-background/60 focus-visible:border-gold/60"
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="password" className="text-sm font-medium">
-                Password
+              <label htmlFor="password" className="font-body text-sm font-medium">
+                {t("auth.login.password")}
               </label>
               <Input
                 id="password"
@@ -78,18 +94,19 @@ export default function RegisterPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="border-gold/25 bg-background/60 focus-visible:border-gold/60"
               />
-              <p className="text-xs text-muted-foreground">
-                At least 12 characters with a mix of letters, numbers, or symbols.
+              <p className="font-body text-xs text-muted-foreground">
+                {t("auth.register.passwordHint")}
               </p>
             </div>
             <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? "Creating…" : "Create account"}
+              {submitting ? t("auth.register.submitting") : t("auth.register.submit")}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
-              <Link href="/login" className="text-primary hover:underline">
-                Sign in
+              {t("auth.register.haveAccount")}{" "}
+              <Link href="/login" className="text-gold underline-offset-4 hover:underline">
+                {t("auth.login.submit")}
               </Link>
             </p>
           </form>

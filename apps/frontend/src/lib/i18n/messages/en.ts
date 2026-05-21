@@ -1,5 +1,7 @@
-/** English UI messages. Source of truth — every key here must exist in
- *  every other locale file. ``check-locales.test.ts`` enforces parity.
+/** English UI messages.
+ *
+ *  Source of truth — every key here must exist in every other locale
+ *  file. ``i18n-parity.test.ts`` enforces this.
  */
 export const en = {
   // Navigation / header
@@ -48,17 +50,50 @@ export const en = {
   "player.completed": "Completed",
   "player.freePreview": "free preview",
 
-  // Auth
+  // Auth — sanctum / inscription / lost-key / new-stylus
   "auth.login.title": "Sign in",
+  "auth.login.cartouche": "Enter the sanctum",
+  "auth.login.heading": "Welcome back",
+  "auth.login.subtitle": "Sign in to continue learning.",
   "auth.login.email": "Email",
   "auth.login.password": "Password",
   "auth.login.submit": "Sign in",
+  "auth.login.submitting": "Signing in…",
+  "auth.login.welcomeToast": "Welcome back!",
+  "auth.login.error": "Could not sign in",
   "auth.login.noAccount": "Don't have an account?",
   "auth.register.title": "Create account",
+  "auth.register.cartouche": "Be inscribed",
+  "auth.register.heading": "Create your account",
+  "auth.register.subtitle": "It takes about 30 seconds.",
   "auth.register.fullName": "Full name",
   "auth.register.submit": "Create account",
+  "auth.register.submitting": "Creating…",
+  "auth.register.passwordHint": "At least 12 characters with a mix of letters, numbers, or symbols.",
+  "auth.register.successToast": "Account created — check your inbox to verify your email",
+  "auth.register.error": "Could not create account",
   "auth.register.haveAccount": "Already have an account?",
   "auth.forgotPassword": "Forgot password?",
+  "auth.forgot.cartouche": "Lost key",
+  "auth.forgot.heading": "Forgot password?",
+  "auth.forgot.subtitle": "We'll email you a link to set a new one.",
+  "auth.forgot.emailPlaceholder": "you@example.com",
+  "auth.forgot.submit": "Send reset link",
+  "auth.forgot.submitting": "Sending…",
+  "auth.forgot.sent": "If an account exists for {email}, a reset link is on its way.",
+  "auth.forgot.backToLogin": "Back to sign in",
+  "auth.forgot.error": "Could not send reset email",
+  "auth.reset.cartouche": "New stylus",
+  "auth.reset.heading": "Choose a new password",
+  "auth.reset.subtitle": "Links expire 30 minutes after being requested.",
+  "auth.reset.passwordPlaceholder": "New password — at least 12 characters",
+  "auth.reset.submit": "Set new password",
+  "auth.reset.submitting": "Updating…",
+  "auth.reset.missingToken": "This page needs a reset token in the URL.",
+  "auth.reset.requestNew": "Request a new one",
+  "auth.reset.tokenError": "Missing reset token",
+  "auth.reset.successToast": "Password updated — please sign in",
+  "auth.reset.error": "Could not reset password",
 
   // Dashboard — scribe's hall of records
   "dashboard.cartouche": "Your hall of records",

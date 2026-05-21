@@ -4,11 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Cartouche } from "@/components/lumen/cartouche";
+import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
+import { useT } from "@/lib/i18n/provider";
 
 export default function ForgotPasswordPage() {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -20,26 +24,50 @@ export default function ForgotPasswordPage() {
       await api("/api/v1/auth/password-reset/request", { method: "POST", body: { email } });
       setSent(true);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not send reset email");
+      toast.error(e instanceof Error ? e.message : t("auth.forgot.error"));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="container mx-auto flex max-w-md flex-col px-4 py-16">
-      <Card>
-        <CardHeader>
-          <CardTitle>Forgot password?</CardTitle>
-          <CardDescription>We&apos;ll email you a link to set a new one.</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="container mx-auto flex max-w-md flex-col items-center px-4 py-20">
+      <Cartouche className="mb-5">{t("auth.forgot.cartouche")}</Cartouche>
+      <Card className="w-full scroll-paper border-gold/20">
+        <CardContent className="space-y-6 pt-8">
+          <header className="flex flex-col items-center gap-3 text-center">
+            <Glyph
+              name="feather"
+              size={42}
+              mode="tint"
+              className="text-gold/85 drop-shadow-[0_0_10px_hsl(var(--gold-leaf)/0.4)]"
+            />
+            <h1 className="font-display text-3xl font-medium tracking-tight">
+              {t("auth.forgot.heading")}
+            </h1>
+            <p className="font-body text-sm text-muted-foreground">
+              {t("auth.forgot.subtitle")}
+            </p>
+          </header>
+
           {sent ? (
-            <p className="text-sm text-muted-foreground">
-              If an account exists for <strong>{email}</strong>, a reset link is on its way.
+            <p className="font-body text-sm text-muted-foreground">
+              {(() => {
+                const parts = t("auth.forgot.sent", { email: "{EMAIL}" }).split("{EMAIL}");
+                return (
+                  <>
+                    {parts[0]}
+                    <strong className="text-foreground">{email}</strong>
+                    {parts[1]}
+                  </>
+                );
+              })()}
               <br />
-              <Link href="/login" className="text-primary hover:underline">
-                Back to sign in
+              <Link
+                href="/login"
+                className="text-gold underline-offset-4 hover:underline"
+              >
+                {t("auth.forgot.backToLogin")}
               </Link>
             </p>
           ) : (
@@ -47,13 +75,14 @@ export default function ForgotPasswordPage() {
               <Input
                 type="email"
                 autoComplete="email"
-                placeholder="you@example.com"
+                placeholder={t("auth.forgot.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="border-gold/25 bg-background/60 focus-visible:border-gold/60"
               />
               <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting ? "Sending…" : "Send reset link"}
+                {submitting ? t("auth.forgot.submitting") : t("auth.forgot.submit")}
               </Button>
             </form>
           )}
