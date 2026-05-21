@@ -95,6 +95,24 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Course detail — the inscribed scroll
+  "courseDetail.cartouche": "Inscribed scroll",
+  "courseDetail.notFound": "Course not found.",
+  "courseDetail.instructor": "Instructor",
+  "courseDetail.noModules": "No modules yet.",
+  "courseDetail.module": "Module {n}",
+  "courseDetail.beFirst": "Be the first to review this course.",
+  "courseDetail.enrolling": "Enrolling…",
+  "courseDetail.enrolled": "Enrolled!",
+  "courseDetail.enrollError": "Could not enroll",
+  "courseDetail.bookmarkError": "Could not update bookmark",
+  "courseDetail.sample": "Sample",
+  "courseDetail.minutes": "{n} min",
+  "courseDetail.downloadCert": "Download certificate",
+  "courseDetail.moreFromSubject": "More {name} courses",
+  "courseDetail.moreFromDifficulty": "More {name} courses",
+  "courseDetail.moreFromTag": "More {name} courses",
+
   // Verify email + confirm email change + cert verification
   "verifyEmail.cartouche": "Mark of the watcher",
   "verifyEmail.title": "Verify your email",

@@ -102,6 +102,24 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Course detail — اللفافة المنقوشة
+  "courseDetail.cartouche": "لفافة منقوشة",
+  "courseDetail.notFound": "الدورة غير موجودة.",
+  "courseDetail.instructor": "المدرّس",
+  "courseDetail.noModules": "لا توجد وحدات بعد.",
+  "courseDetail.module": "الوحدة {n}",
+  "courseDetail.beFirst": "كن أول من يكتب مراجعة لهذه الدورة.",
+  "courseDetail.enrolling": "جارٍ التسجيل…",
+  "courseDetail.enrolled": "تم التسجيل!",
+  "courseDetail.enrollError": "تعذّر التسجيل",
+  "courseDetail.bookmarkError": "تعذّر تحديث العلامة المرجعية",
+  "courseDetail.sample": "عيّنة",
+  "courseDetail.minutes": "{n} د",
+  "courseDetail.downloadCert": "تحميل الشهادة",
+  "courseDetail.moreFromSubject": "المزيد من دورات {name}",
+  "courseDetail.moreFromDifficulty": "المزيد من دورات {name}",
+  "courseDetail.moreFromTag": "المزيد من دورات {name}",
+
   // Verify email + confirm email change + cert verification
   "verifyEmail.cartouche": "ختم الحارس",
   "verifyEmail.title": "وثّق بريدك الإلكتروني",
