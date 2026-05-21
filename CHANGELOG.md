@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 50)
+- **Slug-collision retry now covers course rename.** Iter 49's
+  `_flush_course_with_slug_retry` shielded `create_course` and
+  `duplicate_course`, but `update_course` mutated `course.slug` on
+  title change and never flushed — the IntegrityError surfaced on
+  the dependency-override commit at request end, an unhandled
+  exception → 500. Now `update_course` calls the same helper when
+  the title actually changed (no flush overhead when only other
+  fields move). Test added to `test_slug_race.py` (PATCH rename
+  into a pre-claimed slug still returns 200 with a disambiguated
+  `renamed-course-…`).
+
 ### Fixed (iteration 49)
 - **Concurrent course creation no longer 500s on slug collision.**
   `_unique_slug` ran a non-locking SELECT and returned the first

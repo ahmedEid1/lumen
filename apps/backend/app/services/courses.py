@@ -93,9 +93,11 @@ async def update_course(
     db: AsyncSession, *, course_id: str, owner: User, payload: CourseUpdate
 ) -> Course:
     course = await _owned_course(db, course_id, owner)
+    title_changed = False
     if payload.title is not None and payload.title != course.title:
         course.title = payload.title
         course.slug = await _unique_slug(db, payload.title, exclude_id=course.id)
+        title_changed = True
     if payload.subject_id is not None and payload.subject_id != course.subject_id:
         subject = await courses_repo.get_subject(db, payload.subject_id)
         if not subject:
@@ -114,6 +116,14 @@ async def update_course(
         await _transition_status(db, course, payload.status)
         if prev != course.status:
             _schedule_index(course.id)
+    # When the title changed we minted a new slug via _unique_slug, but
+    # that check is racy — a concurrent rename could have just claimed
+    # the same candidate. Flush the slug update inside a savepoint with
+    # the same retry helper the create/duplicate paths use, otherwise
+    # the collision would surface as an unhandled IntegrityError when
+    # the request-end commit fires.
+    if title_changed:
+        await _flush_course_with_slug_retry(db, course, title=course.title)
     return course
 
 

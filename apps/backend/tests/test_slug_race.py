@@ -108,6 +108,50 @@ async def test_savepoint_retry_succeeds_even_when_n2_also_taken(
     assert r.json()["slug"] not in {"crowded", "crowded-2"}
 
 
+async def test_update_rename_recovers_from_slug_collision(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, make_user
+) -> None:
+    """Renaming a course to a title whose obvious slug is already
+    claimed must not 500 on the request-end commit. update_course
+    minted the new slug via the racy SELECT but never flushed; the
+    collision used to surface as an unhandled IntegrityError when the
+    dependency-override committed at request end."""
+    placeholder_owner = await make_user(role=Role.instructor)
+    subject = await _make_subject(db_session)
+
+    # Pre-claim the slug a "Renamed Course" PATCH would otherwise mint.
+    db_session.add(
+        Course(
+            owner_id=placeholder_owner.id,
+            subject_id=subject.id,
+            title="placeholder",
+            slug="renamed-course",
+            overview="x",
+            status=CourseStatus.draft,
+        )
+    )
+    await db_session.commit()
+
+    teacher = await auth_headers(role=Role.instructor)
+    create = await client.post(
+        "/api/v1/courses",
+        json={"title": "Original", "subject_id": subject.id, "overview": "x"},
+        headers=teacher,
+    )
+    course_id = create.json()["id"]
+
+    # Rename collides with the seeded slug.
+    r = await client.patch(
+        f"/api/v1/courses/{course_id}",
+        json={"title": "Renamed Course"},
+        headers=teacher,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["title"] == "Renamed Course"
+    assert r.json()["slug"].startswith("renamed-course")
+    assert r.json()["slug"] != "renamed-course"
+
+
 async def test_duplicate_also_recovers_from_slug_collision(
     client: AsyncClient, auth_headers, db_session: AsyncSession, make_user, seed_lesson
 ) -> None:
