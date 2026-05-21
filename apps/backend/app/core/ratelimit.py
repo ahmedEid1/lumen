@@ -15,6 +15,7 @@ requests still key on IP because that's the best identity we have.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 
 import jwt
@@ -83,7 +84,6 @@ def reset_for_tests() -> None:
     """
     storage = getattr(limiter, "_storage", None)
     if storage is not None and hasattr(storage, "reset"):
-        try:
+        # be tolerant if the backend lacks reset()
+        with contextlib.suppress(Exception):
             storage.reset()
-        except Exception:  # be tolerant if the backend lacks reset()
-            pass

@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -77,10 +77,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # disclosure (helps attackers fingerprint a known-version stack).
         # del with a missing key is a KeyError, so check first.
         if "server" in (k.lower() for k in headers.keys()):
-            try:
+            with suppress(KeyError):
                 del headers["server"]
-            except KeyError:
-                pass
         # Don't clobber a header the inner handler set deliberately.
         headers.setdefault("X-Content-Type-Options", "nosniff")
         headers.setdefault("X-Frame-Options", "DENY")

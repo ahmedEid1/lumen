@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 5) — try/except/pass → contextlib.suppress
+Four `try: x() except E: pass` blocks rewritten as
+`with contextlib.suppress(E): x()`. Same semantics, fewer
+lines, and the *intent* (we're swallowing this exception on
+purpose) leads instead of trailing.
+
+- `app/core/ratelimit.py::reset_for_tests` — backend may
+  lack `reset()`.
+- `app/main.py::_security_headers_mw` — `del headers["server"]`
+  KeyError swallow.
+- `app/services/search.py::SearchService.ensure_index` —
+  Meilisearch index-already-exists.
+- `app/services/uploads.py::ensure_bucket` — nested
+  ClientError on the create-bucket fallback (preserved
+  the `# pragma: no cover - best effort` marker).
+
+Backend pytest 321/321 (148s).
+
 ### Changed (simplify iter 4) — isort across the backend
 Ran `ruff --fix --select I001` over `app/` and `tests/`. 32
 import blocks were reflowed into canonical isort order (stdlib

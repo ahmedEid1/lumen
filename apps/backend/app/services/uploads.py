@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -193,7 +194,5 @@ def ensure_bucket() -> None:
     try:
         client.head_bucket(Bucket=s.s3_bucket)
     except ClientError:
-        try:
+        with contextlib.suppress(ClientError):  # pragma: no cover - best effort
             client.create_bucket(Bucket=s.s3_bucket)
-        except ClientError:  # pragma: no cover - best effort
-            pass

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 import meilisearch
@@ -28,10 +29,8 @@ class SearchService:
         if s.search_backend != "meilisearch":
             return
         client = self._meili()
-        try:
+        with contextlib.suppress(meilisearch.errors.MeilisearchApiError):
             client.create_index(s.meili_index_courses, {"primaryKey": "id"})
-        except meilisearch.errors.MeilisearchApiError:
-            pass
         self._index().update_filterable_attributes(
             ["subject_slug", "tag_slugs", "difficulty", "status"]
         )
