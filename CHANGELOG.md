@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 30) — quiz grading tidy via simplifier
+Fourteenth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/services/quiz.py` (75-line tight file).
+Applied 2 of its 4 recommendations:
+
+- **De-duplicated `answer_keys = list(q.get("answer_keys") or
+  [])`** — was computed twice per question (once inside
+  `_is_correct`, once when building `QuestionResult`). The
+  helper now takes `answer_keys` as a parameter; the caller
+  computes it once and reuses for both the scoring decision
+  and the result-row's `answer_keys` field.
+- **`correct_count` incremented in-loop** instead of a second
+  pass `sum(1 for r in results if r.correct)` after the loop.
+  Same arithmetic, one fewer iteration.
+
+Skipped: extracting the `isinstance(given, (str, list)) else
+None` ternary into a named local (cosmetic; the inline form is
+clear enough in context) and the per-kind dispatch refactor
+(`_is_correct`'s current shape is the clearest expression of
+the scoring rules — short = string, else = exact set).
+
+Scoring rules preserved verbatim — `test_quiz_grading.py`
+14/14, backend pytest 321/321.
+
 ### Changed (simplify iter 29) — notifications repo formatting tidy
 Thirteenth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/repositories/notifications.py` (already a

@@ -29,9 +29,8 @@ class GradeResult:
     results: list[QuestionResult] = field(default_factory=list)
 
 
-def _is_correct(question: dict[str, Any], given: Any) -> bool:
+def _is_correct(question: dict[str, Any], given: Any, answer_keys: list[str]) -> bool:
     kind = question.get("kind")
-    answer_keys = list(question.get("answer_keys") or [])
     if kind == "short":
         if not isinstance(given, str):
             return False
@@ -50,19 +49,22 @@ def grade(lesson_data: dict[str, Any], answers: dict[str, Any]) -> GradeResult:
     pass_score = int(lesson_data.get("pass_score") or 60)
     total = len(questions)
     results: list[QuestionResult] = []
+    correct_count = 0
     for q in questions:
         qid = str(q.get("id", ""))
         given = answers.get(qid)
-        correct = _is_correct(q, given)
+        answer_keys = list(q.get("answer_keys") or [])
+        correct = _is_correct(q, given, answer_keys)
+        if correct:
+            correct_count += 1
         results.append(
             QuestionResult(
                 question_id=qid,
                 correct=correct,
-                answer_keys=list(q.get("answer_keys") or []),
+                answer_keys=answer_keys,
                 given=given if isinstance(given, (str, list)) else None,
             )
         )
-    correct_count = sum(1 for r in results if r.correct)
     score = round((correct_count / total) * 100) if total else 0
     return GradeResult(
         score=score,
