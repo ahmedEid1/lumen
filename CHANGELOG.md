@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 77)
+- **Course discussion threads (forum-style Q&A).** Real LMS gap:
+  chat scrolls and isn't threadable; reviews are 1-rating-per-learner.
+  New flat-thread forum: `Discussion` (title + body + author + soft-
+  delete) and `DiscussionReply` (body + author + soft-delete) — no
+  nesting, S.O.-style "answer + comments" semantics. Endpoints under
+  `/courses/{id}/discussions` (list, create) and `/discussions/{id}`
+  (get, patch, delete, reply, delete-reply). Visibility reuses
+  `can_view_course` so drafts stay private, archived stays
+  accessible to enrolled learners. Soft-delete is author / course
+  owner / admin. Replies bump the parent's `updated_at` so the
+  list-for-course sort surfaces recently-active threads first.
+  Rate-limited (create 10/min, reply 20/min). Migration
+  `0005_discussions`. Covered by `tests/test_discussions.py` (7
+  tests). Frontend UI follows in iter 78.
+
 ### Performance (iteration 76)
 - **ETag / If-None-Match on course detail.** The detail endpoint is
   the highest-traffic personalised-but-cacheable read in the API

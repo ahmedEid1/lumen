@@ -10,6 +10,7 @@ from app.api.v1 import (
     certificates,
     chat,
     courses,
+    discussions,
     enrollments,
     health,
     notifications,
@@ -34,4 +35,5 @@ api_router.include_router(uploads.router, prefix="/uploads", tags=["uploads"])
 api_router.include_router(notifications.router, prefix="/me/notifications", tags=["notifications"])
 api_router.include_router(bookmarks.router, prefix="/me/bookmarks", tags=["bookmarks"])
 api_router.include_router(certificates.router, prefix="/certificates", tags=["certificates"])
+api_router.include_router(discussions.router, tags=["discussions"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])

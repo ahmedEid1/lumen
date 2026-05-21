@@ -4,6 +4,7 @@ from app.models.asset import Asset
 from app.models.audit import AuditEvent
 from app.models.bookmark import Bookmark
 from app.models.chat import ChatMessage
+from app.models.discussion import Discussion, DiscussionReply
 from app.models.course import (
     Course,
     CourseStatus,
@@ -30,6 +31,8 @@ __all__ = [
     "Course",
     "CourseStatus",
     "Difficulty",
+    "Discussion",
+    "DiscussionReply",
     "Enrollment",
     "Lesson",
     "LessonProgress",
