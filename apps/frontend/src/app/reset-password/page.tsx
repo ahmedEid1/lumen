@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -10,6 +10,22 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetFallback />}>
+      <ResetForm />
+    </Suspense>
+  );
+}
+
+function ResetFallback() {
+  return (
+    <div className="container mx-auto flex max-w-md flex-col px-4 py-16">
+      <div className="h-56 animate-pulse rounded-xl bg-muted" aria-hidden />
+    </div>
+  );
+}
+
+function ResetForm() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token") ?? "";

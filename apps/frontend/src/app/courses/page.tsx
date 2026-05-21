@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X } from "lucide-react";
@@ -10,6 +10,26 @@ import { Catalog } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 
 export default function CatalogPage() {
+  return (
+    <Suspense fallback={<CatalogFallback />}>
+      <CatalogInner />
+    </Suspense>
+  );
+}
+
+function CatalogFallback() {
+  return (
+    <div className="container mx-auto px-4 py-10">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-80 animate-pulse rounded-xl bg-muted" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CatalogInner() {
   const params = useSearchParams();
   const [q, setQ] = useState(params.get("q") ?? "");
   const [subject, setSubject] = useState<string | undefined>(params.get("subject") ?? undefined);

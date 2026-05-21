@@ -4,6 +4,32 @@ OpenAPI is the source of truth. This document describes the conventions OpenAPI 
 
 Base URL: `/api/v1`. All responses are JSON. All times are ISO 8601 UTC.
 
+## Contents
+
+- [Authentication](#authentication)
+- [Versioning](#versioning)
+- [Pagination](#pagination)
+- [Filtering & sorting](#filtering--sorting)
+- [Errors](#errors)
+- [Idempotency](#idempotency)
+- [Rate limiting](#rate-limiting)
+- [Resource conventions](#resource-conventions)
+- [Request IDs](#request-ids)
+- [WebSocket protocol](#websocket-protocol)
+- [Endpoint inventory](#endpoint-inventory)
+  - [Auth](#auth-apiv1auth)
+  - [Users](#users-apiv1users)
+  - [Catalog](#catalog-apiv1)
+  - [Search](#search-apiv1search)
+  - [Courses](#courses-apiv1courses)
+  - [Enrollments + progress](#enrollments--progress-apiv1me)
+  - [Reviews](#reviews-apiv1coursescourse_idreviews)
+  - [Chat](#chat-apiv1chat)
+  - [Uploads](#uploads-apiv1uploads)
+  - [Certificates](#certificates-apiv1certificates)
+  - [Admin](#admin-apiv1admin--admin-role-only)
+  - [Health](#health-apiv1health)
+
 ## Authentication
 
 ```

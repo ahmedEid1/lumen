@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,36 @@ type Props = {
   className?: string;
 };
 
-export function HeaderSearch({ target = "/courses", className }: Props) {
+export function HeaderSearch(props: Props) {
+  // Wrap in Suspense because useSearchParams forces the closest non-
+  // Suspended ancestor into dynamic rendering. The site header is mounted
+  // on every route via layout.tsx, so we keep that boundary tight.
+  return (
+    <Suspense fallback={<HeaderSearchFallback className={props.className} />}>
+      <HeaderSearchInner {...props} />
+    </Suspense>
+  );
+}
+
+function HeaderSearchFallback({ className }: { className?: string }) {
+  return (
+    <div className={className} aria-hidden>
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          type="search"
+          placeholder="Search courses…"
+          className="h-9 w-full pl-8 sm:w-56"
+          disabled
+        />
+      </div>
+    </div>
+  );
+}
+
+function HeaderSearchInner({ target = "/courses", className }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const [q, setQ] = useState(params.get("q") ?? "");

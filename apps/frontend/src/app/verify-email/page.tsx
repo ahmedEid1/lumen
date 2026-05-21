@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, AlertCircle } from "lucide-react";
@@ -11,6 +11,22 @@ import { api, ApiError } from "@/lib/api/client";
 type Status = "checking" | "success" | "error";
 
 export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={<VerifyFallback />}>
+      <VerifyEmailInner />
+    </Suspense>
+  );
+}
+
+function VerifyFallback() {
+  return (
+    <div className="container mx-auto flex max-w-md flex-col px-4 py-16">
+      <div className="h-48 animate-pulse rounded-xl bg-muted" aria-hidden />
+    </div>
+  );
+}
+
+function VerifyEmailInner() {
   const params = useSearchParams();
   const router = useRouter();
   const token = params.get("token") ?? "";

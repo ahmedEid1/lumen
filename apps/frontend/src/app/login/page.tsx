@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -11,6 +11,22 @@ import { useAuth } from "@/lib/auth/store";
 import { ApiError } from "@/lib/api/client";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginFallback() {
+  return (
+    <div className="container mx-auto flex max-w-md flex-col px-4 py-16">
+      <div className="h-72 animate-pulse rounded-xl bg-muted" aria-hidden />
+    </div>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/dashboard";

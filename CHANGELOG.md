@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 19)
+- Wrapped every `useSearchParams` consumer in `<Suspense>` boundaries so
+  Next.js 15 can serve them without forcing full-page dynamic rendering:
+  login, reset-password, verify-email, catalog (`/courses`), and the
+  HeaderSearch component used on every route via the site header. Each
+  boundary ships an opaque skeleton fallback that matches the final
+  layout (no layout shift on hydration).
+
+### Changed (iteration 19)
+- `docs/api.md` gains a top-of-document Contents section so the ~280-line
+  reference stays navigable.
+
 ### Added (iteration 18)
 - Per-course OpenGraph metadata. The course detail route is split into a
   server `page.tsx` that exports `generateMetadata` and a client
