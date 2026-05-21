@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 49)
+- **Concurrent course creation no longer 500s on slug collision.**
+  `_unique_slug` ran a non-locking SELECT and returned the first
+  unclaimed candidate. Two concurrent creates with the same title
+  both saw `awesome-course` free, both INSERTed, and the second
+  crashed on `UNIQUE(courses.slug)` → unhandled IntegrityError → 500.
+  Introduced `_flush_course_with_slug_retry`: wraps the INSERT in a
+  SAVEPOINT (so the outer request transaction stays clean), catches
+  the slug-specific IntegrityError, regenerates with a short random
+  suffix, and retries. Three attempts is plenty for any plausible
+  concurrency; past that, a clean 409 `course.slug_race`. Applied to
+  both `create_course` and `duplicate_course`. Covered by
+  `tests/test_slug_race.py` (3 tests: pre-claimed obvious slug,
+  obvious + first numeric fallback also claimed, and the same path
+  exercised through duplicate).
+
 ### Fixed (iteration 48)
 - **Studio publish button surfaces server errors.** The publish
   mutation in `/studio/[id]` had only an `onSuccess` handler; the

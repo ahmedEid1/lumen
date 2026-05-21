@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from slugify import slugify
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
@@ -84,7 +85,7 @@ async def create_course(db: AsyncSession, owner: User, payload: CourseCreate) ->
     if payload.tag_ids:
         course.tags = await courses_repo.list_tags_by_ids(db, payload.tag_ids)
     db.add(course)
-    await db.flush()
+    await _flush_course_with_slug_retry(db, course, title=payload.title)
     return course
 
 
@@ -176,7 +177,7 @@ async def duplicate_course(db: AsyncSession, *, source_id: str, owner: User) -> 
     # tags are shared; the relationship is many-to-many so we can re-attach by reference.
     cloned.tags = list(source.tags)
     db.add(cloned)
-    await db.flush()
+    await _flush_course_with_slug_retry(db, cloned, title=new_title)
 
     for src_module in sorted(source.modules, key=lambda m: m.order):
         mod = Module(
@@ -256,6 +257,40 @@ async def _unique_slug(db: AsyncSession, title: str, *, exclude_id: str | None =
         candidate = f"{base}-{n}"
         if n > 50:
             return f"{base}-{new_id()[:6]}"
+
+
+async def _flush_course_with_slug_retry(
+    db: AsyncSession, course: Course, *, title: str, attempts: int = 3
+) -> None:
+    """Flush a pending ``Course`` insert with optimistic slug-collision retry.
+
+    ``_unique_slug`` runs a non-locking SELECT, so two concurrent creates
+    that mint the same slug both pass the check and only one INSERT wins;
+    the other crashes with ``IntegrityError`` → 500. We re-attempt inside
+    a SAVEPOINT (so the outer request transaction stays clean), assigning
+    a short random suffix on each retry to make collision effectively
+    impossible. Three attempts is enough for any plausible level of
+    concurrency; past that we give up with a clean 409.
+    """
+    base = slugify(title)[:180] or "course"
+    for attempt in range(attempts):
+        try:
+            async with db.begin_nested():
+                await db.flush()
+            return
+        except IntegrityError as exc:
+            # Only swallow slug collisions — anything else (FK violation,
+            # NOT NULL on another column) should propagate as the real
+            # error it is.
+            msg = (str(getattr(exc, "orig", "")) + " " + str(exc)).lower()
+            if "slug" not in msg:
+                raise
+            if attempt == attempts - 1:
+                raise ConflictError(
+                    "Could not allocate a unique slug after retries",
+                    code="course.slug_race",
+                ) from exc
+            course.slug = f"{base}-{new_id()[:6]}"
 
 
 # ---------- Modules ----------
