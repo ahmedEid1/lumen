@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 104) — language-switcher selector matches both locales
+- `learner-journey › language switcher toggles document direction`
+  used `getByLabel(/language/i)` to find the LocaleSwitcher
+  button. First click matched (page is in EN, label is
+  `"Language: English"`); second click failed
+  `locator.click: Timeout 15000ms exceeded` because by then the
+  page is in AR and the aria-label has become `"اللغة: العربية"`.
+  Switched the spec to `getByLabel(/language|اللغة/i)` so it
+  picks up the same control under either locale, and pulled the
+  locator into a `const` so the intent is one read away.
+- **Regression test**:
+  `apps/frontend/tests/locale-switcher-aria.test.ts` pins the
+  two `common.language` literals (`"Language"` and `"اللغة"`)
+  to the messages files. Renaming either one without updating
+  the e2e regex fails CI before the e2e suite would.
+
 ### Fixed (iteration 103) — whitelist `http://web:3000` in api CORS
 - After iter 102 the e2e bundle correctly POSTed to
   `http://api:8000/api/v1/auth/login`, but the api still

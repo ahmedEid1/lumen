@@ -67,14 +67,20 @@ test.describe("learner journey", () => {
     // Default starts as English (LTR).
     await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
 
+    // Iter 104: the LocaleSwitcher's aria-label is `${t("common.language")}: …`,
+    // i.e. it localises to "Language" in EN and "اللغة" in AR. Matching only
+    // /language/i works on the first click (page is in EN) but fails on the
+    // second click (page is now AR), so the regex below covers both.
+    const switcher = page.getByLabel(/language|اللغة/i);
+
     // Click the Languages icon button (LocaleSwitcher).
-    await page.getByLabel(/language/i).click();
+    await switcher.click();
     // Arabic is RTL — the provider sets <html dir="rtl">.
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.locator("html")).toHaveAttribute("lang", "ar");
 
     // Flip back to English to leave the test isolated.
-    await page.getByLabel(/language/i).click();
+    await switcher.click();
     await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
   });
 });
