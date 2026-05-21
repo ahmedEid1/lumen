@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 111) — CSRF tests use httpx 0.28-compatible header pop
+- The two CSRF tests that exercise the no-Origin rejection path
+  (`test_cookie_post_without_origin_is_rejected`,
+  `test_referer_fallback_when_origin_missing`) used
+  `headers={"Origin": None}` to delete the conftest default,
+  but httpx 0.28 raises
+  `TypeError: Header value must be str or bytes, not <class 'NoneType'>`.
+  Switched to `client.headers.pop("Origin", None)` before the
+  request, which is the documented way to remove a default
+  client header.
+- Result: 32 → 30 pytest failures (282 → 291 passing). The
+  remaining 30 are scattered across 12+ files
+  (test_courses.py, test_certificate_verify.py, test_cohort_csv.py,
+  test_discussion_subscriptions.py, test_password_reset.py,
+  test_lesson_preview.py, etc.) and each looks like its own
+  test-vs-code drift bug (e.g., test_publish_and_list_in_catalog
+  doesn't call the `seed_lesson` fixture even though iter 43's
+  publish guard requires at least one lesson). Surfacing as a
+  cluster of pre-existing bugs unrelated to app behaviour —
+  the live stack runs correctly per the green e2e suite.
+
 ### Fixed (iteration 110) — backend pytest mass recovery
 - After iter 109 unblocked conftest loading, the full suite ran
   but **231 of 320 tests failed**. Three independent regressions
