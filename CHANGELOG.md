@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 18) — repo-layer refactor via simplifier
+Third dispatch of the `code-simplifier` plugin agent, this time
+on `apps/backend/app/repositories/courses.py` (393 lines).
+Applied 4 of its 5 recommendations:
+
+- **`from sqlalchemy import case` hoisted to module scope**.
+  The inline import inside `search_courses` ran on every search
+  call; now it's part of the top-level import line.
+- **`_course_with_relations(*, with_modules=False)`** — the
+  helper now accepts the `with_modules` flag instead of every
+  caller bolting the `selectinload(Course.modules)…` chain on
+  themselves. `get_course` / `get_course_by_slug` both shrank
+  to single-`.where(...)` calls.
+- **Course-loader prefix sharing** in `list_my_enrollments`.
+  The three repeated `.options(selectinload(Enrollment.course)
+  .selectinload(...))` chains now share one `course_loader`
+  binding. SQLAlchemy already merges loader paths with a common
+  prefix, so the emitted SQL is identical — just less typing.
+- **`slug_is_taken` → `select(exists().where(...))`**. Same
+  predicate, same single-row response, but the query plan is
+  explicit about its existence-check intent (no `.limit(1)`
+  needed; the planner reads `exists` natively).
+
+Skipped on purpose: the `stats_for_courses` dict-comprehension
+unification — the current explicit form is already readable.
+
+File LOC essentially flat (393 → 399; helper expansion adds
+a few lines, the duplication-removed call sites shrink to
+compensate).
+
+Backend pytest 321/321.
+
 ### Changed (simplify iter 17) — type the remaining `catch` blocks
 Cleared 8 more `no-explicit-any` sites. Mostly the same
 shape as iter 16 (catch blocks reading `e?.message`), plus the

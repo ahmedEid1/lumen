@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy import Select, and_, case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -63,19 +63,23 @@ async def list_tags(db: AsyncSession) -> list[Tag]:
     return list(res.scalars().all())
 
 
-def _course_with_relations() -> Select[tuple[Course]]:
-    return select(Course).options(
+def _course_with_relations(*, with_modules: bool = False) -> Select[tuple[Course]]:
+    stmt = select(Course).options(
         selectinload(Course.subject),
         selectinload(Course.owner),
         selectinload(Course.tags),
     )
+    if with_modules:
+        stmt = stmt.options(selectinload(Course.modules).selectinload(Module.lessons))
+    return stmt
 
 
 async def get_course(db: AsyncSession, course_id: str, *, with_modules: bool = False) -> Course | None:
-    stmt = _course_with_relations().where(Course.id == course_id, Course.deleted_at.is_(None))
-    if with_modules:
-        stmt = stmt.options(selectinload(Course.modules).selectinload(Module.lessons))
-    res = await db.execute(stmt)
+    res = await db.execute(
+        _course_with_relations(with_modules=with_modules).where(
+            Course.id == course_id, Course.deleted_at.is_(None)
+        )
+    )
     return res.scalar_one_or_none()
 
 
@@ -89,10 +93,11 @@ async def get_courses_by_ids(db: AsyncSession, ids: list[str]) -> list[Course]:
 
 
 async def get_course_by_slug(db: AsyncSession, slug: str, *, with_modules: bool = False) -> Course | None:
-    stmt = _course_with_relations().where(Course.slug == slug, Course.deleted_at.is_(None))
-    if with_modules:
-        stmt = stmt.options(selectinload(Course.modules).selectinload(Module.lessons))
-    res = await db.execute(stmt)
+    res = await db.execute(
+        _course_with_relations(with_modules=with_modules).where(
+            Course.slug == slug, Course.deleted_at.is_(None)
+        )
+    )
     return res.scalar_one_or_none()
 
 
@@ -103,10 +108,10 @@ async def slug_is_taken(db: AsyncSession, slug: str, *, exclude_id: str | None =
     so callers minting new slugs must check against the raw table — not
     via ``get_course_by_slug`` which already hides deleted rows.
     """
-    stmt = select(Course.id).where(Course.slug == slug).limit(1)
+    pred = Course.slug == slug
     if exclude_id is not None:
-        stmt = stmt.where(Course.id != exclude_id)
-    return (await db.execute(stmt)).first() is not None
+        pred = and_(pred, Course.id != exclude_id)
+    return bool((await db.execute(select(exists().where(pred)))).scalar())
 
 
 async def search_courses(
@@ -160,8 +165,6 @@ async def search_courses(
         # ts_rank when the FTS matched; 0.0 floor for the ILIKE-only
         # fallback. ``case`` keeps rank-aware ORDER BY working even
         # when the FTS expression evaluates to false on a row.
-        from sqlalchemy import case
-
         rank_col = case(
             (ts_doc.op("@@")(ts_query), func.ts_rank(ts_doc, ts_query)),
             else_=0.0,
@@ -287,12 +290,15 @@ async def list_enrollments_for_user(db: AsyncSession, user_id: str) -> list[Enro
     the dashboard would render a row whose "Continue learning" link
     immediately 404s, since :func:`get_course` hides deleted rows.
     """
+    course_loader = selectinload(Enrollment.course)
     res = await db.execute(
         select(Enrollment)
         .join(Course, Course.id == Enrollment.course_id)
-        .options(selectinload(Enrollment.course).selectinload(Course.subject))
-        .options(selectinload(Enrollment.course).selectinload(Course.owner))
-        .options(selectinload(Enrollment.course).selectinload(Course.tags))
+        .options(
+            course_loader.selectinload(Course.subject),
+            course_loader.selectinload(Course.owner),
+            course_loader.selectinload(Course.tags),
+        )
         .where(Enrollment.user_id == user_id, Course.deleted_at.is_(None))
         .order_by(Enrollment.created_at.desc())
     )
