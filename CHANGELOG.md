@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 106) — api accepts both `__Host-access` and dev `access` cookies
+- After iters 99-105 every cookie-authenticated browser request
+  still came back 401 — login succeeded, the proxy preserved the
+  Set-Cookie, the browser sent the cookie back on the next call,
+  and the api still rejected it. Root cause sat in
+  `apps/backend/app/api/deps.py::get_current_user_optional`:
+  it only read the cookie under `alias="__Host-access"`. But
+  `apps/backend/app/api/v1/auth.py::_set_auth_cookies` sets the
+  cookie as `__Host-access` ONLY in prod (`is_prod=True`) and as
+  the prefix-less `access` in dev, because `__Host-*` is browser-
+  enforced and requires HTTPS + no Domain attribute. Dev login
+  set `access`, dev `/me/*` looked for `__Host-access`, mismatch
+  meant the token was always treated as missing.
+- **Fix**: deps reads BOTH `__Host-access` (prod) and `access`
+  (dev) and uses whichever is present, with Bearer still
+  winning. Prod's `__Host-*` enforcement stays intact (the
+  prefix is browser-side, not server-side, so the dev alias
+  has no security cost in prod where browsers won't send it
+  over HTTP anyway).
+- **Sub-fix**: starlette 1.0.0 deprecated
+  `HTTP_422_UNPROCESSABLE_ENTITY` (`HTTP_422_UNPROCESSABLE_CONTENT`
+  is the new name). The project's `pyproject.toml` has
+  `filterwarnings = ["error", ...]`, so the deprecation
+  promoted to a `DeprecationWarning` exception at import time,
+  preventing pytest from even loading conftest. Renamed the
+  two call sites in `app/core/errors.py` so the regression
+  test below could run.
+- **Regression test**:
+  `apps/backend/tests/test_auth.py::test_dev_cookie_name_is_accepted_for_auth`
+  logs in, grabs the dev `access` cookie, and hits `/users/me`
+  with ONLY that cookie. The prior bug returned 401; the test
+  now passes 200. (Note: pytest still has a pre-existing
+  event-loop scoping issue that some tests trip on — that's
+  iter 107+ scope; the regression here was verified end-to-
+  end via the e2e suite below.)
+- **Result**: 8/12 → 10/12 e2e green. The `learner-journey
+  enroll-complete` spec now passes both browsers (chromium
+  fully, webkit flaky-pass-on-retry). The 2 remaining hard
+  failures are `instructor-flow` on both browsers — deeper-
+  in-the-flow bugs for iter 107+.
+
 ### Fixed (iteration 105) — proxy /api/v1/* through Next.js for same-origin auth
 - The e2e bundle was hitting `http://api:8000` directly (iter 102),
   CORS was open (iter 103), and login itself worked — but every

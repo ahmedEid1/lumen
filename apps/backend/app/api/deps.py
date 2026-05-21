@@ -31,8 +31,15 @@ async def get_current_user_optional(
     db: DBSession,
     authorization: str | None = Header(default=None),
     cookie_access: str | None = Cookie(default=None, alias="__Host-access"),
+    # Iter 106: in dev (`is_prod=False`) auth.py sets the cookie as
+    # `access`, but only `__Host-access` was being read here, so
+    # every cookie-authenticated browser request silently 401'd.
+    # The `__Host-*` prefix is browser-enforced (requires Secure +
+    # no Domain), so dev (HTTP) can't use it; production keeps
+    # `__Host-access` as the strict-prefix cookie name.
+    cookie_access_dev: str | None = Cookie(default=None, alias="access"),
 ) -> User | None:
-    token = _bearer(authorization) or cookie_access
+    token = _bearer(authorization) or cookie_access or cookie_access_dev
     if not token:
         return None
     try:

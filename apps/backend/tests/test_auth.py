@@ -89,3 +89,35 @@ async def test_logout_clears_cookies(client: AsyncClient, make_user) -> None:
     cookie = r.cookies.get("refresh") or r.cookies.get("__Host-refresh")
     r2 = await client.post("/api/v1/auth/logout", cookies={"refresh": cookie} if cookie else None)
     assert r2.status_code == 200
+
+
+async def test_dev_cookie_name_is_accepted_for_auth(
+    client: AsyncClient, make_user
+) -> None:
+    """Iter 106: ``auth.py`` sets the access cookie as ``access`` in dev
+    (no ``__Host-*`` prefix because that prefix is only valid on HTTPS),
+    but ``deps.get_current_user_optional`` previously only read the
+    ``__Host-access`` alias. The mismatch turned every browser cookie
+    request into a silent 401 — the symptom that took out
+    ``learner-journey enroll-complete`` and ``instructor-flow`` in
+    the e2e suite. This test exercises the dev cookie name end-to-
+    end so a future regression that drops the dev alias trips here
+    before it hits the e2e run.
+    """
+    email = "cookie-auth@lumen.test"
+    pwd = "Password!1234"
+    await make_user(email=email, password=pwd)
+
+    r = await client.post(
+        "/api/v1/auth/login", json={"email": email, "password": pwd}
+    )
+    assert r.status_code == 200
+    # The dev cookie is `access` (no `__Host-` prefix).
+    access_cookie = r.cookies.get("access")
+    assert access_cookie, "dev login should set the `access` cookie"
+
+    # Hitting /me with ONLY the `access` cookie (no Authorization
+    # header) must authenticate. The prior bug returned 401 here.
+    r2 = await client.get("/api/v1/users/me", cookies={"access": access_cookie})
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["email"] == email
