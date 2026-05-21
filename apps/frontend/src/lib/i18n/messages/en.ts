@@ -95,6 +95,20 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Studio root — instructor atelier
+  "studio.cartouche": "The atelier",
+  "studio.title": "Instructor studio",
+  "studio.subtitle": "Manage your courses and content.",
+  "studio.newCourse": "New course",
+  "studio.filter.all": "All",
+  "studio.filter.draft": "Drafts",
+  "studio.filter.published": "Published",
+  "studio.filter.archived": "Archived",
+  "studio.empty.none": "You haven't inscribed any courses yet.",
+  "studio.empty.filter": "No courses in this state.",
+  "studio.moduleCount": "{n} modules",
+  "studio.studentCount": "{n} students",
+
   // Learn — the lesson player / scribe's desk
   "learn.cartouche": "Now learning",
   "learn.signInPrompt": "Sign in to open this course.",

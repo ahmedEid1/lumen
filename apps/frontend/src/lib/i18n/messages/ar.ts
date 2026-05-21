@@ -102,6 +102,20 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Studio root — ورشة المدرّس
+  "studio.cartouche": "ورشة الكاتب",
+  "studio.title": "ورشة المدرّس",
+  "studio.subtitle": "أدر دوراتك ومحتواها.",
+  "studio.newCourse": "دورة جديدة",
+  "studio.filter.all": "الكل",
+  "studio.filter.draft": "مسودّات",
+  "studio.filter.published": "منشورة",
+  "studio.filter.archived": "مؤرشفة",
+  "studio.empty.none": "لم تنقش أي دورة بعد.",
+  "studio.empty.filter": "لا توجد دورات بهذه الحالة.",
+  "studio.moduleCount": "{n} وحدة",
+  "studio.studentCount": "{n} طالب",
+
   // Learn — مكتب الكاتب
   "learn.cartouche": "الآن تتعلم",
   "learn.signInPrompt": "سجّل الدخول لفتح هذه الدورة.",
