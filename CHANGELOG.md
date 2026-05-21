@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 42)
+- **`DELETE /admin/tags/{id}` now refuses when the tag is in use.**
+  The endpoint issued a raw `db.delete(tag)`; `course_tags.tag_id`
+  has `ON DELETE CASCADE`, so the operation silently stripped the
+  tag from every course that referenced it — no warning to the
+  admin, no audit-friendly trail of what got detached. Brought it
+  into line with `delete_subject` (hardened in iter 28): refuse
+  with a 409 `tag.in_use` (carrying the count of attached live
+  courses) so the admin can clean up first. Soft-deleted courses
+  don't block the delete (their join rows cascade quietly with no
+  visible impact). Covered by `tests/test_admin_tag_delete.py`
+  (5 tests: live-attached refusal, soft-deleted-doesn't-block,
+  unused-succeeds, 404, and instructor-can't-call).
+
 ### Fixed (iteration 41)
 - **Module / lesson reorder rejects partial and malformed mappings.**
   Both reorder paths set every row's `order` to a negative temp value

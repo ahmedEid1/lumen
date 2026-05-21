@@ -121,6 +121,27 @@ async def delete_tag(tag_id: str, _: RequireAdmin, db: DBSession) -> OkResponse:
     t = await db.get(Tag, tag_id)
     if not t:
         raise NotFoundError("Tag not found", code="tag.not_found")
+    # course_tags has ON DELETE CASCADE, so a raw DELETE silently strips
+    # this tag from every course using it — no warning to the admin and
+    # no audit trail of which courses were touched. Mirror the
+    # subject-delete contract: refuse with a 409 if any *live* course
+    # still references the tag. Soft-deleted courses don't block the
+    # admin (their join rows cascade away with no user-visible impact).
+    live = int(
+        (
+            await db.execute(
+                select(func.count(Course.id))
+                .join(Course.tags)
+                .where(Tag.id == t.id, Course.deleted_at.is_(None))
+            )
+        ).scalar_one()
+    )
+    if live > 0:
+        raise ConflictError(
+            "Tag is still attached to courses",
+            code="tag.in_use",
+            details={"courses": live},
+        )
     await db.delete(t)
     return OkResponse()
 
