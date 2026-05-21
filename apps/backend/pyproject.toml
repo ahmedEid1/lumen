@@ -116,11 +116,27 @@ ignore_missing_imports = true
 # ---------------- pytest ----------------
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Iter 109: pytest-asyncio 1.x changed the default fixture loop
+# scope from session to function. Our session-scoped `_engine`
+# fixture creates an asyncpg connection on the session loop; if
+# every test then runs on its own function-scoped loop, that
+# connection's bound future is "attached to a different loop"
+# and every test errors with RuntimeError. Pin back to session
+# scope to preserve the pre-1.x behaviour without rewriting
+# every fixture.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 addopts = "-ra --strict-markers --cov=app --cov-report=term-missing --cov-fail-under=80"
 filterwarnings = [
   "error",
   "ignore::DeprecationWarning:passlib.*",
+  # Iter 109: third-party deprecations/warnings we can't act on
+  # from app code — quieted here so genuine app warnings still
+  # promote to errors.
+  "ignore:Remove .format_exc_info. from your processor chain:UserWarning",
+  "ignore:ORJSONResponse is deprecated:DeprecationWarning",
+  "ignore::jwt.warnings.InsecureKeyLengthWarning",
 ]
 
 [tool.coverage.run]

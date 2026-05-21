@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 109) — backend pytest infrastructure (partial)
+- conftest couldn't even load and every test errored. Three
+  layered, pre-existing problems all promoted to test failures
+  by `filterwarnings = ["error"]`:
+  - **pytest-asyncio 1.x defaults**: session-scoped async
+    fixtures (our `_engine` that creates an asyncpg
+    connection) need a matching event-loop scope or the
+    connection's future is "attached to a different loop" and
+    every test errors with RuntimeError. Pinned
+    `asyncio_default_fixture_loop_scope = "session"` +
+    `asyncio_default_test_loop_scope = "session"` in
+    pyproject.
+  - **Short JWT secret**: the dev `.env` has
+    `JWT_SECRET=myjwtsecret` (12 bytes), which trips PyJWT's
+    `InsecureKeyLengthWarning` (RFC 7518 wants ≥32 bytes for
+    HS256). conftest now FORCE-overwrites
+    `JWT_SECRET` / `SECRET_KEY` with a 64-byte fixture value
+    (it used `setdefault` before, which left the short dev
+    value in place).
+  - **Third-party deprecation churn**: `filterwarnings =
+    ["error"]` was triggering on structlog 25's
+    `format_exc_info` UserWarning (emitted on every failure
+    rendering), FastAPI's `ORJSONResponse` deprecation, and
+    PyJWT's `InsecureKeyLengthWarning`. Added narrow
+    `ignore::…` filters for each — app-code warnings still
+    promote to errors so we don't lose real signal.
+- **What this DOESN'T fix**: route handlers that use
+  `@limiter.limit(...)` from slowapi need a
+  `response: Response` parameter on the handler signature,
+  and several endpoints (`/auth/register`,
+  `/auth/password-reset/request`, `/auth/verify/request`, …)
+  don't have one. slowapi raises `Exception("parameter
+  'response' must be an instance of starlette.responses.Response")`
+  at request time. That's a multi-endpoint signature change
+  bigger than one iteration; surfacing here, deferring to a
+  future cleanup iteration.
+
 ### Fixed (iteration 108) — vitest router + i18n + hoisted-mock failures
 - The full frontend vitest suite was 9 failures before this
   iteration:

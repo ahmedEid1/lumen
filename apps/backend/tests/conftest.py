@@ -18,8 +18,19 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 # Ensure test env is set before app modules read config.
 os.environ.setdefault("ENV", "test")
-os.environ.setdefault("JWT_SECRET", "test-secret-please-change")
-os.environ.setdefault("SECRET_KEY", "test-secret-please-change")
+# Iter 109: PyJWT raises `InsecureKeyLengthWarning` for HS256 keys
+# under 32 bytes (and `filterwarnings = ["error"]` promotes that
+# to a test failure). FORCE-overwrite the value: the dev `.env`
+# in the api container ships a short `myjwtsecret`, and
+# `setdefault` would leave it in place. We unconditionally swap
+# in a 64-byte fixture secret so the test suite doesn't fight
+# RFC 7518 §3.2 — production keys still come from the real env.
+os.environ["JWT_SECRET"] = (
+    "test-secret-please-change-this-is-a-long-enough-key-for-rfc7518"
+)
+os.environ["SECRET_KEY"] = (
+    "test-secret-please-change-this-is-a-long-enough-key-for-rfc7518"
+)
 
 from app.core.config import get_settings  # noqa: E402
 from app.db import base as db_base  # noqa: E402
