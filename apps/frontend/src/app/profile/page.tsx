@@ -11,12 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageUpload } from "@/components/shared/image-upload";
 import { SessionsCard } from "@/components/shared/sessions-card";
+import { Cartouche } from "@/components/lumen/cartouche";
+import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
+import { useT } from "@/lib/i18n/provider";
 
 export default function ProfilePage() {
   const { user, ready, refresh, logout } = useAuth();
   const router = useRouter();
+  const t = useT();
   const [fullName, setFullName] = useState("");
   const [bio, setBio] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -55,10 +59,10 @@ export default function ProfilePage() {
         method: "PATCH",
         body: { full_name: fullName, bio, avatar_url: avatarUrl || null },
       });
-      toast.success("Profile updated");
+      toast.success(t("profile.toast.saved"));
       await refresh();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save");
+      toast.error(e instanceof Error ? e.message : t("profile.toast.saveError"));
     } finally {
       setSavingProfile(false);
     }
@@ -72,13 +76,13 @@ export default function ProfilePage() {
         method: "POST",
         body: { current_password: currentPwd, new_password: newPwd },
       });
-      toast.success("Password changed. Sign in again to refresh sessions.");
+      toast.success(t("profile.toast.passwordChanged"));
       setCurrentPwd("");
       setNewPwd("");
       await logout();
       router.push("/login");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not change password");
+      toast.error(e instanceof Error ? e.message : t("profile.toast.passwordError"));
     } finally {
       setSavingPwd(false);
     }
@@ -92,11 +96,11 @@ export default function ProfilePage() {
         method: "POST",
         body: { new_email: newEmail, current_password: emailPwd },
       });
-      toast.success(`We sent a confirmation link to ${newEmail}. Click it within an hour.`);
+      toast.success(t("profile.toast.emailChangeSent", { email: newEmail }));
       setNewEmail("");
       setEmailPwd("");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not start email change");
+      toast.error(e instanceof Error ? e.message : t("profile.toast.emailError"));
     } finally {
       setRequestingEmail(false);
     }
@@ -105,139 +109,173 @@ export default function ProfilePage() {
   async function deleteAccount() {
     try {
       await api("/api/v1/users/me", { method: "DELETE", body: { password: deletePwd } });
-      toast.success("Account deleted");
+      toast.success(t("profile.toast.deleted"));
       await logout();
       router.push("/");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not delete account");
+      toast.error(e instanceof Error ? e.message : t("profile.toast.deleteError"));
     }
   }
 
+  const inputClass =
+    "border-gold/25 bg-background/60 focus-visible:border-gold/60";
+
   return (
-    <div className="container mx-auto max-w-3xl space-y-6 px-4 py-10">
-      <header className="flex items-center gap-4">
-        <Avatar className="h-16 w-16">
-          <AvatarImage src={user.avatar_url ?? undefined} alt={user.full_name} />
-          <AvatarFallback>{user.full_name.slice(0, 1).toUpperCase() || "U"}</AvatarFallback>
-        </Avatar>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{user.full_name || user.email}</h1>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{user.email}</span>
-            <Badge variant="muted" className="capitalize">
-              {user.role}
-            </Badge>
-            {user.email_verified_at ? (
-              <Badge variant="secondary">verified</Badge>
-            ) : (
-              <Badge variant="outline">unverified</Badge>
-            )}
+    <div className="container mx-auto max-w-3xl space-y-8 px-4 py-14">
+      <header className="flex flex-col gap-3">
+        <Cartouche>{t("profile.cartouche")}</Cartouche>
+        <div className="flex items-center gap-5">
+          <Avatar className="h-20 w-20 border-2 border-gold/30">
+            <AvatarImage src={user.avatar_url ?? undefined} alt={user.full_name} />
+            <AvatarFallback className="bg-card text-2xl font-medium text-gold">
+              {user.full_name.slice(0, 1).toUpperCase() || "U"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col gap-1.5">
+            <h1 className="font-display text-3xl font-medium tracking-tight">
+              {user.full_name || user.email}
+            </h1>
+            <div className="flex flex-wrap items-center gap-2 font-body text-sm text-muted-foreground">
+              <span>{user.email}</span>
+              <Badge variant="muted" className="capitalize">
+                {user.role}
+              </Badge>
+              {user.email_verified_at ? (
+                <Badge className="border border-gold/40 bg-gold/10 text-gold">
+                  {t("profile.badge.verified")}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="border-destructive/50 text-destructive">
+                  {t("profile.badge.unverified")}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
       {!user.email_verified_at && (
-        <div className="flex items-center justify-between rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-          <p>Your email isn&apos;t verified yet — check your inbox or resend the link.</p>
+        <div className="flex flex-col items-start justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm sm:flex-row sm:items-center">
+          <p className="flex items-center gap-2 font-body text-destructive-foreground">
+            <Glyph name="feather" size={18} mode="tint" className="text-destructive" />
+            {t("profile.banner.unverified")}
+          </p>
           <Button
             size="sm"
             variant="outline"
             onClick={async () => {
               try {
                 await api("/api/v1/auth/verify/request", { method: "POST" });
-                toast.success("Verification email sent");
+                toast.success(t("profile.toast.verifyResent"));
               } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Could not send verification email");
+                toast.error(e instanceof Error ? e.message : t("profile.toast.verifyError"));
               }
             }}
           >
-            Resend
+            {t("profile.banner.resend")}
           </Button>
         </div>
       )}
 
-      <Card>
+      <Card className="scroll-paper border-gold/20">
         <CardHeader>
-          <CardTitle>Profile</CardTitle>
-          <CardDescription>How others see you on Lumen.</CardDescription>
+          <CardTitle className="font-display text-2xl">{t("profile.section.profile")}</CardTitle>
+          <CardDescription className="font-body">
+            {t("profile.section.profileDesc")}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={saveProfile}>
             <div className="space-y-1.5">
-              <label htmlFor="full_name" className="text-sm font-medium">
-                Full name
+              <label htmlFor="full_name" className="font-body text-sm font-medium">
+                {t("auth.register.fullName")}
               </label>
-              <Input id="full_name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              <Input
+                id="full_name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className={inputClass}
+              />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="bio" className="text-sm font-medium">
-                Bio
+              <label htmlFor="bio" className="font-body text-sm font-medium">
+                {t("profile.field.bio")}
               </label>
-              <Textarea id="bio" rows={4} value={bio} onChange={(e) => setBio(e.target.value)} />
+              <Textarea
+                id="bio"
+                rows={4}
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                className={inputClass}
+              />
             </div>
             <ImageUpload
               kind="avatar"
               shape="circle"
-              label="Avatar"
+              label={t("profile.field.avatar")}
               value={avatarUrl || null}
               onChange={(u) => setAvatarUrl(u ?? "")}
             />
             <Button type="submit" disabled={savingProfile}>
-              {savingProfile ? "Saving…" : "Save changes"}
+              {savingProfile ? t("common.saving") : t("profile.save")}
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="scroll-paper border-gold/20">
         <CardHeader>
-          <CardTitle>Change password</CardTitle>
-          <CardDescription>You&apos;ll be signed out of other sessions.</CardDescription>
+          <CardTitle className="font-display text-2xl">{t("profile.section.password")}</CardTitle>
+          <CardDescription className="font-body">
+            {t("profile.section.passwordDesc")}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={changePassword}>
             <Input
               type="password"
-              placeholder="Current password"
+              placeholder={t("profile.field.currentPassword")}
               value={currentPwd}
               onChange={(e) => setCurrentPwd(e.target.value)}
               autoComplete="current-password"
               required
+              className={inputClass}
             />
             <Input
               type="password"
-              placeholder="New password (≥ 12 chars)"
+              placeholder={t("profile.field.newPasswordPlaceholder")}
               value={newPwd}
               onChange={(e) => setNewPwd(e.target.value)}
               autoComplete="new-password"
               minLength={12}
               required
+              className={inputClass}
             />
             <Button type="submit" disabled={savingPwd}>
-              {savingPwd ? "Updating…" : "Update password"}
+              {savingPwd ? t("profile.password.submitting") : t("profile.password.submit")}
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="scroll-paper border-gold/20">
         <CardHeader>
-          <CardTitle>Change email</CardTitle>
-          <CardDescription>
-            We&apos;ll send a confirmation link to the new address. The change
-            doesn&apos;t take effect until you click it, and all your other
-            sessions will be signed out for security.
+          <CardTitle className="font-display text-2xl">{t("profile.section.email")}</CardTitle>
+          <CardDescription className="font-body">
+            {t("profile.section.emailDesc")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={requestEmailChange}>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Current email</label>
-              <Input value={user.email} disabled />
+              <label className="font-body text-sm font-medium">
+                {t("profile.field.currentEmail")}
+              </label>
+              <Input value={user.email} disabled className={inputClass} />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="new_email" className="text-sm font-medium">
-                New email
+              <label htmlFor="new_email" className="font-body text-sm font-medium">
+                {t("profile.field.newEmail")}
               </label>
               <Input
                 id="new_email"
@@ -246,18 +284,20 @@ export default function ProfilePage() {
                 onChange={(e) => setNewEmail(e.target.value)}
                 autoComplete="email"
                 required
+                className={inputClass}
               />
             </div>
             <Input
               type="password"
-              placeholder="Current password"
+              placeholder={t("profile.field.currentPassword")}
               value={emailPwd}
               onChange={(e) => setEmailPwd(e.target.value)}
               autoComplete="current-password"
               required
+              className={inputClass}
             />
             <Button type="submit" disabled={requestingEmail || !newEmail || !emailPwd}>
-              {requestingEmail ? "Sending…" : "Send confirmation link"}
+              {requestingEmail ? t("profile.email.submitting") : t("profile.email.submit")}
             </Button>
           </form>
         </CardContent>
@@ -265,30 +305,35 @@ export default function ProfilePage() {
 
       <SessionsCard />
 
-      <Card>
+      <Card className="scroll-paper border-destructive/40">
         <CardHeader>
-          <CardTitle className="text-destructive">Delete account</CardTitle>
-          <CardDescription>This permanently deactivates your account.</CardDescription>
+          <CardTitle className="font-display text-2xl text-destructive">
+            {t("profile.section.delete")}
+          </CardTitle>
+          <CardDescription className="font-body">
+            {t("profile.section.deleteDesc")}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {!confirmDelete ? (
             <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
-              Delete my account
+              {t("profile.delete.button")}
             </Button>
           ) : (
             <div className="space-y-3">
               <Input
                 type="password"
-                placeholder="Confirm with your password"
+                placeholder={t("profile.delete.confirmPlaceholder")}
                 value={deletePwd}
                 onChange={(e) => setDeletePwd(e.target.value)}
+                className={inputClass}
               />
               <div className="flex gap-2">
                 <Button variant="destructive" onClick={deleteAccount} disabled={!deletePwd}>
-                  Yes, delete my account
+                  {t("profile.delete.confirm")}
                 </Button>
                 <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
               </div>
             </div>
