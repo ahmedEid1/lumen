@@ -88,12 +88,12 @@ export default function DashboardPage() {
               <li key={e.id} className="flex items-center justify-between rounded border p-3">
                 <span>{e.course.title}</span>
                 {e.certificate_id && (
-                  <Link
-                    href={`/certificates/${e.course.id}`}
+                  <a
+                    href={`/api/v1/certificates/${e.course.id}.pdf`}
                     className="text-primary hover:underline"
                   >
                     Certificate
-                  </Link>
+                  </a>
                 )}
               </li>
             ))}

@@ -1,0 +1,203 @@
+"""Admin-only endpoints: subjects, tags, users, audit log."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from fastapi import APIRouter, Query, status
+from pydantic import BaseModel, ConfigDict, Field
+from slugify import slugify
+from sqlalchemy import desc, select
+
+from app.api.deps import DBSession, RequireAdmin
+from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.models.audit import AuditEvent
+from app.models.course import Subject, Tag
+from app.models.user import Role, User
+from app.repositories import audit as audit_repo
+from app.schemas.common import OkResponse
+from app.schemas.course import SubjectOut, TagOut
+
+router = APIRouter()
+
+
+# ---------- Subjects ----------
+
+
+class SubjectIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    slug: str | None = Field(default=None, max_length=140)
+
+
+@router.post("/subjects", response_model=SubjectOut, status_code=status.HTTP_201_CREATED)
+async def create_subject(payload: SubjectIn, _: RequireAdmin, db: DBSession) -> SubjectOut:
+    slug = (payload.slug or slugify(payload.title))[:140]
+    if not slug:
+        raise ValidationAppError("Slug must be non-empty", code="subject.invalid_slug")
+    exists = (await db.execute(select(Subject).where(Subject.slug == slug))).scalar_one_or_none()
+    if exists:
+        raise ConflictError("Subject slug already exists", code="subject.slug_taken")
+    s = Subject(title=payload.title, slug=slug)
+    db.add(s)
+    await db.flush()
+    return SubjectOut(id=s.id, title=s.title, slug=s.slug, total_courses=0)
+
+
+@router.patch("/subjects/{subject_id}", response_model=SubjectOut)
+async def update_subject(subject_id: str, payload: SubjectIn, _: RequireAdmin, db: DBSession) -> SubjectOut:
+    s = await db.get(Subject, subject_id)
+    if not s:
+        raise NotFoundError("Subject not found", code="subject.not_found")
+    if payload.title:
+        s.title = payload.title
+    if payload.slug and payload.slug != s.slug:
+        if (await db.execute(select(Subject).where(Subject.slug == payload.slug))).scalar_one_or_none():
+            raise ConflictError("Slug taken", code="subject.slug_taken")
+        s.slug = payload.slug
+    return SubjectOut.model_validate(s)
+
+
+@router.delete("/subjects/{subject_id}", response_model=OkResponse)
+async def delete_subject(subject_id: str, _: RequireAdmin, db: DBSession) -> OkResponse:
+    s = await db.get(Subject, subject_id)
+    if not s:
+        raise NotFoundError("Subject not found", code="subject.not_found")
+    await db.delete(s)
+    return OkResponse()
+
+
+# ---------- Tags ----------
+
+
+class TagIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    slug: str | None = Field(default=None, max_length=80)
+
+
+@router.post("/tags", response_model=TagOut, status_code=status.HTTP_201_CREATED)
+async def create_tag(payload: TagIn, _: RequireAdmin, db: DBSession) -> TagOut:
+    slug = (payload.slug or slugify(payload.name))[:80]
+    if not slug:
+        raise ValidationAppError("Slug must be non-empty", code="tag.invalid_slug")
+    if (await db.execute(select(Tag).where(Tag.slug == slug))).scalar_one_or_none():
+        raise ConflictError("Tag slug taken", code="tag.slug_taken")
+    t = Tag(name=payload.name, slug=slug)
+    db.add(t)
+    await db.flush()
+    return TagOut.model_validate(t)
+
+
+@router.delete("/tags/{tag_id}", response_model=OkResponse)
+async def delete_tag(tag_id: str, _: RequireAdmin, db: DBSession) -> OkResponse:
+    t = await db.get(Tag, tag_id)
+    if not t:
+        raise NotFoundError("Tag not found", code="tag.not_found")
+    await db.delete(t)
+    return OkResponse()
+
+
+# ---------- Users ----------
+
+
+class UserAdminOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    email: str
+    full_name: str
+    role: Role
+    is_active: bool
+    created_at: datetime
+    last_login_at: datetime | None = None
+
+
+class UserRoleUpdate(BaseModel):
+    role: Role
+
+
+class UserActiveUpdate(BaseModel):
+    is_active: bool
+
+
+@router.get("/users", response_model=list[UserAdminOut])
+async def list_users(
+    _: RequireAdmin,
+    db: DBSession,
+    q: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[UserAdminOut]:
+    stmt = select(User).order_by(desc(User.created_at)).limit(limit)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where((User.email.ilike(like)) | (User.full_name.ilike(like)))
+    rows = (await db.execute(stmt)).scalars().all()
+    return [UserAdminOut.model_validate(u) for u in rows]
+
+
+@router.patch("/users/{user_id}/role", response_model=UserAdminOut)
+async def set_user_role(
+    user_id: str, payload: UserRoleUpdate, admin: RequireAdmin, db: DBSession
+) -> UserAdminOut:
+    user = await db.get(User, user_id)
+    if not user:
+        raise NotFoundError("User not found", code="user.not_found")
+    if user.id == admin.id and payload.role != Role.admin:
+        raise ValidationAppError("Cannot demote yourself", code="user.self_demote")
+    user.role = payload.role
+    await audit_repo.record(
+        db, actor_id=admin.id, action="admin.user.role", target_type="user", target_id=user.id, data={"role": payload.role.value}
+    )
+    return UserAdminOut.model_validate(user)
+
+
+@router.patch("/users/{user_id}/active", response_model=UserAdminOut)
+async def set_user_active(
+    user_id: str, payload: UserActiveUpdate, admin: RequireAdmin, db: DBSession
+) -> UserAdminOut:
+    user = await db.get(User, user_id)
+    if not user:
+        raise NotFoundError("User not found", code="user.not_found")
+    if user.id == admin.id and not payload.is_active:
+        raise ValidationAppError("Cannot deactivate yourself", code="user.self_deactivate")
+    user.is_active = payload.is_active
+    await audit_repo.record(
+        db,
+        actor_id=admin.id,
+        action="admin.user.active",
+        target_type="user",
+        target_id=user.id,
+        data={"is_active": payload.is_active},
+    )
+    return UserAdminOut.model_validate(user)
+
+
+# ---------- Audit log ----------
+
+
+class AuditEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    actor_id: str | None
+    action: str
+    target_type: str | None
+    target_id: str | None
+    created_at: datetime
+    data: dict
+
+
+@router.get("/audit", response_model=list[AuditEventOut])
+async def list_audit(
+    _: RequireAdmin,
+    db: DBSession,
+    action: str | None = Query(default=None, max_length=80),
+    actor_id: str | None = Query(default=None, max_length=64),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[AuditEventOut]:
+    stmt = select(AuditEvent).order_by(desc(AuditEvent.created_at)).limit(limit)
+    if action:
+        stmt = stmt.where(AuditEvent.action == action)
+    if actor_id:
+        stmt = stmt.where(AuditEvent.actor_id == actor_id)
+    rows = (await db.execute(stmt)).scalars().all()
+    return [AuditEventOut.model_validate(r) for r in rows]

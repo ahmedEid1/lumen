@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { Moon, Sun, GraduationCap, LogOut, LayoutDashboard, BookOpen } from "lucide-react";
+import { Moon, Sun, GraduationCap, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { NotificationsBell } from "@/components/shared/notifications-bell";
 import { useAuth } from "@/lib/auth/store";
 
 function ThemeToggle() {
@@ -47,6 +48,11 @@ export function SiteHeader() {
               Studio
             </Link>
           )}
+          {user && user.role === "admin" && (
+            <Link className="text-muted-foreground hover:text-foreground" href="/admin">
+              Admin
+            </Link>
+          )}
         </nav>
 
         <div className="flex items-center gap-2">
@@ -55,7 +61,8 @@ export function SiteHeader() {
             <div className="h-9 w-20 animate-pulse rounded-md bg-muted" aria-hidden />
           ) : user ? (
             <>
-              <Link href="/dashboard" className="hidden md:inline-flex">
+              <NotificationsBell />
+              <Link href="/profile" className="hidden md:inline-flex" aria-label="Profile">
                 <Avatar>
                   <AvatarImage src={user.avatar_url ?? undefined} alt={user.full_name} />
                   <AvatarFallback>

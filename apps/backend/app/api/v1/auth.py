@@ -7,10 +7,17 @@ from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from app.api.deps import CurrentUser, DBSession, client_ip, user_agent
 from app.core.config import get_settings
 from app.core.errors import UnauthorizedError
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
+from app.schemas.auth import (
+    LoginRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    RegisterRequest,
+    TokenResponse,
+)
 from app.schemas.common import OkResponse
 from app.schemas.user import UserOut
 from app.services import auth as auth_service
+from app.services import password_reset as reset_service
 
 router = APIRouter()
 
@@ -116,3 +123,34 @@ async def logout(
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentUser) -> UserOut:
     return UserOut.model_validate(user)
+
+
+@router.post("/password-reset/request", response_model=OkResponse)
+async def password_reset_request(payload: PasswordResetRequest, db: DBSession) -> OkResponse:
+    """Always returns ok to avoid leaking which emails exist."""
+    user, token = await reset_service.request_reset(db, email=str(payload.email))
+    if user and token:
+        # In production this kicks off a Celery email task. In dev, log the link so it's visible
+        # in the API container logs and in Mailpit once the worker is wired.
+        try:
+            from app.workers.tasks.email import send
+
+            link = f"{get_settings().api_base_url}/reset-password?token={token}"
+            send.delay(
+                to=user.email,
+                subject="Reset your Lumen password",
+                text=f"Click the link to reset your password (valid 30 min):\n\n{link}\n",
+            )
+        except Exception:  # noqa: BLE001  - dev path without broker shouldn't 500 the API
+            from app.core.logging import get_logger
+
+            get_logger(__name__).info(
+                "password_reset_email_skipped", email=user.email, token=token
+            )
+    return OkResponse()
+
+
+@router.post("/password-reset/confirm", response_model=OkResponse)
+async def password_reset_confirm(payload: PasswordResetConfirm, db: DBSession) -> OkResponse:
+    await reset_service.confirm_reset(db, token=payload.token, new_password=payload.password)
+    return OkResponse()

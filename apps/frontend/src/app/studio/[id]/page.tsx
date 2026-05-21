@@ -1,9 +1,10 @@
 "use client";
 
 import { use, useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, GripVertical } from "lucide-react";
+import { Plus, GripVertical, Settings2 } from "lucide-react";
 import {
   DndContext,
   PointerSensor,
@@ -114,7 +115,7 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
             <SortableContext items={modules.map((m) => m.id)} strategy={verticalListSortingStrategy}>
               <ul className="space-y-2">
                 {modules.map((m) => (
-                  <SortableModule key={m.id} module={m} />
+                  <SortableModule key={m.id} module={m} courseId={id} />
                 ))}
               </ul>
             </SortableContext>
@@ -123,14 +124,13 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
       </Card>
 
       <p className="mt-6 text-xs text-muted-foreground">
-        Tip: drag the handle to reorder modules. Click a module to manage its lessons (coming soon
-        from this view; today, use the API or the lesson editor route).
+        Tip: drag the handle to reorder modules. Click the gear to edit a module&apos;s lessons.
       </p>
     </div>
   );
 }
 
-function SortableModule({ module: m }: { module: ModuleOut }) {
+function SortableModule({ module: m, courseId }: { module: ModuleOut; courseId: string }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: m.id,
   });
@@ -154,7 +154,16 @@ function SortableModule({ module: m }: { module: ModuleOut }) {
           <div className="font-medium">{m.title}</div>
         </div>
       </div>
-      <Badge variant="muted">{m.lessons.length} lessons</Badge>
+      <div className="flex items-center gap-2">
+        <Badge variant="muted">{m.lessons.length} lessons</Badge>
+        <Link
+          href={`/studio/${courseId}/modules/${m.id}`}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted"
+          aria-label="Edit lessons"
+        >
+          <Settings2 className="h-4 w-4 text-muted-foreground" />
+        </Link>
+      </div>
     </li>
   );
 }

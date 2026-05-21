@@ -81,6 +81,10 @@ export const Courses = {
 
   createLesson: (moduleId: string, input: Record<string, unknown>, token?: string) =>
     api(`/api/v1/courses/modules/${moduleId}/lessons`, { method: "POST", body: input, token }),
+  patchLesson: (lessonId: string, input: Record<string, unknown>, token?: string) =>
+    api(`/api/v1/courses/lessons/${lessonId}`, { method: "PATCH", body: input, token }),
+  deleteLesson: (lessonId: string, token?: string) =>
+    api<{ ok: true }>(`/api/v1/courses/lessons/${lessonId}`, { method: "DELETE", token }),
   reorderLessons: (moduleId: string, order: Record<string, number>, token?: string) =>
     api<{ ok: true }>(`/api/v1/courses/modules/${moduleId}/lessons/order`, {
       method: "POST",

@@ -214,12 +214,12 @@ export default function CourseDetailPage({ params }: { params: Promise<{ slug: s
               )}
 
               {course.progress_pct === 100 && (
-                <Link
-                  href={`/certificates/${course.id}`}
+                <a
+                  href={`/api/v1/certificates/${course.id}.pdf`}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
                 >
-                  <Award className="h-4 w-4" /> View certificate
-                </Link>
+                  <Award className="h-4 w-4" /> Download certificate
+                </a>
               )}
 
               <p className="text-center text-xs text-muted-foreground">
