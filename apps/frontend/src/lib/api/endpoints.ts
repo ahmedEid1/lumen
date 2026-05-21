@@ -174,18 +174,3 @@ export const Reviews = {
     api<{ ok: true }>(`/api/v1/courses/${courseId}/reviews`, { method: "DELETE", token }),
 };
 
-// ---------- Chat ----------
-export const Chat = {
-  history: (courseId: string, before?: string, token?: string) => {
-    const qs = before ? `?before=${encodeURIComponent(before)}` : "";
-    return api(`/api/v1/chat/courses/${courseId}/messages${qs}`, { token });
-  },
-};
-
-// ---------- Uploads ----------
-export const Uploads = {
-  sign: (
-    input: { filename: string; content_type: string; kind: string; size_bytes: number },
-    token?: string,
-  ) => api("/api/v1/uploads/sign", { method: "POST", body: input, token }),
-};

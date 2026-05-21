@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 11) — knip-flagged unused exports + vulture
+Six tiny cleanups across both stacks: drop dead public
+surface and mark protocol-required-but-unused parameters
+with the underscore convention.
+
+**Frontend:**
+- `Chat` and `Uploads` modules from `src/lib/api/endpoints.ts`
+  — neither was imported anywhere; the chat path uses a
+  WebSocket directly, uploads go through the bespoke
+  `image-upload.tsx` flow.
+- `buttonVariants` from `src/components/ui/button.tsx`:
+  no longer exported (still used internally by `<Button>`
+  itself).
+- `TERMINAL_CLOSE_CODES` from `src/lib/reconnect.ts`: same
+  — internal-only now.
+
+**Backend:**
+- `app/core/email_type.py`: renamed the four
+  Pydantic-required-but-unused protocol params
+  (`__get_pydantic_core_schema__`'s `source_type`/`handler`,
+  `__get_pydantic_json_schema__`'s `schema`/`handler`) to the
+  underscore-prefixed form. They're part of the
+  contract Pydantic expects; the underscore signals "kept
+  for shape, not for use" to readers and `ruff`/`vulture`.
+
+Frontend vitest 95/95, backend pytest 321/321 (subset
+verified for email-touching paths).
+
 ### Changed (simplify iter 10) — drop 14 unused frontend deps
 `knip` flagged 14 dependencies that aren't imported anywhere
 in `src/` or `tests/` — most are radix-ui primitives whose

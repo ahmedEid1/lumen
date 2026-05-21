@@ -34,7 +34,7 @@ from pydantic_core import CoreSchema, core_schema
 class _Email(str):
     @classmethod
     def __get_pydantic_core_schema__(
-        cls, source_type: Any, handler: Any
+        cls, _source_type: Any, _handler: Any
     ) -> CoreSchema:
         return core_schema.no_info_after_validator_function(
             cls._validate,
@@ -43,7 +43,7 @@ class _Email(str):
 
     @classmethod
     def __get_pydantic_json_schema__(
-        cls, schema: CoreSchema, handler: GetJsonSchemaHandler
+        cls, _schema: CoreSchema, _handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
         return {"type": "string", "format": "email"}
 
