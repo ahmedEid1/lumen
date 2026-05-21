@@ -104,12 +104,10 @@ async def update_course(
         if not subject:
             raise NotFoundError("Subject not found", code="subject.not_found")
         course.subject_id = subject.id
-    if payload.overview is not None:
-        course.overview = payload.overview
-    if payload.difficulty is not None:
-        course.difficulty = payload.difficulty
-    if payload.cover_url is not None:
-        course.cover_url = payload.cover_url
+    for field in ("overview", "difficulty", "cover_url"):
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(course, field, value)
     if payload.tag_ids is not None:
         course.tags = await courses_repo.list_tags_by_ids(db, payload.tag_ids)
     if payload.learning_outcomes is not None:
@@ -219,17 +217,19 @@ async def duplicate_course(db: AsyncSession, *, source_id: str, owner: User) -> 
     return cloned
 
 
+_VALID_STATUS_TRANSITIONS: dict[CourseStatus, set[CourseStatus]] = {
+    CourseStatus.draft: {CourseStatus.published, CourseStatus.archived},
+    CourseStatus.published: {CourseStatus.draft, CourseStatus.archived},
+    CourseStatus.archived: {CourseStatus.draft},
+}
+
+
 async def _transition_status(
     db: AsyncSession, course: Course, target: CourseStatus
 ) -> None:
     if course.status == target:
         return
-    valid = {
-        CourseStatus.draft: {CourseStatus.published, CourseStatus.archived},
-        CourseStatus.published: {CourseStatus.draft, CourseStatus.archived},
-        CourseStatus.archived: {CourseStatus.draft},
-    }
-    if target not in valid[course.status]:
+    if target not in _VALID_STATUS_TRANSITIONS[course.status]:
         raise ValidationAppError(
             f"Invalid transition {course.status} → {target}", code="course.invalid_transition"
         )
@@ -261,15 +261,11 @@ async def _unique_slug(db: AsyncSession, title: str, *, exclude_id: str | None =
     soft-deleted course's slug would crash the next INSERT.
     """
     base = slugify(title)[:180] or "course"
-    candidate = base
-    n = 1
-    while True:
+    for n in range(1, 51):
+        candidate = base if n == 1 else f"{base}-{n}"
         if not await courses_repo.slug_is_taken(db, candidate, exclude_id=exclude_id):
             return candidate
-        n += 1
-        candidate = f"{base}-{n}"
-        if n > 50:
-            return f"{base}-{new_id()[:6]}"
+    return f"{base}-{new_id()[:6]}"
 
 
 async def _flush_course_with_slug_retry(
@@ -480,20 +476,6 @@ async def slug_or_id(db: AsyncSession, key: str, *, with_modules: bool = False) 
     if not course:
         raise NotFoundError("Course not found", code="course.not_found")
     return course
-
-
-async def can_view_unpublished(course: Course, viewer: User | None) -> bool:
-    """Synchronous yes/no without enrollment lookup.
-
-    Prefer :func:`can_view_course` in handlers that already have a db session
-    — it also lets enrolled learners keep reading courses after they're
-    archived or moved back to draft.
-    """
-    if course.status == CourseStatus.published:
-        return True
-    if viewer is None:
-        return False
-    return viewer.is_admin() or course.owner_id == viewer.id
 
 
 async def can_view_course(

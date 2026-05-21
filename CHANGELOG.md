@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 13) — `services/courses.py` light refactor
+Used the `code-simplifier` plugin agent to audit the largest
+backend file (518 lines, heavily patched). Applied 4 of its
+5 recommendations:
+
+- **Hoisted the status-transition table** to a module-level
+  `_VALID_STATUS_TRANSITIONS` constant. The dict used to be
+  rebuilt on every `_transition_status` call; now the state
+  machine is one grep away from the top of the file.
+- **Collapsed the 10-line `update_course` field-copy block**
+  to a 4-line `for field in (...)` loop with `getattr`/
+  `setattr`. The three async/transformed fields (tags,
+  outcomes, status, slug) stay explicit because their
+  read/write paths actually differ.
+- **Replaced the `while True` slug loop** with a bounded
+  `for n in range(1, 51)`. Same 50-attempt cap, same
+  candidate sequence (`base`, `base-2`, …, `base-50`), but
+  the bound is now in the loop header instead of an
+  `if n > 50: return ...` escape hatch buried in the body.
+- **Dropped the dead `can_view_unpublished` function**. The
+  agent flagged it as a candidate for `async`-to-sync
+  conversion; grep showed it had no live callers at all
+  — only docstring/CHANGELOG mentions. The real visibility
+  check is `can_view_course` (which everyone actually uses).
+
+Skipped the `_owned_lesson` → `_owned_module` delegation
+suggestion: the `except / raise from` remap would add lines
+and obscure the chain rather than simplify it.
+
+File shrank from 518 → 500 lines. Backend pytest 321/321 (194s).
+
 ### Changed (simplify iter 12) — drop 3 unused backend deps
 A grep-based import scan found three pyproject.toml entries
 with no `import` or `from` reference anywhere in `app/` or
