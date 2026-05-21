@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 51)
+- **Defense-in-depth security headers on every API response.** Added
+  `SecurityHeadersMiddleware` setting `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`,
+  and a restrictive `Permissions-Policy` (camera/mic/geo/payment/usb
+  all blocked — the API origin never needs them). Production also
+  gets a 2-year HSTS with `includeSubDomains; preload`. Caddy in
+  front already sets some of these in prod, but defense in depth
+  keeps the API safe behind any future direct-exposure mistake.
+  Covered by `tests/test_security_headers.py` (5 tests: headers
+  present on public, auth-gated, error, and Swagger UI HTML responses;
+  HSTS absent in non-prod to avoid poisoning developer browsers).
+
 ### Fixed (iteration 50)
 - **Slug-collision retry now covers course rename.** Iter 49's
   `_flush_course_with_slug_retry` shielded `create_course` and

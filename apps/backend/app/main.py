@@ -58,6 +58,42 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Defense-in-depth response headers.
+
+    The API serves JSON to the Next.js frontend; HTML rendering only
+    happens at ``/docs`` (Swagger UI) and the empty ``/``. None of
+    these legitimately need to be framed, sniffed, or referer-leaked
+    to third parties, so the defaults are tight. In production we
+    also pin HSTS — Caddy in front of us also sets it, but defense in
+    depth keeps the API safe behind any future direct-exposure mistake.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        headers = response.headers
+        # Don't clobber a header the inner handler set deliberately.
+        headers.setdefault("X-Content-Type-Options", "nosniff")
+        headers.setdefault("X-Frame-Options", "DENY")
+        headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        # Restrict powerful browser features the API never needs. A
+        # learner's browser opens the frontend, not the API, so locking
+        # these down on the API origin is purely defensive.
+        headers.setdefault(
+            "Permissions-Policy",
+            "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+        )
+        if get_settings().is_prod:
+            # 2-year HSTS with preload — once a browser sees this, it
+            # refuses HTTP for the duration. Only meaningful in prod
+            # because dev uses plain HTTP on localhost.
+            headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=63072000; includeSubDomains; preload",
+            )
+        return response
+
+
 class AccessLogMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start = time.perf_counter()
@@ -138,6 +174,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(RequestIdMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(AccessLogMiddleware)
 
     install_handlers(app)
