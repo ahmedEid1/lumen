@@ -11,6 +11,7 @@ from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.core.ids import new_id
 from app.models.course import Course, CourseStatus, Enrollment, Lesson, LessonProgress
 from app.models.notification import NotificationKind
+from app.models.quiz_attempt import QuizAttempt
 from app.models.user import User
 from app.repositories import courses as courses_repo
 from app.repositories import notifications as notifications_repo
@@ -88,6 +89,21 @@ async def record_quiz_attempt(
         lp.payload = {**(lp.payload or {}), **payload}
     if passed:
         await courses_repo.mark_completed(db, lp, payload=None)
+
+    # Append-only attempt history (iter 73). Captures the verbatim
+    # answers so a future "review your attempt" UI can highlight
+    # which questions were missed; persists even if the lesson is
+    # later soft-deleted (FK cascades only on hard-delete).
+    attempt = QuizAttempt(
+        enrollment_id=enrollment.id,
+        lesson_id=lesson.id,
+        score=max(0, min(100, score)),
+        passed=passed,
+        answers=(payload or {}).get("answers", {}),
+        submitted_at=datetime.now(timezone.utc),
+    )
+    db.add(attempt)
+    await db.flush()
 
     total = await courses_repo.count_lessons_in_course(db, course.id)
     done = await courses_repo.count_completed_lessons(db, enrollment.id)

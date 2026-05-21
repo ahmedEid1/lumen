@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 73)
+- **Quiz attempt history (append-only).** Previously `submit_quiz`
+  overwrote `LessonProgress.payload` on every retake, so a learner
+  saw only their latest score and instructors couldn't see whether
+  someone struggled before passing. New `quiz_attempts` table is
+  append-only — every submission writes a fresh row capturing
+  score, passed, the verbatim answers, and submitted_at. Indexed
+  on `(enrollment_id, lesson_id, created_at)` for the common
+  "latest N attempts" read. New endpoint
+  `GET /me/progress/lessons/{id}/quiz/attempts` returns the
+  calling user's history (newest first, capped at 50). FK
+  cascades on hard-delete of enrollment / lesson; soft-deletes
+  leave history intact. Migration `0004_quiz_attempts`. Covered
+  by `tests/test_quiz_attempts_history.py` (4 tests: each
+  submission creates a row, listing is scoped per-user newest-
+  first, empty when never enrolled, 404 for unknown lesson).
+
 ### Docs (iteration 72)
 - **ADR-0012 documenting the cache + observability stack.** Pairs
   the rationale for the catalog cache headers (iter 66), the JSON-

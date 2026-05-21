@@ -19,6 +19,7 @@ from app.models.course import (
     course_tags,
 )
 from app.models.notification import Notification, NotificationKind
+from app.models.quiz_attempt import QuizAttempt
 from app.models.user import RefreshToken, Role, User
 
 __all__ = [
@@ -36,6 +37,7 @@ __all__ = [
     "Module",
     "Notification",
     "NotificationKind",
+    "QuizAttempt",
     "RefreshToken",
     "Review",
     "Role",

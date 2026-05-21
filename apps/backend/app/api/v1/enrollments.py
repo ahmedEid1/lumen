@@ -117,6 +117,66 @@ class QuizSubmitResponse(BaseModel):
     certificate_id: str | None = None
 
 
+class QuizAttemptOut(BaseModel):
+    """One entry in the learner's quiz attempt history (iter 73)."""
+
+    id: str
+    score: int
+    passed: bool
+    submitted_at: str
+
+
+@router.get(
+    "/progress/lessons/{lesson_id}/quiz/attempts",
+    response_model=list[QuizAttemptOut],
+)
+async def list_my_quiz_attempts(
+    lesson_id: str, user: CurrentUser, db: DBSession
+) -> list[QuizAttemptOut]:
+    """List the calling user's attempts on a quiz lesson, newest first.
+
+    Capped at 50 entries — a learner who's taken a quiz 50+ times is
+    using it as study material; older attempts are pruneable via a
+    future retention job. Returns 404 if they were never enrolled
+    (the join filters by enrollment_id implicitly).
+    """
+    from sqlalchemy import desc, select
+
+    from app.models.quiz_attempt import QuizAttempt
+
+    lesson = await courses_repo.get_lesson(db, lesson_id)
+    if not lesson or lesson.deleted_at is not None:
+        raise NotFoundError("Lesson not found", code="lesson.not_found")
+    mod = await courses_repo.get_module(db, lesson.module_id)
+    if not mod:
+        raise NotFoundError("Module not found", code="module.not_found")
+    enrollment = await courses_repo.get_enrollment(
+        db, user_id=user.id, course_id=mod.course_id
+    )
+    if not enrollment:
+        return []
+    rows = (
+        await db.execute(
+            select(QuizAttempt)
+            .where(
+                QuizAttempt.enrollment_id == enrollment.id,
+                QuizAttempt.lesson_id == lesson_id,
+            )
+            .order_by(desc(QuizAttempt.created_at))
+            .limit(50)
+        )
+    ).scalars().all()
+    return [
+        QuizAttemptOut(
+            id=a.id,
+            score=a.score,
+            passed=a.passed,
+            submitted_at=a.submitted_at.isoformat(),
+        )
+        for a in rows
+    ]
+
+
 @router.post("/progress/lessons/{lesson_id}/quiz", response_model=QuizSubmitResponse)
 @limiter.limit("20/minute")
 async def submit_quiz(
