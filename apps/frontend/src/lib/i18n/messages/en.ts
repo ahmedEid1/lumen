@@ -95,6 +95,28 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Admin / users — names in the ledger
+  "adminUsers.cartouche": "Names in the ledger",
+  "adminUsers.title": "Users",
+  "adminUsers.subtitle": "Promote instructors, deactivate accounts.",
+  "adminUsers.searchPlaceholder": "Search email or name…",
+  "adminUsers.recentCard": "Recent",
+  "adminUsers.col.user": "User",
+  "adminUsers.col.role": "Role",
+  "adminUsers.col.active": "Active",
+  "adminUsers.col.lastLogin": "Last login",
+  "adminUsers.col.actions": "Actions",
+  "adminUsers.role.student": "student",
+  "adminUsers.role.instructor": "instructor",
+  "adminUsers.role.admin": "admin",
+  "adminUsers.status.active": "active",
+  "adminUsers.status.disabled": "disabled",
+  "adminUsers.disable": "Disable",
+  "adminUsers.enable": "Enable",
+  "adminUsers.empty": "No users.",
+  "adminUsers.roleError": "Could not update role",
+  "adminUsers.activeError": "Could not update",
+
   // Admin / audit — eye of the temple
   "adminAudit.cartouche": "Eye of the temple",
   "adminAudit.title": "Audit log",

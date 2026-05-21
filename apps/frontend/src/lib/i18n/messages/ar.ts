@@ -102,6 +102,28 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Admin / users — أسماء في السجل
+  "adminUsers.cartouche": "أسماء في السجل",
+  "adminUsers.title": "المستخدمون",
+  "adminUsers.subtitle": "رقّ المدرّسين، عطّل الحسابات.",
+  "adminUsers.searchPlaceholder": "ابحث بالبريد أو الاسم…",
+  "adminUsers.recentCard": "الأحدث",
+  "adminUsers.col.user": "المستخدم",
+  "adminUsers.col.role": "الدور",
+  "adminUsers.col.active": "نشط",
+  "adminUsers.col.lastLogin": "آخر دخول",
+  "adminUsers.col.actions": "الإجراءات",
+  "adminUsers.role.student": "طالب",
+  "adminUsers.role.instructor": "مدرّس",
+  "adminUsers.role.admin": "مسؤول",
+  "adminUsers.status.active": "نشط",
+  "adminUsers.status.disabled": "معطّل",
+  "adminUsers.disable": "تعطيل",
+  "adminUsers.enable": "تفعيل",
+  "adminUsers.empty": "لا مستخدمين.",
+  "adminUsers.roleError": "تعذّر تحديث الدور",
+  "adminUsers.activeError": "تعذّر التحديث",
+
   // Admin / audit — عين المعبد
   "adminAudit.cartouche": "عين المعبد",
   "adminAudit.title": "سجل المراقبة",
