@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 96)
+- **Mobile polish.** Three real UX issues after auditing:
+  - `/learn/[slug]` re-ordered the 3-column desktop layout so the
+    **player is first** on mobile (`order-1 lg:order-none`)
+    instead of stacking after the outline — a learner on a phone
+    now lands on the lesson, not a list to scroll past.
+  - Chat panel on `/learn` was a fixed `h-[600px]` that took the
+    whole viewport on mobile — now `h-[400px] lg:h-[600px]`.
+  - Admin Audit and Admin Courses tables had no
+    `overflow-x-auto` wrapper; wide columns broke the layout on
+    small viewports. Wrapped consistent with the existing users /
+    cohort tables.
+  Audit found the unprefixed `grid-cols-2` / `grid-cols-3` usages
+  are intentionally dense (stat tiles, constrained-aside button
+  grids) and render correctly on phones.
+
 ### Added (iteration 95)
 - **RTL polish sweep — 48 directional Tailwind classes → logical
   properties across 23 files.** `pl-N` → `ps-N`, `pr-N` → `pe-N`,

@@ -55,6 +55,9 @@ export default function AdminAudit() {
           <CardTitle>Recent events</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          {/* overflow-x-auto wrapper so the audit table scrolls
+              instead of breaking the layout on small viewports. */}
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-start">
               <tr>
@@ -90,6 +93,7 @@ export default function AdminAudit() {
               )}
             </tbody>
           </table>
+          </div>
         </CardContent>
       </Card>
       {lastFetchedFull && oldest && (

@@ -84,8 +84,10 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
 
   return (
     <div className="container mx-auto grid gap-6 px-4 py-6 lg:grid-cols-[280px_1fr_320px]">
-      {/* Outline */}
-      <aside>
+      {/* Outline — on mobile (single-column) the player should appear
+          first; outline is order-2, player is order-1 via the Section
+          wrapper below. On lg the explicit grid-template owns order. */}
+      <aside className="order-2 lg:order-none">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{course.title}</CardTitle>
@@ -134,7 +136,7 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
       </aside>
 
       {/* Player */}
-      <section>
+      <section className="order-1 lg:order-none">
         {selected ? (
           <Card>
             <CardHeader>
@@ -189,8 +191,10 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
       </section>
 
       {/* Chat */}
-      <aside>
-        <Card className="flex h-[600px] flex-col">
+      <aside className="order-3 lg:order-none">
+        {/* Mobile: shorter so it doesn't eat the whole viewport when
+            stacked below the player. Desktop: full 600px panel. */}
+        <Card className="flex h-[400px] flex-col lg:h-[600px]">
           <CardHeader className="border-b">
             <CardTitle className="inline-flex items-center gap-2 text-base">
               <MessagesSquare className="h-4 w-4" /> Course chat

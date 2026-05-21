@@ -75,6 +75,7 @@ export default function AdminCourses() {
           <CardTitle>All courses</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-start">
               <tr>
@@ -138,6 +139,7 @@ export default function AdminCourses() {
               )}
             </tbody>
           </table>
+          </div>
         </CardContent>
       </Card>
     </div>
