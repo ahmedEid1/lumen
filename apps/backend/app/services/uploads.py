@@ -102,8 +102,8 @@ def _safe_filename(name: str) -> str:
     return cleaned or "file"
 
 
-def _client() -> boto3.client:
-    s = get_settings()
+def _client(s=None):
+    s = s or get_settings()
     return boto3.client(
         "s3",
         endpoint_url=s.s3_endpoint_url or None,
@@ -134,16 +134,18 @@ def sign_upload(
     allowed = ALLOWED_PER_KIND[kind]
     if content_type not in allowed:
         raise ValidationAppError(
-            "Content-Type not allowed for this kind", code="upload.content_type",
+            "Content-Type not allowed for this kind",
+            code="upload.content_type",
             details={"allowed": sorted(allowed)},
         )
-    if size_bytes > MAX_BYTES_PER_KIND[kind]:
+    max_bytes = MAX_BYTES_PER_KIND[kind]
+    if size_bytes > max_bytes:
         raise ValidationAppError("File too large", code="upload.too_large")
 
     s = get_settings()
     today = datetime.now(UTC).strftime("%Y/%m/%d")
     key = f"{kind}/{user.id}/{today}/{new_id()}/{_safe_filename(filename)}"
-    client = _client()
+    client = _client(s)
 
     # Switched from generate_presigned_url(PUT) to generate_presigned_post
     # so we can attach a ``content-length-range`` policy condition. With
@@ -151,7 +153,6 @@ def sign_upload(
     # cap — and a client could upload a 1GB file claiming 1KB. POST
     # presign returns a policy that S3 *does* enforce on the upload, so
     # the per-kind size cap is now hard.
-    max_bytes = MAX_BYTES_PER_KIND[kind]
     try:
         presigned = client.generate_presigned_post(
             Bucket=s.s3_bucket,

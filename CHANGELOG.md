@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 24) — uploads service tidy via simplifier
+Eighth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/services/uploads.py`. Applied 3 of its 5
+recommendations; small file with limited surface so the gains
+are modest.
+
+- **`_client(s=None)` accepts an optional Settings**. `sign_upload`
+  now passes its already-fetched `s` through, avoiding a second
+  `get_settings()` round-trip (lru-cached, so observably the same,
+  just less noise). `head` / `ensure_bucket` still call `_client()`
+  with no args and get the implicit `get_settings()` default.
+- **`max_bytes` lifted once** at the top of `sign_upload`. The
+  `MAX_BYTES_PER_KIND[kind]` lookup used to appear twice (once
+  for the early size guard, once for the policy condition). One
+  dict access now, one binding shared.
+- **Trailing-comma formatting** on the `Content-Type not allowed
+  for this kind` `ValidationAppError` — one kwarg per line,
+  matching the other raises in the file.
+
+Skipped: the `_client` return-type annotation tweak (annotation
+hygiene; not worth the import churn) and the `_safe_filename`
+one-liner (would trade clarity for one line saved — exactly the
+"clarity wins" rule).
+
+Behaviour preserved end-to-end: every allow/deny list, every
+size cap, every `generate_presigned_post` policy condition is
+byte-identical. Upload tests 17/17, full backend pytest 321/321.
+
 ### Changed (simplify iter 23) — enrollment service DRY via simplifier
 Seventh dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/services/enrollment.py`. Applied 3 of its 5
