@@ -95,6 +95,16 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Learn — the lesson player / scribe's desk
+  "learn.cartouche": "Now learning",
+  "learn.signInPrompt": "Sign in to open this course.",
+  "learn.signInButton": "Sign in",
+  "learn.enrollToast": "Enroll to start learning",
+  "learn.markedToast": "Marked complete",
+  "learn.saveError": "Could not save",
+  "learn.noLessons": "No lessons in this course yet.",
+  "learn.courseChat": "Course chat",
+
   // Course detail — the inscribed scroll
   "courseDetail.cartouche": "Inscribed scroll",
   "courseDetail.notFound": "Course not found.",

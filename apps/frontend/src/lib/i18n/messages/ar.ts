@@ -102,6 +102,16 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Learn — مكتب الكاتب
+  "learn.cartouche": "الآن تتعلم",
+  "learn.signInPrompt": "سجّل الدخول لفتح هذه الدورة.",
+  "learn.signInButton": "تسجيل الدخول",
+  "learn.enrollToast": "سجّل في الدورة لتبدأ التعلم",
+  "learn.markedToast": "تم وضع علامة الإنجاز",
+  "learn.saveError": "تعذّر الحفظ",
+  "learn.noLessons": "لا توجد دروس في هذه الدورة بعد.",
+  "learn.courseChat": "محادثة الدورة",
+
   // Course detail — اللفافة المنقوشة
   "courseDetail.cartouche": "لفافة منقوشة",
   "courseDetail.notFound": "الدورة غير موجودة.",
