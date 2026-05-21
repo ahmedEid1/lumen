@@ -145,11 +145,21 @@ export function CourseDetailView({ slug }: { slug: string }) {
                               {lesson.is_preview && <Badge variant="secondary">free preview</Badge>}
                               <span>{lesson.title}</span>
                             </span>
-                            {lesson.duration_seconds ? (
-                              <span className="text-xs text-muted-foreground">
-                                {Math.round(lesson.duration_seconds / 60)} min
-                              </span>
-                            ) : null}
+                            <span className="flex items-center gap-3">
+                              {lesson.is_preview && course.status === "published" && (
+                                <Link
+                                  href={`/courses/${course.slug}/preview/${lesson.id}`}
+                                  className="text-xs text-primary hover:underline"
+                                >
+                                  Sample →
+                                </Link>
+                              )}
+                              {lesson.duration_seconds ? (
+                                <span className="text-xs text-muted-foreground">
+                                  {Math.round(lesson.duration_seconds / 60)} min
+                                </span>
+                              ) : null}
+                            </span>
                           </li>
                         ))}
                       </ul>

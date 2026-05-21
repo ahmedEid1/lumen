@@ -3,6 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, CheckCircle2, Circle, MessagesSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { useAuth } from "@/lib/auth/store";
 export default function LearnPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const { user, token, ready } = useAuth();
+  const router = useRouter();
   const qc = useQueryClient();
   const courseQ = useQuery({ queryKey: qk.course(slug), queryFn: () => Courses.get(slug) });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -29,6 +31,21 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
   useEffect(() => {
     if (!selectedId && lessons.length > 0) setSelectedId(lessons[0].id);
   }, [lessons, selectedId]);
+
+  // Redirect visitors who aren't enrolled to the course detail page so they
+  // can enroll (or preview free lessons) — the server already rejects their
+  // writes, but rendering the player anyway is a confusing UX.
+  useEffect(() => {
+    if (!ready || !user) return;
+    if (courseQ.data && courseQ.data.is_enrolled === false) {
+      const ownerOrAdmin =
+        user.role === "admin" || user.id === courseQ.data.owner.id;
+      if (!ownerOrAdmin) {
+        toast.info("Enroll to start learning");
+        router.replace(`/courses/${slug}`);
+      }
+    }
+  }, [courseQ.data, ready, user, router, slug]);
 
   const selected = lessons.find((l) => l.id === selectedId) ?? null;
 
@@ -44,6 +61,11 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
     return <div className="container mx-auto px-4 py-10 text-muted-foreground">Course not found.</div>;
 
   const course = courseQ.data;
+  if (!course.is_enrolled && user.role !== "admin" && user.id !== course.owner.id) {
+    // The redirect effect is firing; render nothing so we don't briefly show
+    // the player.
+    return null;
+  }
 
   async function complete() {
     if (!selected) return;

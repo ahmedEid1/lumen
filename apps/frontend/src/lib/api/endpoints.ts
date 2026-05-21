@@ -3,6 +3,7 @@ import type {
   CourseDetail,
   CourseListItem,
   EnrollmentOut,
+  LessonOut,
   ModuleOut,
   Page,
   ReviewOut,
@@ -114,6 +115,9 @@ export const Courses = {
 
   duplicate: (courseId: string, token?: string) =>
     api<CourseListItem>(`/api/v1/courses/${courseId}/duplicate`, { method: "POST", token }),
+
+  getLesson: (lessonId: string, token?: string) =>
+    api<LessonOut>(`/api/v1/courses/lessons/${lessonId}`, { token }),
 
   cohort: (courseId: string, token?: string) =>
     api<

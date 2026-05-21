@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 20)
+- `/learn/[slug]` now redirects non-enrolled viewers to the course detail
+  page (with a "Enroll to start learning" toast) instead of rendering a
+  player whose writes the server silently rejected. Course owners and
+  admins bypass the guard so they can preview their own content.
+
+### Added (iteration 20)
+- Public free-preview lessons get a real surface: a new
+  `/courses/[slug]/preview/[lessonId]` page renders any `is_preview`
+  lesson via the existing public endpoint, with a friendly Enroll CTA
+  and clear messaging for 403 / 404 cases. The course detail syllabus
+  now shows a "Sample →" link beside each preview lesson on published
+  courses.
+- `Courses.getLesson()` added to the typed API client.
+
 ### Fixed (iteration 19)
 - Wrapped every `useSearchParams` consumer in `<Suspense>` boundaries so
   Next.js 15 can serve them without forcing full-page dynamic rendering:
