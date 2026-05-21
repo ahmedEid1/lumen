@@ -61,7 +61,7 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
       toast.success("Thread posted");
       qc.invalidateQueries({ queryKey: ["course", courseQ.data?.id, "discussions"] });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not post"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not post"),
   });
 
   if (courseQ.isLoading) {

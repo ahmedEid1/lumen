@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 16) — type the `onError` callbacks
+ESLint flagged 24 `onError: (e: any) => …` callbacks across the
+frontend. TanStack Query's `onError` signature is
+`(error: TError, …)` with `TError` defaulting to `Error`, and
+our `api()` client throws `ApiError extends Error` — so `Error`
+is the correct (and safe) type.
+
+- 24 `onError: (e: any)` → `onError: (e: Error)` across 12
+  files (mechanical sweep via regex).
+- One callsite — `studio/[id]/page.tsx::publish` — reads
+  `e.code` to branch on `course.no_lessons` vs
+  `course.missing_fields` vs `course.invalid_transition`.
+  The old `e?.code as string | undefined` cast becomes a
+  proper narrowing: `const code = e instanceof ApiError ? e.code
+  : undefined;`. Imports `ApiError` from `@/lib/api/client`.
+
+Frontend vitest 95/95, TypeScript clean. Remaining
+`no-explicit-any` (~14 sites — local `useState<any>(...)`,
+schema validators, asset-shape getters) will need per-site
+typing and are earmarked for a future pass.
+
 ### Changed (simplify iter 15) — strip remaining inline "iter NN" prose
 Follow-up to iter 9 which only handled `# Iter NN:` *prefixes*.
 This pass rewrites the ~37 inline references — "Iter 73 adds

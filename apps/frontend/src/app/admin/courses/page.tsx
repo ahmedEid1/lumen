@@ -38,7 +38,7 @@ export default function AdminCourses() {
       toast.success("Updated");
       qc.invalidateQueries({ queryKey: ["admin", "courses"] });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not update"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not update"),
   });
 
   return (

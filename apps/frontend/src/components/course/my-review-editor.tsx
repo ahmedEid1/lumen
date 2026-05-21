@@ -34,7 +34,7 @@ export function MyReviewEditor({ courseId, myReview }: Props) {
       qc.invalidateQueries({ queryKey: qk.reviews(courseId) });
       qc.invalidateQueries({ queryKey: qk.course(courseId) });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not save review"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not save review"),
   });
 
   const remove = useMutation({
@@ -46,7 +46,7 @@ export function MyReviewEditor({ courseId, myReview }: Props) {
       qc.invalidateQueries({ queryKey: qk.reviews(courseId) });
       qc.invalidateQueries({ queryKey: qk.course(courseId) });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not remove review"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not remove review"),
   });
 
   const display = hovered || rating;

@@ -25,12 +25,12 @@ export default function AdminSubjects() {
       setSlug("");
       qc.invalidateQueries({ queryKey: qk.subjects });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not add"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not add"),
   });
   const remove = useMutation({
     mutationFn: (id: string) => api(`/api/v1/admin/subjects/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.subjects }),
-    onError: (e: any) => toast.error(e?.message ?? "Could not delete"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not delete"),
   });
 
   return (

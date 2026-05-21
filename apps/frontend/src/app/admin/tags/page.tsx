@@ -22,7 +22,7 @@ export default function AdminTags() {
       setName("");
       qc.invalidateQueries({ queryKey: qk.tags });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not add"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not add"),
   });
 
   const remove = useMutation({

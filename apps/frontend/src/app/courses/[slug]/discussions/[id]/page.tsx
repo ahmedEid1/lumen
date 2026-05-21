@@ -62,7 +62,7 @@ export default function ThreadPage({
       setDraft("");
       qc.invalidateQueries({ queryKey: ["discussion", id] });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not post reply"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not post reply"),
   });
 
   const toggleSubscribe = useMutation({
@@ -72,7 +72,7 @@ export default function ThreadPage({
         { method: threadQ.data?.is_subscribed ? "DELETE" : "POST" },
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["discussion", id] }),
-    onError: (e: any) => toast.error(e?.message ?? "Could not update subscription"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not update subscription"),
   });
 
   const deleteThread = useMutation({
@@ -81,7 +81,7 @@ export default function ThreadPage({
       toast.success("Thread deleted");
       router.replace(`/courses/${slug}/discussions`);
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not delete"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not delete"),
   });
 
   const deleteReply = useMutation({
@@ -90,7 +90,7 @@ export default function ThreadPage({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["discussion", id] });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not delete reply"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not delete reply"),
   });
 
   if (threadQ.isLoading) return <div className="container mx-auto px-4 py-10">Loading…</div>;

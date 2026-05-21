@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CohortCard } from "@/components/course/cohort-card";
+import { ApiError } from "@/lib/api/client";
 import { Courses } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import type { ModuleOut } from "@/lib/api/types";
@@ -40,12 +41,12 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
       toast.success("Status updated");
       qc.invalidateQueries({ queryKey: qk.course(id) });
     },
-    onError: (e: any) => {
+    onError: (e: Error) => {
       // Server can refuse the transition for a few reasons (missing
       // fields, invalid transition, no lessons). Without this toast the
       // instructor would see no feedback at all and assume the click
       // didn't register.
-      const code = e?.code as string | undefined;
+      const code = e instanceof ApiError ? e.code : undefined;
       if (code === "course.no_lessons") {
         toast.error("Add at least one lesson before publishing.");
       } else if (code === "course.missing_fields") {
@@ -65,7 +66,7 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
       qc.invalidateQueries({ queryKey: qk.myCourses });
       window.location.href = `/studio/${c.id}`;
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not duplicate"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not duplicate"),
   });
 
   const createModule = useMutation({
@@ -310,7 +311,7 @@ function CourseDetailsEditor({
       toast.success("Details saved");
       qc.invalidateQueries({ queryKey: qk.course(courseId) });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not save"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not save"),
   });
 
   return (
@@ -399,7 +400,7 @@ function LearningOutcomesEditor({
       toast.success("Outcomes saved");
       qc.invalidateQueries({ queryKey: qk.course(courseId) });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not save"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not save"),
   });
 
   return (

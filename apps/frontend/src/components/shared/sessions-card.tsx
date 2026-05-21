@@ -32,7 +32,7 @@ export function SessionsCard() {
       toast.success("Session revoked");
       qc.invalidateQueries({ queryKey: KEY });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not revoke session"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not revoke session"),
   });
 
   const revokeAll = useMutation({
@@ -41,7 +41,7 @@ export function SessionsCard() {
       toast.success("Signed out of all sessions — sign in again to continue");
       qc.invalidateQueries({ queryKey: KEY });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not revoke sessions"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not revoke sessions"),
   });
 
   const sessions = q.data ?? [];

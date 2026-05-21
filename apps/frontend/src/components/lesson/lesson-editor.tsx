@@ -62,7 +62,7 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
       toast.success("Lesson saved");
       onSaved();
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not save lesson"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not save lesson"),
   });
 
   const remove = useMutation({
@@ -71,7 +71,7 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
       toast.success("Lesson deleted");
       onDeleted?.();
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not delete"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not delete"),
   });
 
   return (

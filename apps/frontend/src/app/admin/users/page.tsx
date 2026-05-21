@@ -35,14 +35,14 @@ export default function AdminUsers() {
     mutationFn: ({ id, role }: { id: string; role: string }) =>
       api(`/api/v1/admin/users/${id}/role`, { method: "PATCH", body: { role } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
-    onError: (e: any) => toast.error(e?.message ?? "Could not update role"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not update role"),
   });
 
   const setActive = useMutation({
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
       api(`/api/v1/admin/users/${id}/active`, { method: "PATCH", body: { is_active } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
-    onError: (e: any) => toast.error(e?.message ?? "Could not update"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not update"),
   });
 
   return (

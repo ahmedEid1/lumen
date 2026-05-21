@@ -36,7 +36,7 @@ export function CourseDetailView({ slug }: { slug: string }) {
       qc.invalidateQueries({ queryKey: qk.course(slug) });
       qc.invalidateQueries({ queryKey: qk.enrollments });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not enroll"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not enroll"),
   });
 
   const toggleBookmark = useMutation({
@@ -46,7 +46,7 @@ export function CourseDetailView({ slug }: { slug: string }) {
       qc.invalidateQueries({ queryKey: qk.course(slug) });
       qc.invalidateQueries({ queryKey: qk.bookmarks });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not update bookmark"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not update bookmark"),
   });
 
   if (courseQ.isLoading) {

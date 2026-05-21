@@ -23,7 +23,7 @@ export default function AdminHome() {
   const reindex = useMutation({
     mutationFn: () => api("/api/v1/admin/search/reindex", { method: "POST" }),
     onSuccess: () => toast.success("Reindex queued"),
-    onError: (e: any) => toast.error(e?.message ?? "Could not queue reindex"),
+    onError: (e: Error) => toast.error(e?.message ?? "Could not queue reindex"),
   });
 
   const stats = useQuery({
