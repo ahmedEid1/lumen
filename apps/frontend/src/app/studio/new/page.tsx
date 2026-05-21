@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ImageUpload } from "@/components/shared/image-upload";
 import { Catalog, Courses } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
@@ -20,6 +21,7 @@ export default function NewCoursePage() {
   const [overview, setOverview] = useState("");
   const [subjectId, setSubjectId] = useState("");
   const [difficulty, setDifficulty] = useState("beginner");
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function NewCoursePage() {
         subject_id: subjectId,
         overview,
         difficulty,
+        ...(coverUrl ? { cover_url: coverUrl } : {}),
       });
       toast.success("Course created");
       router.push(`/studio/${course.id}`);
@@ -112,6 +115,13 @@ export default function NewCoursePage() {
                 placeholder="What will students learn?"
               />
             </div>
+            <ImageUpload
+              kind="cover"
+              shape="rect"
+              label="Cover image (optional)"
+              value={coverUrl}
+              onChange={setCoverUrl}
+            />
             <Button type="submit" disabled={submitting || !subjectId}>
               {submitting ? "Creating…" : "Create course"}
             </Button>

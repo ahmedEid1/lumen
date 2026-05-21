@@ -74,13 +74,29 @@ async def update_course(
     if payload.tag_ids is not None:
         course.tags = await courses_repo.list_tags_by_ids(db, payload.tag_ids)
     if payload.status is not None:
+        prev = course.status
         await _transition_status(course, payload.status)
+        if prev != course.status:
+            _schedule_index(course.id)
     return course
 
 
 async def delete_course(db: AsyncSession, *, course_id: str, owner: User) -> None:
     course = await _owned_course(db, course_id, owner)
     course.deleted_at = datetime.now(timezone.utc)
+    _schedule_index(course.id)
+
+
+def _schedule_index(course_id: str) -> None:
+    """Best-effort: enqueue a search reindex. Tolerates broker being down in dev/tests."""
+    try:
+        from app.workers.tasks.search import index_course
+
+        index_course.delay(course_id)
+    except Exception:  # noqa: BLE001
+        from app.core.logging import get_logger
+
+        get_logger(__name__).info("search_index_skipped", course_id=course_id)
 
 
 async def _transition_status(course: Course, target: CourseStatus) -> None:

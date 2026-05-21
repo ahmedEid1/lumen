@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ImageUpload } from "@/components/shared/image-upload";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 
@@ -126,12 +127,13 @@ export default function ProfilePage() {
               </label>
               <Textarea id="bio" rows={4} value={bio} onChange={(e) => setBio(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <label htmlFor="avatar" className="text-sm font-medium">
-                Avatar URL
-              </label>
-              <Input id="avatar" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} />
-            </div>
+            <ImageUpload
+              kind="avatar"
+              shape="circle"
+              label="Avatar"
+              value={avatarUrl || null}
+              onChange={(u) => setAvatarUrl(u ?? "")}
+            />
             <Button type="submit" disabled={savingProfile}>
               {savingProfile ? "Saving…" : "Save changes"}
             </Button>

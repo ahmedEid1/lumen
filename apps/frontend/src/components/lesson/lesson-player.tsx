@@ -4,14 +4,7 @@ import { useState } from "react";
 import type { LessonOut } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
-type QuizQuestion = {
-  id: string;
-  prompt: string;
-  kind: "single" | "multiple" | "short";
-  choices?: { id: string; text: string }[];
-  answer_keys: string[];
-};
+import { scoreQuiz, type QuizQuestion } from "@/lib/quiz";
 
 export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
   const data = lesson.data as Record<string, any>;
@@ -93,21 +86,7 @@ function Quiz({ questions, pass }: { questions: QuizQuestion[]; pass: number }) 
     });
   }
 
-  const score = (() => {
-    if (!submitted) return null;
-    const correct = questions.filter((q) => {
-      const given = answers[q.id];
-      if (q.kind === "short") {
-        return (
-          typeof given === "string" &&
-          q.answer_keys.map((a) => a.toLowerCase()).includes(given.trim().toLowerCase())
-        );
-      }
-      const arr = (given as string[]) ?? [];
-      return arr.length === q.answer_keys.length && arr.every((a) => q.answer_keys.includes(a));
-    }).length;
-    return Math.round((correct / questions.length) * 100);
-  })();
+  const score = submitted ? scoreQuiz(questions, answers) : null;
 
   return (
     <div className="space-y-6">

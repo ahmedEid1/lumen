@@ -50,7 +50,14 @@ export const Courses = {
   get: (key: string) => api<CourseDetail>(`/api/v1/courses/${encodeURIComponent(key)}`),
   mine: (token?: string) => api<CourseListItem[]>("/api/v1/courses/mine", { token }),
   create: (
-    input: { title: string; subject_id: string; overview?: string; difficulty?: string },
+    input: {
+      title: string;
+      subject_id: string;
+      overview?: string;
+      difficulty?: string;
+      cover_url?: string;
+      tag_ids?: string[];
+    },
     token?: string,
   ) => api<CourseListItem>("/api/v1/courses", { method: "POST", body: input, token }),
   patch: (id: string, input: Record<string, unknown>, token?: string) =>

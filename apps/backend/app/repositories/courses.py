@@ -59,6 +59,15 @@ async def get_course(db: AsyncSession, course_id: str, *, with_modules: bool = F
     return res.scalar_one_or_none()
 
 
+async def get_courses_by_ids(db: AsyncSession, ids: list[str]) -> list[Course]:
+    if not ids:
+        return []
+    res = await db.execute(
+        _course_with_relations().where(Course.id.in_(ids), Course.deleted_at.is_(None))
+    )
+    return list(res.scalars().unique().all())
+
+
 async def get_course_by_slug(db: AsyncSession, slug: str, *, with_modules: bool = False) -> Course | None:
     stmt = _course_with_relations().where(Course.slug == slug, Course.deleted_at.is_(None))
     if with_modules:
