@@ -95,6 +95,23 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Studio / new — inscribe a course
+  "studioNew.cartouche": "Inscribe a course",
+  "studioNew.title": "New course",
+  "studioNew.field.title": "Title",
+  "studioNew.field.subject": "Subject",
+  "studioNew.field.difficulty": "Difficulty",
+  "studioNew.field.overview": "Overview",
+  "studioNew.placeholder.overview": "What will students learn?",
+  "studioNew.field.cover": "Cover image (optional)",
+  "studioNew.diff.beginner": "Beginner",
+  "studioNew.diff.intermediate": "Intermediate",
+  "studioNew.diff.advanced": "Advanced",
+  "studioNew.submit": "Create course",
+  "studioNew.submitting": "Creating…",
+  "studioNew.successToast": "Course created",
+  "studioNew.error": "Could not create course",
+
   // Studio root — instructor atelier
   "studio.cartouche": "The atelier",
   "studio.title": "Instructor studio",

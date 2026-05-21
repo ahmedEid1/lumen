@@ -5,17 +5,21 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageUpload } from "@/components/shared/image-upload";
+import { Cartouche } from "@/components/lumen/cartouche";
+import { Glyph } from "@/components/lumen/glyph";
 import { Catalog, Courses } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
+import { useT } from "@/lib/i18n/provider";
 
 export default function NewCoursePage() {
   const router = useRouter();
   const { user, ready } = useAuth();
+  const t = useT();
   const subjectsQ = useQuery({ queryKey: qk.subjects, queryFn: () => Catalog.subjects() });
   const [title, setTitle] = useState("");
   const [overview, setOverview] = useState("");
@@ -45,37 +49,56 @@ export default function NewCoursePage() {
         difficulty,
         ...(coverUrl ? { cover_url: coverUrl } : {}),
       });
-      toast.success("Course created");
+      toast.success(t("studioNew.successToast"));
       router.push(`/studio/${course.id}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not create course");
+      toast.error(e instanceof Error ? e.message : t("studioNew.error"));
     } finally {
       setSubmitting(false);
     }
   }
 
+  const inputClass = "border-gold/25 bg-background/60 focus-visible:border-gold/60";
+  const selectClass = `${inputClass} h-10 w-full rounded-md border px-3 font-body text-sm`;
+
   return (
-    <div className="container mx-auto max-w-2xl px-4 py-10">
-      <Card>
-        <CardHeader>
-          <CardTitle>New course</CardTitle>
-        </CardHeader>
-        <CardContent>
+    <div className="container mx-auto flex max-w-2xl flex-col items-center px-4 py-14">
+      <Cartouche className="mb-5">{t("studioNew.cartouche")}</Cartouche>
+      <Card className="w-full scroll-paper border-gold/20">
+        <CardContent className="space-y-6 pt-8">
+          <header className="flex flex-col items-center gap-3 text-center">
+            <Glyph
+              name="feather"
+              size={42}
+              mode="tint"
+              className="text-gold/85 drop-shadow-[0_0_10px_hsl(var(--gold-leaf)/0.4)]"
+            />
+            <h1 className="font-display text-3xl font-medium tracking-tight">
+              {t("studioNew.title")}
+            </h1>
+          </header>
+
           <form className="space-y-4" onSubmit={submit}>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="title">
-                Title
+              <label className="font-body text-sm font-medium" htmlFor="title">
+                {t("studioNew.field.title")}
               </label>
-              <Input id="title" required value={title} onChange={(e) => setTitle(e.target.value)} />
+              <Input
+                id="title"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className={inputClass}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="subject">
-                  Subject
+                <label className="font-body text-sm font-medium" htmlFor="subject">
+                  {t("studioNew.field.subject")}
                 </label>
                 <select
                   id="subject"
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  className={selectClass}
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
                   required
@@ -88,42 +111,43 @@ export default function NewCoursePage() {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="difficulty">
-                  Difficulty
+                <label className="font-body text-sm font-medium" htmlFor="difficulty">
+                  {t("studioNew.field.difficulty")}
                 </label>
                 <select
                   id="difficulty"
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  className={selectClass}
                   value={difficulty}
                   onChange={(e) => setDifficulty(e.target.value)}
                 >
-                  <option value="beginner">Beginner</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
+                  <option value="beginner">{t("studioNew.diff.beginner")}</option>
+                  <option value="intermediate">{t("studioNew.diff.intermediate")}</option>
+                  <option value="advanced">{t("studioNew.diff.advanced")}</option>
                 </select>
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="overview">
-                Overview
+              <label className="font-body text-sm font-medium" htmlFor="overview">
+                {t("studioNew.field.overview")}
               </label>
               <Textarea
                 id="overview"
                 rows={6}
                 value={overview}
                 onChange={(e) => setOverview(e.target.value)}
-                placeholder="What will students learn?"
+                placeholder={t("studioNew.placeholder.overview")}
+                className={inputClass}
               />
             </div>
             <ImageUpload
               kind="cover"
               shape="rect"
-              label="Cover image (optional)"
+              label={t("studioNew.field.cover")}
               value={coverUrl}
               onChange={setCoverUrl}
             />
-            <Button type="submit" disabled={submitting || !subjectId}>
-              {submitting ? "Creating…" : "Create course"}
+            <Button type="submit" className="w-full" disabled={submitting || !subjectId}>
+              {submitting ? t("studioNew.submitting") : t("studioNew.submit")}
             </Button>
           </form>
         </CardContent>

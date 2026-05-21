@@ -102,6 +102,23 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Studio / new — انقش دورة جديدة
+  "studioNew.cartouche": "انقش دورة",
+  "studioNew.title": "دورة جديدة",
+  "studioNew.field.title": "العنوان",
+  "studioNew.field.subject": "الموضوع",
+  "studioNew.field.difficulty": "المستوى",
+  "studioNew.field.overview": "نبذة",
+  "studioNew.placeholder.overview": "ماذا سيتعلم الطلاب؟",
+  "studioNew.field.cover": "صورة الغلاف (اختيارية)",
+  "studioNew.diff.beginner": "مبتدئ",
+  "studioNew.diff.intermediate": "متوسّط",
+  "studioNew.diff.advanced": "متقدّم",
+  "studioNew.submit": "إنشاء الدورة",
+  "studioNew.submitting": "جارٍ الإنشاء…",
+  "studioNew.successToast": "تم إنشاء الدورة",
+  "studioNew.error": "تعذّر إنشاء الدورة",
+
   // Studio root — ورشة المدرّس
   "studio.cartouche": "ورشة الكاتب",
   "studio.title": "ورشة المدرّس",
