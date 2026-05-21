@@ -84,4 +84,36 @@ describe("NotificationsBell", () => {
     await user.click(await screen.findByRole("button", { name: /notifications/i }));
     expect(screen.getByText(/nothing here yet/i)).toBeInTheDocument();
   });
+
+  it("shows Mark all read when there is an unread count and calls the endpoint", async () => {
+    apiSpy.mockResolvedValueOnce(NOTIFS as never); // initial list
+    apiSpy.mockResolvedValueOnce({ ok: true, marked_read: 1 } as never); // read-all
+    apiSpy.mockResolvedValueOnce(
+      NOTIFS.map((n) => ({ ...n, read_at: new Date().toISOString() })) as never,
+    );
+
+    renderWithClient(<NotificationsBell />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /notifications/i }));
+
+    const markAll = await screen.findByRole("button", { name: /mark all read/i });
+    await user.click(markAll);
+
+    await waitFor(() => {
+      expect(apiSpy).toHaveBeenCalledWith(
+        "/api/v1/me/notifications/read-all",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+  });
+
+  it("hides Mark all read when nothing is unread", async () => {
+    apiSpy.mockResolvedValueOnce(
+      NOTIFS.map((n) => ({ ...n, read_at: new Date().toISOString() })) as never,
+    );
+    renderWithClient(<NotificationsBell />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /notifications/i }));
+    expect(screen.queryByRole("button", { name: /mark all read/i })).toBeNull();
+  });
 });

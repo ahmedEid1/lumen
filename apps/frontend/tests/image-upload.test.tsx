@@ -8,13 +8,21 @@ const toastError = vi.fn();
 const toastSuccess = vi.fn();
 vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }));
 
+// Iter 56: presign switched from PUT to POST so S3 enforces the
+// content-length-range. Response shape is now {url, fields, max_bytes}.
 const PRESIGN = {
-  method: "PUT" as const,
-  url: "https://s3.test/upload?sig=x",
+  method: "POST" as const,
+  url: "https://s3.test/lumen-assets",
+  fields: {
+    "Content-Type": "image/png",
+    key: "avatar/u/2026/05/21/abc/cat.png",
+    policy: "eyJleHBpcmF0aW9uIjoiZmFrZSJ9",
+    "x-amz-signature": "deadbeef",
+  },
   key: "avatar/u/2026/05/21/abc/cat.png",
-  headers: { "Content-Type": "image/png" },
   expires_in: 900,
   public_url: "https://s3.test/lumen-assets/avatar/u/2026/05/21/abc/cat.png",
+  max_bytes: 5 * 1024 * 1024,
 };
 
 function pngFile(size = 1024, name = "cat.png") {
@@ -76,9 +84,9 @@ describe("ImageUpload", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("signs, PUTs, and calls onChange with the public URL on success", async () => {
+  it("signs, POSTs multipart form-data with all fields + file, and calls onChange on success", async () => {
     apiSpy.mockResolvedValueOnce(PRESIGN as never);
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }) as never);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }) as never);
     const onChange = vi.fn();
 
     render(<ImageUpload kind="avatar" value={null} onChange={onChange} />);
@@ -97,14 +105,35 @@ describe("ImageUpload", () => {
         }),
       }),
     );
-    expect(fetchMock).toHaveBeenCalledWith(
-      PRESIGN.url,
-      expect.objectContaining({ method: "PUT", headers: { "Content-Type": "image/png" } }),
-    );
+    // S3 upload is now multipart POST with all signed fields + the file.
+    const [calledUrl, calledInit] = fetchMock.mock.calls[0];
+    expect(calledUrl).toBe(PRESIGN.url);
+    expect(calledInit.method).toBe("POST");
+    expect(calledInit.body).toBeInstanceOf(FormData);
+    const fd = calledInit.body as FormData;
+    // Every signed field must be present.
+    for (const [k, v] of Object.entries(PRESIGN.fields)) {
+      expect(fd.get(k)).toBe(v);
+    }
+    // And the file must be last.
+    expect(fd.get("file")).toBeInstanceOf(File);
     expect(toastSuccess).toHaveBeenCalledWith("Uploaded");
   });
 
-  it("surfaces a toast error when the S3 PUT fails", async () => {
+  it("surfaces a friendly toast when S3 returns 403 EntityTooLarge", async () => {
+    apiSpy.mockResolvedValueOnce(PRESIGN as never);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 403 }) as never);
+    const onChange = vi.fn();
+
+    render(<ImageUpload kind="avatar" value={null} onChange={onChange} />);
+    await pickFile(pngFile(1024));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(toastError.mock.calls[0][0]).toMatch(/exceeds the 5 MB limit/i);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a generic toast on other S3 failures", async () => {
     apiSpy.mockResolvedValueOnce(PRESIGN as never);
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 500 }) as never);
     const onChange = vi.fn();

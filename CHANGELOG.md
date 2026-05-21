@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Tests (iteration 62)
+- **Aligned frontend tests with iter 55 + 56 contract changes.**
+  `tests/image-upload.test.tsx` was still asserting the old PUT
+  presign shape (`{method: "PUT", headers}`) and a PUT request to
+  S3; updated to POST + multipart `FormData` carrying every signed
+  field plus the `file`. Added a regression for the 403 EntityTooLarge
+  → friendly toast translation that iter 56 introduced. Added two
+  cases to `tests/notifications-bell.test.tsx` exercising the
+  "Mark all read" affordance from iter 55: the button fires the
+  read-all endpoint when there's unread, and is hidden when there
+  isn't.
+
 ### Fixed (iteration 61)
 - **Rate-limit buckets are now per-user, not per-IP.** slowapi's
   default `get_remote_address` keyed every bucket by remote address,
