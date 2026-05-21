@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance (iteration 66)
+- **Cache-Control hints on public catalog reads.** `/subjects`,
+  `/tags`, and `/courses` (when called anonymously) now return
+  `Cache-Control: public, max-age=60, stale-while-revalidate=300`
+  + `Vary: Accept-Encoding, Authorization` so a CDN / reverse
+  proxy can absorb a homepage thundering herd. Authenticated
+  callers on the same routes get `private, max-age=0, no-store` —
+  a Bearer'd body must never linger in a shared cache where it
+  could leak to the next anonymous request with the same URL.
+  Covered by `tests/test_catalog_cache_headers.py` (3 tests:
+  subjects + tags carry public hints; courses splits public/private
+  on auth presence).
+
 ### Docs (iteration 65)
 - **ADR-0011 documenting Idempotency-Key and rate-limit identity.**
   Both decisions answer "who is this request?" — Idempotency to
