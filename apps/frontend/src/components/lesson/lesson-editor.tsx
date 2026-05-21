@@ -230,8 +230,14 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
   }
 
   function addQ() {
+    // Don't use questions.length + 1 — deleting then adding would reuse an
+    // existing id, which then collides with the surviving question and
+    // makes both share the same answer keys / map to the same grade slot.
+    const taken = new Set(questions.map((q) => q.id));
+    let n = questions.length + 1;
+    while (taken.has(`q${n}`)) n += 1;
     const q: QuizQuestion = {
-      id: `q${questions.length + 1}`,
+      id: `q${n}`,
       prompt: "",
       kind: "single",
       choices: [

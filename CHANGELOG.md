@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 35)
+- **Quiz editor stopped reusing question ids after a delete.** The
+  `addQ()` helper in the lesson editor minted ids as
+  `q${questions.length + 1}`, so deleting the first question and adding
+  a new one produced `q1` again — colliding with the next question and
+  silently making both share answer keys / grade slots. The helper now
+  scans for the lowest unused id. As defense-in-depth on the wire,
+  `QuizLessonData` gained a `_unique_question_ids` validator so any
+  client (the buggy editor, a mobile app, an import script) sending
+  duplicates gets a 422 instead of a corrupt quiz. Covered by
+  `tests/test_quiz_question_unique_ids.py`.
+- **/learn now resumes at the first incomplete lesson.** The outline
+  always defaulted to lesson 1, so a learner 7-of-10 lessons in saw
+  lesson 1 selected every time and had to hunt for where they left off.
+  Defaults to the first lesson with `completed: false`, falling back to
+  lesson 1 only when the course is fully done.
+
 ### Added (iteration 34)
 - `LessonOut.completed` (per-viewer) on the course-detail endpoint. The
   syllabus on the course page and the lesson outline in `/learn` now show

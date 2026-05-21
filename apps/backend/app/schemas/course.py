@@ -87,6 +87,13 @@ class QuizLessonData(BaseModel):
     pass_score: int = Field(ge=0, le=100, default=60)
     questions: list[QuizQuestion] = Field(min_length=1, max_length=50)
 
+    @model_validator(mode="after")
+    def _unique_question_ids(self) -> QuizLessonData:
+        ids = [q.id for q in self.questions]
+        if len(set(ids)) != len(ids):
+            raise ValueError("question ids must be unique within a quiz")
+        return self
+
 
 LessonData = Annotated[
     TextLessonData | VideoLessonData | ImageLessonData | FileLessonData | QuizLessonData,

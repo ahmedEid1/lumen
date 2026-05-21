@@ -29,7 +29,11 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
   }, [courseQ.data]);
 
   useEffect(() => {
-    if (!selectedId && lessons.length > 0) setSelectedId(lessons[0].id);
+    if (selectedId || lessons.length === 0) return;
+    // Resume where the learner left off: first not-completed lesson, falling
+    // back to the very first lesson when everything is already done.
+    const next = lessons.find((l) => !l.completed) ?? lessons[0];
+    setSelectedId(next.id);
   }, [lessons, selectedId]);
 
   // Redirect visitors who aren't enrolled to the course detail page so they
