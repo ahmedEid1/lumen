@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 32) — search service tidy via simplifier
+Sixteenth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/services/search.py` (62-line file). Applied
+3 of its 4 recommendations:
+
+- **`_meili_enabled()` helper** for the
+  `get_settings().search_backend == "meilisearch"` check
+  repeated four times (`ensure_index`, `index_courses`,
+  `delete_course`, `search`). Single point of truth for the
+  backend name.
+- **`ensure_index` reuses a single `index = client.index(...)`
+  binding** instead of calling `self._index()` (which builds a
+  fresh index handle each time) three times. Pure refactor —
+  same handle, same calls.
+- **`index_courses` merged the two early-returns** into one
+  `if not docs or not self._meili_enabled(): return` so the
+  empty-batch short-circuit dodges the settings lookup too.
+
+Skipped: the `_index()` caching idea — `meili_index_courses`
+can shift between requests during tests
+(`monkeypatch.setenv` + `get_settings.cache_clear()` per
+CLAUDE.md), so caching the index handle would mask that.
+
+Search tests 8/8, backend pytest 321/321. Behaviour preserved
+end-to-end.
+
 ### Changed (simplify iter 31) — chat service tidy via simplifier
 Fifteenth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/services/chat.py`. Applied all 3 of its
