@@ -1,14 +1,19 @@
-"""User profile, password change, GDPR export/delete."""
+"""User profile, password change, sessions, GDPR export/delete."""
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from datetime import datetime
 
 from fastapi import APIRouter, Request
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import desc, func, select
 
 from app.api.deps import CurrentUser, DBSession, client_ip, user_agent
-from app.core.errors import UnauthorizedError, ValidationAppError
+from app.core.errors import NotFoundError, UnauthorizedError, ValidationAppError
 from app.core.security import hash_password, verify_password
+from app.models.chat import ChatMessage
+from app.models.course import Enrollment, Review
+from app.models.user import RefreshToken
 from app.repositories import audit as audit_repo
 from app.repositories import users as users_repo
 from app.schemas.common import OkResponse
@@ -24,6 +29,17 @@ class ChangePasswordRequest(BaseModel):
 
 class DeleteAccountRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
+
+
+class SessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    issued_at: datetime
+    expires_at: datetime
+    revoked_at: datetime | None = None
+    user_agent: str | None = None
+    ip_address: str | None = None
 
 
 @router.get("/me", response_model=UserOut)
@@ -74,10 +90,6 @@ async def export_my_data(user: CurrentUser, db: DBSession) -> dict:
     zip including chat history, reviews, and enrollment data. For v1 we expose
     the profile inline.
     """
-    from sqlalchemy import select, func
-    from app.models.course import Enrollment, Review
-    from app.models.chat import ChatMessage
-
     enrollments = int(
         (await db.execute(select(func.count(Enrollment.id)).where(Enrollment.user_id == user.id))).scalar_one()
     )
@@ -99,26 +111,8 @@ async def export_my_data(user: CurrentUser, db: DBSession) -> dict:
     }
 
 
-from datetime import datetime as _dt
-from pydantic import ConfigDict
-from sqlalchemy import desc, select
-
-
-class SessionOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    issued_at: _dt
-    expires_at: _dt
-    revoked_at: _dt | None = None
-    user_agent: str | None = None
-    ip_address: str | None = None
-
-
 @router.get("/me/sessions", response_model=list[SessionOut])
 async def list_my_sessions(user: CurrentUser, db: DBSession) -> list[SessionOut]:
-    from app.models.user import RefreshToken
-
     rows = (
         await db.execute(
             select(RefreshToken)
@@ -138,11 +132,9 @@ async def revoke_all_my_sessions(user: CurrentUser, db: DBSession) -> OkResponse
 
 @router.delete("/me/sessions/{session_id}", response_model=OkResponse)
 async def revoke_my_session(session_id: str, user: CurrentUser, db: DBSession) -> OkResponse:
-    from app.models.user import RefreshToken
-
     row = await db.get(RefreshToken, session_id)
     if not row or row.user_id != user.id:
-        raise ValidationAppError("Session not found", code="session.not_found")
+        raise NotFoundError("Session not found", code="session.not_found")
     if row.revoked_at is None:
         await users_repo.revoke_refresh_token(db, row)
     return OkResponse()

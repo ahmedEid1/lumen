@@ -68,17 +68,21 @@ export function SiteHeader() {
         </Link>
 
         <nav className="hidden gap-6 text-sm md:flex" aria-label="Primary">
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={`hover:text-foreground ${
-                pathname?.startsWith(l.href) ? "text-foreground" : "text-muted-foreground"
-              }`}
-            >
-              {l.label}
-            </Link>
-          ))}
+          {links.map((l) => {
+            const active = pathname?.startsWith(l.href);
+            return (
+              <Link
+                key={l.href}
+                href={l.href}
+                aria-current={active ? "page" : undefined}
+                className={`hover:text-foreground ${
+                  active ? "text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {l.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="flex items-center gap-2">
@@ -129,17 +133,21 @@ export function SiteHeader() {
       {menuOpen && (
         <div id="mobile-nav" className="border-t bg-background md:hidden" role="dialog" aria-label="Mobile menu">
           <nav className="container mx-auto flex flex-col gap-1 px-4 py-3" aria-label="Mobile primary">
-            {links.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={`rounded-md px-3 py-2 text-sm hover:bg-muted ${
-                  pathname?.startsWith(l.href) ? "bg-muted font-medium" : ""
-                }`}
-              >
-                {l.label}
-              </Link>
-            ))}
+            {links.map((l) => {
+              const active = pathname?.startsWith(l.href);
+              return (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`rounded-md px-3 py-2 text-sm hover:bg-muted ${
+                    active ? "bg-muted font-medium" : ""
+                  }`}
+                >
+                  {l.label}
+                </Link>
+              );
+            })}
             <div className="my-2 border-t" />
             {ready && user ? (
               <>

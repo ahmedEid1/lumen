@@ -5,17 +5,11 @@ from __future__ import annotations
 from fastapi import APIRouter, status
 
 from app.api.deps import CurrentUser, DBSession
-from app.core.errors import ForbiddenError, NotFoundError
+from app.api.v1 import _builders
+from app.core.errors import NotFoundError
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
-from app.schemas.course import (
-    CourseListItem,
-    EnrollmentOut,
-    ProgressUpdate,
-    SubjectOut,
-    TagOut,
-)
-from app.schemas.user import UserPublic
+from app.schemas.course import EnrollmentOut, ProgressUpdate
 from app.services import enrollment as enrollment_service
 
 router = APIRouter()
@@ -28,8 +22,6 @@ async def list_my_enrollments(user: CurrentUser, db: DBSession) -> list[Enrollme
     out: list[EnrollmentOut] = []
     for e in enrollments:
         pct = await enrollment_service.progress_pct(db, enrollment=e)
-        s = stats.get(e.course_id, {})
-        c = e.course
         out.append(
             EnrollmentOut(
                 id=e.id,
@@ -37,17 +29,7 @@ async def list_my_enrollments(user: CurrentUser, db: DBSession) -> list[Enrollme
                 completed_at=e.completed_at,
                 certificate_id=e.certificate_id,
                 progress_pct=pct,
-                course=CourseListItem(
-                    id=c.id, title=c.title, slug=c.slug, overview=c.overview, difficulty=c.difficulty,
-                    cover_url=c.cover_url, status=c.status, is_featured=c.is_featured,
-                    published_at=c.published_at, created_at=c.created_at,
-                    owner=UserPublic.model_validate(c.owner),
-                    subject=SubjectOut.model_validate(c.subject),
-                    tags=[TagOut.model_validate(t) for t in c.tags],
-                    modules_count=int(s.get("modules_count", 0) or 0),
-                    enrollments_count=int(s.get("enrollments_count", 0) or 0),
-                    avg_rating=s.get("avg_rating"),
-                ),
+                course=_builders.list_item(e.course, stats.get(e.course_id, {})),
             )
         )
     return out
@@ -67,17 +49,7 @@ async def enroll(course_id: str, user: CurrentUser, db: DBSession) -> Enrollment
         completed_at=enrollment.completed_at,
         certificate_id=enrollment.certificate_id,
         progress_pct=pct,
-        course=CourseListItem(
-            id=course.id, title=course.title, slug=course.slug, overview=course.overview,
-            difficulty=course.difficulty, cover_url=course.cover_url, status=course.status,
-            is_featured=course.is_featured, published_at=course.published_at, created_at=course.created_at,
-            owner=UserPublic.model_validate(course.owner),
-            subject=SubjectOut.model_validate(course.subject),
-            tags=[TagOut.model_validate(t) for t in course.tags],
-            modules_count=int(stats.get("modules_count", 0) or 0),
-            enrollments_count=int(stats.get("enrollments_count", 0) or 0),
-            avg_rating=stats.get("avg_rating"),
-        ),
+        course=_builders.list_item(course, stats),
     )
 
 

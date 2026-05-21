@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, status
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import select
 
-from app.api.deps import CurrentUser, DBSession, OptionalUser, RequireInstructor
+from app.api.deps import DBSession, OptionalUser, RequireInstructor
+from app.api.v1 import _builders
+from app.core.errors import ForbiddenError, NotFoundError, UnauthorizedError
+from app.models.bookmark import Bookmark
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
 from app.schemas.course import (
@@ -19,61 +24,12 @@ from app.schemas.course import (
     ModuleOut,
     ModuleUpdate,
     OrderUpdateRequest,
-    SubjectOut,
-    TagOut,
 )
-from app.schemas.user import UserPublic
 from app.services import analytics as analytics_service
 from app.services import courses as courses_service
 from app.services import enrollment as enrollment_service
 
 router = APIRouter()
-
-
-def _course_to_detail(
-    course,
-    modules,
-    stats,
-    *,
-    is_enrolled: bool,
-    is_bookmarked: bool,
-    progress_pct: float,
-) -> CourseDetail:
-    return CourseDetail(
-        id=course.id,
-        title=course.title,
-        slug=course.slug,
-        overview=course.overview,
-        difficulty=course.difficulty,
-        cover_url=course.cover_url,
-        status=course.status,
-        is_featured=course.is_featured,
-        published_at=course.published_at,
-        created_at=course.created_at,
-        owner=UserPublic.model_validate(course.owner),
-        subject=SubjectOut.model_validate(course.subject),
-        tags=[TagOut.model_validate(t) for t in course.tags],
-        modules_count=int(stats.get("modules_count", 0) or 0),
-        enrollments_count=int(stats.get("enrollments_count", 0) or 0),
-        avg_rating=stats.get("avg_rating"),
-        modules=[
-            ModuleOut(
-                id=m.id,
-                title=m.title,
-                description=m.description,
-                order=m.order,
-                lessons=[
-                    LessonOut.model_validate(lesson)
-                    for lesson in m.lessons
-                    if getattr(lesson, "deleted_at", None) is None
-                ],
-            )
-            for m in modules
-        ],
-        is_enrolled=is_enrolled,
-        is_bookmarked=is_bookmarked,
-        progress_pct=progress_pct,
-    )
 
 
 # ---------- Course CRUD ----------
@@ -82,18 +38,11 @@ def _course_to_detail(
 @router.post("", response_model=CourseListItem, status_code=status.HTTP_201_CREATED)
 async def create_course(payload: CourseCreate, user: RequireInstructor, db: DBSession) -> CourseListItem:
     course = await courses_service.create_course(db, user, payload)
-    course = await courses_repo.get_course(db, course.id)
-    stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
-    return CourseListItem(
-        id=course.id, title=course.title, slug=course.slug, overview=course.overview, difficulty=course.difficulty,
-        cover_url=course.cover_url, status=course.status, is_featured=course.is_featured,
-        published_at=course.published_at, created_at=course.created_at,
-        owner=UserPublic.model_validate(course.owner), subject=SubjectOut.model_validate(course.subject),
-        tags=[TagOut.model_validate(t) for t in course.tags],
-        modules_count=int(stats.get("modules_count", 0) or 0),
-        enrollments_count=int(stats.get("enrollments_count", 0) or 0),
-        avg_rating=stats.get("avg_rating"),
-    )
+    refreshed = await courses_repo.get_course(db, course.id)
+    if refreshed is None:
+        raise NotFoundError("Course not found", code="course.not_found")
+    stats = (await courses_repo.stats_for_courses(db, [refreshed.id])).get(refreshed.id, {})
+    return _builders.list_item(refreshed, stats)
 
 
 @router.get("/mine", response_model=list[CourseListItem])
@@ -102,27 +51,13 @@ async def my_courses(user: RequireInstructor, db: DBSession) -> list[CourseListI
         db, owner_id=user.id, only_published=False, page=1, page_size=100
     )
     stats = await courses_repo.stats_for_courses(db, [c.id for c in courses])
-    return [
-        CourseListItem(
-            id=c.id, title=c.title, slug=c.slug, overview=c.overview, difficulty=c.difficulty,
-            cover_url=c.cover_url, status=c.status, is_featured=c.is_featured,
-            published_at=c.published_at, created_at=c.created_at,
-            owner=UserPublic.model_validate(c.owner), subject=SubjectOut.model_validate(c.subject),
-            tags=[TagOut.model_validate(t) for t in c.tags],
-            modules_count=int(stats.get(c.id, {}).get("modules_count", 0) or 0),
-            enrollments_count=int(stats.get(c.id, {}).get("enrollments_count", 0) or 0),
-            avg_rating=stats.get(c.id, {}).get("avg_rating"),
-        )
-        for c in courses
-    ]
+    return [_builders.list_item(c, stats.get(c.id, {})) for c in courses]
 
 
 @router.get("/{key}", response_model=CourseDetail)
 async def get_course(key: str, viewer: OptionalUser, db: DBSession) -> CourseDetail:
     course = await courses_service.slug_or_id(db, key, with_modules=True)
     if not await courses_service.can_view_unpublished(course, viewer):
-        from app.core.errors import NotFoundError
-
         raise NotFoundError("Course not found", code="course.not_found")
 
     stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
@@ -134,18 +69,20 @@ async def get_course(key: str, viewer: OptionalUser, db: DBSession) -> CourseDet
         if enrollment:
             is_enrolled = True
             pct = await enrollment_service.progress_pct(db, enrollment=enrollment)
-        from sqlalchemy import select
-
-        from app.models.bookmark import Bookmark
-
         is_bookmarked = (
             await db.execute(
-                select(Bookmark.id).where(Bookmark.user_id == viewer.id, Bookmark.course_id == course.id)
+                select(Bookmark.id).where(
+                    Bookmark.user_id == viewer.id, Bookmark.course_id == course.id
+                )
             )
         ).first() is not None
-    modules = [m for m in course.modules]
-    return _course_to_detail(
-        course, modules, stats, is_enrolled=is_enrolled, is_bookmarked=is_bookmarked, progress_pct=pct
+    return _builders.detail(
+        course,
+        list(course.modules),
+        stats,
+        is_enrolled=is_enrolled,
+        is_bookmarked=is_bookmarked,
+        progress_pct=pct,
     )
 
 
@@ -156,8 +93,6 @@ async def update_course(
     await courses_service.update_course(db, course_id=course_id, owner=user, payload=payload)
     course = await courses_repo.get_course(db, course_id, with_modules=True)
     if course is None:
-        from app.core.errors import NotFoundError
-
         raise NotFoundError("Course not found", code="course.not_found")
     stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
     pct = 0.0
@@ -166,8 +101,13 @@ async def update_course(
     if enrollment:
         is_enrolled = True
         pct = await enrollment_service.progress_pct(db, enrollment=enrollment)
-    return _course_to_detail(
-        course, list(course.modules), stats, is_enrolled=is_enrolled, is_bookmarked=False, progress_pct=pct
+    return _builders.detail(
+        course,
+        list(course.modules),
+        stats,
+        is_enrolled=is_enrolled,
+        is_bookmarked=False,
+        progress_pct=pct,
     )
 
 
@@ -196,7 +136,10 @@ async def update_module(
 ) -> ModuleOut:
     mod = await courses_service.update_module(db, module_id=module_id, owner=user, payload=payload)
     return ModuleOut(
-        id=mod.id, title=mod.title, description=mod.description, order=mod.order,
+        id=mod.id,
+        title=mod.title,
+        description=mod.description,
+        order=mod.order,
         lessons=[LessonOut.model_validate(lesson) for lesson in mod.lessons if lesson.deleted_at is None],
     )
 
@@ -253,10 +196,9 @@ async def get_lesson(lesson_id: str, viewer: OptionalUser, db: DBSession) -> Les
     """Fetch a lesson for playback.
 
     Allowed when the viewer is enrolled, the course owner, an admin, or when
-    the lesson is flagged ``is_preview`` (free preview).
+    the lesson is flagged ``is_preview`` (free preview) and the course is
+    published.
     """
-    from app.core.errors import ForbiddenError, NotFoundError, UnauthorizedError
-
     lesson = await courses_repo.get_lesson(db, lesson_id)
     if lesson is None or lesson.deleted_at is not None:
         raise NotFoundError("Lesson not found", code="lesson.not_found")
@@ -280,9 +222,6 @@ async def get_lesson(lesson_id: str, viewer: OptionalUser, db: DBSession) -> Les
 # ---------- Analytics ----------
 
 
-from pydantic import BaseModel, ConfigDict
-
-
 class CourseAnalyticsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -298,7 +237,9 @@ class CourseAnalyticsOut(BaseModel):
 
 
 @router.get("/{course_id}/analytics", response_model=CourseAnalyticsOut)
-async def course_analytics(course_id: str, user: RequireInstructor, db: DBSession) -> CourseAnalyticsOut:
+async def course_analytics(
+    course_id: str, user: RequireInstructor, db: DBSession
+) -> CourseAnalyticsOut:
     data = await analytics_service.for_course(db, course_id=course_id, viewer=user)
     return CourseAnalyticsOut.model_validate(data)
 
@@ -307,29 +248,12 @@ async def course_analytics(course_id: str, user: RequireInstructor, db: DBSessio
 
 
 @router.post("/{course_id}/duplicate", response_model=CourseListItem, status_code=status.HTTP_201_CREATED)
-async def duplicate_course(course_id: str, user: RequireInstructor, db: DBSession) -> CourseListItem:
+async def duplicate_course(
+    course_id: str, user: RequireInstructor, db: DBSession
+) -> CourseListItem:
     course = await courses_service.duplicate_course(db, source_id=course_id, owner=user)
     refreshed = await courses_repo.get_course(db, course.id)
     if refreshed is None:
-        from app.core.errors import NotFoundError
-
         raise NotFoundError("Course not found", code="course.not_found")
     stats = (await courses_repo.stats_for_courses(db, [refreshed.id])).get(refreshed.id, {})
-    return CourseListItem(
-        id=refreshed.id,
-        title=refreshed.title,
-        slug=refreshed.slug,
-        overview=refreshed.overview,
-        difficulty=refreshed.difficulty,
-        cover_url=refreshed.cover_url,
-        status=refreshed.status,
-        is_featured=refreshed.is_featured,
-        published_at=refreshed.published_at,
-        created_at=refreshed.created_at,
-        owner=UserPublic.model_validate(refreshed.owner),
-        subject=SubjectOut.model_validate(refreshed.subject),
-        tags=[TagOut.model_validate(t) for t in refreshed.tags],
-        modules_count=int(stats.get("modules_count", 0) or 0),
-        enrollments_count=int(stats.get("enrollments_count", 0) or 0),
-        avg_rating=stats.get("avg_rating"),
-    )
+    return _builders.list_item(refreshed, stats)

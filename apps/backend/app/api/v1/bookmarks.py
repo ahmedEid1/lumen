@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
+from fastapi import APIRouter, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from fastapi import APIRouter, status
-
 from app.api.deps import CurrentUser, DBSession
+from app.api.v1 import _builders
 from app.core.errors import NotFoundError
 from app.models.bookmark import Bookmark
 from app.models.course import Course
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
-from app.schemas.course import CourseListItem, SubjectOut, TagOut
-from app.schemas.user import UserPublic
+from app.schemas.course import CourseListItem
 
 router = APIRouter()
 
@@ -32,35 +31,12 @@ async def list_my_bookmarks(user: CurrentUser, db: DBSession) -> list[CourseList
         .order_by(Bookmark.created_at.desc())
     )
     bookmarks = list(res.scalars().unique().all())
-    course_ids = [b.course_id for b in bookmarks]
-    stats = await courses_repo.stats_for_courses(db, course_ids)
-    items: list[CourseListItem] = []
-    for b in bookmarks:
-        c = b.course
-        if c.deleted_at is not None:
-            continue
-        s = stats.get(c.id, {})
-        items.append(
-            CourseListItem(
-                id=c.id,
-                title=c.title,
-                slug=c.slug,
-                overview=c.overview,
-                difficulty=c.difficulty,
-                cover_url=c.cover_url,
-                status=c.status,
-                is_featured=c.is_featured,
-                published_at=c.published_at,
-                created_at=c.created_at,
-                owner=UserPublic.model_validate(c.owner),
-                subject=SubjectOut.model_validate(c.subject),
-                tags=[TagOut.model_validate(t) for t in c.tags],
-                modules_count=int(s.get("modules_count", 0) or 0),
-                enrollments_count=int(s.get("enrollments_count", 0) or 0),
-                avg_rating=s.get("avg_rating"),
-            )
-        )
-    return items
+    stats = await courses_repo.stats_for_courses(db, [b.course_id for b in bookmarks])
+    return [
+        _builders.list_item(b.course, stats.get(b.course_id, {}))
+        for b in bookmarks
+        if b.course.deleted_at is None
+    ]
 
 
 @router.put("/{course_id}", response_model=OkResponse, status_code=status.HTTP_201_CREATED)

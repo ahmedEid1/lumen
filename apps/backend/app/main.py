@@ -82,6 +82,7 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    settings.assert_production_ready()
     log.info("startup", env=settings.env.value, app=settings.app_name)
     try:
         yield

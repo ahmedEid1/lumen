@@ -2,42 +2,22 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import DBSession
+from app.api.v1 import _builders
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.repositories import courses as courses_repo
 from app.schemas.common import Page
-from app.schemas.course import CourseListItem, SubjectOut, TagOut
-from app.schemas.user import UserPublic
+from app.schemas.course import CourseListItem
 from app.services.search import search_service
 
 router = APIRouter()
 log = get_logger(__name__)
-
-
-def _to_list_item(c: Any, stats_for_id: dict[str, Any]) -> CourseListItem:
-    return CourseListItem(
-        id=c.id,
-        title=c.title,
-        slug=c.slug,
-        overview=c.overview,
-        difficulty=c.difficulty,
-        cover_url=c.cover_url,
-        status=c.status,
-        is_featured=c.is_featured,
-        published_at=c.published_at,
-        created_at=c.created_at,
-        owner=UserPublic.model_validate(c.owner),
-        subject=SubjectOut.model_validate(c.subject),
-        tags=[TagOut.model_validate(t) for t in c.tags],
-        modules_count=int(stats_for_id.get("modules_count", 0) or 0),
-        enrollments_count=int(stats_for_id.get("enrollments_count", 0) or 0),
-        avg_rating=stats_for_id.get("avg_rating"),
-    )
 
 
 @router.get("/courses", response_model=Page[CourseListItem])
@@ -77,7 +57,7 @@ async def search_courses(
         ordered = [by_id[i] for i in ordered_ids if i in by_id]
         stats = await courses_repo.stats_for_courses(db, [c.id for c in ordered])
         return Page(
-            items=[_to_list_item(c, stats.get(c.id, {})) for c in ordered],
+            items=[_builders.list_item(c, stats.get(c.id, {})) for c in ordered],
             total=total,
             page=page,
             page_size=page_size,
@@ -87,7 +67,7 @@ async def search_courses(
 
 
 async def _pg_search(
-    db: Any,
+    db: AsyncSession,
     q: str,
     subject: str | None,
     tag: str | None,
@@ -106,7 +86,7 @@ async def _pg_search(
     )
     stats = await courses_repo.stats_for_courses(db, [c.id for c in courses])
     return Page(
-        items=[_to_list_item(c, stats.get(c.id, {})) for c in courses],
+        items=[_builders.list_item(c, stats.get(c.id, {})) for c in courses],
         total=total,
         page=page,
         page_size=page_size,

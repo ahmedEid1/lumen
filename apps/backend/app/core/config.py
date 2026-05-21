@@ -104,6 +104,28 @@ class Settings(BaseSettings):
             return [o.strip() for o in v.split(",") if o.strip()]
         return v
 
+    def assert_production_ready(self) -> None:
+        """Raise if any production-sensitive config is still at a dev default.
+
+        Called at startup when ``env=production``. Better to refuse to boot than
+        to silently expose a fixed signing key.
+        """
+        if self.env != Environment.production:
+            return
+        problems: list[str] = []
+        if self.secret_key.get_secret_value() in {"", "change-me"}:
+            problems.append("SECRET_KEY is unset or still the dev default")
+        if self.jwt_secret.get_secret_value() in {"", "change-me"}:
+            problems.append("JWT_SECRET is unset or still the dev default")
+        if self.s3_secret_access_key.get_secret_value() in {"", "lumen-secret"}:
+            problems.append("S3_SECRET_ACCESS_KEY is still the dev default")
+        if any("localhost" in o for o in self.cors_origins):
+            problems.append("CORS_ORIGINS contains localhost in production")
+        if problems:
+            raise RuntimeError(
+                "Refusing to start: " + "; ".join(problems) + ". Update your .env."
+            )
+
     @property
     def is_prod(self) -> bool:
         return self.env == Environment.production

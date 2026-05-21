@@ -7,10 +7,10 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from app.api.deps import DBSession, OptionalUser
+from app.api.v1 import _builders
 from app.repositories import courses as courses_repo
 from app.schemas.common import Page
 from app.schemas.course import CourseListItem, SubjectOut, TagOut
-from app.schemas.user import UserPublic
 
 router = APIRouter()
 
@@ -18,9 +18,7 @@ router = APIRouter()
 @router.get("/subjects", response_model=list[SubjectOut])
 async def list_subjects(db: DBSession) -> list[SubjectOut]:
     rows = await courses_repo.list_subjects(db)
-    return [
-        SubjectOut(id=s.id, title=s.title, slug=s.slug, total_courses=n) for s, n in rows
-    ]
+    return [SubjectOut(id=s.id, title=s.title, slug=s.slug, total_courses=n) for s, n in rows]
 
 
 @router.get("/tags", response_model=list[TagOut])
@@ -52,28 +50,5 @@ async def list_courses(
         page_size=page_size,
     )
     stats = await courses_repo.stats_for_courses(db, [c.id for c in courses])
-
-    items: list[CourseListItem] = []
-    for c in courses:
-        s = stats.get(c.id, {})
-        items.append(
-            CourseListItem(
-                id=c.id,
-                title=c.title,
-                slug=c.slug,
-                overview=c.overview,
-                difficulty=c.difficulty,
-                cover_url=c.cover_url,
-                status=c.status,
-                is_featured=c.is_featured,
-                published_at=c.published_at,
-                created_at=c.created_at,
-                owner=UserPublic.model_validate(c.owner),
-                subject=SubjectOut.model_validate(c.subject),
-                tags=[TagOut.model_validate(t) for t in c.tags],
-                modules_count=int(s.get("modules_count", 0) or 0),
-                enrollments_count=int(s.get("enrollments_count", 0) or 0),
-                avg_rating=s.get("avg_rating"),
-            )
-        )
+    items = [_builders.list_item(c, stats.get(c.id, {})) for c in courses]
     return Page(items=items, total=total, page=page, page_size=page_size)

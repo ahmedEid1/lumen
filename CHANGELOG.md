@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (iteration 8)
+- Centralized `CourseListItem` / `CourseDetail` construction in
+  `app/api/v1/_builders.py`. catalog, courses, enrollments, bookmarks, and
+  search routers now share the single builder — eliminates five copies of
+  the same field-by-field projection.
+- Hoisted mid-file imports in `users.py`, `courses.py`, and `search.py` to
+  module-level; removed unused imports along the way.
+- `SessionOut` revoke endpoint now raises `NotFoundError` (was a misnamed
+  `ValidationAppError`) when the session id is unknown.
+
+### Added (iteration 8)
+- Production startup hardening: `Settings.assert_production_ready()` refuses
+  to boot when `env=production` if `JWT_SECRET`, `SECRET_KEY`, or
+  `S3_SECRET_ACCESS_KEY` are still dev defaults, or if `CORS_ORIGINS`
+  contains `localhost`. Called from the FastAPI lifespan.
+- Accessibility: skip-to-content link in the root layout, `aria-current="page"`
+  on active nav links (desktop and mobile drawer).
+
 ### Added (iteration 7)
 - Email verification flow: register queues a verification email, `POST
   /api/v1/auth/verify/request` resends, `POST /api/v1/auth/verify/confirm`
