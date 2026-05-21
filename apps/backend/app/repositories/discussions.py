@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -41,24 +41,22 @@ async def list_for_course(
         .outerjoin(last_reply_subq, last_reply_subq.c.did == Discussion.id)
         .where(Discussion.course_id == course_id, Discussion.deleted_at.is_(None))
         .options(selectinload(Discussion.author))
-        .order_by(desc(last_activity))
+        .order_by(last_activity.desc())
         .limit(limit)
         .offset(offset)
     )
     res = await db.execute(stmt)
-    return [(d, int(rc or 0), la) for d, rc, la in res.all()]
+    # `reply_count` is wrapped in func.coalesce(..., 0) above so `rc` is
+    # never None; the cast keeps the tuple's int contract regardless of
+    # whether the driver returns int or Decimal.
+    return [(d, int(rc), la) for d, rc, la in res.all()]
 
 
 async def count_for_course(db: AsyncSession, *, course_id: str) -> int:
-    return int(
-        (
-            await db.execute(
-                select(func.count(Discussion.id)).where(
-                    Discussion.course_id == course_id, Discussion.deleted_at.is_(None)
-                )
-            )
-        ).scalar_one()
+    stmt = select(func.count(Discussion.id)).where(
+        Discussion.course_id == course_id, Discussion.deleted_at.is_(None)
     )
+    return int((await db.execute(stmt)).scalar_one())
 
 
 async def get(db: AsyncSession, discussion_id: str) -> Discussion | None:

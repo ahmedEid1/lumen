@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 40) — discussions repo tidy via simplifier
+Twenty-third dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/repositories/discussions.py`. Applied 3 of its
+5 recommendations:
+
+- **`count_for_course`: deparenthesized** the
+  `int((await db.execute(select(...))).scalar_one())` pyramid
+  to the `stmt = ...; await db.execute(stmt)` shape already
+  used by `list_for_course`. One consistent idiom in the file.
+- **`list_for_course`: dropped redundant `int(rc or 0)`**.
+  The `func.coalesce(..., 0)` at the select already guarantees
+  non-NULL; the `or 0` was dead defense. Kept the `int()` cast
+  with a WHY comment explaining the int vs Decimal driver
+  variance.
+- **`list_for_course`: `last_activity.desc()`** instead of
+  `desc(last_activity)`. Drops the `desc` import. Same SQL.
+
+Skipped: the soft-delete predicate aliasing (cosmetic;
+`Discussion.deleted_at.is_(None)` is already grep-friendly)
+and the `get_reply` reformatting (cosmetic).
+
+Discussion tests 16/16, backend pytest 321/321.
+
 ### Changed (simplify iter 39) — consolidate `pwh_fingerprint` into `core.security`
 Two iters of per-file `_pwh_fingerprint` extraction (iters 33 +
 38) left two copies of the same 4-line helper across
