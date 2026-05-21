@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 89)
+- **Studio editor for course title / overview / difficulty / cover.**
+  Previously those four fields were locked at create time — to fix
+  a typo, an instructor had to delete + recreate the course
+  (losing enrollments). New "Course details" card on the studio
+  page edits all four, with dirty-state Save and a heads-up that
+  renaming regenerates the slug. Reuses `Courses.patch` (the
+  backend already supports the field-update calls from iter 86's
+  outcomes work).
+
 ### Docs (iteration 88)
 - **ADR-0014 catches the iter 73-87 product surface expansions.**
   Bundles the design rationale for quiz attempt history,

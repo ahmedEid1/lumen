@@ -164,6 +164,23 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
 
       <Card className="mb-6">
         <CardHeader>
+          <CardTitle>Course details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CourseDetailsEditor
+            courseId={id}
+            initial={{
+              title: course.title,
+              overview: course.overview,
+              difficulty: course.difficulty,
+              cover_url: course.cover_url ?? null,
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader>
           <CardTitle>What you&apos;ll learn</CardTitle>
         </CardHeader>
         <CardContent>
@@ -255,6 +272,109 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
     <div className="rounded-md border bg-background p-3">
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+type DetailsInitial = {
+  title: string;
+  overview: string;
+  difficulty: string;
+  cover_url: string | null;
+};
+
+function CourseDetailsEditor({
+  courseId,
+  initial,
+}: {
+  courseId: string;
+  initial: DetailsInitial;
+}) {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<DetailsInitial>(initial);
+  const dirty =
+    draft.title !== initial.title ||
+    draft.overview !== initial.overview ||
+    draft.difficulty !== initial.difficulty ||
+    (draft.cover_url ?? "") !== (initial.cover_url ?? "");
+
+  const save = useMutation({
+    mutationFn: () =>
+      Courses.patch(courseId, {
+        title: draft.title,
+        overview: draft.overview,
+        difficulty: draft.difficulty,
+        cover_url: draft.cover_url || null,
+      }),
+    onSuccess: () => {
+      toast.success("Details saved");
+      qc.invalidateQueries({ queryKey: qk.course(courseId) });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Could not save"),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium" htmlFor="course-title-edit">
+          Title
+        </label>
+        <Input
+          id="course-title-edit"
+          value={draft.title}
+          maxLength={200}
+          onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+        />
+        <p className="text-xs text-muted-foreground">
+          Renaming regenerates the URL slug — old links to this course
+          will redirect.
+        </p>
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium" htmlFor="course-overview-edit">
+          Overview
+        </label>
+        <textarea
+          id="course-overview-edit"
+          value={draft.overview}
+          maxLength={10000}
+          rows={4}
+          onChange={(e) => setDraft({ ...draft, overview: e.target.value })}
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+        />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium" htmlFor="course-difficulty-edit">
+            Difficulty
+          </label>
+          <select
+            id="course-difficulty-edit"
+            value={draft.difficulty}
+            onChange={(e) => setDraft({ ...draft, difficulty: e.target.value })}
+            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+          >
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium" htmlFor="course-cover-edit">
+            Cover URL
+          </label>
+          <Input
+            id="course-cover-edit"
+            value={draft.cover_url ?? ""}
+            maxLength={500}
+            onChange={(e) => setDraft({ ...draft, cover_url: e.target.value || null })}
+            placeholder="https://…"
+          />
+        </div>
+      </div>
+      <Button size="sm" onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
+        {save.isPending ? "Saving…" : "Save"}
+      </Button>
     </div>
   );
 }
