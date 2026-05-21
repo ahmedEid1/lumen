@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Tests (iteration 97)
+- **Two new Playwright e2e specs** beyond the existing smoke
+  test:
+  - `learner-journey.spec.ts`: sign-in → catalog → enroll → first
+    lesson → mark complete. Plus a `language switcher toggles
+    document direction` case that flips `<html dir>` between LTR
+    and RTL using iter 93's LocaleSwitcher.
+  - `instructor-flow.spec.ts`: sign-in → studio → new course →
+    add module → add text lesson → publish → see it on the
+    public catalog. Exercises the iter 43 "must have a lesson to
+    publish" guard end-to-end via the green path.
+
 ### Fixed (iteration 96)
 - **Mobile polish.** Three real UX issues after auditing:
   - `/learn/[slug]` re-ordered the 3-column desktop layout so the
