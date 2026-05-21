@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 12) — drop 3 unused backend deps
+A grep-based import scan found three pyproject.toml entries
+with no `import` or `from` reference anywhere in `app/` or
+`tests/`:
+
+- **`tenacity`** — retry library. Not used; the code retries
+  inline (chat WS backoff lives in `frontend/src/lib/reconnect`,
+  not the backend).
+- **`ulid-py`** — ULIDs were never adopted; `app/core/ids.py`
+  uses `nanoid` instead.
+- **`jinja2`** — the email template comment in
+  `services/email_template.py` explicitly notes "Jinja2 just
+  for transactional emails would add a dependency", and the
+  module renders branded HTML by string-concatenation
+  instead. The dep was tracked but never used.
+
+Backend pytest 321/321 (180s). The api image rebuilds will
+no longer pull these (and their transitive trees).
+
 ### Changed (simplify iter 11) — knip-flagged unused exports + vulture
 Six tiny cleanups across both stacks: drop dead public
 surface and mark protocol-required-but-unused parameters
