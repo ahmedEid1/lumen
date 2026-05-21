@@ -17,6 +17,45 @@ from app.repositories import courses as courses_repo
 from app.repositories import notifications as notifications_repo
 
 
+async def _resolve_enrollment_for_lesson(
+    db: AsyncSession, *, user: User, lesson: Lesson
+) -> tuple[Course, Enrollment]:
+    """Module → course → enrollment lookup chain used by lesson-mutating paths."""
+    mod = await courses_repo.get_module(db, lesson.module_id)
+    if mod is None:
+        raise NotFoundError("Module not found", code="module.not_found")
+    course = await courses_repo.get_course(db, mod.course_id)
+    if course is None:
+        raise NotFoundError("Course not found", code="course.not_found")
+    enrollment = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
+    if not enrollment:
+        raise ForbiddenError("Not enrolled", code="enrollment.required")
+    return course, enrollment
+
+
+async def _maybe_issue_certificate(
+    db: AsyncSession,
+    *,
+    user: User,
+    course: Course,
+    enrollment: Enrollment,
+    total: int,
+    done: int,
+) -> None:
+    """Mint a certificate + notification when every lesson is complete."""
+    if total and done == total and not enrollment.completed_at:
+        enrollment.completed_at = datetime.now(UTC)
+        enrollment.certificate_id = f"cert_{new_id()}"
+        await notifications_repo.create(
+            db,
+            user_id=user.id,
+            kind=NotificationKind.certificate_ready,
+            title=f"Certificate ready: {course.title}",
+            body="Congratulations on completing the course!",
+            data={"course_id": course.id, "certificate_id": enrollment.certificate_id},
+        )
+
+
 async def enroll(db: AsyncSession, *, user: User, course: Course) -> Enrollment:
     if course.status != CourseStatus.published:
         raise ForbiddenError("Course is not available", code="enrollment.not_available")
@@ -73,18 +112,11 @@ async def record_quiz_attempt(
     stays complete regardless of subsequent attempts. The latest score is
     always stored on ``LessonProgress.score``.
     """
-    mod = await courses_repo.get_module(db, lesson.module_id)
-    if mod is None:
-        raise NotFoundError("Module not found", code="module.not_found")
-    course = await courses_repo.get_course(db, mod.course_id)
-    if course is None:
-        raise NotFoundError("Course not found", code="course.not_found")
-    enrollment = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
-    if not enrollment:
-        raise ForbiddenError("Not enrolled", code="enrollment.required")
+    course, enrollment = await _resolve_enrollment_for_lesson(db, user=user, lesson=lesson)
 
     lp = await courses_repo.get_or_create_progress(db, enrollment_id=enrollment.id, lesson_id=lesson.id)
-    lp.score = max(0, min(100, score))
+    clamped_score = max(0, min(100, score))
+    lp.score = clamped_score
     if payload:
         lp.payload = {**(lp.payload or {}), **payload}
     if passed:
@@ -97,7 +129,7 @@ async def record_quiz_attempt(
     attempt = QuizAttempt(
         enrollment_id=enrollment.id,
         lesson_id=lesson.id,
-        score=max(0, min(100, score)),
+        score=clamped_score,
         passed=passed,
         answers=(payload or {}).get("answers", {}),
         submitted_at=datetime.now(UTC),
@@ -109,17 +141,9 @@ async def record_quiz_attempt(
     done = await courses_repo.count_completed_lessons(db, enrollment.id)
     pct = (done / total * 100.0) if total else 0.0
 
-    if total and done == total and not enrollment.completed_at:
-        enrollment.completed_at = datetime.now(UTC)
-        enrollment.certificate_id = f"cert_{new_id()}"
-        await notifications_repo.create(
-            db,
-            user_id=user.id,
-            kind=NotificationKind.certificate_ready,
-            title=f"Certificate ready: {course.title}",
-            body="Congratulations on completing the course!",
-            data={"course_id": course.id, "certificate_id": enrollment.certificate_id},
-        )
+    await _maybe_issue_certificate(
+        db, user=user, course=course, enrollment=enrollment, total=total, done=done
+    )
 
     return enrollment, lp, pct
 
@@ -132,15 +156,7 @@ async def mark_lesson(
     completed: bool,
     payload: dict[str, Any] | None = None,
 ) -> tuple[Enrollment, LessonProgress, float]:
-    mod = await courses_repo.get_module(db, lesson.module_id)
-    if mod is None:
-        raise NotFoundError("Module not found", code="module.not_found")
-    course = await courses_repo.get_course(db, mod.course_id)
-    if course is None:
-        raise NotFoundError("Course not found", code="course.not_found")
-    enrollment = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
-    if not enrollment:
-        raise ForbiddenError("Not enrolled", code="enrollment.required")
+    course, enrollment = await _resolve_enrollment_for_lesson(db, user=user, lesson=lesson)
 
     lp = await courses_repo.get_or_create_progress(db, enrollment_id=enrollment.id, lesson_id=lesson.id)
     if completed:
@@ -158,17 +174,9 @@ async def mark_lesson(
     done = await courses_repo.count_completed_lessons(db, enrollment.id)
     pct = (done / total * 100.0) if total else 0.0
 
-    if total and done == total and not enrollment.completed_at:
-        enrollment.completed_at = datetime.now(UTC)
-        enrollment.certificate_id = f"cert_{new_id()}"
-        await notifications_repo.create(
-            db,
-            user_id=user.id,
-            kind=NotificationKind.certificate_ready,
-            title=f"Certificate ready: {course.title}",
-            body="Congratulations on completing the course!",
-            data={"course_id": course.id, "certificate_id": enrollment.certificate_id},
-        )
+    await _maybe_issue_certificate(
+        db, user=user, course=course, enrollment=enrollment, total=total, done=done
+    )
 
     return enrollment, lp, pct
 

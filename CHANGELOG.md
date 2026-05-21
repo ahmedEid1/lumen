@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 23) — enrollment service DRY via simplifier
+Seventh dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/services/enrollment.py`. Applied 3 of its 5
+recommendations:
+
+- **`_resolve_enrollment_for_lesson(db, user, lesson)`** extracts
+  the module → course → enrollment lookup chain (with NotFound /
+  Forbidden codes preserved) that `record_quiz_attempt` and
+  `mark_lesson` were both inlining verbatim. Each handler now
+  starts with one `course, enrollment = await ...` line.
+- **`_maybe_issue_certificate(db, *, user, course, enrollment,
+  total, done)`** extracts the 11-line "if course complete, mint
+  cert + push notification" block that was duplicated in the
+  same two handlers. Same control flow, same notification kind,
+  same `cert_<new_id>` ID format.
+- **`clamped_score` computed once** in `record_quiz_attempt`.
+  The `max(0, min(100, score))` clamp used to appear twice
+  (once for `lp.score`, once for `attempt.score`) — closes a
+  latent bug-magnet where the two could drift.
+
+Skipped on purpose: the `_progress_counts` helper (the three
+sites have slightly different downstream needs around rounding
+and the explicit form stays readable) and dropping the redundant
+`db.flush()` in `enroll` (lower confidence — would need to verify
+`notifications_repo.create` doesn't SELECT enrollments).
+
+Behaviour preserved exactly. Backend pytest 321/321. The
+`autoflush=False` flush stays in `mark_lesson` with its WHY
+comment intact.
+
 ### Changed (simplify iter 22) — auth service tidy via simplifier
 Sixth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/services/auth.py` (169 → 158 lines).
