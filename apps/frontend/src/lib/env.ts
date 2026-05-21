@@ -4,24 +4,28 @@ const STATIC_API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhos
 const STATIC_WS_BASE = process.env.NEXT_PUBLIC_WS_BASE_URL ?? "ws://localhost:8000";
 
 /**
- * Browser-side API base. In the dev docker stack the bundle is built
- * with `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` (so the host
- * browser can reach the published api port). When the same bundle is
- * loaded by Playwright inside the `e2e` container — where the page
- * is served from `http://web:3000` — `localhost` resolves to the e2e
- * container itself and every API call fails silently. Detect that
- * case at runtime and switch to the docker-network hostname (`api`).
+ * Browser-side API base.
  *
- * The condition is intentionally narrow (`hostname === "web"`) so a
- * real prod deployment with hostname `lumen.example.com` keeps using
- * its configured `NEXT_PUBLIC_API_BASE_URL`.
+ * Iter 105 routed all `/api/v1/*` traffic through Next.js's
+ * `rewrites()` so the call is same-origin from the browser's POV.
+ * That dodges CORS AND the SameSite=Strict cookie trap (the auth
+ * cookies are strict; cross-site fetches never carry them) — both
+ * for the host-side dev browser at localhost:3000 and for the
+ * Playwright browser inside the e2e container at web:3000.
+ *
+ * The browser therefore uses a relative base (""). The SSR fetcher
+ * keeps using API_INTERNAL_BASE_URL because it runs inside the web
+ * container with no relative-URL context.
  */
 function browserApiBase(): string {
   if (typeof window === "undefined") return STATIC_API_BASE;
-  if (window.location.hostname === "web") return "http://api:8000";
-  return STATIC_API_BASE;
+  return "";
 }
 
+// WebSockets aren't covered by the Next rewrite; keep the direct
+// hostname for now. Iter 105 leaves WS behavior unchanged — fix
+// in a future iteration if a WS-using spec ever needs the e2e
+// container.
 function browserWsBase(): string {
   if (typeof window === "undefined") return STATIC_WS_BASE;
   if (window.location.hostname === "web") return "ws://api:8000";

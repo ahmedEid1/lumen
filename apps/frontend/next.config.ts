@@ -7,6 +7,23 @@ const config: NextConfig = {
   experimental: {
     typedRoutes: true,
   },
+  // Iter 105: proxy /api/v1/* through Next so browser-side fetches
+  // are same-origin. The auth cookies are SameSite=Strict — a
+  // direct browser→api request from web:3000 to api:8000 (the e2e
+  // container case) is cross-site and the cookie never travels,
+  // and there's no Bearer-token fallback in the call sites. Routing
+  // through Next.js makes the request same-origin for both the
+  // host browser (localhost:3000) and the Playwright browser
+  // (web:3000), avoiding CORS + the SameSite trap in one shot.
+  async rewrites() {
+    const internal = process.env.API_INTERNAL_BASE_URL ?? "http://api:8000";
+    return [
+      {
+        source: "/api/v1/:path*",
+        destination: `${internal}/api/v1/:path*`,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: "http", hostname: "localhost" },

@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 105) — proxy /api/v1/* through Next.js for same-origin auth
+- The e2e bundle was hitting `http://api:8000` directly (iter 102),
+  CORS was open (iter 103), and login itself worked — but every
+  POST mutation after login still failed silently. Root cause:
+  the auth cookies (`access`, `refresh`) are set with
+  `SameSite=Strict`, and a request from `web:3000` to `api:8000`
+  is cross-site, so the browser refuses to send the cookie.
+  None of the api client call sites pass a Bearer token either
+  (they rely entirely on cookies). Same problem affects host
+  browsing in theory, but `localhost:3000` → `localhost:8000` is
+  same-site so it slipped through.
+- **Fix**: added `rewrites()` to `next.config.ts` proxying
+  `/api/v1/:path*` to `${API_INTERNAL_BASE_URL}/api/v1/:path*`.
+  Browser-side fetches are now same-origin from the browser's
+  POV — CORS doesn't apply, cookies travel, and the iter 103
+  `web:3000` CORS whitelist becomes harmless redundancy.
+  `env.ts::browserApiBase()` now returns `""` so the client
+  emits relative URLs like `/api/v1/auth/login`. SSR fetchers
+  still use `API_INTERNAL_BASE_URL` directly because they have
+  no relative-URL context.
+- **Regression tests**:
+  - `tests/next-api-rewrite.test.ts` reads the resolved
+    `next.config.ts` and asserts the `/api/v1/:path*` rewrite
+    is present and points at a valid http(s) host.
+  - `tests/env-api-base.test.ts` (rewritten) asserts the
+    browser-side base is `""` from any hostname, and that
+    `API_INTERNAL_BASE_URL` keeps a non-empty docker host
+    value for SSR.
+- **Result**: 6/12 → 8/12 e2e specs green. `learner-journey ›
+  language switcher` now passes both browsers (iter 104 fixed
+  the selector; iter 105 fixed the post-login refresh that the
+  spec implicitly depends on). The remaining 4 failures —
+  `instructor-flow` and `learner-journey enroll-complete` on
+  both chromium and webkit — are deeper-in-the-flow bugs for
+  iter 106+.
+
 ### Fixed (iteration 104) — language-switcher selector matches both locales
 - `learner-journey › language switcher toggles document direction`
   used `getByLabel(/language/i)` to find the LocaleSwitcher
