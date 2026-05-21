@@ -7,7 +7,7 @@ import uuid
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.course import Subject, Tag
+from app.models.course import Subject
 from app.models.user import Role
 
 

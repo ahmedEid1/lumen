@@ -40,6 +40,7 @@ __all__ = [
     "CourseListItem",
     "CourseUpdate",
     "Cursor",
+    "EmailVerifyConfirm",
     "EnrollmentOut",
     "ErrorBody",
     "ErrorEnvelope",

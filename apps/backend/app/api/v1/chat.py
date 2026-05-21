@@ -7,7 +7,7 @@ import json
 from typing import Annotated
 
 import jwt
-from fastapi import APIRouter, Depends, Query, Request, Response, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Query, Request, Response, WebSocket, WebSocketDisconnect, status
 
 from app.api.deps import CurrentUser, DBSession
 from app.core.errors import ForbiddenError, NotFoundError
@@ -16,7 +16,6 @@ from app.core.ratelimit import limiter
 from app.core.security import decode_token
 from app.db.base import get_sessionmaker
 from app.repositories import chat as chat_repo
-from app.repositories import courses as courses_repo
 from app.repositories import users as users_repo
 from app.schemas.chat import ChatHistoryPage, ChatMessageOut, ChatSendRequest
 from app.schemas.user import UserPublic
@@ -119,7 +118,7 @@ async def chat_ws(websocket: WebSocket, course_id: str, token: Annotated[str, Qu
             await websocket.close(code=4401)
             return
         try:
-            course = await chat_service.ensure_can_chat(db, user=user, course_id=course_id)
+            await chat_service.ensure_can_chat(db, user=user, course_id=course_id)
         except ForbiddenError:
             await websocket.close(code=4403)
             return

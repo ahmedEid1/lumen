@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Cookie, Depends, Request, Response, status
+from fastapi import APIRouter, Cookie, Request, Response, status
 
 from app.api.deps import CurrentUser, DBSession, client_ip, user_agent
 from app.core.config import get_settings

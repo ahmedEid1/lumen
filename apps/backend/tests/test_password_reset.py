@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 
 from app.services import password_reset as reset

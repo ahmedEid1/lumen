@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import ConflictError, ForbiddenError, NotFoundError
+from app.core.errors import ForbiddenError, NotFoundError
 from app.models.course import Course, Review
 from app.models.notification import NotificationKind
 from app.models.user import User

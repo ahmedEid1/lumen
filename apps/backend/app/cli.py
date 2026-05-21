@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 import typer
 from rich.console import Console
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import hash_password

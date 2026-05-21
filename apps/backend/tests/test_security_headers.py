@@ -25,7 +25,6 @@ that bypasses the middleware fails loudly.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 
 

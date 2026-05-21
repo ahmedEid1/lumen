@@ -16,7 +16,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification, NotificationKind
-from app.models.user import Role
 from app.repositories import notifications as notifications_repo
 
 

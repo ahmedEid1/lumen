@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import jwt
 
 from app.core.config import get_settings
-from app.core.errors import ConflictError, UnauthorizedError
+from app.core.errors import UnauthorizedError
 from app.core.logging import get_logger
 from app.models.user import User
 from app.repositories import audit as audit_repo

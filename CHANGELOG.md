@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 1) — purge static-analysis dead code
+First pass of the simplify-without-regressions loop. Scope is
+intentionally narrow: only changes ruff flags as F-rule violations.
+Behaviour is unchanged; the 321-test backend suite stays green.
+
+- **Removed 15 unused imports** across `app/api/deps.py`,
+  `app/api/v1/auth.py`, `app/api/v1/chat.py`, `app/cli.py`,
+  `app/services/{analytics,discussions,email_verify,reviews}.py`
+  and 6 test modules. All flagged by `ruff F401`.
+- **`schemas/__init__.py`: added `EmailVerifyConfirm` to
+  `__all__`.** It was being imported and re-exported (used by
+  `api/v1/auth.py`) but missing from the explicit export list —
+  ruff would otherwise keep flagging it. This makes the re-export
+  intentional, not accidental.
+- **`api/v1/chat.py::chat_ws`: dropped unused `course =`
+  binding.** `chat_service.ensure_can_chat` is called purely
+  for its permission-check side effect (it raises on denial);
+  the return value was discarded. Dropping the binding makes the
+  side-effect intent obvious and clears `ruff F841`.
+
+Why: dead code is a cumulative tax on readers — each unused
+import is a fake signal that the symbol matters here. These were
+fully mechanical removals, verified by full backend pytest
+(321 passed, 199s) and clean `ruff check --select F`.
+
 ### Fixed (iteration 115) — backend pytest is fully green (321/321)
 Worked through every remaining red spec one root-cause cluster at
 a time. The cluster overlaps explain why each individual fix

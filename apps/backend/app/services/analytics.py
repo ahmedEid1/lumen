@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import ForbiddenError, NotFoundError
-from app.models.course import Course, Enrollment, Lesson, LessonProgress, Module, Review
+from app.models.course import Enrollment, Lesson, LessonProgress, Module, Review
 from app.models.user import User
 from app.repositories import courses as courses_repo
 
