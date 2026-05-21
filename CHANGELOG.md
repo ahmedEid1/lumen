@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 42) — small repo tidy via simplifier
+Twenty-fifth dispatch of the `code-simplifier` plugin agent
+across two small, never-audited repo files. Both wins are
+modest:
+
+- **`chat.history`: flattened the nested `before_id` guard.**
+  Was `if before_id: anchor = ...; if anchor is not None:
+  stmt = stmt.where(...)`. Now `anchor = ... if before_id else
+  None` at the top, then a single `if anchor is not None`
+  branch on the stmt. Same SQL in all three paths (no
+  `before_id`, missing anchor, present anchor). Linear flow.
+- **`audit.record`: renamed `e` → `event`.** The single-letter
+  name shadows the conventional exception variable; the
+  three-letter rename matches `msg` in `chat.add_message` and
+  reads at a glance. No semantic change.
+
+Skipped: chat.py formatting nit on the `get_with_author` line
+(let the formatter handle it), and any rewording of
+`data=data or {}` (load-bearing JSONB default contract).
+
+Backend pytest 321/321. Touched-file tests 6/6.
+
 ### Changed (simplify iter 41) — seed CLI DRY via simplifier
 Twenty-fourth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/cli.py`. Applied 2 of its 5 recommendations:

@@ -18,7 +18,7 @@ async def record(
     user_agent: str | None = None,
     data: dict[str, Any] | None = None,
 ) -> AuditEvent:
-    e = AuditEvent(
+    event = AuditEvent(
         actor_id=actor_id,
         action=action,
         target_type=target_type,
@@ -27,6 +27,6 @@ async def record(
         user_agent=user_agent,
         data=data or {},
     )
-    db.add(e)
+    db.add(event)
     await db.flush()
-    return e
+    return event

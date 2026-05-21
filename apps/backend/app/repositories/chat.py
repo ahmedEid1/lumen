@@ -26,6 +26,7 @@ async def get_with_author(db: AsyncSession, message_id: str) -> ChatMessage | No
 async def history(
     db: AsyncSession, *, course_id: str, before_id: str | None = None, limit: int = 50
 ) -> list[ChatMessage]:
+    anchor = await db.get(ChatMessage, before_id) if before_id else None
     stmt = (
         select(ChatMessage)
         .options(selectinload(ChatMessage.author))
@@ -33,9 +34,7 @@ async def history(
         .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
         .limit(limit)
     )
-    if before_id:
-        anchor = await db.get(ChatMessage, before_id)
-        if anchor is not None:
-            stmt = stmt.where(ChatMessage.created_at < anchor.created_at)
+    if anchor is not None:
+        stmt = stmt.where(ChatMessage.created_at < anchor.created_at)
     res = await db.execute(stmt)
     return list(res.scalars().all())
