@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 36)
+- **Chat WebSocket re-authorises on every post.** The connection
+  validated the user and enrollment once at connect, then cached both in
+  local variables for the lifetime of the socket. So deactivating an
+  account, unenrolling a learner, or unpublishing a course only took
+  effect when the socket finally dropped — until then the offender kept
+  publishing messages from the stale connect-time session. The message
+  branch now reloads the user (`users_repo.get_by_id`) and re-runs
+  `ensure_can_chat`; failure sends a typed error frame and closes the
+  socket (4401/4403/4404). Typing pings still flow without the recheck
+  to keep that path cheap. Covered by `tests/test_chat_ws_revalidate.py`
+  — three tests that exercise the underlying primitives the WS now
+  depends on (no WS test harness in this repo, so the loop wrapper
+  itself is 5 lines on top of well-tested service calls).
+
 ### Fixed (iteration 35)
 - **Quiz editor stopped reusing question ids after a delete.** The
   `addQ()` helper in the lesson editor minted ids as

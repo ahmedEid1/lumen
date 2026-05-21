@@ -159,8 +159,38 @@ async def chat_ws(websocket: WebSocket, course_id: str, token: Annotated[str, Qu
                 if not body or len(body) > 4000:
                     await websocket.send_json({"type": "error", "data": {"code": "invalid_body", "message": "Body required (≤4000 chars)"}})
                     continue
+                # Re-authorise on every post. The WS connection can live for
+                # hours; without this, deactivating an account, unenrolling
+                # them, or unpublishing the course wouldn't take effect until
+                # the socket dropped — they'd keep posting from the stale
+                # session captured at connect time.
                 async with Session() as db_session:
-                    posted = await chat_service.post(db_session, user=user, course=course, body=body)
+                    fresh_user = await users_repo.get_by_id(db_session, user.id)
+                    if not fresh_user or not fresh_user.is_active:
+                        await websocket.send_json(
+                            {"type": "error", "data": {"code": "account_disabled", "message": "Account is no longer active"}}
+                        )
+                        await websocket.close(code=4401)
+                        break
+                    try:
+                        fresh_course = await chat_service.ensure_can_chat(
+                            db_session, user=fresh_user, course_id=course_id
+                        )
+                    except ForbiddenError:
+                        await websocket.send_json(
+                            {"type": "error", "data": {"code": "chat_forbidden", "message": "You can no longer chat in this course"}}
+                        )
+                        await websocket.close(code=4403)
+                        break
+                    except NotFoundError:
+                        await websocket.send_json(
+                            {"type": "error", "data": {"code": "course_gone", "message": "Course is no longer available"}}
+                        )
+                        await websocket.close(code=4404)
+                        break
+                    posted = await chat_service.post(
+                        db_session, user=fresh_user, course=fresh_course, body=body
+                    )
                     await db_session.commit()
                 await chat_service.publish(redis, course_id, posted)
             elif kind in {"typing.start", "typing.stop"}:
