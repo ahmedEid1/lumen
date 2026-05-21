@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { CourseCard } from "@/components/course/course-card";
@@ -9,9 +10,14 @@ import { Catalog } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 
 export default function CatalogPage() {
-  const [q, setQ] = useState("");
+  const params = useSearchParams();
+  const [q, setQ] = useState(params.get("q") ?? "");
   const [subject, setSubject] = useState<string | undefined>(undefined);
   const [difficulty, setDifficulty] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    setQ(params.get("q") ?? "");
+  }, [params]);
 
   const subjects = useQuery({ queryKey: qk.subjects, queryFn: () => Catalog.subjects() });
   const courses = useQuery({

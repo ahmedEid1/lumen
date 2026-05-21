@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import { Moon, Sun, GraduationCap, LogOut, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { HeaderSearch } from "@/components/shared/header-search";
 import { NotificationsBell } from "@/components/shared/notifications-bell";
 import { useAuth } from "@/lib/auth/store";
 
@@ -86,6 +87,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <HeaderSearch className="hidden md:block" />
           <ThemeToggle />
           {!ready ? (
             <div className="h-9 w-20 animate-pulse rounded-md bg-muted" aria-hidden />
@@ -148,6 +150,8 @@ export function SiteHeader() {
                 </Link>
               );
             })}
+            <div className="my-2 border-t" />
+            <HeaderSearch className="px-1 py-1" />
             <div className="my-2 border-t" />
             {ready && user ? (
               <>

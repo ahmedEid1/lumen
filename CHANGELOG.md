@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 10)
+- Header search bar (visible on md+ and inside the mobile drawer) routes to
+  `/courses?q=…`; the catalog page now seeds its `q` input from the URL.
+- `POST /api/v1/admin/search/reindex` (202 Accepted) queues a full catalog
+  reindex via Celery; falls back to inline reindex when no broker is
+  reachable. Admin home renders a "Reindex catalog" button under a Search
+  index card.
+- `GET /api/v1/certificates/verify/{certificate_id}` is a public endpoint
+  that returns the certificate's course + display name (no PII). A new
+  `/verify/[id]` Next.js page renders the result so anyone with the ID can
+  confirm a certificate is real.
+
 ### Added (iteration 9)
 - Active-sessions panel on `/profile` — lists each refresh-token session
   with user-agent + IP + age, per-row revoke, and a "Sign out everywhere"

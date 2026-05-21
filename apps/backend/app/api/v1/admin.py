@@ -261,3 +261,26 @@ async def list_audit(
         stmt = stmt.where(AuditEvent.actor_id == actor_id)
     rows = (await db.execute(stmt)).scalars().all()
     return [AuditEventOut.model_validate(r) for r in rows]
+
+
+# ---------- Search ----------
+
+
+@router.post("/search/reindex", response_model=OkResponse, status_code=status.HTTP_202_ACCEPTED)
+async def reindex_search(admin: RequireAdmin, db: DBSession) -> OkResponse:
+    """Queue a full catalog reindex.
+
+    The Celery task is best-effort: if the broker is unavailable (e.g. in a
+    minimal dev/test environment) we run the reindex inline so the operator
+    still gets a result.
+    """
+    await audit_repo.record(db, actor_id=admin.id, action="admin.search.reindex")
+    try:
+        from app.workers.tasks.search import reindex_catalog
+
+        reindex_catalog.delay()
+    except Exception:  # noqa: BLE001 — broker unavailable
+        from app.workers.tasks.search import _reindex
+
+        await _reindex()
+    return OkResponse()

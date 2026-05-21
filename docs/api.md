@@ -183,11 +183,14 @@ Lesson payload is discriminated by `type` (`text` | `video` | `image` | `file` |
 
 ### Certificates (`/api/v1/certificates`)
 - `GET /{course_id}.pdf` — synchronous PDF render, gated on 100% completion + enrollment
+- `GET /verify/{certificate_id}` — public lookup; returns course + learner display name (no PII)
 
 ### Admin (`/api/v1/admin`) — admin role only
 - `POST/PATCH/DELETE /subjects`, `POST/DELETE /tags`
+- `GET /courses?q=&only_featured=&limit=`, `PATCH /courses/{id}/feature`
 - `GET /users?q=&limit=`, `PATCH /users/{user_id}/role`, `PATCH /users/{user_id}/active`
 - `GET /audit?action=&actor_id=&limit=` — append-only audit log
+- `POST /search/reindex` — queue a full search reindex (202 Accepted)
 
 ### Health (`/api/v1/health`)
 - `GET /live` — process is up

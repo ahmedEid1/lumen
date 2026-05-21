@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 
 export default function AdminHome() {
@@ -14,6 +19,13 @@ export default function AdminHome() {
     if (!user) router.replace("/login?next=/admin");
     else if (user.role !== "admin") router.replace("/dashboard");
   }, [ready, user, router]);
+
+  const reindex = useMutation({
+    mutationFn: () => api("/api/v1/admin/search/reindex", { method: "POST" }),
+    onSuccess: () => toast.success("Reindex queued"),
+    onError: (e: any) => toast.error(e?.message ?? "Could not queue reindex"),
+  });
+
   if (!ready || !user || user.role !== "admin") return null;
 
   const tiles = [
@@ -42,6 +54,21 @@ export default function AdminHome() {
           </Link>
         ))}
       </div>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>Search index</CardTitle>
+          <CardDescription>
+            Rebuild the search index from published courses. Runs in the background.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => reindex.mutate()} disabled={reindex.isPending}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${reindex.isPending ? "animate-spin" : ""}`} />
+            {reindex.isPending ? "Queuing…" : "Reindex catalog"}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
