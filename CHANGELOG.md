@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 23)
+- **Failing a quiz retake no longer un-passes a previously-passed lesson.**
+  The quiz endpoint previously routed through `mark_lesson(completed=…)`,
+  which cleared `LessonProgress.completed_at` on every failing attempt.
+  A learner who passed and then retook out of curiosity could lose their
+  completion (and the course-completion certificate that hinged on it).
+  Introduced `enrollment_service.record_quiz_attempt` which always
+  records the latest score but only flips `completed_at` on a passing
+  attempt — and never clears it. Two regression tests in
+  `test_quiz_retake.py` lock the "pass then fail-retake stays complete"
+  and "fail-then-pass marks complete with the new score" paths.
+
 ### Fixed (iteration 22)
 - **Progress could exceed 100% after a lesson was soft-deleted.**
   `count_completed_lessons`, the per-course `avg_progress_pct`, and the

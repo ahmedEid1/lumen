@@ -42,6 +42,58 @@ async def unenroll(db: AsyncSession, *, user: User, course: Course) -> None:
         await db.delete(enrollment)
 
 
+async def record_quiz_attempt(
+    db: AsyncSession,
+    *,
+    user: User,
+    lesson: Lesson,
+    score: int,
+    passed: bool,
+    payload: dict[str, Any] | None = None,
+) -> tuple[Enrollment, LessonProgress, float]:
+    """Persist a quiz attempt.
+
+    Unlike :func:`mark_lesson`, a failing retake never clears a previously
+    earned ``completed_at`` — once a learner has passed a quiz, the lesson
+    stays complete regardless of subsequent attempts. The latest score is
+    always stored on ``LessonProgress.score``.
+    """
+    mod = await courses_repo.get_module(db, lesson.module_id)
+    if mod is None:
+        raise NotFoundError("Module not found", code="module.not_found")
+    course = await courses_repo.get_course(db, mod.course_id)
+    if course is None:
+        raise NotFoundError("Course not found", code="course.not_found")
+    enrollment = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
+    if not enrollment:
+        raise ForbiddenError("Not enrolled", code="enrollment.required")
+
+    lp = await courses_repo.get_or_create_progress(db, enrollment_id=enrollment.id, lesson_id=lesson.id)
+    lp.score = max(0, min(100, score))
+    if payload:
+        lp.payload = {**(lp.payload or {}), **payload}
+    if passed:
+        await courses_repo.mark_completed(db, lp, payload=None)
+
+    total = await courses_repo.count_lessons_in_course(db, course.id)
+    done = await courses_repo.count_completed_lessons(db, enrollment.id)
+    pct = (done / total * 100.0) if total else 0.0
+
+    if total and done == total and not enrollment.completed_at:
+        enrollment.completed_at = datetime.now(timezone.utc)
+        enrollment.certificate_id = f"cert_{new_id()}"
+        await notifications_repo.create(
+            db,
+            user_id=user.id,
+            kind=NotificationKind.certificate_ready,
+            title=f"Certificate ready: {course.title}",
+            body="Congratulations on completing the course!",
+            data={"course_id": course.id, "certificate_id": enrollment.certificate_id},
+        )
+
+    return enrollment, lp, pct
+
+
 async def mark_lesson(
     db: AsyncSession,
     *,

@@ -134,18 +134,18 @@ async def submit_quiz(
 
     result = quiz_service.grade(lesson.data or {}, payload.answers)
 
-    enrollment, lp, pct = await enrollment_service.mark_lesson(
+    enrollment, lp, pct = await enrollment_service.record_quiz_attempt(
         db,
         user=user,
         lesson=lesson,
-        completed=result.passed,
+        score=result.score,
+        passed=result.passed,
         payload={
             "answers": payload.answers,
             "score": result.score,
             "passed": result.passed,
         },
     )
-    lp.score = max(0, min(100, result.score))
 
     return QuizSubmitResponse(
         lesson_id=lesson.id,
