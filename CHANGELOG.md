@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 80)
+- **Notification bell deep-links to the relevant entity.** Click on
+  a notification now both marks it read and (when the kind carries
+  enough payload) navigates to the target: enrolled / cert-ready /
+  lesson-available → course detail; review-received → course
+  detail + #reviews anchor; discussion-reply → the thread page
+  added in iter 78. Hover affordance + cursor only appear when a
+  deep-link is available; notifications without a known target
+  still mark-as-read on click.
+
 ### Added (iteration 79)
 - **Discussion replies notify the thread author.** New
   `NotificationKind.discussion_reply` ping in the asker's inbox

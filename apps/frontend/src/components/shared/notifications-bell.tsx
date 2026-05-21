@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,9 +19,32 @@ type Notification = {
   read_at: string | null;
 };
 
+/** Map a notification to a deep-link URL using its kind + data payload. */
+function targetHref(n: Notification): string | null {
+  const d = n.data || {};
+  switch (n.kind) {
+    case "enrolled":
+    case "lesson_available":
+      return d.course_id ? `/courses/${d.course_id}` : null;
+    case "certificate_ready":
+      return d.course_id ? `/courses/${d.course_id}` : null;
+    case "review_received":
+      return d.course_id
+        ? `/courses/${d.course_id}#reviews`
+        : null;
+    case "discussion_reply":
+      return d.discussion_id && d.course_id
+        ? `/courses/${d.course_id}/discussions/${d.discussion_id}`
+        : null;
+    default:
+      return null;
+  }
+}
+
 export function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
+  const router = useRouter();
   const q = useQuery({
     queryKey: qk.notifications,
     queryFn: () => api<Notification[]>("/api/v1/me/notifications"),
@@ -81,23 +105,32 @@ export function NotificationsBell() {
             </div>
             <ul className="max-h-96 overflow-y-auto">
               {q.data?.length ? (
-                q.data.map((n) => (
-                  <li
-                    key={n.id}
-                    className={`flex flex-col gap-1 border-b px-3 py-2 text-sm last:border-0 ${
-                      !n.read_at ? "bg-primary/5" : ""
-                    }`}
-                    onClick={() => !n.read_at && markRead.mutate(n.id)}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <strong className="truncate">{n.title}</strong>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {formatRelative(n.created_at)}
-                      </span>
-                    </div>
-                    {n.body && <p className="text-muted-foreground">{n.body}</p>}
-                  </li>
-                ))
+                q.data.map((n) => {
+                  const href = targetHref(n);
+                  return (
+                    <li
+                      key={n.id}
+                      className={`flex flex-col gap-1 border-b px-3 py-2 text-sm last:border-0 ${
+                        href ? "cursor-pointer hover:bg-muted/50" : ""
+                      } ${!n.read_at ? "bg-primary/5" : ""}`}
+                      onClick={() => {
+                        if (!n.read_at) markRead.mutate(n.id);
+                        if (href) {
+                          setOpen(false);
+                          router.push(href);
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <strong className="truncate">{n.title}</strong>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {formatRelative(n.created_at)}
+                        </span>
+                      </div>
+                      {n.body && <p className="text-muted-foreground">{n.body}</p>}
+                    </li>
+                  );
+                })
               ) : (
                 <li className="px-3 py-6 text-center text-sm text-muted-foreground">
                   Nothing here yet.
