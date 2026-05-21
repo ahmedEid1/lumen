@@ -8,12 +8,17 @@ import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Cartouche } from "@/components/lumen/cartouche";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 export default function AdminHome() {
   const { user, ready } = useAuth();
   const router = useRouter();
+  const t = useT();
+
   useEffect(() => {
     if (!ready) return;
     if (!user) router.replace("/login?next=/admin");
@@ -22,8 +27,8 @@ export default function AdminHome() {
 
   const reindex = useMutation({
     mutationFn: () => api("/api/v1/admin/search/reindex", { method: "POST" }),
-    onSuccess: () => toast.success("Reindex queued"),
-    onError: (e: Error) => toast.error(e?.message ?? "Could not queue reindex"),
+    onSuccess: () => toast.success(t("admin.searchIndex.toast")),
+    onError: (e: Error) => toast.error(e?.message ?? t("admin.searchIndex.error")),
   });
 
   const stats = useQuery({
@@ -43,63 +48,65 @@ export default function AdminHome() {
 
   if (!ready || !user || user.role !== "admin") return null;
 
-  const tiles = [
-    { href: "/admin/subjects", title: "Subjects", body: "Manage the taxonomy of the catalog." },
-    { href: "/admin/tags", title: "Tags", body: "Curate the public tag list." },
-    { href: "/admin/courses", title: "Courses", body: "Oversee the catalog, set featured." },
-    { href: "/admin/users", title: "Users", body: "Promote instructors, manage activity." },
-    { href: "/admin/audit", title: "Audit log", body: "Track sensitive admin actions." },
+  const tiles: { href: string; titleKey: MessageKey; bodyKey: MessageKey }[] = [
+    { href: "/admin/subjects", titleKey: "admin.tile.subjects.title", bodyKey: "admin.tile.subjects.body" },
+    { href: "/admin/tags", titleKey: "admin.tile.tags.title", bodyKey: "admin.tile.tags.body" },
+    { href: "/admin/courses", titleKey: "admin.tile.courses.title", bodyKey: "admin.tile.courses.body" },
+    { href: "/admin/users", titleKey: "admin.tile.users.title", bodyKey: "admin.tile.users.body" },
+    { href: "/admin/audit", titleKey: "admin.tile.audit.title", bodyKey: "admin.tile.audit.body" },
   ];
 
   return (
-    <div className="container mx-auto px-4 py-10">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Admin</h1>
-        <p className="text-muted-foreground">Operate the platform.</p>
+    <div className="container mx-auto px-4 py-14">
+      <header className="mb-10 flex flex-col gap-3">
+        <Cartouche>{t("admin.cartouche")}</Cartouche>
+        <h1 className="font-display text-4xl font-medium tracking-tight">{t("admin.title")}</h1>
+        <p className="font-body text-lg text-muted-foreground">{t("admin.subtitle")}</p>
       </header>
+
       {stats.data && (
-        <Card className="mb-8">
+        <Card className="mb-8 scroll-paper border-gold/20">
           <CardHeader>
-            <CardTitle>Platform at a glance</CardTitle>
+            <CardTitle className="font-display text-2xl">{t("admin.stats.title")}</CardTitle>
           </CardHeader>
           <CardContent>
             <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4 lg:grid-cols-7">
-              <StatTile label="Users" value={stats.data.users} />
-              <StatTile label="Active" value={stats.data.active_users} />
-              <StatTile label="Instructors" value={stats.data.instructors} />
-              <StatTile label="Courses" value={stats.data.courses_total} />
-              <StatTile label="Published" value={stats.data.courses_published} />
-              <StatTile label="Drafts" value={stats.data.courses_draft} />
-              <StatTile label="Enrollments" value={stats.data.enrollments} />
+              <StatTile label={t("admin.stat.users")} value={stats.data.users} />
+              <StatTile label={t("admin.stat.active")} value={stats.data.active_users} />
+              <StatTile label={t("admin.stat.instructors")} value={stats.data.instructors} />
+              <StatTile label={t("admin.stat.courses")} value={stats.data.courses_total} />
+              <StatTile label={t("admin.stat.published")} value={stats.data.courses_published} />
+              <StatTile label={t("admin.stat.drafts")} value={stats.data.courses_draft} />
+              <StatTile label={t("admin.stat.enrollments")} value={stats.data.enrollments} />
             </dl>
           </CardContent>
         </Card>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tiles.map((t) => (
-          <Link key={t.href} href={t.href}>
-            <Card className="h-full transition-shadow hover:shadow-md">
+        {tiles.map((tile) => (
+          <Link key={tile.href} href={tile.href}>
+            <Card className="h-full scroll-paper border-border transition-colors hover:border-gold/40">
               <CardHeader>
-                <CardTitle>{t.title}</CardTitle>
-                <CardDescription>{t.body}</CardDescription>
+                <CardTitle className="font-display text-xl transition-colors hover:text-gold">
+                  {t(tile.titleKey)}
+                </CardTitle>
+                <CardDescription className="font-body">{t(tile.bodyKey)}</CardDescription>
               </CardHeader>
             </Card>
           </Link>
         ))}
       </div>
 
-      <Card className="mt-8">
+      <Card className="mt-8 scroll-paper border-gold/20">
         <CardHeader>
-          <CardTitle>Search index</CardTitle>
-          <CardDescription>
-            Rebuild the search index from published courses. Runs in the background.
-          </CardDescription>
+          <CardTitle className="font-display text-2xl">{t("admin.searchIndex.title")}</CardTitle>
+          <CardDescription className="font-body">{t("admin.searchIndex.body")}</CardDescription>
         </CardHeader>
         <CardContent>
           <Button onClick={() => reindex.mutate()} disabled={reindex.isPending}>
             <RefreshCw className={`me-2 h-4 w-4 ${reindex.isPending ? "animate-spin" : ""}`} />
-            {reindex.isPending ? "Queuing…" : "Reindex catalog"}
+            {reindex.isPending ? t("admin.searchIndex.submitting") : t("admin.searchIndex.submit")}
           </Button>
         </CardContent>
       </Card>
@@ -109,9 +116,9 @@ export default function AdminHome() {
 
 function StatTile({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border bg-background p-3">
-      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-2xl font-semibold tabular-nums">{value.toLocaleString()}</dd>
+    <div className="rounded-md border border-border bg-background/40 p-3">
+      <dt className="text-[0.62rem] uppercase tracking-[0.28em] text-gold/70">{label}</dt>
+      <dd className="mt-1 font-display text-2xl tabular-nums">{value.toLocaleString()}</dd>
     </div>
   );
 }
