@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs (iteration 65)
+- **ADR-0011 documenting Idempotency-Key and rate-limit identity.**
+  Both decisions answer "who is this request?" — Idempotency to
+  scope a replay cache, rate-limiting to scope a token bucket —
+  and the same forces apply (NAT-share is unsafe, JWT verification
+  is expensive on the hot path, cookies must be hashed not decoded).
+  Grouping them in one ADR makes future drift visible: if either
+  ever needs to change its identity strategy, the other should be
+  re-examined too.
+
 ### Added (iteration 64)
 - **Email-change UI on the profile page.** Iter 59 shipped the
   backend two-step flow but no UI surfaced it. Profile page now has
