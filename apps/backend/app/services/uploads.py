@@ -17,6 +17,23 @@ from app.core.ids import new_id
 if TYPE_CHECKING:
     from app.models.user import User
 
+# Types we refuse for every kind because S3 serves uploaded blobs at the
+# Content-Type the client picked, and the bucket is publicly readable —
+# image/svg+xml carries <script>, text/html *is* a script vector, and
+# anything that renders/executes in a browser turns the public bucket
+# into a hosted-phishing/XSS surface on the platform's own domain.
+ALWAYS_DENIED_TYPES = frozenset(
+    {
+        "text/html",
+        "text/xhtml+xml",
+        "application/xhtml+xml",
+        "image/svg+xml",
+        "application/javascript",
+        "application/x-javascript",
+        "text/javascript",
+    }
+)
+
 ALLOWED_PER_KIND = {
     "avatar": {"image/png", "image/jpeg", "image/webp"},
     "lesson": {
@@ -32,7 +49,37 @@ ALLOWED_PER_KIND = {
         "application/zip",
     },
     "cover": {"image/png", "image/jpeg", "image/webp"},
-    "attachment": {"*"},
+    # Attachments used to wildcard ("*") — that let any authenticated
+    # user PUT text/html or image/svg+xml to the public bucket, hosting
+    # phishing/XSS pages on the platform's own origin. The list below is
+    # the union of common doc/media/code-bundle types learners actually
+    # attach. Anything novel should be added here explicitly.
+    "attachment": {
+        "application/pdf",
+        "application/zip",
+        "application/x-7z-compressed",
+        "application/x-tar",
+        "application/gzip",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.ms-excel",
+        "application/vnd.ms-powerpoint",
+        "application/json",
+        "text/plain",
+        "text/markdown",
+        "text/csv",
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/gif",
+        "video/mp4",
+        "video/webm",
+        "audio/mpeg",
+        "audio/ogg",
+        "audio/wav",
+    },
 }
 
 MAX_BYTES_PER_KIND = {
@@ -72,8 +119,15 @@ def sign_upload(
 ) -> dict[str, object]:
     if kind not in ALLOWED_PER_KIND:
         raise ValidationAppError("Unsupported upload kind", code="upload.kind")
+    # Defense-in-depth: even if a future kind opens its allow-list, these
+    # types are forever rejected because they execute / render in a
+    # browser and the public bucket would happily serve them as-is.
+    if content_type.lower() in ALWAYS_DENIED_TYPES:
+        raise ValidationAppError(
+            "Content-Type not allowed", code="upload.content_type_denied"
+        )
     allowed = ALLOWED_PER_KIND[kind]
-    if "*" not in allowed and content_type not in allowed:
+    if content_type not in allowed:
         raise ValidationAppError(
             "Content-Type not allowed for this kind", code="upload.content_type",
             details={"allowed": sorted(allowed)},

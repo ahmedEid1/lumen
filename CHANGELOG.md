@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 38)
+- **Removed the `"*"` content-type wildcard for attachment uploads.**
+  The `attachment` kind's allow-list was `{"*"}` — any authenticated
+  user could PUT `text/html` / `image/svg+xml` / `application/javascript`
+  to the public bucket via a presigned URL, and S3 served those blobs
+  inline with the requested Content-Type. Because the bucket sits on
+  the platform's own DNS, that turned the upload endpoint into a
+  hosted-XSS/phishing surface. Replaced with an enumerated set of
+  doc/archive/media/code types learners actually attach. Added
+  `ALWAYS_DENIED_TYPES` — applied before every per-kind check — as
+  defense-in-depth so any future kind cannot re-open the same hole
+  for HTML, SVG, or JavaScript. Covered by
+  `tests/test_uploads_content_type_safety.py` (7 tests: structural
+  invariants on the allow-list, parameterised rejection of every
+  classic XSS carrier, plus the happy path for an attachment PDF).
+
 ### Fixed (iteration 37)
 - **Password-reset and email-verify links pointed at the API host.**
   Both link builders used `settings.api_base_url` (FastAPI, port 8000
