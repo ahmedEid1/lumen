@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import desc, func, select
 
 from app.api.deps import CurrentUser, DBSession, client_ip, user_agent
@@ -16,6 +16,7 @@ from app.models.course import Enrollment, Review
 from app.models.user import RefreshToken
 from app.repositories import audit as audit_repo
 from app.repositories import users as users_repo
+from app.schemas.auth import PASSWORD_MIN, validate_password_strength
 from app.schemas.common import OkResponse
 from app.schemas.user import UserOut, UserUpdate
 
@@ -24,7 +25,12 @@ router = APIRouter()
 
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
-    new_password: str = Field(min_length=12, max_length=128)
+    new_password: str = Field(min_length=PASSWORD_MIN, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def _strength(cls, v: str) -> str:
+        return validate_password_strength(v)
 
 
 class DeleteAccountRequest(BaseModel):

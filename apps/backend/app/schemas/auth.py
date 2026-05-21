@@ -7,6 +7,18 @@ from app.schemas.user import UserOut
 PASSWORD_MIN = 12
 
 
+def validate_password_strength(v: str) -> str:
+    """Shared password policy applied to every endpoint that accepts a new
+    password (register, reset-confirm, change-password). Keeping the check
+    in one place stops a downgrade path where an attacker (or careless
+    user) could bypass the registration policy via the reset/change flow.
+    Cheap structural check; HIBP / breach-list lookup is future work.
+    """
+    if v.isalnum() and v.lower() == v:
+        raise ValueError("password must mix character classes")
+    return v
+
+
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=PASSWORD_MIN, max_length=128)
@@ -15,10 +27,7 @@ class RegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def _strength(cls, v: str) -> str:
-        # Cheap structural check; full strength enforced server-side (HIBP optional).
-        if v.isalnum() and v.lower() == v:
-            raise ValueError("password must mix character classes")
-        return v
+        return validate_password_strength(v)
 
 
 class LoginRequest(BaseModel):
@@ -40,6 +49,11 @@ class PasswordResetRequest(BaseModel):
 class PasswordResetConfirm(BaseModel):
     token: str = Field(min_length=10, max_length=200)
     password: str = Field(min_length=PASSWORD_MIN, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def _strength(cls, v: str) -> str:
+        return validate_password_strength(v)
 
 
 class EmailVerifyConfirm(BaseModel):

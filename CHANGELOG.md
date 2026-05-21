@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 39)
+- **Unified password strength policy across register / reset / change.**
+  Only `RegisterRequest` ran the "mix character classes" check; the
+  reset-confirm and change-password endpoints enforced just
+  `min_length=12`. So a user who registered with `Password!1234` could
+  downgrade to `password12345` via either flow — bypassing the policy
+  they agreed to at signup, and giving anyone with a reset token (or
+  the user's current session) an easier offline-cracking target.
+  Extracted `validate_password_strength` into `app.schemas.auth` and
+  wired it to all three sites. Covered by
+  `tests/test_password_policy.py` (8 tests: parameterised
+  validator accept/reject, schema-level checks on both reset and
+  register, end-to-end rejection at reset and change endpoints, plus
+  a happy-path change-password to verify the tightening didn't break
+  the normal flow).
+
 ### Security (iteration 38)
 - **Removed the `"*"` content-type wildcard for attachment uploads.**
   The `attachment` kind's allow-list was `{"*"}` — any authenticated
