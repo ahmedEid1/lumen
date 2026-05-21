@@ -121,6 +121,47 @@ async def test_etag_differs_for_enrolled_vs_anonymous(
     assert anon.headers["etag"] != authed.headers["etag"]
 
 
+async def test_cache_control_private_for_authed_public_for_anon(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+) -> None:
+    """Iter 84: per-viewer fields in the body mean an authenticated
+    response must not be cached in any shared proxy. Anonymous can
+    be cached briefly but Vary tells a CDN it cannot serve an authed
+    request with the cached anon body."""
+    teacher = await auth_headers(role=Role.instructor)
+    student = await auth_headers(role=Role.student)
+    subject = await _make_subject(db_session)
+    course_id = await _published(client, teacher, subject.id, seed_lesson)
+
+    anon = await client.get(f"/api/v1/courses/{course_id}")
+    assert anon.headers["cache-control"] == "public, max-age=60, must-revalidate"
+
+    authed = await client.get(f"/api/v1/courses/{course_id}", headers=student)
+    assert authed.headers["cache-control"] == "private, max-age=0, must-revalidate"
+
+    for r in (anon, authed):
+        assert "Authorization" in r.headers["vary"]
+
+
+async def test_304_response_also_carries_cache_control_and_vary(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+) -> None:
+    """A 304 hands the client an empty body — the proxy in front of
+    them still needs Cache-Control + Vary to handle it correctly."""
+    teacher = await auth_headers(role=Role.instructor)
+    subject = await _make_subject(db_session)
+    course_id = await _published(client, teacher, subject.id, seed_lesson)
+
+    first = await client.get(f"/api/v1/courses/{course_id}")
+    etag = first.headers["etag"]
+    not_mod = await client.get(
+        f"/api/v1/courses/{course_id}", headers={"If-None-Match": etag}
+    )
+    assert not_mod.status_code == 304
+    assert "must-revalidate" in not_mod.headers["cache-control"]
+    assert "Authorization" in not_mod.headers["vary"]
+
+
 async def test_mismatched_if_none_match_returns_full_body(
     client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:

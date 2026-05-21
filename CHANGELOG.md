@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 84)
+- **ETag on course detail now carries auth-aware cache hints.** Iter
+  76 added the ETag itself but the response had no `Cache-Control`
+  / `Vary` headers, leaving the decision up to whatever proxy was
+  in front. A CDN could cache an authenticated 200 and serve it
+  back to an anonymous caller hitting the same URL — the body
+  contains `is_enrolled`, `is_bookmarked`, `progress_pct` per-viewer
+  state. Authenticated now → `private, max-age=0, must-revalidate`;
+  anonymous → `public, max-age=60, must-revalidate`; both carry
+  `Vary: Accept-Encoding, Authorization, Cookie`. The 304 path
+  re-emits both headers (raised exceptions don't inherit response-
+  object headers). Two new tests in `test_course_detail_etag.py`.
+
 ### Added (iteration 83)
 - **Branded HTML emails alongside plain text.** Every transactional
   email (password reset, verify, email-change confirm) now goes out

@@ -110,13 +110,35 @@ async def get_course(
     )
     etag = 'W/"' + hashlib.sha256(fingerprint.encode()).hexdigest()[:32] + '"'
     if_none_match = request.headers.get("if-none-match", "")
+    # Auth-aware caching headers. The body carries per-viewer fields
+    # (is_enrolled, is_bookmarked, completed lessons) so:
+    #   * authenticated  → private cache only; no CDN, no shared proxy
+    #   * anonymous      → short public cache, must-revalidate against ETag
+    # Vary makes the difference explicit so a CDN cannot serve a
+    # cached anonymous body to an authenticated request with the same
+    # URL (or vice versa).
+    if viewer is not None:
+        response.headers["Cache-Control"] = "private, max-age=0, must-revalidate"
+    else:
+        response.headers["Cache-Control"] = "public, max-age=60, must-revalidate"
+    response.headers["Vary"] = "Accept-Encoding, Authorization, Cookie"
     if if_none_match == etag:
         # Returning a Response with no body from a typed endpoint
         # requires raising — FastAPI would otherwise serialise None
         # against response_model. Status 304 also forbids a body.
+        # The Cache-Control / Vary set on ``response`` above DON'T
+        # propagate to a raised exception, so we re-emit them on the
+        # 304 headers manually.
         from fastapi import HTTPException
 
-        raise HTTPException(status_code=304, headers={"ETag": etag})
+        raise HTTPException(
+            status_code=304,
+            headers={
+                "ETag": etag,
+                "Cache-Control": response.headers["Cache-Control"],
+                "Vary": response.headers["Vary"],
+            },
+        )
     response.headers["ETag"] = etag
 
     return _builders.detail(
