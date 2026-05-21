@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { CourseCard } from "@/components/course/course-card";
 import { Input } from "@/components/ui/input";
 import { Catalog } from "@/lib/api/endpoints";
@@ -14,15 +14,18 @@ export default function CatalogPage() {
   const [q, setQ] = useState(params.get("q") ?? "");
   const [subject, setSubject] = useState<string | undefined>(undefined);
   const [difficulty, setDifficulty] = useState<string | undefined>(undefined);
+  const [tag, setTag] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     setQ(params.get("q") ?? "");
   }, [params]);
 
   const subjects = useQuery({ queryKey: qk.subjects, queryFn: () => Catalog.subjects() });
+  const tags = useQuery({ queryKey: qk.tags, queryFn: () => Catalog.tags() });
   const courses = useQuery({
-    queryKey: qk.catalog({ q, subject, difficulty }),
-    queryFn: () => Catalog.courses({ q, subject, difficulty, page: 1, page_size: 30 }),
+    queryKey: qk.catalog({ q, subject, difficulty, tag }),
+    queryFn: () =>
+      Catalog.courses({ q, subject, difficulty, tag, page: 1, page_size: 30 }),
   });
 
   return (
@@ -68,6 +71,35 @@ export default function CatalogPage() {
             <option value="advanced">Advanced</option>
           </select>
         </div>
+
+        {tags.data && tags.data.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Tag filter">
+            {tag && (
+              <button
+                type="button"
+                onClick={() => setTag(undefined)}
+                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                aria-label="Clear tag filter"
+              >
+                <X className="h-3 w-3" /> {tag}
+              </button>
+            )}
+            {tags.data
+              .filter((t) => t.slug !== tag)
+              .slice(0, 20)
+              .map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTag(t.slug)}
+                  className="rounded-full border px-3 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-pressed={tag === t.slug}
+                >
+                  {t.name}
+                </button>
+              ))}
+          </div>
+        )}
       </header>
 
       {courses.isLoading ? (

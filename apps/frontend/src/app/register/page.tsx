@@ -23,7 +23,7 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await register({ email, password, full_name: fullName });
-      toast.success("Account created!");
+      toast.success("Account created — check your inbox to verify your email");
       router.push("/dashboard");
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Could not create account";

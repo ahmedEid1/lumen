@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 11)
+- Chat WebSocket auto-reconnects with exponential backoff (1s → 30s, six
+  steps) and a coloured status pill ("Reconnecting…"). Server-refused
+  closes (4401/4403/4404) stop retrying. Backoff + retry logic lives in
+  `lib/reconnect.ts` and is unit-tested.
+- Catalog page renders tag filter chips below the row of selects; clicking
+  one filters by `?tag=<slug>`, with a clear button when active.
+- Register success toast now hints that a verification email is on the way.
+
+### Changed (iteration 11)
+- Catalog tag list fetched once via the existing `/tags` endpoint and
+  capped at 20 chips to keep the header compact.
+
 ### Added (iteration 10)
 - Header search bar (visible on md+ and inside the mobile drawer) routes to
   `/courses?q=…`; the catalog page now seeds its `q` input from the URL.

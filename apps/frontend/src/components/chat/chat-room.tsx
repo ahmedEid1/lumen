@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { env } from "@/lib/env";
+import { nextBackoff, shouldRetry } from "@/lib/reconnect";
 import type { ChatMessageOut } from "@/lib/api/types";
 
 type Frame =
@@ -14,10 +15,12 @@ type Frame =
   | { type: "typing"; data: { user_id: string; active: boolean } }
   | { type: "error"; data: { code: string; message: string } };
 
+type ConnState = "connecting" | "open" | "reconnecting" | "closed";
+
 export function ChatRoom({ courseId, token }: { courseId: string; token: string | null }) {
   const [messages, setMessages] = useState<ChatMessageOut[]>([]);
   const [draft, setDraft] = useState("");
-  const [connected, setConnected] = useState(false);
+  const [state, setState] = useState<ConnState>("connecting");
   const [online, setOnline] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -28,24 +31,61 @@ export function ChatRoom({ courseId, token }: { courseId: string; token: string 
   }, [courseId, token]);
 
   useEffect(() => {
-    if (!url) return;
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
-    ws.onmessage = (evt) => {
-      try {
-        const frame = JSON.parse(evt.data) as Frame;
-        if (frame.type === "message") {
-          setMessages((m) => [...m, frame.data]);
-        } else if (frame.type === "presence") {
-          setOnline(frame.data.online);
+    if (!url) {
+      setState("closed");
+      return;
+    }
+    let cancelled = false;
+    let attempt = 0;
+    let retryHandle: ReturnType<typeof setTimeout> | null = null;
+
+    function connect() {
+      if (cancelled) return;
+      setState(attempt === 0 ? "connecting" : "reconnecting");
+      const ws = new WebSocket(url!);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (cancelled) {
+          ws.close();
+          return;
         }
-      } catch {
-        // swallow
-      }
+        attempt = 0;
+        setState("open");
+      };
+      ws.onmessage = (evt) => {
+        try {
+          const frame = JSON.parse(evt.data) as Frame;
+          if (frame.type === "message") {
+            setMessages((m) => [...m, frame.data]);
+          } else if (frame.type === "presence") {
+            setOnline(frame.data.online);
+          }
+        } catch {
+          // swallow malformed frames
+        }
+      };
+      ws.onclose = (evt) => {
+        wsRef.current = null;
+        if (cancelled) return;
+        if (!shouldRetry(evt.code)) {
+          setState("closed");
+          return;
+        }
+        const delay = nextBackoff(attempt);
+        attempt += 1;
+        setState("reconnecting");
+        retryHandle = setTimeout(connect, delay);
+      };
+    }
+
+    connect();
+
+    return () => {
+      cancelled = true;
+      if (retryHandle) clearTimeout(retryHandle);
+      wsRef.current?.close();
     };
-    return () => ws.close();
   }, [url]);
 
   useEffect(() => {
@@ -58,10 +98,35 @@ export function ChatRoom({ courseId, token }: { courseId: string; token: string 
     setDraft("");
   }
 
+  const connected = state === "open";
+  const statusLabel =
+    state === "open"
+      ? `Connected · ${online.length} online`
+      : state === "reconnecting"
+        ? "Reconnecting…"
+        : state === "connecting"
+          ? "Connecting…"
+          : "Disconnected";
+
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b px-4 py-2 text-xs text-muted-foreground">
-        {connected ? `Connected · ${online.length} online` : "Disconnected"}
+      <div
+        className={`flex items-center gap-2 border-b px-4 py-2 text-xs ${
+          connected ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"
+        }`}
+        aria-live="polite"
+      >
+        <span
+          className={`inline-block h-2 w-2 rounded-full ${
+            connected
+              ? "bg-emerald-500"
+              : state === "reconnecting" || state === "connecting"
+                ? "animate-pulse bg-amber-500"
+                : "bg-muted-foreground"
+          }`}
+          aria-hidden
+        />
+        {statusLabel}
       </div>
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.length === 0 && (
