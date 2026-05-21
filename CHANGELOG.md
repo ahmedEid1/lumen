@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 47)
+- **Bookmark endpoint respects course visibility.** `add_bookmark`
+  loaded the course via `courses_repo.get_course` (filters only
+  `deleted_at`), so a user who knew or guessed a draft/archived
+  course id could PUT `/me/bookmarks/{id}` and then read the
+  bookmark listing to see title/overview/owner/subject/tags — every
+  field the catalog hides from non-owners. Same shape as the
+  duplicate-course leak fixed in iter 46. Now `can_view_course`
+  runs at both bookmark-add and list time; non-owner attempts on a
+  private course return 404 (matching detail/duplicate posture).
+  Existing bookmarks pointing at a course that has since gone
+  back to draft are silently filtered from the listing rather than
+  ghost-leaking when visibility flips. Covered by
+  `tests/test_bookmark_visibility.py` (5 tests: draft + archived
+  rejected for strangers, listing hides post-flip-to-draft, owner
+  can bookmark own draft, enrolled learner can bookmark archived).
+
 ### Security (iteration 46)
 - **`duplicate_course` no longer exposes other instructors' drafts.**
   The docstring claimed *"instructors can copy any **published**
