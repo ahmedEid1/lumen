@@ -12,7 +12,12 @@ x-api-env: &api-env
   # pydantic-settings v2 parses ``list[str]`` env vars as JSON before
   # the @field_validator(mode="before") gets a chance, so the value
   # must be a JSON array — not a comma-separated string.
-  CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
+  #
+  # `http://web:3000` is required by the `e2e` profile: the bundle
+  # served to Playwright inside the e2e container has origin
+  # `http://web:3000`, and without it the api rejects every API
+  # call with `400 Disallowed CORS origin` (iter 103).
+  CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000","http://web:3000"]}
   DATABASE_URL: ${DATABASE_URL}
   DATABASE_URL_SYNC: ${DATABASE_URL_SYNC}
   REDIS_URL: ${REDIS_URL}

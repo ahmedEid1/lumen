@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 103) — whitelist `http://web:3000` in api CORS
+- After iter 102 the e2e bundle correctly POSTed to
+  `http://api:8000/api/v1/auth/login`, but the api still
+  returned `400 Disallowed CORS origin`. Pre-flight from
+  `Origin: http://web:3000` was being rejected because
+  `CORS_ORIGINS` only whitelisted `http://localhost:3000`.
+  Added `http://web:3000` to:
+  - the `CORS_ORIGINS` default in `docker-compose.yml` (so
+    a fresh checkout without `.env` works out of the box)
+  - `.env.example` (so the next person who copies it forward
+    inherits the e2e-friendly value); the comment now also
+    pins the JSON-array shape iter 98 first required.
+  Local `.env` was edited too (not committed — gitignored).
+- **Regression test**:
+  `apps/frontend/tests/compose-cors.test.ts` reads the compose
+  file and asserts the default `CORS_ORIGINS` substitution
+  includes both `localhost:3000` and `web:3000`. A future
+  edit that drops the e2e entry fails CI before the symptom
+  resurfaces as a silent login failure.
+- **Result**: 4/12 → 6/12 specs green —
+  `smoke › student signs in and reaches dashboard` now passes
+  on both chromium and webkit. The remaining 6 failures
+  (instructor-flow, learner-journey enroll/complete,
+  learner-journey language-switcher) surface deeper-in-the-flow
+  test bugs that belong to iter 104+.
+
 ### Fixed (iteration 102) — browser-side API base URL inside the e2e container
 - The dev bundle is built with `NEXT_PUBLIC_API_BASE_URL=
   http://localhost:8000` so a host browser can reach the
