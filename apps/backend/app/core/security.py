@@ -79,3 +79,17 @@ def hash_refresh_token(token: str) -> str:
     import hashlib
 
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def pwh_fingerprint(password_hash: str) -> str:
+    """Stable short identifier derived from the argon2 hash tail.
+
+    Used in single-use tokens (password reset, email change) to bind
+    the token to the password that was current at mint time — rotating
+    the password rotates the salt+digest tail, invalidating any
+    outstanding token without needing server-side state.
+
+    16 chars of an argon2 digest is still ~96 bits of entropy; collision
+    with a different hash is implausible at any realistic user count.
+    """
+    return password_hash[-16:]

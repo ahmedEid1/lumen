@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.errors import UnauthorizedError
 from app.core.logging import get_logger
-from app.core.security import hash_password
+from app.core.security import hash_password, pwh_fingerprint
 from app.models.user import User
 from app.repositories import audit as audit_repo
 from app.repositories import users as users_repo
@@ -21,13 +21,6 @@ log = get_logger(__name__)
 _PURPOSE = "pw-reset"
 
 
-def _pwh_fingerprint(user: User) -> str:
-    """Last 16 chars of the password hash — rotating the password
-    rotates the salt+digest tail, which invalidates outstanding
-    reset tokens."""
-    return user.password_hash[-16:]
-
-
 def make_token(user: User) -> str:
     s = get_settings()
     now = int(time.time())
@@ -36,7 +29,7 @@ def make_token(user: User) -> str:
         "iat": now,
         "exp": now + s.password_reset_ttl_seconds,
         "purpose": _PURPOSE,
-        "pwh": _pwh_fingerprint(user),
+        "pwh": pwh_fingerprint(user.password_hash),
         "iss": "lumen",
     }
     return jwt.encode(payload, s.jwt_secret.get_secret_value(), algorithm=s.jwt_algorithm)
@@ -65,7 +58,7 @@ async def confirm_reset(db: AsyncSession, *, token: str, new_password: str) -> U
     user = await users_repo.get_by_id(db, str(payload.get("sub", "")))
     if not user or not user.is_active:
         raise UnauthorizedError("Account not found", code="auth.reset_invalid")
-    if payload.get("pwh") != _pwh_fingerprint(user):
+    if payload.get("pwh") != pwh_fingerprint(user.password_hash):
         # Token was issued against a different password hash → already consumed or rotated.
         raise UnauthorizedError("Reset link already used", code="auth.reset_used")
 

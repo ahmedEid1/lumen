@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 39) — consolidate `pwh_fingerprint` into `core.security`
+Two iters of per-file `_pwh_fingerprint` extraction (iters 33 +
+38) left two copies of the same 4-line helper across
+`services/email_change.py` and `services/password_reset.py`.
+Hoisted the canonical version to `app.core.security` as a public
+`pwh_fingerprint(password_hash: str) -> str` and removed both
+per-service duplicates.
+
+Why now: cross-module DRY of a security primitive belongs in
+the security module — co-locating it with `hash_password`,
+`verify_password`, `hash_refresh_token` etc. makes the
+"if you're minting a single-use token bound to a password,
+this is what you use" pattern discoverable in one place.
+Future password-bound token types (account-deletion confirm,
+2FA enrollment, etc.) get the same primitive for free.
+
+The callsites now pass `password_hash` directly instead of the
+`User` object, so the helper is decoupled from the ORM model
+— easier to unit-test, and works for any code path that
+already has the hash in hand.
+
+Backend pytest 321/321. Token-binding tests 12/12.
+
 ### Changed (simplify iter 38) — password-reset: pwh helper + hoist HIBP
 Twenty-second dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/services/password_reset.py`. Applied both
