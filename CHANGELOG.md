@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 93)
+- **i18n scaffolding with English + Arabic.** In-house zero-dep
+  module (`src/lib/i18n/`): `Locale` type, per-locale message
+  dictionary keyed on a closed `MessageKey` union, a
+  `LocaleProvider` that persists choice to localStorage and keeps
+  `<html lang dir>` in sync. Defaults to the browser language on
+  first visit (Arabic-locale browsers land on `ar`). `LocaleSwitcher`
+  toggle added to the site header. Parity test
+  (`tests/i18n-parity.test.ts`) fails the build if any English key
+  is missing or empty in the Arabic file. Component-level use of
+  `t()` rolls out across the next iterations — this commit ships
+  the foundation + the switcher, not the per-component translation.
+
 ### Docs (iteration 92)
 - **README features section caught up to iter 51-91.** Added the
   features shipped across the recent runs (discussions, captions,

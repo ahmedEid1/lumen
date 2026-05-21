@@ -8,6 +8,7 @@ import { Moon, Sun, GraduationCap, LogOut, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { HeaderSearch } from "@/components/shared/header-search";
+import { LocaleSwitcher } from "@/components/shared/locale-switcher";
 import { NotificationsBell } from "@/components/shared/notifications-bell";
 import { useAuth } from "@/lib/auth/store";
 
@@ -88,6 +89,7 @@ export function SiteHeader() {
 
         <div className="flex items-center gap-2">
           <HeaderSearch className="hidden md:block" />
+          <LocaleSwitcher />
           <ThemeToggle />
           {!ready ? (
             <div className="h-9 w-20 animate-pulse rounded-md bg-muted" aria-hidden />
