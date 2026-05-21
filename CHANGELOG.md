@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 35) — app/main.py: hoist deferred imports
+Nineteenth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/main.py` (301 → 296 lines). Applied all 5
+recommendations (a one-line grep first verified no `app.main`
+back-references from `app.core.{idempotency,ratelimit,tracing}`,
+so the deferred imports were noise rather than cycle-breakers):
+
+- **Hoisted six deferred imports** out of `create_app()` and the
+  `CSRFOriginMiddleware` hot path: `slowapi.errors.
+  RateLimitExceeded`, `slowapi.middleware.SlowAPIMiddleware`,
+  `app.core.ratelimit.limiter`, `app.core.idempotency.
+  IdempotencyMiddleware`, `app.core.tracing.init_tracing`,
+  and `urllib.parse.urlsplit`. Each was running its `import`
+  on every request or every app-create call rather than once
+  at module load.
+- **`SecurityHeadersMiddleware`: simplified the `server` header
+  strip** from `if "server" in (k.lower() for k in headers):
+  with suppress(KeyError): del headers["server"]` to
+  `if "server" in headers: with suppress(KeyError): del
+  headers["server"]`. The generator-and-lower scan was
+  redundant — `MutableHeaders.__contains__` is already case-
+  insensitive. The agent's first pass tried `pop("server", None)`
+  but `MutableHeaders` exposes no `pop`; reverted that and used
+  the simpler `__contains__` form.
+- **`AccessLogMiddleware`: cached `request.scope.get("route")`
+  once** instead of calling it twice in a conditional
+  expression. The `# type: ignore[union-attr]` drops out
+  because the local `route` narrows cleanly.
+- **Dropped unused `suppress` import** (was only used by the
+  `server` header strip that just collapsed).
+
+Backend pytest 321/321. Middleware order, header values,
+cookie discipline, and CSP all unchanged.
+
 ### Changed (simplify iter 34) — email-verify service: hoist users_repo
 Eighteenth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/services/email_verify.py`. Applied only the

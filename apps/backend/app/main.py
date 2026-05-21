@@ -6,6 +6,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,12 +19,17 @@ from prometheus_client import (
     Histogram,
     generate_latest,
 )
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.errors import install_handlers
+from app.core.idempotency import IdempotencyMiddleware
 from app.core.logging import configure_logging, get_logger
+from app.core.ratelimit import limiter
+from app.core.tracing import init_tracing
 from app.db.base import dispose_engine
 
 settings = get_settings()
@@ -75,8 +81,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Strip server-software advertising. uvicorn sets ``Server:
         # uvicorn`` by default; auditors flag this as information
         # disclosure (helps attackers fingerprint a known-version stack).
-        # del with a missing key is a KeyError, so check first.
-        if "server" in (k.lower() for k in headers):
+        # MutableHeaders is case-insensitive on `__contains__` / `__delitem__`
+        # but exposes no `pop`; the suppress guard covers the racy missing-key.
+        if "server" in headers:
             with suppress(KeyError):
                 del headers["server"]
         # Don't clobber a header the inner handler set deliberately.
@@ -160,8 +167,6 @@ class CSRFOriginMiddleware(BaseHTTPMiddleware):
                         # Cheap scheme://host extraction — full URL parse
                         # isn't worth the cost on the hot path.
                         try:
-                            from urllib.parse import urlsplit
-
                             parts = urlsplit(referer)
                             if parts.scheme and parts.netloc:
                                 origin = f"{parts.scheme}://{parts.netloc}".rstrip("/")
@@ -187,7 +192,8 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         start = time.perf_counter()
         response = await call_next(request)
         duration = time.perf_counter() - start
-        path = request.scope.get("route").path if request.scope.get("route") else request.url.path  # type: ignore[union-attr]
+        route = request.scope.get("route")
+        path = route.path if route else request.url.path
         try:
             http_requests_total.labels(request.method, path, str(response.status_code)).inc()
             http_request_duration_seconds.labels(request.method, path).observe(duration)
@@ -217,11 +223,6 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
-    from slowapi.errors import RateLimitExceeded
-    from slowapi.middleware import SlowAPIMiddleware
-
-    from app.core.ratelimit import limiter
-
     app = FastAPI(
         title=settings.app_name,
         version="1.0.0",
@@ -261,8 +262,6 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         expose_headers=["X-Request-ID", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
     )
-    from app.core.idempotency import IdempotencyMiddleware
-
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
@@ -290,8 +289,6 @@ def create_app() -> FastAPI:
 
     # OpenTelemetry — opt-in via OTEL_EXPORTER_OTLP_ENDPOINT. No-op
     # when unset (dev / test / air-gapped).
-    from app.core.tracing import init_tracing
-
     init_tracing(app)
 
     return app
