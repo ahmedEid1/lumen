@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 67)
+- **Cohort CSV export for instructors.** `GET /courses/{id}/students.csv`
+  returns the same data the cohort UI shows as a downloadable CSV
+  (`Content-Disposition: attachment`), so instructors can import
+  into a gradebook / spreadsheet without screen-scraping. Reuses
+  the existing `cohort_for_course` service so authz, soft-delete
+  handling, and the 500-row cap are identical. Returns `Cache-
+  Control: private, no-store` — cohort data is per-instructor and
+  changes on every enrollment / completion. Covered by
+  `tests/test_cohort_csv.py` (3 tests: header + content shape with
+  a completer and a pending student, non-owner instructor 403,
+  RFC-4180 quoting for special characters in learner names).
+
 ### Performance (iteration 66)
 - **Cache-Control hints on public catalog reads.** `/subjects`,
   `/tags`, and `/courses` (when called anonymously) now return

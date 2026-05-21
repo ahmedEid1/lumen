@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Response, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
@@ -270,6 +270,52 @@ async def course_cohort(
 ) -> list[CohortRowOut]:
     rows = await analytics_service.cohort_for_course(db, course_id=course_id, viewer=user)
     return [CohortRowOut.model_validate(r) for r in rows]
+
+
+@router.get("/{course_id}/students.csv")
+async def course_cohort_csv(
+    course_id: str, user: RequireInstructor, db: DBSession
+) -> Response:
+    """Same data the cohort UI shows, dumped as CSV so instructors can
+    import into a gradebook / spreadsheet. Reuses the cohort service
+    (same authz, same soft-delete handling, same 500-row cap).
+
+    We hand-format CSV rather than pull in a dependency — it's six
+    columns of scalars, escaping handled by Python's stdlib ``csv``.
+    """
+    import csv
+    import io
+
+    rows = await analytics_service.cohort_for_course(
+        db, course_id=course_id, viewer=user
+    )
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow(
+        ["user_id", "full_name", "enrolled_at", "completed_at", "progress_pct", "certificate_id"]
+    )
+    for r in rows:
+        writer.writerow(
+            [
+                r.user_id,
+                r.full_name,
+                r.enrolled_at.isoformat(),
+                r.completed_at.isoformat() if r.completed_at else "",
+                f"{r.progress_pct:.1f}",
+                r.certificate_id or "",
+            ]
+        )
+    body = buf.getvalue()
+    return Response(
+        content=body,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="cohort-{course_id}.csv"',
+            # Cohort data changes on every enrollment / completion — no
+            # caching downstream.
+            "Cache-Control": "private, max-age=0, no-store",
+        },
+    )
 
 
 # ---------- Duplication ----------
