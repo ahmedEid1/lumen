@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 17)
+- SEO: Next.js generates `/robots.txt` (allows public routes, disallows
+  auth + studio + admin + learn paths) and `/sitemap.xml` (static routes
+  plus the most recent 100 published courses with `lastModified` and a
+  boost for featured ones). Sitemap is fail-soft: if the API is down at
+  regeneration time, only the static routes are emitted.
+- CourseCard tests extended with: hides Featured badge when not featured,
+  omits rating tile when `avg_rating` is null, renders the cover `<img>`
+  when `cover_url` is set (with the monogram fallback when not), and
+  surfaces the difficulty + subject badges.
+
 ### Changed (iteration 16)
 - README "Features at a glance" rewritten as Learner / Instructor / Admin /
   Cross-cutting sections that match what actually shipped (bookmarks,
