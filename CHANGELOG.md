@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 10) — drop 14 unused frontend deps
+`knip` flagged 14 dependencies that aren't imported anywhere
+in `src/` or `tests/` — most are radix-ui primitives whose
+shadcn-style wrapper components were never copied into the
+project (no `components/ui/dialog.tsx`, no `dropdown-menu.tsx`,
+etc.). The wrappers that DO exist (avatar, badge, button,
+card, input, progress, textarea) keep their backing packages.
+
+**Removed from `dependencies`:**
+- `@hookform/resolvers`, `react-hook-form`, `zod` — form
+  stack never imported; the app uses controlled inputs +
+  bespoke validation on POST.
+- `@radix-ui/react-dialog`, `react-dropdown-menu`,
+  `react-label`, `react-scroll-area`, `react-select`,
+  `react-separator`, `react-switch`, `react-tabs`,
+  `react-toast`, `react-tooltip` — 10 unused shadcn primitives.
+
+**Removed from `devDependencies`:**
+- `@tanstack/react-query-devtools` — never rendered in any
+  layout.
+
+Verification: `pnpm install` rebuilt the lockfile clean,
+`pnpm vitest run` is green, `pnpm typecheck` is clean. Net
+~250 transitive packages drop out of `node_modules`.
+
 ### Changed (simplify iter 9) — purge "Iter NN:" dev-journal prefixes
 Comments that prefix themselves with "Iter 115:" or
 "Pre-iter 76 …" carry a number that means nothing to a future
