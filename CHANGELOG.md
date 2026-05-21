@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 14) — DRY-up `api/v1/admin.py`
+Dispatched the `code-simplifier` plugin agent again, this
+time on the admin router (396 lines). Adopted three of its
+extraction suggestions, which collapsed five repeated patterns
+to one call each.
+
+- **`_scalar_count(db, stmt)`** — replaces the
+  `int((await db.execute(stmt)).scalar_one())` wrap in four
+  delete-blocked counters and seven `platform_stats` lines.
+  The local `_count` helper that already lived inside
+  `platform_stats` got hoisted to module scope.
+- **`_slug_taken(db, model, slug)`** — three near-identical
+  `select(Model).where(Model.slug == slug).scalar_one_or_none()`
+  pre-checks (subject create, subject update, tag create)
+  become one helper call. Also switches to `select(Model.id)`
+  so the DB only ships the id back, not the row.
+- **`_load_user_or_404(db, user_id)`** — the
+  `db.get(User, id) → 404` pre-amble in `set_user_role` and
+  `set_user_active` factor to one helper. The audit-action
+  kwargs stay inline because they genuinely differ per
+  endpoint.
+- **`platform_stats` inline kwargs** — the seven local
+  variables that fed `PlatformStatsOut(...)` were a
+  one-shot rename for no benefit; the keyword call now reads
+  in the same order as the response_model declaration.
+
+LOC is essentially flat (396 → 397) because the helpers add
+~20 lines that the call-site collapses recover. Readability
+win is real: counting subjects-in-use, checking slug
+collisions, and loading-user-or-404 each look the same as
+every other call.
+
+Backend pytest 321/321 (163s).
+
 ### Changed (simplify iter 13) — `services/courses.py` light refactor
 Used the `code-simplifier` plugin agent to audit the largest
 backend file (518 lines, heavily patched). Applied 4 of its

@@ -24,6 +24,24 @@ from app.schemas.course import CourseListItem, SubjectOut, TagOut
 router = APIRouter()
 
 
+async def _scalar_count(db: DBSession, stmt) -> int:  # type: ignore[valid-type]
+    """Run a `select(func.count(...))` and coerce the scalar to int."""
+    return int((await db.execute(stmt)).scalar_one())
+
+
+async def _slug_taken(db: DBSession, model, slug: str) -> bool:  # type: ignore[valid-type]
+    return (
+        await db.execute(select(model.id).where(model.slug == slug))
+    ).scalar_one_or_none() is not None
+
+
+async def _load_user_or_404(db: DBSession, user_id: str) -> User:  # type: ignore[valid-type]
+    user = await db.get(User, user_id)
+    if not user:
+        raise NotFoundError("User not found", code="user.not_found")
+    return user
+
+
 # ---------- Subjects ----------
 
 
@@ -37,8 +55,7 @@ async def create_subject(payload: SubjectIn, _: RequireAdmin, db: DBSession) -> 
     slug = (payload.slug or slugify(payload.title))[:140]
     if not slug:
         raise ValidationAppError("Slug must be non-empty", code="subject.invalid_slug")
-    exists = (await db.execute(select(Subject).where(Subject.slug == slug))).scalar_one_or_none()
-    if exists:
+    if await _slug_taken(db, Subject, slug):
         raise ConflictError("Subject slug already exists", code="subject.slug_taken")
     s = Subject(title=payload.title, slug=slug)
     db.add(s)
@@ -54,7 +71,7 @@ async def update_subject(subject_id: str, payload: SubjectIn, _: RequireAdmin, d
     if payload.title:
         s.title = payload.title
     if payload.slug and payload.slug != s.slug:
-        if (await db.execute(select(Subject).where(Subject.slug == payload.slug))).scalar_one_or_none():
+        if await _slug_taken(db, Subject, payload.slug):
             raise ConflictError("Slug taken", code="subject.slug_taken")
         s.slug = payload.slug
     return SubjectOut.model_validate(s)
@@ -69,22 +86,15 @@ async def delete_subject(subject_id: str, _: RequireAdmin, db: DBSession) -> OkR
     # if any course row (live OR soft-deleted) still references the subject.
     # Count all rows and refuse with a clear 409 the admin can act on,
     # rather than letting it bubble up as an IntegrityError → 500.
-    total = int(
-        (
-            await db.execute(
-                select(func.count(Course.id)).where(Course.subject_id == s.id)
-            )
-        ).scalar_one()
+    total = await _scalar_count(
+        db, select(func.count(Course.id)).where(Course.subject_id == s.id)
     )
     if total > 0:
-        live = int(
-            (
-                await db.execute(
-                    select(func.count(Course.id)).where(
-                        Course.subject_id == s.id, Course.deleted_at.is_(None)
-                    )
-                )
-            ).scalar_one()
+        live = await _scalar_count(
+            db,
+            select(func.count(Course.id)).where(
+                Course.subject_id == s.id, Course.deleted_at.is_(None)
+            ),
         )
         raise ConflictError(
             "Subject still has courses attached",
@@ -108,7 +118,7 @@ async def create_tag(payload: TagIn, _: RequireAdmin, db: DBSession) -> TagOut:
     slug = (payload.slug or slugify(payload.name))[:80]
     if not slug:
         raise ValidationAppError("Slug must be non-empty", code="tag.invalid_slug")
-    if (await db.execute(select(Tag).where(Tag.slug == slug))).scalar_one_or_none():
+    if await _slug_taken(db, Tag, slug):
         raise ConflictError("Tag slug taken", code="tag.slug_taken")
     t = Tag(name=payload.name, slug=slug)
     db.add(t)
@@ -127,14 +137,11 @@ async def delete_tag(tag_id: str, _: RequireAdmin, db: DBSession) -> OkResponse:
     # subject-delete contract: refuse with a 409 if any *live* course
     # still references the tag. Soft-deleted courses don't block the
     # admin (their join rows cascade away with no user-visible impact).
-    live = int(
-        (
-            await db.execute(
-                select(func.count(Course.id))
-                .join(Course.tags)
-                .where(Tag.id == t.id, Course.deleted_at.is_(None))
-            )
-        ).scalar_one()
+    live = await _scalar_count(
+        db,
+        select(func.count(Course.id))
+        .join(Course.tags)
+        .where(Tag.id == t.id, Course.deleted_at.is_(None)),
     )
     if live > 0:
         raise ConflictError(
@@ -188,9 +195,7 @@ async def list_users(
 async def set_user_role(
     user_id: str, payload: UserRoleUpdate, admin: RequireAdmin, db: DBSession
 ) -> UserAdminOut:
-    user = await db.get(User, user_id)
-    if not user:
-        raise NotFoundError("User not found", code="user.not_found")
+    user = await _load_user_or_404(db, user_id)
     if user.id == admin.id and payload.role != Role.admin:
         raise ValidationAppError("Cannot demote yourself", code="user.self_demote")
     user.role = payload.role
@@ -204,9 +209,7 @@ async def set_user_role(
 async def set_user_active(
     user_id: str, payload: UserActiveUpdate, admin: RequireAdmin, db: DBSession
 ) -> UserAdminOut:
-    user = await db.get(User, user_id)
-    if not user:
-        raise NotFoundError("User not found", code="user.not_found")
+    user = await _load_user_or_404(db, user_id)
     if user.id == admin.id and not payload.is_active:
         raise ValidationAppError("Cannot deactivate yourself", code="user.self_deactivate")
     user.is_active = payload.is_active
@@ -365,32 +368,30 @@ class PlatformStatsOut(BaseModel):
 
 @router.get("/stats", response_model=PlatformStatsOut)
 async def platform_stats(_: RequireAdmin, db: DBSession) -> PlatformStatsOut:
-    async def _count(stmt) -> int:
-        return int((await db.execute(stmt)).scalar_one())
-
-    users = await _count(select(func.count(User.id)))
-    active_users = await _count(select(func.count(User.id)).where(User.is_active.is_(True)))
-    instructors = await _count(
-        select(func.count(User.id)).where(User.role.in_([Role.instructor, Role.admin]))
-    )
-    courses_total = await _count(select(func.count(Course.id)).where(Course.deleted_at.is_(None)))
-    courses_published = await _count(
-        select(func.count(Course.id)).where(
-            Course.deleted_at.is_(None), Course.status == CourseStatus.published
-        )
-    )
-    courses_draft = await _count(
-        select(func.count(Course.id)).where(
-            Course.deleted_at.is_(None), Course.status == CourseStatus.draft
-        )
-    )
-    enrollments = await _count(select(func.count(Enrollment.id)))
+    live = Course.deleted_at.is_(None)
     return PlatformStatsOut(
-        users=users,
-        active_users=active_users,
-        instructors=instructors,
-        courses_total=courses_total,
-        courses_published=courses_published,
-        courses_draft=courses_draft,
-        enrollments=enrollments,
+        users=await _scalar_count(db, select(func.count(User.id))),
+        active_users=await _scalar_count(
+            db, select(func.count(User.id)).where(User.is_active.is_(True))
+        ),
+        instructors=await _scalar_count(
+            db,
+            select(func.count(User.id)).where(
+                User.role.in_([Role.instructor, Role.admin])
+            ),
+        ),
+        courses_total=await _scalar_count(db, select(func.count(Course.id)).where(live)),
+        courses_published=await _scalar_count(
+            db,
+            select(func.count(Course.id)).where(
+                live, Course.status == CourseStatus.published
+            ),
+        ),
+        courses_draft=await _scalar_count(
+            db,
+            select(func.count(Course.id)).where(
+                live, Course.status == CourseStatus.draft
+            ),
+        ),
+        enrollments=await _scalar_count(db, select(func.count(Enrollment.id))),
     )
