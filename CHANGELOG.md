@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 21)
+- ChatRoom test (vitest): swaps in a MockWebSocket double and asserts the
+  empty/connecting state, server-pushed messages render, presence count
+  updates, outbound frames are valid JSON, Send is disabled until the
+  socket is OPEN, transient closes (1006) show "Reconnecting", terminal
+  closes (4403) show "Disconnected", and no socket is opened when there's
+  no token.
+
 ### Fixed (iteration 20)
 - `/learn/[slug]` now redirects non-enrolled viewers to the course detail
   page (with a "Enroll to start learning" toast) instead of rendering a
