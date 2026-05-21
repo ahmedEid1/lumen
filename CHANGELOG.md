@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 33)
+- **Certificate PDF's verify URL now points at the real public page.**
+  The rendered PDF embedded `verify at /certificates/<id>` — a route
+  that doesn't exist; the public verification page lives at
+  `/verify/<id>`. Anyone who downloaded a certificate and typed the
+  printed URL landed on a 404. Centralised the path in a module
+  constant (`VERIFY_PATH = "/verify"`) and updated the rendered
+  string. Two regression tests in `test_certificate_pdf.py` lock in
+  the new URL and the single-source-of-truth constant.
+
 ### Security (iteration 32)
 - **Closed the login enumeration timing side-channel.** The authenticate
   path skipped Argon2 verification when the email lookup returned None,

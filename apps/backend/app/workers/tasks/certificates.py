@@ -13,6 +13,10 @@ from app.workers.celery_app import celery
 
 log = get_logger(__name__)
 
+# Public, anonymous-friendly verification page. Must match the Next.js
+# route at ``apps/frontend/src/app/verify/[id]/page.tsx``.
+VERIFY_PATH = "/verify"
+
 
 @celery.task(name="app.workers.tasks.certificates.render")
 def render(*, learner_name: str, course_title: str, certificate_id: str) -> bytes:
@@ -40,7 +44,9 @@ def render(*, learner_name: str, course_title: str, certificate_id: str) -> byte
     today = datetime.now(timezone.utc).strftime("%B %d, %Y")
     pdf.drawCentredString(width / 2, 90, f"Issued {today}")
     pdf.drawCentredString(width / 2, 70, f"Certificate ID: {certificate_id}")
-    pdf.drawCentredString(width / 2, 50, "Lumen — verify at /certificates/" + certificate_id)
+    pdf.drawCentredString(
+        width / 2, 50, f"Lumen — verify at {VERIFY_PATH}/{certificate_id}"
+    )
 
     pdf.showPage()
     pdf.save()
