@@ -8,7 +8,7 @@ admin. See ``services.discussions`` for the authz matrix.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Query, Request, Response, status
 
 from app.api.deps import CurrentUser, DBSession, OptionalUser
 from app.core.errors import NotFoundError
@@ -104,6 +104,7 @@ async def create_discussion(
     user: CurrentUser,
     db: DBSession,
     request: Request,
+    response: Response,
 ) -> DiscussionDetail:
     d = await discussions_service.create_discussion(
         db, course_id=course_id, user=user, payload=payload
@@ -182,6 +183,7 @@ async def reply_to_discussion(
     user: CurrentUser,
     db: DBSession,
     request: Request,
+    response: Response,
 ) -> DiscussionReplyOut:
     r = await discussions_service.reply(
         db, discussion_id=discussion_id, user=user, payload=payload

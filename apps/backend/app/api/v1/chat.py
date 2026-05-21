@@ -7,7 +7,7 @@ import json
 from typing import Annotated
 
 import jwt
-from fastapi import APIRouter, Depends, Query, Request, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, Query, Request, Response, WebSocket, WebSocketDisconnect, status
 
 from app.api.deps import CurrentUser, DBSession
 from app.core.errors import ForbiddenError, NotFoundError
@@ -60,6 +60,7 @@ async def post_message(
     user: CurrentUser,
     db: DBSession,
     request: Request,
+    response: Response,
 ) -> ChatMessageOut:
     course = await chat_service.ensure_can_chat(db, user=user, course_id=course_id)
     msg = await chat_repo.add_message(db, course_id=course.id, author_id=user.id, body=payload.body)

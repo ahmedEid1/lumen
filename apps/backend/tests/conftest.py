@@ -127,7 +127,30 @@ def _reset_rate_limiter():
 @pytest_asyncio.fixture
 async def client(app) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as c:
+    # Iter 110: the api ships a CSRF-origin middleware that rejects
+    # cookie-authenticated mutations whose Origin header isn't in
+    # `cors_origins`. The httpx test client doesn't set Origin by
+    # default, so every cookie-authed POST/PATCH/DELETE came back
+    # 403. We whitelist `http://testserver` (matching base_url) so
+    # tests that pass `Origin: http://testserver` explicitly (the
+    # CSRF tests in test_csrf_origin.py do) hit the trusted path,
+    # AND any test that authenticates via Bearer (the `auth_headers`
+    # fixture does this) bypasses the CSRF check entirely. The
+    # remaining cookie-only tests still need Origin per-call —
+    # that's intentional, the middleware is doing its job.
+    os.environ["CORS_ORIGINS"] = (
+        '["http://localhost:3000","http://web:3000","http://testserver"]'
+    )
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+        # Default Origin matches base_url so cookie-authed mutations
+        # in most tests don't trip the CSRF guard. Tests that need
+        # to exercise CSRF rejection (test_csrf_origin.py) explicitly
+        # override with `headers={"Origin": "..."}` per request.
+        headers={"Origin": "http://testserver"},
+    ) as c:
         yield c
 
 

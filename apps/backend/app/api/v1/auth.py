@@ -55,7 +55,9 @@ def _clear_auth_cookies(response: Response) -> None:
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
-async def register(payload: RegisterRequest, db: DBSession, request: Request) -> UserOut:
+async def register(
+    payload: RegisterRequest, db: DBSession, request: Request, response: Response
+) -> UserOut:
     user = await auth_service.register(db, payload, ip=client_ip(request), user_agent=user_agent(request))
     verify_service.queue_verification_email(user=user)
     return UserOut.model_validate(user)
@@ -134,7 +136,7 @@ async def me(user: CurrentUser) -> UserOut:
 @router.post("/password-reset/request", response_model=OkResponse)
 @limiter.limit("3/minute")
 async def password_reset_request(
-    payload: PasswordResetRequest, db: DBSession, request: Request
+    payload: PasswordResetRequest, db: DBSession, request: Request, response: Response
 ) -> OkResponse:
     """Always returns ok to avoid leaking which emails exist."""
     user, token = await reset_service.request_reset(db, email=str(payload.email))
@@ -182,7 +184,7 @@ async def password_reset_confirm(payload: PasswordResetConfirm, db: DBSession) -
 
 @router.post("/verify/request", response_model=OkResponse)
 @limiter.limit("3/minute")
-async def verify_request(user: CurrentUser, request: Request) -> OkResponse:
+async def verify_request(user: CurrentUser, request: Request, response: Response) -> OkResponse:
     """Resend the email-verification link for the current user."""
     if user.email_verified_at is None:
         verify_service.queue_verification_email(user=user)

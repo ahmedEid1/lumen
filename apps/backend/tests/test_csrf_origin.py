@@ -35,10 +35,14 @@ async def test_cookie_post_without_origin_is_rejected(
 ) -> None:
     cookie = await _login_set_cookie(client, make_user)
     # Mutating POST with the auth cookie but no Origin → 403.
+    # Iter 110: conftest now sets a default Origin so most tests
+    # don't trip CSRF. Override with `None` here so this test can
+    # exercise the no-Origin rejection path it was written for.
     r = await client.post(
         "/api/v1/users/me/change-password",
         json={"current_password": "Password!1234", "new_password": "NewPassword!1234"},
         cookies={"access": cookie},
+        headers={"Origin": None},  # type: ignore[dict-item]
     )
     assert r.status_code == 403, r.text
     assert r.json()["error"]["code"] == "csrf.bad_origin"
@@ -109,10 +113,15 @@ async def test_referer_fallback_when_origin_missing(
     """Some browsers omit Origin on same-origin POSTs; the middleware
     falls back to the Referer's scheme://host."""
     cookie = await _login_set_cookie(client, make_user)
+    # Iter 110: explicitly clear the conftest default Origin so the
+    # Referer-fallback path is the one exercised.
     r = await client.post(
         "/api/v1/users/me/change-password",
         json={"current_password": "Password!1234", "new_password": "NewPassword!1234"},
         cookies={"access": cookie},
-        headers={"Referer": "http://localhost:3000/settings"},
+        headers={
+            "Origin": None,  # type: ignore[dict-item]
+            "Referer": "http://localhost:3000/settings",
+        },
     )
     assert r.status_code != 403 or r.json()["error"]["code"] != "csrf.bad_origin"

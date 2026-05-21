@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, DBSession
@@ -185,6 +185,7 @@ async def submit_quiz(
     user: CurrentUser,
     db: DBSession,
     request: Request,
+    response: Response,
 ) -> QuizSubmitResponse:
     """Server-graded quiz submission.
 
