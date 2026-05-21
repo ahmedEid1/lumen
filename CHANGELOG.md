@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 31)
+- **Chat presence no longer drops active senders after 60 seconds.**
+  `mark_present` ran once on WebSocket connect; `list_present` filters
+  by a 60-second freshness window, so a user who stayed connected and
+  kept sending messages fell off the presence list after one minute.
+  The WS handler now refreshes the presence sorted-set score on every
+  inbound frame — active users stay listed, idle users still expire
+  naturally. A `_FakeRedis` test double exercises the
+  refresh / absence / stale-cutoff behaviour without standing up a
+  real Redis or WebSocket.
+
 ### Fixed (iteration 30)
 - **Catalog subject tiles stop counting soft-deleted courses.**
   `list_subjects` outer-joined Course with `status == published` only,

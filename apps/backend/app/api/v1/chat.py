@@ -142,6 +142,10 @@ async def chat_ws(websocket: WebSocket, course_id: str, token: Annotated[str, Qu
 
         while True:
             text = await websocket.receive_text()
+            # Any inbound frame is proof of life — refresh the presence
+            # sorted-set score so the 60-second window in list_present()
+            # doesn't drop an actively-engaged user.
+            await chat_service.mark_present(redis, course_id=course_id, user_id=user.id)
             try:
                 msg = json.loads(text)
             except json.JSONDecodeError:
