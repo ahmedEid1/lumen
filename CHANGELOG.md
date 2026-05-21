@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 70)
+- **Strict CSP on JSON responses.** Sets `Content-Security-Policy:
+  default-src 'none'; frame-ancestors 'none'; base-uri 'none'` on
+  every JSON response. JSON doesn't render in a browser, so this
+  costs nothing for legitimate clients but kills the "what if
+  someone tricks a browser into treating our response as HTML"
+  attack class outright. Skipped for HTML responses so Swagger UI
+  at `/docs` (which needs inline scripts) keeps working. Covered by
+  two new tests in `test_security_headers.py`.
+
 ### Security (iteration 69)
 - **Strip the `Server` header from every response.** uvicorn
   advertises itself as `Server: uvicorn` by default — common

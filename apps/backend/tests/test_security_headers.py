@@ -77,6 +77,24 @@ async def test_headers_present_on_docs_html(client: AsyncClient) -> None:
     _assert_security_headers(r)
 
 
+async def test_csp_set_on_json_responses(client: AsyncClient) -> None:
+    """JSON responses get a strict CSP so a browser tricked into
+    rendering one as HTML can't load anything from it."""
+    r = await client.get("/api/v1/subjects")
+    assert r.status_code == 200
+    csp = r.headers.get("content-security-policy", "")
+    assert "default-src 'none'" in csp
+    assert "frame-ancestors 'none'" in csp
+
+
+async def test_csp_absent_on_html_docs(client: AsyncClient) -> None:
+    """Swagger UI uses inline scripts + a CDN; a strict CSP would
+    break it. Iter 70 gates CSP on application/json content-type."""
+    r = await client.get("/docs")
+    assert r.status_code == 200
+    assert "content-security-policy" not in {k.lower() for k in r.headers}
+
+
 async def test_server_header_is_stripped(client: AsyncClient) -> None:
     """uvicorn defaults to advertising itself via ``Server: uvicorn``;
     iter 69 strips it on the way out so attackers can't fingerprint the

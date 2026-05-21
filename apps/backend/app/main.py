@@ -92,6 +92,18 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "Permissions-Policy",
             "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
         )
+        # CSP only on JSON responses. The Swagger UI at /docs is the
+        # only HTML this service serves and it relies on inline
+        # scripts + a CDN; a strict CSP would break it. JSON bodies
+        # never render in a browser, so ``default-src 'none'`` is a
+        # cheap belt-and-suspenders for the "what if someone tricks a
+        # browser into treating our response as HTML" attack class.
+        ct = headers.get("content-type", "")
+        if ct.startswith("application/json"):
+            headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+            )
         if get_settings().is_prod:
             # 2-year HSTS with preload — once a browser sees this, it
             # refuses HTTP for the duration. Only meaningful in prod
