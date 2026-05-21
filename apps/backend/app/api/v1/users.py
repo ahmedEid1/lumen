@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from sqlalchemy import desc, func, select
 
 from app.api.deps import CurrentUser, DBSession, client_ip, user_agent
@@ -19,6 +19,7 @@ from app.repositories import users as users_repo
 from app.schemas.auth import PASSWORD_MIN, validate_password_strength
 from app.schemas.common import OkResponse
 from app.schemas.user import UserOut, UserUpdate
+from app.services import email_change as email_change_service
 
 router = APIRouter()
 
@@ -150,6 +151,48 @@ async def revoke_my_session(session_id: str, user: CurrentUser, db: DBSession) -
     if row.revoked_at is None:
         await users_repo.revoke_refresh_token(db, row)
     return OkResponse()
+
+
+class EmailChangeRequest(BaseModel):
+    new_email: EmailStr
+    current_password: str = Field(min_length=1, max_length=128)
+
+
+class EmailChangeConfirm(BaseModel):
+    token: str = Field(min_length=10, max_length=400)
+
+
+@router.post("/me/email/request", response_model=OkResponse)
+async def request_email_change(
+    payload: EmailChangeRequest, user: CurrentUser, db: DBSession
+) -> OkResponse:
+    """Step 1 of the email-change flow: mint a confirmation token and
+    send it to the NEW address. The change doesn't take effect until
+    the user clicks through from that mailbox — proves they control it.
+    """
+    _, token = await email_change_service.request_change(
+        db,
+        user=user,
+        new_email=str(payload.new_email),
+        current_password=payload.current_password,
+    )
+    if token is not None:
+        email_change_service.queue_confirmation_email(
+            user=user, new_email=str(payload.new_email), token=token
+        )
+    return OkResponse()
+
+
+@router.post("/me/email/confirm", response_model=UserOut)
+async def confirm_email_change(
+    payload: EmailChangeConfirm, db: DBSession
+) -> UserOut:
+    """Step 2: token from the email link → applies the change, revokes
+    all refresh tokens so any parallel session has to re-authenticate
+    with the new credentials.
+    """
+    user = await email_change_service.confirm_change(db, token=payload.token)
+    return UserOut.model_validate(user)
 
 
 @router.delete("/me", response_model=OkResponse)

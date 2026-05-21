@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 59)
+- **Email change flow.** Previously email was immutable post-
+  registration. New two-step flow: `POST /users/me/email/request`
+  verifies the current password, checks the target isn't taken, and
+  sends a 1-hour confirmation token to the **new** mailbox (proves
+  the user controls it). `POST /users/me/email/confirm` applies the
+  change, audits the old → new transition, and revokes every refresh
+  token so parallel sessions on other devices have to re-authenticate.
+  Token is bound to the current password hash — rotating the password
+  mid-flow invalidates outstanding email-change tokens, same posture
+  password-reset uses. Covered by `tests/test_email_change.py` (8
+  tests: wrong password / taken / same-email-noop on request, full
+  round-trip, password rotation invalidates token, race-clash at
+  confirm, garbage token rejected, refresh tokens revoked).
+
 ### Added (iteration 58)
 - **Idempotency-Key support on mutating endpoints.** CLAUDE.md flagged
   this as planned in v1. Opt-in via the `Idempotency-Key` header on
