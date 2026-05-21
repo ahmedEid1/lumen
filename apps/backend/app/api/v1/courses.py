@@ -29,7 +29,15 @@ from app.services import enrollment as enrollment_service
 router = APIRouter()
 
 
-def _course_to_detail(course, modules, stats, *, is_enrolled: bool, progress_pct: float) -> CourseDetail:
+def _course_to_detail(
+    course,
+    modules,
+    stats,
+    *,
+    is_enrolled: bool,
+    is_bookmarked: bool,
+    progress_pct: float,
+) -> CourseDetail:
     return CourseDetail(
         id=course.id,
         title=course.title,
@@ -62,6 +70,7 @@ def _course_to_detail(course, modules, stats, *, is_enrolled: bool, progress_pct
             for m in modules
         ],
         is_enrolled=is_enrolled,
+        is_bookmarked=is_bookmarked,
         progress_pct=progress_pct,
     )
 
@@ -117,14 +126,26 @@ async def get_course(key: str, viewer: OptionalUser, db: DBSession) -> CourseDet
 
     stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
     is_enrolled = False
+    is_bookmarked = False
     pct = 0.0
     if viewer:
         enrollment = await courses_repo.get_enrollment(db, user_id=viewer.id, course_id=course.id)
         if enrollment:
             is_enrolled = True
             pct = await enrollment_service.progress_pct(db, enrollment=enrollment)
+        from sqlalchemy import select
+
+        from app.models.bookmark import Bookmark
+
+        is_bookmarked = (
+            await db.execute(
+                select(Bookmark.id).where(Bookmark.user_id == viewer.id, Bookmark.course_id == course.id)
+            )
+        ).first() is not None
     modules = [m for m in course.modules]
-    return _course_to_detail(course, modules, stats, is_enrolled=is_enrolled, progress_pct=pct)
+    return _course_to_detail(
+        course, modules, stats, is_enrolled=is_enrolled, is_bookmarked=is_bookmarked, progress_pct=pct
+    )
 
 
 @router.patch("/{course_id}", response_model=CourseDetail)
@@ -144,7 +165,9 @@ async def update_course(
     if enrollment:
         is_enrolled = True
         pct = await enrollment_service.progress_pct(db, enrollment=enrollment)
-    return _course_to_detail(course, list(course.modules), stats, is_enrolled=is_enrolled, progress_pct=pct)
+    return _course_to_detail(
+        course, list(course.modules), stats, is_enrolled=is_enrolled, is_bookmarked=False, progress_pct=pct
+    )
 
 
 @router.delete("/{course_id}", response_model=OkResponse, status_code=status.HTTP_200_OK)

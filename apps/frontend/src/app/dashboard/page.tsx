@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Award, BookOpen } from "lucide-react";
+import { Award, BookOpen, BookmarkCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { CourseCard } from "@/components/course/course-card";
 import { Me } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
@@ -15,6 +16,7 @@ export default function DashboardPage() {
   const { user, ready } = useAuth();
   const router = useRouter();
   const enrollmentsQ = useQuery({ queryKey: qk.enrollments, queryFn: () => Me.enrollments() });
+  const bookmarksQ = useQuery({ queryKey: qk.bookmarks, queryFn: () => Me.bookmarks() });
 
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/dashboard");
@@ -75,6 +77,19 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {bookmarksQ.data && bookmarksQ.data.length > 0 && (
+        <div className="mb-10">
+          <h2 className="mb-4 inline-flex items-center gap-2 text-xl font-semibold">
+            <BookmarkCheck className="h-5 w-5" /> Bookmarks
+          </h2>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {bookmarksQ.data.map((c) => (
+              <CourseCard key={c.id} course={c} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <h2 className="mb-4 inline-flex items-center gap-2 text-xl font-semibold">

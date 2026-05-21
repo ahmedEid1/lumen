@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 5)
+- Course bookmarks: `GET/PUT/DELETE /api/v1/me/bookmarks/{course_id}`, with
+  `is_bookmarked` exposed on the course detail and a Bookmarks section on the
+  dashboard.
+- Lesson navigation in the learner view: Previous / Next plus a
+  "Mark complete & continue" combo button.
+
+### Changed (iteration 5)
+- `_owned_module` / `_owned_lesson` now raise `NotFoundError` (not
+  `ForbiddenError`) when a parent record is missing — clearer error semantics.
+- `docs/api.md` documents the full endpoint inventory across auth, users,
+  catalog, search, courses, enrollments, reviews, chat, uploads, certificates,
+  admin, bookmarks, and health.
+
 ### Added (iteration 4)
 - `/api/v1/search/courses` endpoint backed by Meilisearch with an automatic
   Postgres ILIKE fallback when the search service is unavailable.

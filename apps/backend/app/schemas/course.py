@@ -190,6 +190,7 @@ class CourseListItem(BaseModel):
 class CourseDetail(CourseListItem):
     modules: list[ModuleOut] = Field(default_factory=list)
     is_enrolled: bool = False
+    is_bookmarked: bool = False
     progress_pct: float = 0.0
 
 

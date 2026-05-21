@@ -4,7 +4,7 @@ import { use, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { toast } from "sonner";
-import { CheckCircle2, Circle, MessagesSquare } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Circle, MessagesSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -104,9 +104,39 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
             </CardHeader>
             <CardContent>
               <LessonPlayer lesson={selected} />
-              <div className="mt-6 flex items-center justify-between">
-                <Button onClick={complete}>
-                  <CheckCircle2 className="mr-2 h-4 w-4" /> Mark complete
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const i = lessons.findIndex((l) => l.id === selected.id);
+                      if (i > 0) setSelectedId(lessons[i - 1].id);
+                    }}
+                    disabled={lessons.findIndex((l) => l.id === selected.id) <= 0}
+                  >
+                    <ArrowLeft className="mr-1 h-4 w-4" /> Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const i = lessons.findIndex((l) => l.id === selected.id);
+                      if (i >= 0 && i < lessons.length - 1) setSelectedId(lessons[i + 1].id);
+                    }}
+                    disabled={
+                      lessons.findIndex((l) => l.id === selected.id) >= lessons.length - 1
+                    }
+                  >
+                    Next <ArrowRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </div>
+                <Button
+                  onClick={async () => {
+                    await complete();
+                    const i = lessons.findIndex((l) => l.id === selected.id);
+                    if (i >= 0 && i < lessons.length - 1) setSelectedId(lessons[i + 1].id);
+                  }}
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4" /> Mark complete &amp; continue
                 </Button>
               </div>
             </CardContent>

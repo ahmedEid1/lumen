@@ -4,7 +4,7 @@ import { use } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Layers, Star, Users, Award } from "lucide-react";
+import { Bookmark, BookmarkCheck, Layers, Star, Users, Award } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,16 @@ export default function CourseDetailPage({ params }: { params: Promise<{ slug: s
       qc.invalidateQueries({ queryKey: qk.enrollments });
     },
     onError: (e: any) => toast.error(e?.message ?? "Could not enroll"),
+  });
+
+  const toggleBookmark = useMutation({
+    mutationFn: () =>
+      courseQ.data!.is_bookmarked ? Me.unbookmark(courseQ.data!.id) : Me.bookmark(courseQ.data!.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.course(slug) });
+      qc.invalidateQueries({ queryKey: qk.bookmarks });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Could not update bookmark"),
   });
 
   if (courseQ.isLoading) {
@@ -217,6 +227,25 @@ export default function CourseDetailPage({ params }: { params: Promise<{ slug: s
                   disabled={enroll.isPending}
                 >
                   {enroll.isPending ? "Enrolling…" : user ? "Enroll" : "Sign in to enroll"}
+                </Button>
+              )}
+
+              {user && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => toggleBookmark.mutate()}
+                  disabled={toggleBookmark.isPending}
+                >
+                  {course.is_bookmarked ? (
+                    <>
+                      <BookmarkCheck className="mr-2 h-4 w-4 fill-current" /> Bookmarked
+                    </>
+                  ) : (
+                    <>
+                      <Bookmark className="mr-2 h-4 w-4" /> Bookmark
+                    </>
+                  )}
                 </Button>
               )}
 

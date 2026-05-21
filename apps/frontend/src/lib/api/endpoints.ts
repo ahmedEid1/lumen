@@ -114,6 +114,11 @@ export const Me = {
       token,
     }),
   notifications: (token?: string) => api("/api/v1/me/notifications", { token }),
+  bookmarks: (token?: string) => api<CourseListItem[]>("/api/v1/me/bookmarks", { token }),
+  bookmark: (courseId: string, token?: string) =>
+    api<{ ok: true }>(`/api/v1/me/bookmarks/${courseId}`, { method: "PUT", token }),
+  unbookmark: (courseId: string, token?: string) =>
+    api<{ ok: true }>(`/api/v1/me/bookmarks/${courseId}`, { method: "DELETE", token }),
 };
 
 // ---------- Reviews ----------

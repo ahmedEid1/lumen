@@ -252,7 +252,9 @@ async def _owned_module(db: AsyncSession, module_id: str, owner: User) -> Module
     if not mod:
         raise NotFoundError("Module not found", code="module.not_found")
     course = await courses_repo.get_course(db, mod.course_id)
-    if not course or not _can_edit_course(owner, course):
+    if not course:
+        raise NotFoundError("Course not found", code="course.not_found")
+    if not _can_edit_course(owner, course):
         raise ForbiddenError("Not your module", code="module.forbidden")
     return mod
 
@@ -265,7 +267,9 @@ async def _owned_lesson(db: AsyncSession, lesson_id: str, owner: User) -> Lesson
     if mod is None:
         raise NotFoundError("Module not found", code="module.not_found")
     course = await courses_repo.get_course(db, mod.course_id)
-    if not course or not _can_edit_course(owner, course):
+    if not course:
+        raise NotFoundError("Course not found", code="course.not_found")
+    if not _can_edit_course(owner, course):
         raise ForbiddenError("Not your lesson", code="lesson.forbidden")
     return lesson
 

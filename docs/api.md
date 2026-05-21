@@ -114,3 +114,73 @@ Outbound frames:
 ```
 
 Server closes with the closest applicable code (`4401` unauthenticated, `4403` not enrolled, `4404` course gone, `1011` server error).
+
+The WebSocket path used by the client is `/api/v1/chat/ws/{course_id}?token=...`.
+
+## Endpoint inventory
+
+OpenAPI at `/openapi.json` is the source of truth; this list points to the resources you'll actually use.
+
+### Auth (`/api/v1/auth`)
+- `POST /register` — create account
+- `POST /login` — exchange credentials for an access token + refresh cookie
+- `POST /refresh` — rotate the refresh token (reuse is detected and revokes the chain)
+- `POST /logout` — clear cookies + revoke the presented refresh token
+- `GET  /me` — current authenticated user
+- `POST /password-reset/request` — always 200 (does not leak email existence)
+- `POST /password-reset/confirm` — single-use token bound to the current password hash
+
+### Users (`/api/v1/users`)
+- `GET /me`, `PATCH /me` — view and edit profile
+- `POST /me/change-password` — verifies current password, revokes all refresh tokens
+- `GET /me/export` — lightweight GDPR export (profile + counts)
+- `DELETE /me` — deactivate, scramble PII, revoke refresh tokens; requires password
+
+### Catalog (`/api/v1`)
+- `GET /subjects` — list with `total_courses`
+- `GET /tags`
+- `GET /courses` — paginated, filterable (`q`, `subject`, `tag`, `difficulty`, `sort`)
+
+### Search (`/api/v1/search`)
+- `GET /courses?q=...` — Meilisearch when configured, otherwise Postgres ILIKE fallback; supports `subject`, `tag`, `difficulty`
+
+### Courses (`/api/v1/courses`)
+- `POST /` — instructor-only create
+- `GET  /mine` — instructor's own courses
+- `GET  /{slug-or-id}` — detail; owners and admins see drafts
+- `PATCH /{course_id}`, `DELETE /{course_id}` — owner/admin only
+- `POST /{course_id}/modules`, `PATCH /modules/{module_id}`, `DELETE /modules/{module_id}`
+- `POST /{course_id}/modules/order` — reorder via id→order map
+- `POST /modules/{module_id}/lessons`, `PATCH /lessons/{lesson_id}`, `DELETE /lessons/{lesson_id}`
+- `POST /modules/{module_id}/lessons/order`
+
+Lesson payload is discriminated by `type` (`text` | `video` | `image` | `file` | `quiz`). Quiz schemas validate that choice-based questions have answer_keys subset of the choice ids.
+
+### Enrollments + progress (`/api/v1/me`)
+- `GET /enrollments`, `POST /enrollments/{course_id}`, `DELETE /enrollments/{course_id}`
+- `POST /progress/lessons/{lesson_id}` — mark complete; the response includes `progress_pct` and a `certificate_id` once 100% complete
+- `GET  /notifications`, `POST /notifications/{id}/read`
+- `GET  /bookmarks`, `PUT /bookmarks/{course_id}`, `DELETE /bookmarks/{course_id}`
+
+### Reviews (`/api/v1/courses/{course_id}/reviews`)
+- `GET`, `PUT` (upsert), `PATCH`, `DELETE` — enrolled-only writes, public reads
+
+### Chat (`/api/v1/chat`)
+- `GET  /courses/{course_id}/messages?before=&limit=` — paginated history
+- `POST /courses/{course_id}/messages` — REST send
+- `WS   /ws/{course_id}?token=...` — real-time stream
+
+### Uploads (`/api/v1/uploads`)
+- `POST /sign` — returns a presigned PUT URL + public URL; content-type allow-list and size cap per `kind` (`avatar` | `cover` | `lesson` | `attachment`)
+
+### Certificates (`/api/v1/certificates`)
+- `GET /{course_id}.pdf` — synchronous PDF render, gated on 100% completion + enrollment
+
+### Admin (`/api/v1/admin`) — admin role only
+- `POST/PATCH/DELETE /subjects`, `POST/DELETE /tags`
+- `GET /users?q=&limit=`, `PATCH /users/{user_id}/role`, `PATCH /users/{user_id}/active`
+- `GET /audit?action=&actor_id=&limit=` — append-only audit log
+
+### Health (`/api/v1/health`)
+- `GET /live` — process is up
+- `GET /ready` — Postgres + Redis reachable; returns 503 on failure

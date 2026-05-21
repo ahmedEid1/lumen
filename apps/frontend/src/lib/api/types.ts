@@ -74,6 +74,7 @@ export interface ModuleOut {
 export interface CourseDetail extends CourseListItem {
   modules: ModuleOut[];
   is_enrolled: boolean;
+  is_bookmarked: boolean;
   progress_pct: number;
 }
 
