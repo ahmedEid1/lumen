@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Chat room for {{ course.title }}{% endblock %}
+
+{% block page_title %}
+    {{ course.title }}`s Chat room
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <ul id="chat" class="w-100 p-0 m-0"></ul>
+    </div>
+
+   <div id="chat-input" class="fixed-bottom">
+       <input class="w-100" id="chat-message-input" type="text" placeholder="Enter Message">
+       <button id="chat-message-submit" class="btn btn-primary w-100" type="submit" value="Send">
+           Send
+       </button>
+    </div>
+{% endblock %}
+
+{# TODO: remove jquery (you know why -_-) #}
+{% block domready %}
+    const url = 'ws://' + window.location.host + '/ws/chat/room/' + '{{ course.id }}/';
+    const chatSocket = new WebSocket(url);
+
+    chatSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        const message = data.message;
+        const dateOptions = {hour: 'numeric', minute: 'numeric', hour12: true};
+        const datetime = new Date(data['datetime']).toLocaleString('en', dateOptions);
+        const isMe = data.user === '{{ request.user }}';
+        const source = isMe ? 'me' : 'other';
+        const name = isMe ? 'Me' : data.user;
+
+        // TODO: remove Jquery
+        const $chat = $('#chat');
+        if (name === 'Me')
+            $chat.append('<li class="message text-primary bg-light float-end">' + '<strong>' + name + '</strong> ' +
+                                '<span class="date">' + datetime + '</span><br>' + message + '</li>');
+        else
+            $chat.append('<li class="message  text-primary bg-light float-start">' + '<strong>' + name + '</strong> ' +
+                                '<span class="date">' + datetime + '</span><br>' + message + '</li>');
+
+        window.scrollTo(0,document.body.scrollHeight);
+
+    };
+
+    chatSocket.onclose = function(e) {
+        console.error('Chat socket closed unexpectedly');
+    };
+
+    // TODO: remove Jquery
+    let $input = $('#chat-message-input');
+    let $submit = $('#chat-message-submit');
+
+    $submit.click(function() {
+        let message = $input.val();
+        if(message) {
+            chatSocket.send(JSON.stringify({'message': message}));
+            $input.val('');
+            $input.focus();
+        }
+    });
+
+    $input.focus();
+    $input.keyup(function(e) {
+        if (e.which === 13) {
+            $submit.click();
+        }
+    });
+{% endblock %}

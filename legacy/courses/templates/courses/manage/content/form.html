@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{% endblock %}
+
+{% block page_title %}
+        {% if object %}
+            Edit {{ object.title }}
+        {% else %}
+            Add a new content
+        {% endif %}
+{% endblock %}
+
+{% block content %}
+
+    <div class="w-100 module shadow-style">
+        <div class="row h-100 justify-content-center">
+            <form class="d-inline-block" action="" method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                {% for field in form %}
+                    {{ field.errors }}
+                    <p>{{ field.label_tag }}</p>
+                    <p class="text-black-50">{{ field }}</p>
+                    {% if field.help_text %}
+                        {{ field.help_text|safe }}
+                     {% endif %}
+                {% endfor %}
+                <p><button class="btn btn-primary" type="submit" value="Save Content">Save Content</button></p>
+         </form>
+      </div>
+  </div>
+
+{% endblock %}

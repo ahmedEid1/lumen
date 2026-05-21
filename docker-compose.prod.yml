@@ -1,0 +1,175 @@
+name: lumen-prod
+
+x-api-env: &api-env
+  ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  TZ: ${TZ:-UTC}
+  SECRET_KEY: ${SECRET_KEY}
+  JWT_SECRET: ${JWT_SECRET}
+  ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+  REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-1209600}
+  CORS_ORIGINS: https://${APP_DOMAIN}
+  DATABASE_URL: ${DATABASE_URL}
+  DATABASE_URL_SYNC: ${DATABASE_URL_SYNC}
+  REDIS_URL: ${REDIS_URL}
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
+  S3_ENDPOINT_URL: ${S3_ENDPOINT_URL}
+  S3_PUBLIC_BASE_URL: https://${APP_DOMAIN}/assets
+  S3_REGION: ${S3_REGION}
+  S3_BUCKET: ${S3_BUCKET}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+  SEARCH_BACKEND: ${SEARCH_BACKEND:-meilisearch}
+  MEILI_URL: ${MEILI_URL}
+  MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+  SMTP_HOST: ${SMTP_HOST}
+  SMTP_PORT: ${SMTP_PORT}
+  SMTP_USERNAME: ${SMTP_USERNAME}
+  SMTP_PASSWORD: ${SMTP_PASSWORD}
+  SMTP_FROM: ${SMTP_FROM}
+  SMTP_TLS: "true"
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  PROMETHEUS_ENABLED: "true"
+
+services:
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+      - web
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+
+  s3:
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    restart: unless-stopped
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - s3-data:/data
+
+  search:
+    image: getmeili/meilisearch:v1.10
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_ENV: production
+    volumes:
+      - search-data:/meili_data
+
+  api:
+    image: ghcr.io/ahmedeid1/lumen-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      s3: { condition: service_started }
+      search: { condition: service_started }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/health/ready', timeout=2).status==200 else 1)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    image: ghcr.io/ahmedeid1/lumen-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      api: { condition: service_started }
+    command: ["celery", "-A", "app.workers.celery_app.celery", "worker", "--loglevel=INFO", "--concurrency=4"]
+
+  beat:
+    image: ghcr.io/ahmedeid1/lumen-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      api: { condition: service_started }
+    command: ["celery", "-A", "app.workers.celery_app.celery", "beat", "--loglevel=INFO"]
+
+  web:
+    image: ghcr.io/ahmedeid1/lumen-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: https://${APP_DOMAIN}
+      NEXT_PUBLIC_WS_BASE_URL: wss://${APP_DOMAIN}
+      API_INTERNAL_BASE_URL: http://api:8000
+      PORT: "3000"
+
+  backup:
+    image: postgres:17-alpine
+    profiles: ["backup"]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      db: { condition: service_healthy }
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        ts=$$(date -u +%Y-%m-%dT%H-%M-%SZ)
+        pg_dump -h db -U ${POSTGRES_USER} -d ${POSTGRES_DB} | gzip > /backups/lumen-$$ts.sql.gz
+        echo "backup written: /backups/lumen-$$ts.sql.gz"
+
+  prom:
+    image: prom/prometheus:v3.0.1
+    profiles: ["metrics"]
+    restart: unless-stopped
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom-data:/prometheus
+
+volumes:
+  db-data:
+  redis-data:
+  s3-data:
+  search-data:
+  caddy-data:
+  caddy-config:
+  prom-data:
+
+networks:
+  default:
+    name: lumen-prod

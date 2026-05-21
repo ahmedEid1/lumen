@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{#{% load cache %}#}
+{% load static %}
+{% block title %}{{ object.title }}{% endblock %}
+
+{% block page_title %}
+    {{ module.title }}
+{% endblock %}
+
+{% block content %}
+    {# the side-bar #}
+    <div class="contents">
+        <h3 class="display-6">Modules</h3>
+        <ul>
+            {% for m in object.modules.all %}
+                <li data-id="{{ m.id }}" {% if m == module %}class="selected"{% endif %}>
+                    <a href="{% url 'student_course_detail_module' object.id m.id %}">
+                        <span>
+                            Module <span class="order">{{ m.order|add:1 }}</span>
+                        </span>
+                        <br>
+                        {{ m.title }}
+                    </a>
+                </li>
+            {% empty %}
+                <li>No Modules Yet.</li>
+            {% endfor %}
+        </ul>
+
+        <div>
+            <h3 class="display-6 hover-style">
+                <a href="{% url 'chat:course_chat_room' object.id %}">
+                    Chat Room ==>
+                </a>
+            </h3>
+
+        </div>
+    </div>
+
+    <div class="module">
+{#    {% cache 300 module_content_s module%}#}
+        {% for content in module.contents.all %}
+            {% with item=content.item %}
+                <div class="module card" >
+                    <details>
+                        <summary>
+                            <span class="display-6 p-1">{{ item.title }}</span>
+                        </summary>
+
+                        {{ item.render }}
+
+                    </details>
+                </div>
+
+            {% endwith %}
+        {% endfor %}
+{#    {% endcache %}#}
+    </div>
+{% endblock %}

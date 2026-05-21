@@ -1,0 +1,54 @@
+{
+	# global options
+	email ops@{$APP_DOMAIN}
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# API
+	@api path /api/* /docs* /openapi.json
+	handle @api {
+		reverse_proxy api:8000
+	}
+
+	# WebSocket
+	@ws path /api/v1/ws/*
+	handle @ws {
+		reverse_proxy api:8000 {
+			header_up Connection {http.request.header.Connection}
+			header_up Upgrade {http.request.header.Upgrade}
+		}
+	}
+
+	# Public assets — proxy MinIO bucket (read-only)
+	@assets path /assets/*
+	handle @assets {
+		uri strip_prefix /assets
+		reverse_proxy s3:9000 {
+			header_up Host {http.request.host}
+		}
+	}
+
+	# Everything else — Next.js
+	handle {
+		reverse_proxy web:3000
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

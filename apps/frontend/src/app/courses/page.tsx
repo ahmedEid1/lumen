@@ -1,0 +1,86 @@
+"use client";
+
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Search } from "lucide-react";
+import { CourseCard } from "@/components/course/course-card";
+import { Input } from "@/components/ui/input";
+import { Catalog } from "@/lib/api/endpoints";
+import { qk } from "@/lib/query/keys";
+
+export default function CatalogPage() {
+  const [q, setQ] = useState("");
+  const [subject, setSubject] = useState<string | undefined>(undefined);
+  const [difficulty, setDifficulty] = useState<string | undefined>(undefined);
+
+  const subjects = useQuery({ queryKey: qk.subjects, queryFn: () => Catalog.subjects() });
+  const courses = useQuery({
+    queryKey: qk.catalog({ q, subject, difficulty }),
+    queryFn: () => Catalog.courses({ q, subject, difficulty, page: 1, page_size: 30 }),
+  });
+
+  return (
+    <div className="container mx-auto px-4 py-10">
+      <header className="mb-8 flex flex-col gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Catalog</h1>
+          <p className="text-muted-foreground">Find your next course.</p>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input
+              placeholder="Search courses…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="pl-9"
+              aria-label="Search courses"
+            />
+          </div>
+          <select
+            className="h-10 rounded-md border bg-background px-3 text-sm"
+            value={subject ?? ""}
+            onChange={(e) => setSubject(e.target.value || undefined)}
+            aria-label="Filter by subject"
+          >
+            <option value="">All subjects</option>
+            {subjects.data?.map((s) => (
+              <option key={s.id} value={s.slug}>
+                {s.title}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-10 rounded-md border bg-background px-3 text-sm"
+            value={difficulty ?? ""}
+            onChange={(e) => setDifficulty(e.target.value || undefined)}
+            aria-label="Filter by difficulty"
+          >
+            <option value="">Any difficulty</option>
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+          </select>
+        </div>
+      </header>
+
+      {courses.isLoading ? (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-80 animate-pulse rounded-xl bg-muted" />
+          ))}
+        </div>
+      ) : courses.data && courses.data.items.length > 0 ? (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {courses.data.items.map((c) => (
+            <CourseCard key={c.id} course={c} />
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-lg border bg-muted/30 p-10 text-center text-muted-foreground">
+          Nothing matched your filters.
+        </p>
+      )}
+    </div>
+  );
+}

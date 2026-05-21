@@ -1,3 +1,62 @@
-.idea
-venv
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ---- secrets & local config ----
+.env
+.env.*
+!.env.example
+*.local.*
+
+# ---- node ----
+node_modules/
+.next/
+.turbo/
+out/
+coverage/
+playwright-report/
+test-results/
+.swc/
+
+# ---- python ----
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.eggs/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.python-version
+
+# ---- builds ----
+dist/
+build/
+*.log
+*.pid
+
+# ---- data / volumes ----
+data/
+backups/
+.docker/
+*.sqlite3
+
+# ---- legacy archives ----
+legacy/__pycache__/
+legacy/db.sqlite3
+legacy/media/
+
+# ---- ralph loop session state ----
+.claude/ralph-loop.local.md
+
+# ---- legacy wheel ----
 Twisted-20.3.0-cp39-cp39-win_amd64.whl

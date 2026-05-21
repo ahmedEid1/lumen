@@ -1,0 +1,133 @@
+[project]
+name = "lumen-backend"
+version = "1.0.0"
+description = "Lumen — FastAPI backend for the e-learning platform"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [{ name = "Lumen Maintainers" }]
+readme = "README.md"
+
+dependencies = [
+  "fastapi>=0.115.6",
+  "uvicorn[standard]>=0.34",
+  "pydantic>=2.10",
+  "pydantic-settings>=2.7",
+  "sqlalchemy[asyncio]>=2.0.36",
+  "asyncpg>=0.30",
+  "psycopg[binary]>=3.2",
+  "alembic>=1.14",
+  "passlib[argon2]>=1.7.4",
+  "argon2-cffi>=23.1",
+  "pyjwt[crypto]>=2.10",
+  "python-multipart>=0.0.18",
+  "email-validator>=2.2",
+  "httpx>=0.28",
+  "redis>=5.2",
+  "celery[redis]>=5.4",
+  "boto3>=1.35",
+  "botocore>=1.35",
+  "meilisearch>=0.34",
+  "structlog>=24.4",
+  "orjson>=3.10",
+  "tenacity>=9.0",
+  "slowapi>=0.1.9",
+  "prometheus-client>=0.21",
+  "opentelemetry-api>=1.29",
+  "opentelemetry-sdk>=1.29",
+  "opentelemetry-instrumentation-fastapi>=0.50b0",
+  "opentelemetry-instrumentation-sqlalchemy>=0.50b0",
+  "opentelemetry-instrumentation-redis>=0.50b0",
+  "opentelemetry-exporter-otlp>=1.29",
+  "sentry-sdk[fastapi]>=2.19",
+  "python-slugify>=8.0",
+  "nanoid>=2.0.0",
+  "reportlab>=4.2",
+  "jinja2>=3.1",
+  "ulid-py>=1.1",
+  "typer>=0.15",
+  "rich>=13.9",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=6.0",
+  "pytest-httpx>=0.34",
+  "anyio>=4.6",
+  "ruff>=0.8.3",
+  "mypy>=1.13",
+  "types-redis>=4.6",
+  "types-passlib>=1.7",
+  "factory-boy>=3.3",
+  "freezegun>=1.5",
+  "respx>=0.22",
+  "faker>=33.1",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
+
+# ---------------- ruff ----------------
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W",      # pyflakes / pycodestyle
+  "I",                # isort
+  "B",                # bugbear
+  "UP",               # pyupgrade
+  "ASYNC",            # async lints
+  "S",                # bandit
+  "C4", "T20",        # comprehensions / no prints
+  "SIM",              # simplify
+  "RUF",
+]
+ignore = [
+  "E501",             # handled by formatter
+  "B008",             # FastAPI Depends pattern
+  "S101",             # assert ok in tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S105", "S106", "S311", "ASYNC"]
+"app/cli.py" = ["T201"]
+
+# ---------------- mypy ----------------
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
+plugins = ["pydantic.mypy"]
+exclude = "alembic/versions"
+
+[[tool.mypy.overrides]]
+module = ["passlib.*", "meilisearch.*", "celery.*", "slowapi.*"]
+ignore_missing_imports = true
+
+# ---------------- pytest ----------------
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --cov=app --cov-report=term-missing --cov-fail-under=80"
+filterwarnings = [
+  "error",
+  "ignore::DeprecationWarning:passlib.*",
+]
+
+[tool.coverage.run]
+branch = true
+omit = [
+  "app/cli.py",
+  "app/workers/celery_app.py",
+  "app/core/otel.py",
+  "alembic/*",
+]

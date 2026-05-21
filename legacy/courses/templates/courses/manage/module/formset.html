@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+    Edit {{ course.title }}
+{% endblock %}
+
+{% block page_title %}
+    Edit {{ course.title }}
+{% endblock %}
+
+{% block content %}
+    <div class="module shadow-style w-100 text-center text-white">
+        <h2 class="card display-5 bg-primary">Course Modules</h2>
+        <form class="form d-inline-block text-black-50" method="post">
+            {% csrf_token %}
+            {{ formset }}
+            {{ formset.management_form }}
+
+            <input class="btn bg-primary" type="submit" value="Save Module">
+        </form>
+    </div>
+{% endblock %}
+
+

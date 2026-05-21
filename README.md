@@ -1,319 +1,141 @@
-### What’s contained in each folder.
-- e-learning_platform :
-    - the main app of the Application
-- courses :
-    - this app responsible for creating the courses and handling CRUD operations on them
-    - it also has a simple api for enable working with the site through api consumers 
-- students:
-    - this app handle the student enrollment into courses and displaying the content of the courses to students
-- chat:
-    - handle a live chat for every course 
----
-### How to run the application.
-- you will need to have `Redis` server running
-- run `pip install requirements.txt`
-- then you can start the server with
-    - `python manage.py runserver`
+# Lumen — E-Learning Platform
 
-### Technologies
-<details>
-  <summary>Tech list</summary>
-  
-- Django
-- django-braces
-- django-embed-video
-- django-memcached-status
-- Django REST framework 
-- Jquery
-- jQuery UI
-- MemCache
-  - python binding: 
-      `python-memcached`
-- channels
-- Redis 
-- channels-redis
+> A modern, full-stack learning management system rebuilt in 2026 from the original Django prototype.
 
-</details>
+[![CI](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+Lumen is the second-generation rewrite of the original `E-Learning-Platform` Django app. It pairs a **FastAPI** backend with a **Next.js 15** frontend, runs entirely from Docker Compose, and ships with a complete SDLC: planning docs, ADRs, automated tests, CI/CD, observability, and a production deployment story.
 
 ---
-----
-<h3>
-urls and their views and templates 
-<br>(simple map for myself, you do not need to open it)
-<br>(seriously do not open it)
-</h3>
-<details>
-<summary></summary>
 
+## Highlights
 
-- ### `/`
-    - ##### `Courses List` 
-        - view : `courses/views.py#CourseListView`
-        - template : `courses/course/list.html` 
-        - all the courses and a list of all the subjects to only show courses belonging to this Subject
-            - every subject has the number of courses it has
-            - evert course card show :
-                - subject the course belong to
-                - number of modules in the course
-                - name of the Instructor
------
-----
-- ### `/accounts`
-    - `/login` :
-        - login page
-    - `/logout` :
-        - logout page 
-    - ##### views :
-        - `django.contrib.auth`
-            - `LoginView`
-            - `LogoutView`
-    - ##### note :
-        - the templates for the two pages are overridden using :
-            - `templates/registration/`
-               - `login.html`
-               - `logged_out.html`
----
-----
-- ### `/admin` 
-    - need to be a superuser to access the admin panel
-    - only a superuser can add new subjects or make a user a teacher by giving them the right permission
-        - a teacher can add new courses and add modules and content to the courses he owns
-    - ##### views 
-        - `django.contrib.admin.site.urls`
-----
-----
-- ### `course/`
-    - `include('courses.urls')` : 
-        - all urls under the courses' app start with `course/`
------
-- #### `mine/` (Login Require)
-    - list of the courses the user (teacher) created
-      - can edit the course, 
-      - edit its modules, 
-      - manging the content of a module,
-      - deleting a course,
-      - creating a new course,
-        
-    - view : `ManageCourseListView`
-    - template : `courses/manage/course/list.html`
------
-- #### `create/` (Login Require)
-    - ####### create a new course
-    - view : `CourseCreateView`
-    - template : `courses/manage/course/form.html` 
------
-- #### `<course_id>/edit/` (Login Require)
-    - edit the info of an existing course
-    - view : `CourseUpdateView`
-    - template : `courses/manage/course/form.html` 
------
-- #### `<course_id>/delete/` (Login Require)
-    - delete an existing course
-    - view : `CourseDeleteView`
-    - template : `courses/manage/course/delete.html`
------
-- #### `<course_id>/module/` (Login Require)
-    - adding, editing and deleting modules of a course
-    - view : `CourseModuleUpdateView`
-    - template : `courses/manage/module/formset.html`     
------
-- #### `module/<course_id>/` (Login Require)
-    - adding, editing and deleting content of a module in the course
-    - view : `ModuleContentListView`
-    - template : `courses/manage/content/content_list.html`
------
-- #### `module/<module_id>/content/<content_type>/create/` (Login Require)
-    - adding a new content (text, image, video, file) to the module 
-    - view : `ContentCreateUpdateView`
-    - template : `courses/manage/content/form.html`
------
-- #### `module/<module_id>/content/<content_type>/<content_id>/` (Login Require)
-    - editing a content item (text, image, video, file) from the module content 
-    - view : `ContentCreateUpdateView`
-    - template : `courses/manage/content/form.html`
------
-- #### `content/<content_id>/delete` (Login Require)
-    - deleting a content item from the module
-    - view : `ContentDeleteView`
-    - template : no template (just delete and redirect again to the content_list page)
------
-- #### Note :
-    - you can reorder the contents, or the modules 
-            - just click and hold then drag to change the order
-----
-----
-## `/students` :
-- `student.urls`
-  
-- ### `register/` :
-    - create a new user account
-    - view : StudentRegistrationView
-    - template : `students/student/registration.html`
----
-- ### `courses/` : (Login Require)
-    - list of all the courses the user is enrolled in
-    - view : `StudentCourseListView`
-    - template : `students/student/list.htm`
----
-- ### `courses/<course_id>/` : (Login Require)
-    - course detail page + course chat room 
-    - view : `StudentCourseDetailView`
-    - template : `students/student/detail.html`
----
-- ### `courses/<course_id>/<module_id>` : (Login Require) 
-    - showing the contents of a course module
-    - view : `StudentCourseDetailView`
-    - template : `students/student/detail.html`
----
----
-## `chat/`
-- the chat rooms of courses
-- ### `room/<course_id>`
-    - view : `course_chat_room`
-    - template : `chat/room.html`
-
-----
-----
-## `api/`
-- ### the endpoints of the API 
-    - `subjects/`
-         - GET : return a list of all the subjects   
-    - `subjects/<subject_id>`
-         - GET : return the details of a subject   
-
-    - `courses`
-        - GET : list of all the course
-    - `courses/<course_id>`
-        - GEt : the details of a course
-    - `courses/<course_id>/enroll/`
-        - POST : enroll in a course
----
----
-
-
-</details>
-
+| Area | Stack |
+|------|-------|
+| Backend | Python 3.13, FastAPI, SQLAlchemy 2 (async), Alembic, Pydantic v2, Celery |
+| Frontend | Next.js 15 (App Router), React 19, TypeScript 5, Tailwind 4, shadcn/ui, TanStack Query |
+| Data | PostgreSQL 17, Redis 7, MinIO (S3-compatible), Meilisearch |
+| Auth | JWT access + rotating refresh, Argon2 hashing, OAuth2-ready, RBAC |
+| Realtime | WebSockets fan-out via Redis Pub/Sub |
+| Quality | Ruff, mypy, ESLint, Prettier, pytest, Vitest, Playwright, pre-commit |
+| Delivery | Docker, Docker Compose (dev & prod), GitHub Actions, Trivy scans, Renovate |
+| Ops | OpenTelemetry, Prometheus metrics, structured logs, audit trail |
 
 ---
-- ### `/`
-    - ##### `Courses List` 
-              
-        <details>
 
-        - all the courses and a list of all the subjects to only show courses belonging to this Subject
-            - every subject has the number of courses it has
-            - evert course card show :
-                - subject the course belong to
-                - number of modules in the course
-                - name of the Instructor
-      
-        </details>
+## Repository layout
 
-![Home Page](readme_gifs/Main_page_gif.gif)
------
-----
-- ### `/accounts`
-    - `/login` :
-        - login page
-    - `/logout` :
-        - logout page 
-    
-![log in and out](readme_gifs/log_in_out_gif.gif)
----
-----
-- ### `/admin` 
-    - need to be a superuser to access the admin panel
-    - only a superuser can add new subjects or make a user a teacher by giving them the right permission
-        - `a teacher can add new courses and add modules and content to the courses he owns`
+```text
+.
+├── apps/
+│   ├── backend/                FastAPI service (Python 3.13)
+│   └── frontend/               Next.js 15 app (TypeScript)
+├── docs/
+│   ├── adr/                    Architecture Decision Records
+│   ├── architecture.md         System architecture & data flow
+│   ├── product-requirements.md Product Requirements Document
+│   ├── sdlc.md                 SDLC, branching, release process
+│   ├── api.md                  API conventions
+│   ├── deployment.md           Production deployment guide
+│   ├── security.md             Threat model & security controls
+│   └── runbooks/               On-call runbooks
+├── infra/
+│   ├── compose/                Compose profiles & extras
+│   ├── caddy/                  Reverse proxy config
+│   └── postgres/               DB init scripts
+├── scripts/                    Dev tooling
+├── .github/workflows/          CI/CD pipelines
+├── docker-compose.yml          Local dev stack
+├── docker-compose.prod.yml     Production stack
+├── Makefile                    Common commands
+├── legacy/                     Original Django app (read-only archive)
+└── README.md
+```
 
-![admin](readme_gifs/admin_gif.gif)
-----
----
-- ### `course/`
-  <details>
-   
-    - #### `mine/` (Login Require)
-      - list of the courses the user (teacher) created
-          - can edit the course, 
-          - edit its modules, 
-          - manging the content of a module,
-          - deleting a course,
-          - creating a new course,
-    - #### `create/` (Login Require)
-      - create a new course
-    - #### `<course_id>/edit/` (Login Require)
-      - edit the info of an existing course
-    - #### `<course_id>/delete/` (Login Require)
-      - delete an existing course
-    - #### `<course_id>/module/` (Login Require)
-      - adding, editing and deleting modules of a course
-    - #### `module/<course_id>/` (Login Require)
-      - adding, editing and deleting content of a module in the course
-    - #### `module/<module_id>/content/<content_type>/create/` (Login Require)
-      - adding a new content (text, image, video, file) to the module
-    - #### `module/<module_id>/content/<content_type>/<content_id>/` (Login Require)
-      - editing a content item (text, image, video, file) from the module content
-    - #### `content/<content_id>/delete` (Login Require)
-        - deleting a content item from the module
-  
-    </details>
+## Quick start (local dev)
 
-![Courses](readme_gifs/Courses_gif.gif)
+Prerequisites: **Docker Desktop ≥ 4.30** (or Docker Engine 27 + Compose v2), **Make** (optional), 8 GB free RAM.
 
----
-- #### Note :
-    - `you can reorder the contents, or the modules 
-            - just click and hold then drag to change the order`
-----
+```bash
+git clone https://github.com/ahmedEid1/E-Learning-Platform.git
+cd E-Learning-Platform
+cp .env.example .env
+make up          # or: docker compose up --build
+```
 
-![Drag and Drop](readme_gifs/Drag_and_drop_gif.gif)
+Then open:
 
-----
-----
+| Service        | URL                        |
+|----------------|----------------------------|
+| Frontend       | http://localhost:3000      |
+| Backend (API)  | http://localhost:8000      |
+| API docs       | http://localhost:8000/docs |
+| MinIO console  | http://localhost:9001      |
+| Mailpit        | http://localhost:8025      |
+| Traefik dash   | http://localhost:8080      |
 
-- ### `/students` :
-    
-    <details>
-  
-    - #### `register/` :
-        - create a new user account
-    - #### `courses/` : (Login Require)
-        - list of all the courses the user is enrolled in
-    - #### `courses/<course_id>/` : (Login Require)
-        - course detail page + course chat room 
-    - #### `courses/<course_id>/<module_id>` : (Login Require) 
-        - showing the contents of a course module
+Seed data and a demo instructor/student are loaded by the `seed` profile:
 
-    </details>
+```bash
+make seed
+```
 
+Default credentials after seeding (change immediately in any non-local env):
 
-![Student](readme_gifs/student_gif.gif)
+| Role       | Email                | Password    |
+|------------|----------------------|-------------|
+| Admin      | admin@lumen.test     | Admin!2026  |
+| Instructor | teacher@lumen.test   | Teach!2026  |
+| Student    | student@lumen.test   | Learn!2026  |
 
----
----
-## `chat/`
-- the chat rooms of courses
-- ### `room/<course_id>`
+## Make targets
 
-![chat](readme_gifs/chat_gift.gif)
+```bash
+make up          # start the full dev stack
+make down        # stop & remove containers
+make logs        # tail all logs
+make seed        # load demo data
+make migrate     # alembic upgrade head
+make revision m="add foo"   # alembic autogenerate
+make test        # full test suite (backend + frontend)
+make lint        # ruff, mypy, eslint
+make fmt         # ruff format, prettier
+make shell.api   # exec bash in backend container
+make shell.db    # psql
+make gif         # rebuild README gifs from Playwright traces
+```
 
-----
-----
-## `api/`
-- ### the endpoints of the API 
-    - `subjects/`
-         - GET : return a list of all the subjects   
-    - `subjects/<subject_id>`
-         - GET : return the details of a subject
-    - `courses`
-        - GET : list of all the course
-    - `courses/<course_id>`
-        - GEt : the details of a course
-    - `courses/<course_id>/enroll/`
-        - POST : enroll in a course
+## Documentation
 
-![Api subjects List](readme_gifs/7.PNG)
-![Api Content of a course](readme_gifs/8.PNG)
+Start with **[docs/product-requirements.md](docs/product-requirements.md)** for the product vision, then read:
 
----
----
+1. [Architecture overview](docs/architecture.md)
+2. [SDLC & process](docs/sdlc.md)
+3. [API conventions](docs/api.md)
+4. [Security model](docs/security.md)
+5. [Deployment](docs/deployment.md)
+6. [Contributing](CONTRIBUTING.md)
+7. [ADRs](docs/adr/) — every load-bearing decision
+
+## Features at a glance
+
+- **Catalog** — searchable courses with subject filters, tags, difficulty, ratings
+- **Authoring** — instructors create courses with modules and lessons (text, video, image, file, quiz)
+- **Drag & drop ordering** — modules and lessons reorder live via dnd-kit
+- **Enrollment & progress** — granular per-lesson completion, course-level %
+- **Quizzes** — multiple-choice and short-answer with auto-grading
+- **Reviews & ratings** — students rate enrolled courses
+- **Real-time chat** — per-course room with persistence, typing & presence
+- **Notifications** — in-app + email (Mailpit in dev, SES/SMTP in prod)
+- **Certificates** — auto-issued PDF on 100% completion
+- **Search** — Meilisearch-powered full-text across catalog
+- **Accessibility** — WCAG 2.2 AA, keyboard nav, prefers-reduced-motion
+- **i18n** — first-class EN, scaffolded for AR/ES
+- **Dark mode** — system / light / dark
+- **Audit log** — append-only record of authoritative actions
+- **GDPR** — account export & delete
+
+## License
+
+MIT — see [LICENSE](LICENSE).

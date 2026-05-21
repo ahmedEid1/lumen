@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Sign Up{% endblock %}
+
+{% block page_title %}
+    Sign Up
+{% endblock %}
+
+{% block content %}
+    <div class="module shadow-style w-100">
+        <h2 class="card p-4 text-center text-white bg-primary">Enter you details to create a student account</h2>
+        <form class="form" method="post">
+            {{ form.as_p }}
+            {% csrf_token %}
+            <p><input class="bg-primary" type="submit" value="Create the account"></p>
+        </form>
+    </div>
+{% endblock %}

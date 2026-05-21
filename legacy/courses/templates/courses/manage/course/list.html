@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}My Courses{% endblock %}
+
+{% block page_title %}
+    My Courses
+{% endblock %}
+
+{% block content %}
+
+    <div class="module shadow-style w-100">
+        {% for course in object_list %}
+
+            <div class="card p-2">
+                <h3 class="display-6">{{ course.title }}</h3>
+                <p>
+                    <a class="btn btn-primary text-white" href="{% url 'course_edit' course.id %}">Edit Course</a>
+                    <a class="btn btn-primary text-white" href="{% url 'course_module_update' course.id %}">Edit Modules</a>
+                    {% if course.modules.count > 0 %}
+                        <a class="btn btn-primary text-white" href="{% url 'module_content_list' course.modules.first.id %}">Manage Contents</a>
+                    {% endif %}
+                    <a class="btn btn-danger text-white" href="{% url 'course_delete' course.id %}">Delete</a>
+                </p>
+
+            </div>
+
+        {% empty %}
+            <p class="display-6">You don`t have any courses yet</p>
+        {% endfor %}
+
+        <a class="btn btn-success w-100 text-white mt-1" href="{% url 'course_create' %}">Create New Course</a>
+
+    </div>
+{% endblock %}

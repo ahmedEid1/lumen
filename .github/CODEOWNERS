@@ -1,0 +1,14 @@
+# Default owner
+*                           @ahmedEid1
+
+# Backend
+/apps/backend/              @ahmedEid1
+/apps/backend/alembic/      @ahmedEid1
+
+# Frontend
+/apps/frontend/             @ahmedEid1
+
+# Infra & CI/CD
+/.github/workflows/         @ahmedEid1
+/infra/                     @ahmedEid1
+/docker-compose*.yml        @ahmedEid1

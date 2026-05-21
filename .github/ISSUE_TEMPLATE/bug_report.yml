@@ -1,0 +1,40 @@
+name: Bug report
+description: Something is broken or doesn't behave as documented.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: "v1.0.0 or sha"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [backend, frontend, infra, docs, other]
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots (redact PII)

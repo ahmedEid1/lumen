@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+    {% if object %}
+        Edit {{ object.title }}
+    {% else %}
+        Create a new course
+    {% endif %}
+{% endblock %}
+
+{% block page_title %}
+    {% if object %}
+        Edit {{ object.title }}
+    {% else %}
+        Create a new course
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+
+    <div class="module shadow-style w-100">
+        <h2 class="display-5 text-primary">Course Info</h2>
+        <form method="post">
+            {{ form.as_p }}
+            {% csrf_token %}
+
+            <button class="btn btn-primary w-100" type="submit" value="Save Course">Save Course</button>
+        </form>
+    </div>
+{% endblock %}

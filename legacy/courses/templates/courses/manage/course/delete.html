@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Delete Course{% endblock %}
+
+{% block page_title %}
+    Delete {{ object.title }}
+{% endblock %}
+
+{% block content %}
+    <div class="module shadow-style w-100">
+        <form method="post">
+            {% csrf_token %}
+            <p class="display-5 text-danger">you sure about deleting "{{ object }}" ?!!</p>
+
+            <button class="btn btn-danger w-100" type="submit" value="Confirm">Confirm</button>
+        </form>
+
+    </div>
+{% endblock %}

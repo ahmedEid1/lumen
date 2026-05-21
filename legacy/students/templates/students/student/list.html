@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}MyCourses{% endblock %}
+
+{% block page_title %}
+    My courses
+{% endblock %}
+
+{% block content%}
+
+    <div class="module shadow-style w-100">
+        {% for course in object_list %}
+            <div class="card p-1 text-center hover-style">
+                <h3 class="display-6">{{ course.title }}</h3>
+                <p>
+                    <a class="btn btn-primary text-white" href="{% url 'student_course_detail' course.id %}">Access Contents</a>
+                </p>
+            </div>
+
+        {% empty %}
+            <p class="text-primary display-6">you are not enrolled in any courses yet</p>
+            <a class="btn btn-success text-white" href="{% url 'course_list' %}">Browse Course</a> to enroll in a course
+        {% endfor %}
+    </div>
+{% endblock %}

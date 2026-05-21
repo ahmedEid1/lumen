@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ object.title }}{% endblock %}
+
+
+{% block page_title %}
+            {{ object.title }}
+{% endblock %}
+
+{% block content %}
+
+    {% with subject=object.subject %}
+
+        <div class="shadow-style text-center text-black-50  bg-light">
+
+            <p>
+                <a class="display-6" href="{% url 'course_list_subject' subject.slug %}">Subject: {{ subject.title }}</a>
+                <br>
+                <span class="display-6">
+                    Modules Numbers: {{ object.modules.count }}
+                </span>
+                <br>
+                Instructor: {{ object.owner }}
+            </p>
+
+            <h5 class="display-6">Overview</h5>
+            <p>
+                {{ object.overview|linebreaks }}
+            </p>
+
+            {% if request.user.is_authenticated %}
+                {% if request.user in object.students.all  %}
+                    {#  user loged in and enrolled in the course #}
+                    <p>
+                        <a class="btn btn-primary" href="{% url 'student_course_detail' object.id %}">
+                            Access Contents
+                        </a>
+                    </p>
+                {% else %}
+                    {# loged in but not enrolled  #}
+                    <form action="{% url 'student_enroll_course'%}" method="post">
+                        {{ enroll_form }}
+                        {% csrf_token %}
+                        <button class="btn btn-primary w-100" type="submit" value="Enroll Now">Enroll Now</button>
+                    </form>
+                {% endif %}
+            {% else %}
+                <a class="btn btn-success" href="{% url 'student_registration' %}">
+                    Register to Enroll
+                </a>
+            {% endif %}
+
+        </div>
+
+    {% endwith %}
+
+{% endblock %}

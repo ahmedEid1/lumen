@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load course %}
+
+{% block title %}
+    Module {{ module.order|add:1 }}: {{ module.title }}
+{% endblock %}
+
+{% block page_title %}
+    {{ module.course.title }}
+{% endblock %}
+
+{% block content %}
+    {% with course=module.course %}
+    {#  the modules list  #}
+        <div class="contents hover-style">
+            <h3 class="hover-style">
+                Modules
+            </h3>
+
+            <ul>
+                {% for m in course.modules.all %}
+                    <li data-id="{{ m.id }}" {% if m == module %} class="selected" {% endif %}>
+                        <a href="{% url 'module_content_list' m.id %}">
+                            <span>
+                                Module <span class="order">{{ m.order|add:1 }}</span>
+                            </span>
+                            <br>
+                            {{ m.title }}
+                        </a>
+                    </li>
+                {% empty %}
+                    <li class="display-4">No modules yet.</li>
+                {% endfor %}
+            </ul>
+            <p>
+                <a href="{% url 'course_module_update' course.id %}">Edit Modules</a>
+            </p>
+        </div>
+
+    {# the seleceted module  #}
+        <div class="module shadow-style" style="width: 60%">
+
+            <h5 class="display-6">Module{{ module.order|add:1 }}  "{{ module.title }}"</h5>
+
+            <div id="module-contents">
+                {% for content in module.contents.all %}
+                    <div data-id="{{ content.id }}">
+                        {% with item=content.item %}
+
+                            <p>{{ item }} ({{ item|model_name }})</p>
+
+                            <a class="btn btn-outline-primary text-primary m-1" href="{% url 'module_content_update' module.id item|model_name item.id %}">Edit</a>
+
+                            <form method="post" action="{% url 'module_content_delete' content.id %}">
+                                {% csrf_token %}
+                                <button class="btn btn-outline-danger m-1" type="submit" value="Delete">Delete</button>
+                            </form>
+
+                        {% endwith %}
+
+                    </div>
+                {% empty %}
+                    <p>this module has no content yet</p>
+                {% endfor %}
+            </div>
+        </div>
+
+    {# adding new content #}
+        <div id="add-nav" class="module shadow-style">
+        <h3 class="">Add new content:</h3>
+        <ul class="list-unstyled list-inline p-0 m-0">
+            <li class="list-inline-item p-1"><a class="btn btn-outline-primary text-primary" href="{% url 'module_content_create' module.id 'text' %}">Text</a></li>
+            <li class="list-inline-item p-1"><a class="btn btn-outline-primary text-primary" href="{% url 'module_content_create' module.id 'image' %}">Image</a></li>
+            <li class="list-inline-item p-1"><a class="btn btn-outline-primary text-primary" href="{% url 'module_content_create' module.id 'video' %}">Video</a></li>
+            <li class="list-inline-item p-1"><a class="btn btn-outline-primary text-primary" href="{% url 'module_content_create' module.id 'file' %}">File</a></li>
+        </ul>
+        </div>
+
+    {% endwith %}
+{% endblock %}
+
+{# allow you to reorder the items in the modules by draging and droping them #}
+{% block domready %}
+    $('#modules').sortable({
+        stop: function(event, ui) {
+            modules_order = {};
+            $('#modules').children().each(function(){
+                $(this).find('.order').text($(this).index() + 1);
+                modules_order[$(this).data('id')] = $(this).index();
+            });
+
+            $.ajax({
+                type: 'POST',
+                url: '{% url "module_order" %}',
+                contentType: 'application/json; charset=utf-8', dataType: 'json',
+                data: JSON.stringify(modules_order)
+            });
+        }
+    });
+
+    $('#module-contents').sortable({
+        stop: function(event, ui) {
+                contents_order = {};
+                $('#module-contents').children().each(function(){
+                    contents_order[$(this).data('id')] = $(this).index();
+                });
+
+                $.ajax({
+                    type: 'POST',
+                    url: '{% url "content_order" %}',
+                    contentType: 'application/json; charset=utf-8',
+                    dataType: 'json',
+                    data: JSON.stringify(contents_order),
+                });
+        }
+    });
+
+{% endblock %}

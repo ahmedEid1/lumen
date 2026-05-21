@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Log-In{% endblock %}
+
+{% block page_title %}
+    Log-In
+{% endblock %}
+
+{% block content %}
+    <div class="module shadow-style w-100 text-center">
+        {% if form.errors %}
+            <p class="text-capitalize hover-style">your username or password is wrong please try again.</p>
+        {% else %}
+            <p class="hover-style">Please Sign In with the following form:</p>
+        {% endif %}
+
+        <div class="form">
+            <form class="form d-inline-block" action="{% url 'login' %}" method="post">
+                {{ form.as_p }}
+
+                {% csrf_token %}
+
+                <input type="hidden" name="next" value="{{ next }}">
+
+                <div class="hover-style">
+                    <a href="{% url 'student_registration' %}">
+                        Create new account ?
+                    </a>
+                </div>
+
+                <p ><input class="bg-primary submit" type="submit" value="Log-In"></p>
+            </form>
+        </div>
+    </div>
+{% endblock %}

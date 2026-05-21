@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}
+    {% if subject %}
+        {{ subject.title }} Courses
+    {% else %}
+        All Courses
+    {% endif %}
+{% endblock %}
+
+{% block page_title %}
+        {% if subject %}
+            {{ subject.title }} Courses
+        {% else %}
+            All Courses
+        {% endif %}
+{% endblock %}
+
+{% block content %}
+
+    <div class="contents hover-style">
+        <h3 class="my_button">Subjects</h3>
+        <ul id="course-modules">
+            <li {% if not subject %}class="selected" {% endif %}>
+                <a href="{% url 'course_list' %}">All</a>
+            </li>
+
+            {% for s in subjects %}
+                <li {% if subject == s %}class="selected" {% endif %}>
+                    <a href="{% url 'course_list_subject' s.slug %}">
+                        {{ s.title }}
+                        <br>
+                        <span>{{ s.total_courses }}</span>
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="module shadow-style" >
+        {% for course in courses %}
+            {% with subject=course.subject %}
+                <div class="hover-style module-content">
+                    <h3>
+                    <a href="{% url 'course_detail' course.slug %}">
+                        {{ course.title }}
+                    </a>
+                </h3>
+
+                <p>
+                    <a href="{% url 'course_list_subject' subject.slug %}">{{ subject }}</a>
+                    <br>
+                    >>> {{ course.total_modules }} Modules
+                    <br>
+                    <b>Instructor : </b> {{ course.owner }}
+                </p>
+                </div>
+            {% endwith %}
+        {% endfor %}
+    </div>
+
+{% endblock %}

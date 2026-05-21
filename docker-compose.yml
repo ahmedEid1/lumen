@@ -1,0 +1,212 @@
+name: lumen
+
+x-api-env: &api-env
+  ENV: ${ENV:-development}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  TZ: ${TZ:-UTC}
+  SECRET_KEY: ${SECRET_KEY}
+  JWT_SECRET: ${JWT_SECRET}
+  JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+  ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
+  REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-1209600}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+  DATABASE_URL: ${DATABASE_URL}
+  DATABASE_URL_SYNC: ${DATABASE_URL_SYNC}
+  REDIS_URL: ${REDIS_URL}
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
+  S3_ENDPOINT_URL: ${S3_ENDPOINT_URL}
+  S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
+  S3_REGION: ${S3_REGION}
+  S3_BUCKET: ${S3_BUCKET}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE}
+  SEARCH_BACKEND: ${SEARCH_BACKEND:-meilisearch}
+  MEILI_URL: ${MEILI_URL}
+  MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+  MEILI_INDEX_COURSES: ${MEILI_INDEX_COURSES:-courses}
+  SMTP_HOST: ${SMTP_HOST}
+  SMTP_PORT: ${SMTP_PORT}
+  SMTP_FROM: ${SMTP_FROM}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  PROMETHEUS_ENABLED: ${PROMETHEUS_ENABLED:-true}
+  SEED_DEMO: ${SEED_DEMO:-true}
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 10s
+  timeout: 5s
+  retries: 10
+  start_period: 15s
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lumen}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lumen}
+      POSTGRES_DB: ${POSTGRES_DB:-lumen}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "redis-cli", "ping"]
+    ports:
+      - "6379:6379"
+
+  s3:
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-lumen}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-lumen-secret}
+    volumes:
+      - s3-data:/data
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  s3-init:
+    image: minio/mc:RELEASE.2025-01-17T23-25-50Z
+    depends_on:
+      s3:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mc alias set local http://s3:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb -p local/$$S3_BUCKET || true
+        mc anonymous set download local/$$S3_BUCKET
+        mc admin user svcacct add local "$$MINIO_ROOT_USER" --access-key "$$S3_ACCESS_KEY_ID" --secret-key "$$S3_SECRET_ACCESS_KEY" || true
+        echo "MinIO bootstrap complete"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-lumen}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-lumen-secret}
+      S3_BUCKET: ${S3_BUCKET:-lumen-assets}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-lumen}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-lumen-secret}
+    restart: "no"
+
+  search:
+    image: getmeili/meilisearch:v1.10
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-lumen-search-key}
+      MEILI_ENV: development
+    volumes:
+      - search-data:/meili_data
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "wget", "-qO-", "http://localhost:7700/health"]
+    ports:
+      - "7700:7700"
+
+  mail:
+    image: axllent/mailpit:v1.20
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  api:
+    build:
+      context: ./apps/backend
+      target: dev
+    image: lumen-api:dev
+    restart: unless-stopped
+    environment: *api-env
+    volumes:
+      - ./apps/backend:/app
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      s3: { condition: service_healthy }
+      search: { condition: service_healthy }
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "app"]
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/health/live', timeout=2).status==200 else 1)"]
+    ports:
+      - "8000:8000"
+
+  worker:
+    build:
+      context: ./apps/backend
+      target: dev
+    image: lumen-api:dev
+    restart: unless-stopped
+    environment: *api-env
+    volumes:
+      - ./apps/backend:/app
+    depends_on:
+      api: { condition: service_started }
+      redis: { condition: service_healthy }
+    command: ["celery", "-A", "app.workers.celery_app.celery", "worker", "--loglevel=INFO", "--concurrency=2"]
+
+  beat:
+    build:
+      context: ./apps/backend
+      target: dev
+    image: lumen-api:dev
+    restart: unless-stopped
+    environment: *api-env
+    volumes:
+      - ./apps/backend:/app
+    depends_on:
+      api: { condition: service_started }
+      redis: { condition: service_healthy }
+    command: ["celery", "-A", "app.workers.celery_app.celery", "beat", "--loglevel=INFO"]
+
+  web:
+    build:
+      context: ./apps/frontend
+      target: dev
+    image: lumen-web:dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      NEXT_PUBLIC_WS_BASE_URL: ${NEXT_PUBLIC_WS_BASE_URL:-ws://localhost:8000}
+      API_INTERNAL_BASE_URL: http://api:8000
+      PORT: "3000"
+    volumes:
+      - ./apps/frontend:/app
+      - web-node-modules:/app/node_modules
+      - web-next-cache:/app/.next
+    depends_on:
+      api: { condition: service_started }
+    command: ["pnpm", "dev"]
+    ports:
+      - "3000:3000"
+
+volumes:
+  db-data:
+  redis-data:
+  s3-data:
+  search-data:
+  web-node-modules:
+  web-next-cache:
+
+networks:
+  default:
+    name: lumen-dev
