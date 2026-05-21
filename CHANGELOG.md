@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 45)
+- **Cert PDF download survives course soft-delete.**
+  `download_certificate` loaded the course via
+  `courses_repo.get_course`, which filters `deleted_at IS NULL`. So
+  once an instructor (or admin) soft-deleted the course, every
+  learner who'd earned the cert got a 404 trying to download their
+  PDF — a permanent achievement record held hostage by an unrelated
+  content-curation decision. The public `verify_certificate`
+  endpoint already takes the right posture (no `deleted_at` filter
+  on the join), and iter 44 stopped the *learner* from breaking
+  their own cert via unenroll. This iteration closes the matching
+  server-side path: the PDF endpoint uses `db.get(Course, id)`
+  directly so soft-delete doesn't void earned credentials. Covered
+  by `tests/test_cert_pdf_survives_delete.py` (2 tests: end-to-end
+  earn → soft-delete → still downloadable + verifiable; plus the
+  guard-ordering sanity check that an unknown course_id still
+  reports `cert.not_enrolled` rather than masking it as 404).
+
 ### Fixed (iteration 44)
 - **Block unenroll on a completed enrollment.** `DELETE
   /api/v1/me/enrollments/{course_id}` issued a hard

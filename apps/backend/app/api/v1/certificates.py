@@ -64,7 +64,12 @@ async def download_certificate(course_id: str, user: CurrentUser, db: DBSession)
         raise ForbiddenError("Enroll first", code="cert.not_enrolled")
     if not enrollment.completed_at or not enrollment.certificate_id:
         raise ForbiddenError("Not yet earned", code="cert.not_earned")
-    course = await courses_repo.get_course(db, course_id)
+    # Look up the course directly so a soft-deleted course doesn't void
+    # a credential the learner already earned. The catalog / detail
+    # endpoints rightly hide deleted courses, but a cert is a permanent
+    # record of completion — same posture the public ``verify_certificate``
+    # endpoint already takes.
+    course = await db.get(Course, course_id)
     if not course:
         raise NotFoundError("Course not found", code="course.not_found")
 
