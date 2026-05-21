@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1.7-labs
+#
+# Playwright e2e runner. Inherits chromium / firefox / webkit
+# pre-built against glibc (the alpine `web` image can't run
+# them — see CHANGELOG iter 99).
+#
+# node_modules is installed at build time so it lives in an
+# image layer (fast NTFS-passthrough is a non-issue) rather
+# than a bind-mounted Docker volume (where pnpm's symlink
+# fan-out crawls on Windows Docker Desktop). docker-compose.yml
+# pairs this with an anonymous `/work/node_modules` volume so
+# the host bind-mount of `./apps/frontend:/work` doesn't
+# shadow the baked install.
+FROM mcr.microsoft.com/playwright:v1.49.1-jammy
+
+ENV PNPM_HOME=/root/.local/share/pnpm \
+    PATH=/root/.local/share/pnpm:$PATH \
+    CI=true \
+    # Re-use the browsers pre-installed in the parent image.
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+WORKDIR /work
+
+RUN corepack enable \
+ && corepack prepare pnpm@9.15.0 --activate
+
+# Only the manifest layer is invalidated when source changes,
+# so subsequent `docker compose build e2e` runs hit the pnpm
+# install cache.
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+
+# Source is bind-mounted at runtime; this COPY keeps the image
+# self-contained for one-off `docker run` use.
+COPY . .
+
+ENTRYPOINT ["pnpm", "exec", "playwright", "test"]

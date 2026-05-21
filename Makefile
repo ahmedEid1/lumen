@@ -103,8 +103,8 @@ test.web: ## Frontend unit tests.
 	$(COMPOSE) exec web pnpm test --run
 
 .PHONY: test.e2e
-test.e2e: ## Playwright end-to-end tests.
-	$(COMPOSE) exec web pnpm test:e2e
+test.e2e: ## Playwright end-to-end tests against the live stack (uses the e2e profile).
+	$(COMPOSE) --profile e2e run --rm e2e
 
 # ----- shells -----
 .PHONY: shell.api

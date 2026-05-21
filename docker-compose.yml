@@ -206,11 +206,54 @@ services:
       - ./apps/frontend:/app
       - web-node-modules:/app/node_modules
       - web-next-cache:/app/.next
+      # Read-only mount of the compose file so the iter 99
+      # vitest regression (tests/e2e-image-pin.test.ts) can
+      # confirm the Playwright image tag stays in lock-step with
+      # @playwright/test in package.json. Reached via the
+      # /repo/docker-compose.yml symlink resolution in the test.
+      - ./docker-compose.yml:/repo/docker-compose.yml:ro
     depends_on:
       api: { condition: service_started }
     command: ["pnpm", "dev"]
     ports:
       - "3000:3000"
+
+  # Dedicated Playwright runner. The `web` image is alpine-based
+  # (musl libc) and Playwright doesn't ship browser binaries for
+  # musl — `pnpm exec playwright install` inside `web` either
+  # fails or pulls glibc binaries that segfault. The custom
+  # Dockerfile.e2e extends mcr.microsoft.com/playwright (chromium
+  # / firefox / webkit pre-built against glibc) and bakes
+  # `pnpm install` into an image layer so node_modules doesn't
+  # have to be re-built into a Docker volume on every run —
+  # critical on Windows Docker Desktop where the pnpm symlink
+  # fan-out into a named volume crawls (~10 packages/min). The
+  # anonymous `/work/node_modules` volume keeps the bind-mount
+  # of `./apps/frontend:/work` from shadowing the baked install.
+  #
+  # Profile-gated so `docker compose up` doesn't start it:
+  #     docker compose --profile e2e run --rm e2e
+  #     make test.e2e
+  #
+  # The image's Playwright version is enforced by
+  # tests/e2e-image-pin.test.ts to stay pinned to
+  # @playwright/test in package.json.
+  e2e:
+    profiles: ["e2e"]
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile.e2e
+    image: lumen-e2e:dev
+    environment:
+      E2E_BASE_URL: ${E2E_BASE_URL:-http://web:3000}
+    volumes:
+      - ./apps/frontend:/work
+      # Anonymous volume preserves the image's baked
+      # node_modules from the bind-mount above.
+      - /work/node_modules
+    depends_on:
+      web: { condition: service_started }
+      api: { condition: service_started }
 
 volumes:
   db-data:

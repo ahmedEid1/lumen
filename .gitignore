@@ -21,6 +21,12 @@ coverage/
 playwright-report/
 test-results/
 .swc/
+# pnpm's local content-addressed cache — gets created when running
+# `pnpm install` on the host; large, machine-specific, never useful
+# to commit.
+.pnpm-store/
+# Ralph loop runtime state (the loop's lock file).
+.claude/scheduled_tasks.lock
 # Next.js auto-generates this on every dev/build — committing it
 # creates merge noise across branches.
 apps/frontend/next-env.d.ts

@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 99) — Playwright e2e runnable inside the stack
+- **`pnpm test:e2e` failed 12/12** with
+  `browserType.launch: Executable doesn't exist at
+  /root/.cache/ms-playwright/...`. Root cause: the `web` dev
+  image is `node:22-alpine` (musl libc) and Playwright only
+  ships browser binaries for glibc — so even running
+  `pnpm exec playwright install` inside `web` either fails or
+  pulls binaries that segfault on first launch.
+- **Fix**: dedicated `e2e` service in `docker-compose.yml` using
+  `mcr.microsoft.com/playwright:v1.49.1-jammy`. Chromium /
+  firefox / webkit are pre-built against the right libc and
+  pinned to the same version as `@playwright/test`. The service
+  sits behind a `profiles: ["e2e"]` gate so `docker compose up`
+  doesn't start it; `make test.e2e` runs it via
+  `docker compose --profile e2e run --rm e2e`. Re-uses an
+  `e2e-node-modules` volume so `pnpm install` is a one-time cost
+  per fresh checkout.
+- **Sub-fix**: pin `@playwright/test` to exact `1.49.1` (no
+  caret). Without a `pnpm-lock.yaml` in this repo, `^1.49.1`
+  resolved to 1.60.0 on a fresh install while the image
+  stayed at `v1.49.1-jammy` — and 1.60.0's runtime then
+  couldn't find its browsers (different webkit bundle path)
+  for the same 12/12 failure dressed up differently. Pin
+  enforced by the regression test below.
+- **Sub-fix**: bake `pnpm install` into a custom
+  `apps/frontend/Dockerfile.e2e` so `node_modules` lives in an
+  image layer instead of a Docker volume — pnpm's symlink
+  fan-out into a bind/named volume on Windows Docker Desktop
+  crawls at ~10 packages/min. Anonymous `/work/node_modules`
+  volume keeps the host bind-mount from shadowing the baked
+  install.
+- **Regression test**:
+  `apps/frontend/tests/e2e-image-pin.test.ts` reads
+  `docker-compose.yml` + `package.json` and asserts (a) the
+  `e2e:` service still exists, (b) the image tag's `vX.Y.Z`
+  matches `@playwright/test`, and (c) `@playwright/test` is
+  pinned to an exact version (no `^` / `~`) so the resolved
+  runtime can't drift above the image's browser bundle.
+
 ### Fixed (iteration 98) — six real bugs uncovered by actually running the stack
 - **Backend Dockerfile** `deps` stage failed on a clean checkout
   (no `uv.lock`): the fallback `uv pip install -e '.'` needs an
