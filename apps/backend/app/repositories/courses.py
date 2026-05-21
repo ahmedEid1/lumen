@@ -40,7 +40,18 @@ async def get_subject_by_slug(db: AsyncSession, slug: str) -> Subject | None:
 async def list_subjects(db: AsyncSession) -> list[tuple[Subject, int]]:
     res = await db.execute(
         select(Subject, func.count(Course.id).label("total"))
-        .outerjoin(Course, and_(Course.subject_id == Subject.id, Course.status == CourseStatus.published))
+        .outerjoin(
+            Course,
+            and_(
+                Course.subject_id == Subject.id,
+                Course.status == CourseStatus.published,
+                # A soft-deleted course retains its published status until
+                # the row is reaped, so we must filter it out explicitly
+                # — otherwise the catalog tile claims more courses than it
+                # actually shows.
+                Course.deleted_at.is_(None),
+            ),
+        )
         .group_by(Subject.id)
         .order_by(Subject.title.asc())
     )

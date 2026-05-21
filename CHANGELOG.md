@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 30)
+- **Catalog subject tiles stop counting soft-deleted courses.**
+  `list_subjects` outer-joined Course with `status == published` only,
+  so a course soft-deleted by an instructor still kept inflating the
+  badge on the subject tile (the catalog grid shows fewer rows than
+  the badge claimed). Outer-join condition now also requires
+  `Course.deleted_at IS NULL`. Two regression tests in
+  `test_subjects_total.py` cover the soft-delete drop and the
+  draft / archived exclusion.
+
 ### Fixed (iteration 29)
 - **Catalog `?sort=` no longer crashes on unknown / non-column values.**
   `search_courses` resolved the sort field with
