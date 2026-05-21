@@ -26,6 +26,10 @@ export default function ProfilePage() {
   const [newPwd, setNewPwd] = useState("");
   const [savingPwd, setSavingPwd] = useState(false);
 
+  const [newEmail, setNewEmail] = useState("");
+  const [emailPwd, setEmailPwd] = useState("");
+  const [requestingEmail, setRequestingEmail] = useState(false);
+
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deletePwd, setDeletePwd] = useState("");
 
@@ -77,6 +81,24 @@ export default function ProfilePage() {
       toast.error(e?.message ?? "Could not change password");
     } finally {
       setSavingPwd(false);
+    }
+  }
+
+  async function requestEmailChange(e: React.FormEvent) {
+    e.preventDefault();
+    setRequestingEmail(true);
+    try {
+      await api("/api/v1/users/me/email/request", {
+        method: "POST",
+        body: { new_email: newEmail, current_password: emailPwd },
+      });
+      toast.success(`We sent a confirmation link to ${newEmail}. Click it within an hour.`);
+      setNewEmail("");
+      setEmailPwd("");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not start email change");
+    } finally {
+      setRequestingEmail(false);
     }
   }
 
@@ -193,6 +215,49 @@ export default function ProfilePage() {
             />
             <Button type="submit" disabled={savingPwd}>
               {savingPwd ? "Updating…" : "Update password"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Change email</CardTitle>
+          <CardDescription>
+            We&apos;ll send a confirmation link to the new address. The change
+            doesn&apos;t take effect until you click it, and all your other
+            sessions will be signed out for security.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={requestEmailChange}>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Current email</label>
+              <Input value={user.email} disabled />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="new_email" className="text-sm font-medium">
+                New email
+              </label>
+              <Input
+                id="new_email"
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                autoComplete="email"
+                required
+              />
+            </div>
+            <Input
+              type="password"
+              placeholder="Current password"
+              value={emailPwd}
+              onChange={(e) => setEmailPwd(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+            <Button type="submit" disabled={requestingEmail || !newEmail || !emailPwd}>
+              {requestingEmail ? "Sending…" : "Send confirmation link"}
             </Button>
           </form>
         </CardContent>

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 64)
+- **Email-change UI on the profile page.** Iter 59 shipped the
+  backend two-step flow but no UI surfaced it. Profile page now has
+  a "Change email" card (current email shown disabled, new email +
+  current password fields, friendly "we sent a link to {new email}"
+  toast). New `/confirm-email-change` route handles the token from
+  the inbox link: calls the confirm endpoint, logs out client-side
+  to match the server's refresh-token revocation, and tells the user
+  to sign in with the new address. Error states map iter 59's typed
+  error codes (`email_change.invalid`, `email_change.stale`,
+  `auth.email_taken`) to specific copy instead of falling back to
+  the raw server message.
+
 ### Tests (iteration 63)
 - **Extracted and pinned the iter 35 lesson-resume logic.** The
   "land on the first incomplete lesson, fall back to lesson 1 if
