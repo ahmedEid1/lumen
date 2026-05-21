@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 38) — password-reset: pwh helper + hoist HIBP
+Twenty-second dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/services/password_reset.py`. Applied both
+real recommendations — matches the iter-33/34 shape on the
+sibling files:
+
+- **`_pwh_fingerprint(user)` helper** for the
+  `user.password_hash[-16:]` literal that appeared at mint
+  + verify. WHY ("rotating the password invalidates outstanding
+  tokens") lives on the helper.
+- **Hoisted `from app.services import password_hibp`** to the
+  module-level import block; the inline import inside
+  `confirm_reset` had no cycle to break.
+
+Backend pytest 321/321. Password-reset / HIBP tests 16/16.
+
 ### Changed (simplify iter 37) — course schemas: dedupe validators
 Twenty-first dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/schemas/course.py`. Applied 2 of its 5

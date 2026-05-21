@@ -14,10 +14,18 @@ from app.core.security import hash_password
 from app.models.user import User
 from app.repositories import audit as audit_repo
 from app.repositories import users as users_repo
+from app.services import password_hibp
 
 log = get_logger(__name__)
 
 _PURPOSE = "pw-reset"
+
+
+def _pwh_fingerprint(user: User) -> str:
+    """Last 16 chars of the password hash — rotating the password
+    rotates the salt+digest tail, which invalidates outstanding
+    reset tokens."""
+    return user.password_hash[-16:]
 
 
 def make_token(user: User) -> str:
@@ -28,8 +36,7 @@ def make_token(user: User) -> str:
         "iat": now,
         "exp": now + s.password_reset_ttl_seconds,
         "purpose": _PURPOSE,
-        # Bind the token to the current password hash: rotating it invalidates outstanding tokens.
-        "pwh": user.password_hash[-16:],
+        "pwh": _pwh_fingerprint(user),
         "iss": "lumen",
     }
     return jwt.encode(payload, s.jwt_secret.get_secret_value(), algorithm=s.jwt_algorithm)
@@ -58,14 +65,12 @@ async def confirm_reset(db: AsyncSession, *, token: str, new_password: str) -> U
     user = await users_repo.get_by_id(db, str(payload.get("sub", "")))
     if not user or not user.is_active:
         raise UnauthorizedError("Account not found", code="auth.reset_invalid")
-    if payload.get("pwh") != user.password_hash[-16:]:
+    if payload.get("pwh") != _pwh_fingerprint(user):
         # Token was issued against a different password hash → already consumed or rotated.
         raise UnauthorizedError("Reset link already used", code="auth.reset_used")
 
     # Run the same HIBP gate as register/change-password so a reset
     # can't be used to downgrade into a known-breached password.
-    from app.services import password_hibp
-
     await password_hibp.assert_not_pwned(new_password)
     user.password_hash = hash_password(new_password)
     user.failed_login_attempts = 0
