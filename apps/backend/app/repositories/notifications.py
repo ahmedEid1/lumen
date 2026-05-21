@@ -25,9 +25,13 @@ async def create(
 
 
 async def list_for_user(db: AsyncSession, user_id: str, *, limit: int = 50) -> list[Notification]:
-    res = await db.execute(
-        select(Notification).where(Notification.user_id == user_id).order_by(Notification.created_at.desc()).limit(limit)
+    stmt = (
+        select(Notification)
+        .where(Notification.user_id == user_id)
+        .order_by(Notification.created_at.desc())
+        .limit(limit)
     )
+    res = await db.execute(stmt)
     return list(res.scalars().all())
 
 
@@ -43,10 +47,9 @@ async def mark_all_read_for_user(db: AsyncSession, *, user_id: str) -> int:
     notifications the learner has accumulated. Returns the rowcount so
     the caller (and the UI badge) can react without a follow-up GET.
     """
-    now = datetime.now(UTC)
     res = await db.execute(
         update(Notification)
         .where(Notification.user_id == user_id, Notification.read_at.is_(None))
-        .values(read_at=now)
+        .values(read_at=datetime.now(UTC))
     )
     return int(res.rowcount or 0)

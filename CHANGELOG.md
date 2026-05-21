@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 29) — notifications repo formatting tidy
+Thirteenth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/repositories/notifications.py` (already a
+tight 53-line file). Applied 2 of its 3 recommendations:
+
+- **`list_for_user`: chained `select(...).where(...).order_by
+  (...).limit(...)` reflowed** onto multiple lines matching the
+  rest of the file's style (the prior single 124-char line was
+  the file's only line-length outlier).
+- **`mark_all_read_for_user`: inlined the one-use `now` local**
+  into the `.values(read_at=datetime.now(UTC))` call.
+
+Skipped: dropping `async`/`db` from `mark_read` — that's a
+public signature change and the constraint is to keep
+signatures stable.
+
+Behaviour preserved exactly. Backend pytest 321/321.
+
 ### Changed (simplify iter 28) — users repo tidy via simplifier
 Twelfth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/repositories/users.py` (already a small,
