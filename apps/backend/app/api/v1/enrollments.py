@@ -6,12 +6,14 @@ from typing import Any
 
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field
+from sqlalchemy import desc, select
 
 from app.api.deps import CurrentUser, DBSession
 from app.api.v1 import _builders
 from app.core.errors import NotFoundError, ValidationAppError
 from app.core.ratelimit import limiter
-from app.models.course import LessonType
+from app.models.course import Course, Lesson, LessonType
+from app.models.quiz_attempt import QuizAttempt
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
 from app.schemas.course import EnrollmentOut, ProgressUpdate
@@ -21,34 +23,22 @@ from app.services import quiz as quiz_service
 router = APIRouter()
 
 
-@router.get("/enrollments", response_model=list[EnrollmentOut])
-async def list_my_enrollments(user: CurrentUser, db: DBSession) -> list[EnrollmentOut]:
-    enrollments = await courses_repo.list_enrollments_for_user(db, user.id)
-    stats = await courses_repo.stats_for_courses(db, [e.course_id for e in enrollments])
-    out: list[EnrollmentOut] = []
-    for e in enrollments:
-        pct = await enrollment_service.progress_pct(db, enrollment=e)
-        out.append(
-            EnrollmentOut(
-                id=e.id,
-                created_at=e.created_at,
-                completed_at=e.completed_at,
-                certificate_id=e.certificate_id,
-                progress_pct=pct,
-                course=_builders.list_item(e.course, stats.get(e.course_id, {})),
-            )
-        )
-    return out
+async def _get_live_lesson(db: DBSession, lesson_id: str) -> Lesson:
+    """Fetch a non-soft-deleted lesson or raise 404."""
+    lesson = await courses_repo.get_lesson(db, lesson_id)
+    if not lesson or lesson.deleted_at is not None:
+        raise NotFoundError("Lesson not found", code="lesson.not_found")
+    return lesson
 
 
-@router.post("/enrollments/{course_id}", response_model=EnrollmentOut, status_code=status.HTTP_201_CREATED)
-async def enroll(course_id: str, user: CurrentUser, db: DBSession) -> EnrollmentOut:
+async def _get_course_or_404(db: DBSession, course_id: str) -> Course:
     course = await courses_repo.get_course(db, course_id)
     if not course:
         raise NotFoundError("Course not found", code="course.not_found")
-    enrollment = await enrollment_service.enroll(db, user=user, course=course)
-    pct = await enrollment_service.progress_pct(db, enrollment=enrollment)
-    stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
+    return course
+
+
+def _enrollment_out(enrollment, course, stats: dict, pct: float) -> EnrollmentOut:
     return EnrollmentOut(
         id=enrollment.id,
         created_at=enrollment.created_at,
@@ -59,11 +49,29 @@ async def enroll(course_id: str, user: CurrentUser, db: DBSession) -> Enrollment
     )
 
 
+@router.get("/enrollments", response_model=list[EnrollmentOut])
+async def list_my_enrollments(user: CurrentUser, db: DBSession) -> list[EnrollmentOut]:
+    enrollments = await courses_repo.list_enrollments_for_user(db, user.id)
+    stats = await courses_repo.stats_for_courses(db, [e.course_id for e in enrollments])
+    out: list[EnrollmentOut] = []
+    for e in enrollments:
+        pct = await enrollment_service.progress_pct(db, enrollment=e)
+        out.append(_enrollment_out(e, e.course, stats.get(e.course_id, {}), pct))
+    return out
+
+
+@router.post("/enrollments/{course_id}", response_model=EnrollmentOut, status_code=status.HTTP_201_CREATED)
+async def enroll(course_id: str, user: CurrentUser, db: DBSession) -> EnrollmentOut:
+    course = await _get_course_or_404(db, course_id)
+    enrollment = await enrollment_service.enroll(db, user=user, course=course)
+    pct = await enrollment_service.progress_pct(db, enrollment=enrollment)
+    stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
+    return _enrollment_out(enrollment, course, stats, pct)
+
+
 @router.delete("/enrollments/{course_id}", response_model=OkResponse)
 async def unenroll(course_id: str, user: CurrentUser, db: DBSession) -> OkResponse:
-    course = await courses_repo.get_course(db, course_id)
-    if not course:
-        raise NotFoundError("Course not found", code="course.not_found")
+    course = await _get_course_or_404(db, course_id)
     await enrollment_service.unenroll(db, user=user, course=course)
     return OkResponse()
 
@@ -72,9 +80,7 @@ async def unenroll(course_id: str, user: CurrentUser, db: DBSession) -> OkRespon
 async def mark_lesson_progress(
     lesson_id: str, payload: ProgressUpdate, user: CurrentUser, db: DBSession
 ) -> dict:
-    lesson = await courses_repo.get_lesson(db, lesson_id)
-    if not lesson or lesson.deleted_at is not None:
-        raise NotFoundError("Lesson not found", code="lesson.not_found")
+    lesson = await _get_live_lesson(db, lesson_id)
     enrollment, lp, pct = await enrollment_service.mark_lesson(
         db, user=user, lesson=lesson, completed=payload.completed, payload=payload.payload
     )
@@ -140,13 +146,7 @@ async def list_my_quiz_attempts(
     future retention job. Returns 404 if they were never enrolled
     (the join filters by enrollment_id implicitly).
     """
-    from sqlalchemy import desc, select
-
-    from app.models.quiz_attempt import QuizAttempt
-
-    lesson = await courses_repo.get_lesson(db, lesson_id)
-    if not lesson or lesson.deleted_at is not None:
-        raise NotFoundError("Lesson not found", code="lesson.not_found")
+    lesson = await _get_live_lesson(db, lesson_id)
     mod = await courses_repo.get_module(db, lesson.module_id)
     if not mod:
         raise NotFoundError("Module not found", code="module.not_found")
@@ -197,9 +197,7 @@ async def submit_quiz(
     and writes to LessonProgress — without a cap a learner could replay
     a 50-question quiz in a tight loop and burn CPU + DB writes.
     """
-    lesson = await courses_repo.get_lesson(db, lesson_id)
-    if not lesson or lesson.deleted_at is not None:
-        raise NotFoundError("Lesson not found", code="lesson.not_found")
+    lesson = await _get_live_lesson(db, lesson_id)
     if lesson.type != LessonType.quiz:
         raise ValidationAppError("Lesson is not a quiz", code="quiz.not_a_quiz")
 

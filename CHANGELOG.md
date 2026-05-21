@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 27) — enrollments router tidy via simplifier
+Eleventh dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/api/v1/enrollments.py` (235 → 233 lines).
+Applied 3 of its 5 recommendations:
+
+- **`_enrollment_out(...)` helper** for the `EnrollmentOut(id,
+  created_at, completed_at, certificate_id, progress_pct,
+  course=_builders.list_item(...))` shape that appeared once
+  in `list_my_enrollments` and again in `enroll`. Same fields,
+  same order.
+- **`_get_live_lesson` and `_get_course_or_404` helpers** for
+  the two 404 guards each duplicated three times verbatim
+  (`mark_lesson_progress`, `list_my_quiz_attempts`,
+  `submit_quiz` for lessons; `enroll` and `unenroll` for
+  courses). Same error code / message.
+- **Hoisted the function-local imports** of `from sqlalchemy
+  import desc, select` and `from app.models.quiz_attempt
+  import QuizAttempt` to the module-level import block. Python
+  caches modules in `sys.modules`, so the prior placement was
+  noise rather than safety.
+
+Skipped on purpose: the list-comprehension rewrite of
+`list_my_enrollments` (the explicit `for`-loop reads better
+when every iteration awaits) and the `default_factory=dict` →
+`default={}` switch (cosmetic, no real win).
+
+Backend pytest 321/321. Behaviour preserved exactly.
+
 ### Changed (simplify iter 26) — discussions router tidy via simplifier
 Tenth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/api/v1/discussions.py` (205 → 195 lines).
