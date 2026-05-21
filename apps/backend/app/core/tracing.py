@@ -70,11 +70,11 @@ def init_tracing(app=None) -> None:
     # those inside Celery workers when this is imported there.
     try:
         SQLAlchemyInstrumentor().instrument()
-    except Exception as exc:  # noqa: BLE001 — already-instrumented is fine
+    except Exception as exc:  # already-instrumented is fine
         log.debug("sqlalchemy_instrument_skipped", error=str(exc))
     try:
         RedisInstrumentor().instrument()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.debug("redis_instrument_skipped", error=str(exc))
 
     if app is not None:
@@ -88,7 +88,7 @@ def init_tracing(app=None) -> None:
                 # add noise without signal.
                 excluded_urls="/metrics,/",
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             log.debug("fastapi_instrument_skipped", error=str(exc))
 
     _initialised = True

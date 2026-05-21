@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 3) — drop unused noqa pragmas
+Ruff flagged 28 `# noqa:` directives whose target rules
+aren't in our active config (`BLE001`, `D401`, `E402`, `A002`,
+`PLR0915`, `S104`). Removing them de-clutters lines that had
+prose-after-pragma — readers no longer wonder which lint rule
+is being silenced before they get to the WHY.
+
+- **Preserved prose explanations** on the 11 sites where the
+  noqa was followed by a real human comment ("Redis being
+  down is non-fatal", "broker may be down in dev",
+  "already-instrumented is fine", "fall back to Postgres if
+  search is down", etc). The pragma stripped, the comment
+  kept — the latter is what future readers actually need.
+- **Stripped 17 bare pragmas** entirely (no prose attached).
+- **Kept** `# noqa: F403` on the `from app.models import *`
+  line in `tests/conftest.py` — that one is a real, active
+  ignore.
+
+Why: a noqa for a rule that isn't enabled is a lie about the
+codebase — it suggests we're suppressing something we aren't.
+Cleaning them up makes future `--select BLE001` audits honest.
+Behaviour unchanged; backend pytest 321/321 (155s).
+
 ### Changed (simplify iter 2) — adopt `datetime.UTC` alias
 Mechanical modernisation: every `datetime.now(timezone.utc)` and
 `datetime.fromtimestamp(..., tz=timezone.utc)` call now uses the

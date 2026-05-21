@@ -46,7 +46,7 @@ async def search_courses(
             )
             ordered_ids = [str(hit["id"]) for hit in res.get("hits", [])]
             total = int(res.get("estimatedTotalHits", len(ordered_ids)))
-        except Exception:  # noqa: BLE001 — fall back to Postgres if search is down
+        except Exception:  # fall back to Postgres if search is down
             log.exception("meilisearch_search_failed", q=q)
             return await _pg_search(db, q, subject, tag, difficulty, page, page_size)
 

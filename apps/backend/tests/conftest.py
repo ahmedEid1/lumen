@@ -32,13 +32,13 @@ os.environ["SECRET_KEY"] = (
     "test-secret-please-change-this-is-a-long-enough-key-for-rfc7518"
 )
 
-from app.core.config import get_settings  # noqa: E402
-from app.db import base as db_base  # noqa: E402
-from app.db.session import get_db  # noqa: E402
-from app.main import create_app  # noqa: E402
-from app.models import *  # noqa: E402, F403  ensure mappers registered
-from app.core.security import hash_password  # noqa: E402
-from app.models.user import Role, User  # noqa: E402
+from app.core.config import get_settings
+from app.db import base as db_base
+from app.db.session import get_db
+from app.main import create_app
+from app.models import *  # noqa: F403  ensure mappers registered
+from app.core.security import hash_password
+from app.models.user import Role, User
 
 
 @pytest.fixture(scope="session")

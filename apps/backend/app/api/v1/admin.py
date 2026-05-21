@@ -343,7 +343,7 @@ async def reindex_search(admin: RequireAdmin, db: DBSession) -> OkResponse:
         from app.workers.tasks.search import reindex_catalog
 
         reindex_catalog.delay()
-    except Exception:  # noqa: BLE001 — broker unavailable
+    except Exception:  # broker unavailable
         from app.workers.tasks.search import _reindex
 
         await _reindex()

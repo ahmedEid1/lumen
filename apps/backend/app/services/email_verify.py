@@ -94,7 +94,7 @@ def queue_verification_email(*, user: User) -> str | None:
             text=text,
             html=html,
         )
-    except Exception:  # noqa: BLE001 — broker may be down in dev
+    except Exception:  # broker may be down in dev
         log.info("verify_email_skipped", email=user.email, token=token)
         return link
     return link

@@ -85,5 +85,5 @@ def reset_for_tests() -> None:
     if storage is not None and hasattr(storage, "reset"):
         try:
             storage.reset()
-        except Exception:  # noqa: BLE001 — be tolerant if the backend lacks reset()
+        except Exception:  # be tolerant if the backend lacks reset()
             pass

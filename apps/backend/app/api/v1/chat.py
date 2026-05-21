@@ -210,7 +210,7 @@ async def chat_ws(websocket: WebSocket, course_id: str, token: Annotated[str, Qu
 
     except WebSocketDisconnect:
         pass
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("chat_ws_error", course_id=course_id, user_id=user.id)
     finally:
         if receiver_task is not None:

@@ -75,7 +75,7 @@ async def test_password_reset_link_uses_web_base_url(
         # doesn't raise TypeError and silently get swallowed
         # by the password-reset endpoint's broker-tolerant
         # try/except.
-        def delay(self, *, to, subject, text, html=None):  # noqa: A002 — match Celery sig
+        def delay(self, *, to, subject, text, html=None):  # match Celery sig
             captured["to"] = to
             captured["text"] = text
             captured["html"] = html
@@ -108,7 +108,7 @@ async def test_email_verify_link_uses_web_base_url(monkeypatch, make_user):
     monkeypatch.setattr(verify_module, "get_settings", lambda: test_settings, raising=False)
 
     class _BrokenSend:
-        def delay(self, *, to, subject, text):  # noqa: A002
+        def delay(self, *, to, subject, text):
             raise RuntimeError("broker offline — fall through to log/return")
 
     import app.workers.tasks.email as email_module

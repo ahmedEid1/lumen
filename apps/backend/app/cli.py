@@ -59,7 +59,7 @@ def seed() -> None:
     asyncio.run(_seed())
 
 
-async def _seed() -> None:  # noqa: PLR0915
+async def _seed() -> None:
     Session = get_sessionmaker()
     async with Session() as db:
         # Subjects

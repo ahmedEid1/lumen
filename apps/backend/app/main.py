@@ -193,7 +193,7 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         try:
             http_requests_total.labels(request.method, path, str(response.status_code)).inc()
             http_request_duration_seconds.labels(request.method, path).observe(duration)
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         log.info(
             "http_request",

@@ -149,7 +149,7 @@ def queue_confirmation_email(*, user: User, new_email: str, token: str) -> str |
             text=text,
             html=html,
         )
-    except Exception:  # noqa: BLE001 — dev w/o broker
+    except Exception:  # dev w/o broker
         log.info("email_change_email_skipped", new_email=new_email, token=token)
         return link
     return link

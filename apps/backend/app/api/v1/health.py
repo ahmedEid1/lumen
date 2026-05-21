@@ -28,7 +28,7 @@ async def ready(db: DBSession) -> Any:
     try:
         await db.execute(text("SELECT 1"))
         checks["db"] = "ok"
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         checks["db"] = f"error: {exc.__class__.__name__}"
         overall = status.HTTP_503_SERVICE_UNAVAILABLE
 
@@ -37,7 +37,7 @@ async def ready(db: DBSession) -> Any:
         await r.ping()
         await r.aclose()
         checks["redis"] = "ok"
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         checks["redis"] = f"error: {exc.__class__.__name__}"
         overall = status.HTTP_503_SERVICE_UNAVAILABLE
 

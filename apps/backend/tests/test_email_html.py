@@ -69,7 +69,7 @@ def _capture_email(monkeypatch):
     captured: list[dict] = []
 
     class _Stub:
-        def delay(self, *, to, subject, text, html=None):  # noqa: A002
+        def delay(self, *, to, subject, text, html=None):
             captured.append({"to": to, "subject": subject, "text": text, "html": html})
 
     import app.workers.tasks.email as email_module

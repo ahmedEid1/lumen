@@ -142,7 +142,7 @@ def _schedule_index(course_id: str) -> None:
         from app.workers.tasks.search import index_course
 
         index_course.delay(course_id)
-    except Exception:  # noqa: BLE001
+    except Exception:
         from app.core.logging import get_logger
 
         get_logger(__name__).info("search_index_skipped", course_id=course_id)

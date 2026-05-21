@@ -69,7 +69,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             )
         return self._redis
 
-    async def dispatch(self, request: Request, call_next):  # noqa: D401
+    async def dispatch(self, request: Request, call_next):
         if request.method not in _MUTATING:
             return await call_next(request)
         key = request.headers.get("idempotency-key")
@@ -106,7 +106,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         try:
             r = await self._get_redis()
             cached = await r.get(cache_key)
-        except Exception:  # noqa: BLE001 — Redis being down is non-fatal
+        except Exception:  # Redis being down is non-fatal
             log.warning("idempotency_redis_get_failed", path=path)
             cached = None
 
@@ -179,7 +179,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             try:
                 r = await self._get_redis()
                 await r.set(cache_key, json.dumps(entry), ex=CACHE_TTL_SECONDS)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.warning("idempotency_redis_set_failed", path=path)
 
         return Response(

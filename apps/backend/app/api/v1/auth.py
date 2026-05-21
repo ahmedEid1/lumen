@@ -167,7 +167,7 @@ async def password_reset_request(
                 text=text,
                 html=html,
             )
-        except Exception:  # noqa: BLE001  - dev path without broker shouldn't 500 the API
+        except Exception:  # dev path without broker shouldn't 500 the API
             from app.core.logging import get_logger
 
             get_logger(__name__).info(
