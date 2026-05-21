@@ -91,8 +91,8 @@ export function ImageUpload({
       }
       onChange(presign.public_url);
       toast.success("Uploaded");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Upload failed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setBusy(false);
     }

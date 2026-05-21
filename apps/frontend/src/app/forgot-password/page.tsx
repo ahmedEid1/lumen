@@ -19,8 +19,8 @@ export default function ForgotPasswordPage() {
     try {
       await api("/api/v1/auth/password-reset/request", { method: "POST", body: { email } });
       setSent(true);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not send reset email");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not send reset email");
     } finally {
       setSubmitting(false);
     }

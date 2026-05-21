@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 17) — type the remaining `catch` blocks
+Cleared 8 more `no-explicit-any` sites. Mostly the same
+shape as iter 16 (catch blocks reading `e?.message`), plus the
+error envelope cast in the api client.
+
+- **9 `catch (e: any)` → `catch (e)` + `e instanceof Error`
+  narrow** across `forgot-password`, `reset-password`,
+  `studio/new`, `profile` (×5), `learn/[slug]`,
+  `image-upload`. TS 4.4+ defaults `catch` parameters to
+  `unknown`, so dropping the annotation is the recommended
+  form.
+- **`confirm-email-change`: `e instanceof ApiError`
+  narrow** to read `e.code`, same shape as iter 16's
+  `studio/[id]/publish` fix.
+- **`api/client.ts`: typed the response error envelope** as
+  `{ error?: { message?: string; code?: string; details?:
+  Record<string, unknown>; request_id?: string } }` instead
+  of `(payload as any).error`. Same shape that gets read; the
+  cast no longer lies about the structure.
+
+Skipped on purpose: the 5 `lesson-editor.tsx` + 1
+`lesson-player.tsx` `any` sites around the polymorphic
+lesson-data object. Converting them to
+`Record<string, unknown>` makes `data.body_markdown` return
+`unknown`, which doesn't auto-coerce into JSX `<Input value>`
+props — that needs a real discriminated-union refactor and is
+out of scope for a one-iter cleanup. Earmarked for a future
+pass.
+
+Frontend vitest 95/95, TypeScript clean.
+
 ### Changed (simplify iter 16) — type the `onError` callbacks
 ESLint flagged 24 `onError: (e: any) => …` callbacks across the
 frontend. TanStack Query's `onError` signature is

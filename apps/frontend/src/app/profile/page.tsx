@@ -57,8 +57,8 @@ export default function ProfilePage() {
       });
       toast.success("Profile updated");
       await refresh();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not save");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save");
     } finally {
       setSavingProfile(false);
     }
@@ -77,8 +77,8 @@ export default function ProfilePage() {
       setNewPwd("");
       await logout();
       router.push("/login");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not change password");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not change password");
     } finally {
       setSavingPwd(false);
     }
@@ -95,8 +95,8 @@ export default function ProfilePage() {
       toast.success(`We sent a confirmation link to ${newEmail}. Click it within an hour.`);
       setNewEmail("");
       setEmailPwd("");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not start email change");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not start email change");
     } finally {
       setRequestingEmail(false);
     }
@@ -108,8 +108,8 @@ export default function ProfilePage() {
       toast.success("Account deleted");
       await logout();
       router.push("/");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not delete account");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not delete account");
     }
   }
 
@@ -146,8 +146,8 @@ export default function ProfilePage() {
               try {
                 await api("/api/v1/auth/verify/request", { method: "POST" });
                 toast.success("Verification email sent");
-              } catch (e: any) {
-                toast.error(e?.message ?? "Could not send verification email");
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Could not send verification email");
               }
             }}
           >

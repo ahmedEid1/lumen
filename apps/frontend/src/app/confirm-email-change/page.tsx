@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api/client";
+import { api, ApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 
 type ConfirmResult =
@@ -38,8 +38,8 @@ export default function ConfirmEmailChangePage() {
         await logout();
         setResult({ state: "success", email: user.email });
         toast.success("Email updated. Sign in with the new address.");
-      } catch (e: any) {
-        const code = (e?.code as string) || "";
+      } catch (e) {
+        const code = e instanceof ApiError ? e.code : "";
         const msg =
           code === "email_change.invalid"
             ? "This confirmation link is invalid or has expired."
@@ -47,7 +47,7 @@ export default function ConfirmEmailChangePage() {
               ? "This link is stale — you rotated your password after requesting the change."
               : code === "auth.email_taken"
                 ? "That email is now in use by another account."
-                : (e?.message ?? "Could not confirm");
+                : (e instanceof Error ? e.message : "Could not confirm");
         setResult({ state: "error", message: msg });
       }
     })();

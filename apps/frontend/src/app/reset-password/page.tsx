@@ -46,8 +46,8 @@ function ResetForm() {
       });
       toast.success("Password updated — please sign in");
       router.push("/login");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not reset password");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not reset password");
     } finally {
       setSubmitting(false);
     }

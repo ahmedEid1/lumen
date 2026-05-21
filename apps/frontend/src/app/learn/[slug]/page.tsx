@@ -77,8 +77,8 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
       toast.success("Marked complete");
       qc.invalidateQueries({ queryKey: qk.course(slug) });
       qc.invalidateQueries({ queryKey: qk.enrollments });
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not save");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save");
     }
   }
 

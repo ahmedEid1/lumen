@@ -63,7 +63,15 @@ export async function api<T = unknown>(path: string, init: ApiInit = {}): Promis
   const payload = isJson ? await res.json().catch(() => null) : await res.text();
 
   if (!res.ok) {
-    const err = (payload && typeof payload === "object" ? (payload as any).error : null) ?? {};
+    type ErrorEnvelope = {
+      error?: {
+        message?: string;
+        code?: string;
+        details?: Record<string, unknown>;
+        request_id?: string;
+      };
+    };
+    const err = (payload && typeof payload === "object" ? (payload as ErrorEnvelope).error : null) ?? {};
     throw new ApiError({
       status: res.status,
       message: err.message ?? res.statusText ?? "Request failed",

@@ -47,8 +47,8 @@ export default function NewCoursePage() {
       });
       toast.success("Course created");
       router.push(`/studio/${course.id}`);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Could not create course");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not create course");
     } finally {
       setSubmitting(false);
     }
