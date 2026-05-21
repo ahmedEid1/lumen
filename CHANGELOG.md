@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs (iteration 88)
+- **ADR-0014 catches the iter 73-87 product surface expansions.**
+  Bundles the design rationale for quiz attempt history,
+  discussions (cross-references ADR-0013), video captions, FTS
+  ranking, and the "What you'll learn" outcomes into one
+  reference so the five-feature batch doesn't become folklore.
+  Notes the deferred-but-real items (Stripe, materialised
+  tsvector + GIN) as out-of-scope with the trigger condition
+  for each.
+
 ### Added (iteration 87)
 - **Studio editor for the iter 86 "What you'll learn" outcomes.**
   New card on the studio course page lets instructors add / remove
