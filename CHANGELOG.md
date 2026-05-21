@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 26)
+- **The learner dashboard no longer renders enrollments to soft-deleted
+  courses.** `list_enrollments_for_user` returned every row regardless of
+  `Course.deleted_at`, so the "in progress" card linked to a course
+  whose detail page 404'd. Repo now joins `Course` and filters
+  `deleted_at IS NULL`. Archived / draft courses still show up — only
+  truly deleted ones disappear, paired with the iteration-24 fix.
+
 ### Fixed (iteration 25)
 - **Course slug minting now sees through soft-deletes.** `_unique_slug`
   used `get_course_by_slug`, which hides `deleted_at IS NOT NULL` rows.

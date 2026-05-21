@@ -216,12 +216,19 @@ async def get_enrollment(db: AsyncSession, *, user_id: str, course_id: str) -> E
 
 
 async def list_enrollments_for_user(db: AsyncSession, user_id: str) -> list[Enrollment]:
+    """Active enrollments for the dashboard.
+
+    Filters out enrollments whose course has been soft-deleted — otherwise
+    the dashboard would render a row whose "Continue learning" link
+    immediately 404s, since :func:`get_course` hides deleted rows.
+    """
     res = await db.execute(
         select(Enrollment)
+        .join(Course, Course.id == Enrollment.course_id)
         .options(selectinload(Enrollment.course).selectinload(Course.subject))
         .options(selectinload(Enrollment.course).selectinload(Course.owner))
         .options(selectinload(Enrollment.course).selectinload(Course.tags))
-        .where(Enrollment.user_id == user_id)
+        .where(Enrollment.user_id == user_id, Course.deleted_at.is_(None))
         .order_by(Enrollment.created_at.desc())
     )
     return list(res.scalars().unique().all())
