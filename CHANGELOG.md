@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 14)
+- Studio courses page gains All / Drafts / Published / Archived filter
+  tabs with counts so archived courses stop cluttering the live view.
+- Frontend tests: SessionsCard (list render, per-row revoke, sign-out-
+  everywhere, empty state) and MyReviewEditor (initial state, seeded
+  existing review, save, remove, save-disabled-until-rating).
+
 ### Added (iteration 13)
 - Server-side quiz grading. `POST /api/v1/me/progress/lessons/{id}/quiz`
   accepts an `{answers: {question_id: ...}}` payload, grades the quiz
