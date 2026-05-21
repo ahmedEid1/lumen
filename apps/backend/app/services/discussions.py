@@ -73,13 +73,11 @@ async def update_discussion(
     d = await discussions_repo.get(db, discussion_id)
     if not d:
         raise NotFoundError("Discussion not found", code="discussion.not_found")
-    if not _can_edit(d, user, course_owner_id=None):
-        # We don't have the course here, but the author-or-admin
-        # check covers the common case. Re-fetching the course for
-        # the owner-check is fine because edits are rare.
-        course = await courses_repo.get_course(db, d.course_id)
-        if not _can_edit(d, user, course_owner_id=course.owner_id if course else None):
-            raise ForbiddenError("Cannot edit this discussion", code="discussion.forbidden")
+    # Edits are rare, so the extra course lookup is fine and lets us
+    # check author-or-admin-or-course-owner in one pass.
+    course = await courses_repo.get_course(db, d.course_id)
+    if not _can_edit(d, user, course_owner_id=course.owner_id if course else None):
+        raise ForbiddenError("Cannot edit this discussion", code="discussion.forbidden")
     if payload.title is not None:
         d.title = payload.title.strip()
     if payload.body is not None:
@@ -155,8 +153,8 @@ async def _ensure_subscribed(
                 DiscussionSubscription.discussion_id == discussion_id,
             )
         )
-    ).first()
-    if existing:
+    ).scalar_one_or_none()
+    if existing is not None:
         return False
     db.add(
         DiscussionSubscription(user_id=user_id, discussion_id=discussion_id)
@@ -176,14 +174,15 @@ async def _fanout_reply_notifications(
     rows = (
         await db.execute(
             select(DiscussionSubscription.user_id)
-            .where(DiscussionSubscription.discussion_id == discussion.id)
+            .where(
+                DiscussionSubscription.discussion_id == discussion.id,
+                DiscussionSubscription.user_id != actor.id,
+            )
             .limit(_FANOUT_CAP)
         )
     ).all()
     body = f"{actor.full_name or 'A learner'} replied."
     for (user_id,) in rows:
-        if user_id == actor.id:
-            continue
         await notifications_repo.create(
             db,
             user_id=user_id,
@@ -233,7 +232,7 @@ async def is_subscribed(
             DiscussionSubscription.discussion_id == discussion_id,
         )
     )
-    return res.first() is not None
+    return res.scalar_one_or_none() is not None
 
 
 def _can_edit(

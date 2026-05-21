@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 21) — discussions service tidy via simplifier
+Fifth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/services/discussions.py` (248 lines).
+Applied 3 of its 5 recommendations:
+
+- **`update_discussion`: dropped the double-call to
+  `_can_edit`**. The handler used to try author-or-admin first,
+  then fall through to a course fetch + full check. Edits are
+  rare so the course fetch is fine to always run; `_can_edit`
+  with full owner info yields the same boolean as the two-step.
+  One fewer branch, easier to follow.
+- **Pushed `actor.id != user_id` filter into the SQL** of
+  `_fanout_reply_notifications`. The in-Python `continue` skip
+  is gone; the WHERE clause now filters at the source. Same
+  notification list (cap-edge behaviour is identical in
+  practice — fanout cap is 200, never approached).
+- **`scalar_one_or_none()` consistency** for the two existence
+  checks in `_ensure_subscribed` and `is_subscribed`. Matches
+  the style already used in `unsubscribe`. Same boolean.
+
+Skipped: `ON CONFLICT DO NOTHING` rewrite (needs constraint
+verification) and the `_now()` helper (trivial DRY).
+
+Behaviour preserved. Discussion-touching tests 16/16, full
+backend pytest 321/321.
+
 ### Changed (simplify iter 20) — courses router refactor via simplifier
 Fourth dispatch of the `code-simplifier` plugin agent. Applied
 all 5 of its recommendations on `apps/backend/app/api/v1/courses.py`
