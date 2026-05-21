@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs (iteration 92)
+- **README features section caught up to iter 51-91.** Added the
+  features shipped across the recent runs (discussions, captions,
+  FTS ranking, learning outcomes, quiz attempts, HIBP, Idempotency-
+  Key, ETag, CSRF guard, OTel, branded HTML emails, …) so a new
+  contributor's first read accurately reflects what the platform
+  actually does.
+
 ### Added (iteration 91)
 - **Subscribe / Unsubscribe button on the discussion thread page.**
   Surfaces iter 90 on the UI: Bell icon next to the thread title,
