@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 87)
+- **Studio editor for the iter 86 "What you'll learn" outcomes.**
+  New card on the studio course page lets instructors add / remove
+  / edit up to 12 bullet outcomes with per-item 240-char input
+  limit and an obvious dirty-state Save button. Reuses
+  `Courses.patch` so the wire shape stays consistent; server-side
+  validators (trim, drop empties, cap count + per-item length)
+  remain authoritative.
+
 ### Added (iteration 86)
 - **Course "What you'll learn" bullet list.** Standard LMS
   conversion element. JSONB `learning_outcomes` column on

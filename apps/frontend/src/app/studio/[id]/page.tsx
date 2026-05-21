@@ -4,7 +4,7 @@ import { use, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, GripVertical, Settings2 } from "lucide-react";
+import { Plus, GripVertical, Settings2, Trash2 } from "lucide-react";
 import {
   DndContext,
   PointerSensor,
@@ -162,6 +162,18 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
         <CohortCard courseId={id} />
       </div>
 
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>What you&apos;ll learn</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <LearningOutcomesEditor
+            courseId={id}
+            initial={course.learning_outcomes ?? []}
+          />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Modules</CardTitle>
@@ -243,6 +255,76 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
     <div className="rounded-md border bg-background p-3">
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function LearningOutcomesEditor({
+  courseId,
+  initial,
+}: {
+  courseId: string;
+  initial: string[];
+}) {
+  const qc = useQueryClient();
+  const [items, setItems] = useState<string[]>(initial);
+  const dirty = JSON.stringify(items) !== JSON.stringify(initial);
+
+  const save = useMutation({
+    mutationFn: () =>
+      Courses.patch(courseId, {
+        learning_outcomes: items.map((s) => s.trim()).filter(Boolean),
+      }),
+    onSuccess: () => {
+      toast.success("Outcomes saved");
+      qc.invalidateQueries({ queryKey: qk.course(courseId) });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Could not save"),
+  });
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Up to 12 short phrases (each ≤240 chars). Shows above the syllabus
+        on the course detail page as a checkmark grid.
+      </p>
+      <ul className="space-y-2">
+        {items.map((s, i) => (
+          <li key={i} className="flex gap-2">
+            <Input
+              value={s}
+              maxLength={240}
+              onChange={(e) => {
+                const next = [...items];
+                next[i] = e.target.value;
+                setItems(next);
+              }}
+              placeholder={`Outcome #${i + 1}`}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setItems(items.filter((_, j) => j !== i))}
+              aria-label="Remove"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setItems([...items, ""])}
+          disabled={items.length >= 12}
+        >
+          <Plus className="mr-1 h-4 w-4" /> Add outcome
+        </Button>
+        <Button size="sm" onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
+          {save.isPending ? "Saving…" : "Save"}
+        </Button>
+      </div>
     </div>
   );
 }
