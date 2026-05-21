@@ -299,6 +299,15 @@ async def list_audit(
     db: DBSession,
     action: str | None = Query(default=None, max_length=80),
     actor_id: str | None = Query(default=None, max_length=64),
+    before: str | None = Query(
+        default=None,
+        max_length=64,
+        description=(
+            "Cursor: pass the id of the oldest event from the previous page "
+            "to fetch events strictly older than that anchor. Returns events "
+            "in created_at DESC order, same as the no-cursor call."
+        ),
+    ),
     limit: int = Query(default=100, ge=1, le=500),
 ) -> list[AuditEventOut]:
     stmt = select(AuditEvent).order_by(desc(AuditEvent.created_at)).limit(limit)
@@ -306,6 +315,14 @@ async def list_audit(
         stmt = stmt.where(AuditEvent.action == action)
     if actor_id:
         stmt = stmt.where(AuditEvent.actor_id == actor_id)
+    if before:
+        anchor = await db.get(AuditEvent, before)
+        if anchor is not None:
+            # Strict less-than on created_at — same pattern as
+            # chat.history. Duplicate timestamps at the boundary are
+            # a known minor edge case across the codebase and not
+            # worth a tiebreaker complication here either.
+            stmt = stmt.where(AuditEvent.created_at < anchor.created_at)
     rows = (await db.execute(stmt)).scalars().all()
     return [AuditEventOut.model_validate(r) for r in rows]
 

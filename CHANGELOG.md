@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 54)
+- **Cursor pagination on the admin audit log.** CLAUDE.md specifies
+  "cursor for messages/audit" but the endpoint only supported `limit`
+  — capping at 500 events made anything older invisible. Added
+  `?before=<event_id>` (matches the `chat.history` pattern) returning
+  events strictly older than the named anchor. Response shape stays
+  `list[AuditEventOut]` so the existing frontend call without the
+  cursor continues to work. The admin audit page now offers a "Load
+  older events" button that walks back by passing the oldest currently-
+  displayed event id. Unknown / stale anchor ids degrade gracefully
+  to "no filter" rather than 404, so a deleted-event race doesn't
+  blow up the pager UI. Covered by `tests/test_audit_cursor.py` (4
+  tests: cursor returns strictly older + skips anchor itself, unknown
+  cursor falls through, admin-only gate intact, response shape
+  unchanged).
+
 ### Security (iteration 53)
 - **Rate-limit the two heavy authenticated write endpoints.**
   Before iter 53 only the auth surface had explicit limits. Quiz
