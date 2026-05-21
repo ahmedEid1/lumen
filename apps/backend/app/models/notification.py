@@ -23,6 +23,7 @@ class NotificationKind(StrEnum):
     review_received = "review_received"
     chat_mention = "chat_mention"
     security = "security"
+    discussion_reply = "discussion_reply"
 
 
 class Notification(IdMixin, TimestampMixin, Base):

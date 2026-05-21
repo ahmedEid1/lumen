@@ -20,9 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ForbiddenError, NotFoundError
 from app.models.course import Course
 from app.models.discussion import Discussion, DiscussionReply
+from app.models.notification import NotificationKind
 from app.models.user import User
 from app.repositories import courses as courses_repo
 from app.repositories import discussions as discussions_repo
+from app.repositories import notifications as notifications_repo
 from app.services import courses as courses_service
 
 if TYPE_CHECKING:
@@ -107,6 +109,23 @@ async def reply(
     # sort surfaces the bumped thread.
     d.updated_at = datetime.now(timezone.utc)
     await db.flush()
+    # Ping the thread author — only if it's not themselves replying
+    # (which would be a self-notification with no signal) and only
+    # if the author still exists (author_id is SET NULL on user
+    # delete; ``None`` means a deleted account, no inbox to ping).
+    if d.author_id and d.author_id != user.id:
+        await notifications_repo.create(
+            db,
+            user_id=d.author_id,
+            kind=NotificationKind.discussion_reply,
+            title=f"New reply on “{d.title}”",
+            body=f"{user.full_name or 'A learner'} replied.",
+            data={
+                "discussion_id": d.id,
+                "reply_id": r.id,
+                "course_id": d.course_id,
+            },
+        )
     return r
 
 

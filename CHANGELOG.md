@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 79)
+- **Discussion replies notify the thread author.** New
+  `NotificationKind.discussion_reply` ping in the asker's inbox
+  when someone replies to their thread, carrying
+  `{discussion_id, reply_id, course_id}` so the bell can deep-
+  link. Self-replies don't notify (no signal in self-talk); a
+  thread whose author was deleted (FK SET NULL) doesn't crash —
+  the notification is silently skipped. Kind is a string column
+  so no migration is needed for the new enum value. Covered by
+  `tests/test_discussion_reply_notifies.py` (3 tests).
+
 ### Added (iteration 78)
 - **Discussions UI: list + thread detail pages, link from course
   detail.** `/courses/[slug]/discussions` lists threads (avatar,
