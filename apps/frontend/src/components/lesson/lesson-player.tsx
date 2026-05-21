@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { LessonOut } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
@@ -88,6 +88,13 @@ type QuizResult = {
   results: { question_id: string; correct: boolean }[];
 };
 
+type QuizAttempt = {
+  id: string;
+  score: number;
+  passed: boolean;
+  submitted_at: string;
+};
+
 function Quiz({
   lessonId,
   questions,
@@ -100,8 +107,28 @@ function Quiz({
   const [answers, setAnswers] = useState<Record<string, string[] | string>>({});
   const [result, setResult] = useState<QuizResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [history, setHistory] = useState<QuizAttempt[]>([]);
   const submitted = result !== null;
   const correctByQuestion = new Map(result?.results.map((r) => [r.question_id, r.correct]) ?? []);
+
+  // Load past attempts on mount so a returning learner sees "you've
+  // tried this 3 times" before they submit again. Refreshed after
+  // every submit so the new attempt shows immediately.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    loadHistory();
+  }, [lessonId]);
+  async function loadHistory() {
+    try {
+      const rows = await api<QuizAttempt[]>(
+        `/api/v1/me/progress/lessons/${lessonId}/quiz/attempts`,
+      );
+      setHistory(rows);
+    } catch {
+      // History is a nice-to-have; if the endpoint hiccups, the
+      // quiz itself still works.
+    }
+  }
 
   function toggle(q: QuizQuestion, choice: string) {
     setAnswers((prev) => {
@@ -122,6 +149,8 @@ function Quiz({
         body: { answers },
       });
       setResult(out);
+      // The new attempt should appear in the history strip below.
+      await loadHistory();
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : "Could not submit quiz";
       toast.error(msg);
@@ -132,6 +161,29 @@ function Quiz({
 
   return (
     <div className="space-y-6">
+      {history.length > 0 && (
+        <div className="rounded-lg border bg-muted/30 p-3 text-xs">
+          <div className="mb-2 font-medium text-muted-foreground">
+            Past attempts ({history.length})
+          </div>
+          <ol className="flex flex-wrap gap-2">
+            {history.map((a) => (
+              <li
+                key={a.id}
+                className={[
+                  "inline-flex items-center gap-1 rounded border px-2 py-0.5 tabular-nums",
+                  a.passed
+                    ? "border-emerald-600/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                    : "border-muted-foreground/30 text-muted-foreground",
+                ].join(" ")}
+                title={new Date(a.submitted_at).toLocaleString()}
+              >
+                {a.score}% {a.passed ? "✓" : ""}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
       {questions.map((q, idx) => {
         const given = answers[q.id];
         const questionCorrect = correctByQuestion.get(q.id);

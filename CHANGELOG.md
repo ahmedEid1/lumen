@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 74)
+- **Quiz player shows attempt history.** Surfaces iter 73's
+  `/me/progress/lessons/{id}/quiz/attempts` endpoint as a "Past
+  attempts (N)" strip above the quiz: pass-mark badges (emerald
+  for passed, muted for failed), score numbers, ISO timestamp on
+  hover. Loaded on mount and refreshed after each submit, so a
+  returning learner immediately sees their trend. Gracefully
+  hides if the endpoint hiccups — the quiz itself still works.
+
 ### Added (iteration 73)
 - **Quiz attempt history (append-only).** Previously `submit_quiz`
   overwrote `LessonProgress.payload` on every retake, so a learner
