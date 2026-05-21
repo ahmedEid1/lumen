@@ -76,17 +76,18 @@ class QuizQuestion(BaseModel):
 
     @model_validator(mode="after")
     def _validate(self) -> QuizQuestion:
-        if self.kind in {"single", "multiple"}:
-            if not self.choices:
-                raise ValueError("choice-based question requires choices")
-            ids = {c.id for c in self.choices}
-            if not set(self.answer_keys).issubset(ids):
-                raise ValueError("answer_keys must reference choice ids")
-            if self.kind == "single" and len(self.answer_keys) != 1:
-                raise ValueError("single-choice expects exactly one answer_key")
-        else:  # short
+        if self.kind == "short":
             if self.choices:
                 raise ValueError("short-answer questions must have no choices")
+            return self
+        # choice-based ("single" / "multiple")
+        if not self.choices:
+            raise ValueError("choice-based question requires choices")
+        ids = {c.id for c in self.choices}
+        if not set(self.answer_keys).issubset(ids):
+            raise ValueError("answer_keys must reference choice ids")
+        if self.kind == "single" and len(self.answer_keys) != 1:
+            raise ValueError("single-choice expects exactly one answer_key")
         return self
 
 
@@ -168,8 +169,12 @@ class ModuleOut(BaseModel):
 # ----- Courses -----
 
 
-def _validate_learning_outcomes(items: list[str]) -> list[str]:
-    """Trim, drop empties, and enforce per-item length."""
+def _validate_learning_outcomes(items: list[str] | None) -> list[str] | None:
+    """Trim, drop empties, and enforce per-item length. Passes None through
+    so the same helper covers `CourseCreate` (required list) and
+    `CourseUpdate` (optional)."""
+    if items is None:
+        return None
     cleaned = [s.strip() for s in items if s and s.strip()]
     for s in cleaned:
         if len(s) > 240:
@@ -208,8 +213,6 @@ class CourseUpdate(BaseModel):
     @field_validator("learning_outcomes")
     @classmethod
     def _learning_outcomes(cls, v: list[str] | None) -> list[str] | None:
-        if v is None:
-            return None
         return _validate_learning_outcomes(v)
 
 

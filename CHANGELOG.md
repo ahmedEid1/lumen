@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 37) — course schemas: dedupe validators
+Twenty-first dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/schemas/course.py`. Applied 2 of its 5
+recommendations:
+
+- **`_validate_learning_outcomes` now accepts `None`**, so
+  `CourseUpdate._learning_outcomes` no longer needs to
+  short-circuit before calling. `CourseCreate` keeps its
+  non-optional signature; the helper handles both. The two
+  validator classmethods are now identical one-liners.
+- **`QuizQuestion._validate` flattened** — early-returns the
+  short-answer branch, then unconditionally runs the
+  choice-based branch. Same error messages in the same
+  precedence (tests assert on the strings).
+
+Skipped on purpose: dropping `is_preview: bool = False` default
+on `LessonOut` (would shift OpenAPI `required` flag), aliasing
+`ReviewUpdate = ReviewCreate` (would collapse two OpenAPI
+schemas the frontend client treats separately), and trimming
+section-divider comments (CLAUDE.md "don't restate code" doesn't
+apply to navigation dividers in a 296-line file).
+
+Backend pytest 321/321. Quiz / courses / learning-outcomes
+tests 22/22.
+
 ### Changed (simplify iter 36) — users router DRY via simplifier
 Twentieth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/api/v1/users.py`. Applied 2 of its 5
