@@ -102,6 +102,18 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Admin / audit — عين المعبد
+  "adminAudit.cartouche": "عين المعبد",
+  "adminAudit.title": "سجل المراقبة",
+  "adminAudit.recentCard": "الأحداث الأخيرة",
+  "adminAudit.col.when": "متى",
+  "adminAudit.col.action": "الإجراء",
+  "adminAudit.col.actor": "الفاعل",
+  "adminAudit.col.target": "الهدف",
+  "adminAudit.col.data": "البيانات",
+  "adminAudit.empty": "لا أحداث.",
+  "adminAudit.loadOlder": "تحميل أحداث أقدم",
+
   // Admin / subjects — الفروع
   "adminSubjects.cartouche": "الفروع",
   "adminSubjects.title": "المواضيع",

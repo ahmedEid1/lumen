@@ -95,6 +95,18 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Admin / audit — eye of the temple
+  "adminAudit.cartouche": "Eye of the temple",
+  "adminAudit.title": "Audit log",
+  "adminAudit.recentCard": "Recent events",
+  "adminAudit.col.when": "When",
+  "adminAudit.col.action": "Action",
+  "adminAudit.col.actor": "Actor",
+  "adminAudit.col.target": "Target",
+  "adminAudit.col.data": "Data",
+  "adminAudit.empty": "No events.",
+  "adminAudit.loadOlder": "Load older events",
+
   // Admin / subjects — the disciplines
   "adminSubjects.cartouche": "The disciplines",
   "adminSubjects.title": "Subjects",
