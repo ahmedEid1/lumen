@@ -188,7 +188,9 @@ export function CourseDetailView({ slug }: { slug: string }) {
               <CardTitle>Reviews</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {user && course.is_enrolled && (
+              {user && course.is_enrolled && user.id !== course.owner.id && (
+                // Owners can self-enroll to preview, but the backend rejects
+                // self-reviews — don't render a button that always 403s.
                 <MyReviewEditor
                   courseId={course.id}
                   myReview={reviewsQ.data?.find((r) => r.author.id === user.id) ?? null}

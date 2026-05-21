@@ -19,6 +19,15 @@ if TYPE_CHECKING:
 
 
 async def upsert(db: AsyncSession, *, author: User, course: Course, payload: ReviewCreate | ReviewUpdate) -> Review:
+    # Instructors can self-enroll in their own published course (to see what
+    # students see). Without this guard they could then post a 5-star review
+    # and inflate avg_rating — same anti-self-review rule every other review
+    # platform enforces. The notification path already encodes this awareness
+    # via ``if course.owner_id != author.id``; here we reject outright.
+    if course.owner_id == author.id:
+        raise ForbiddenError(
+            "You can't review your own course", code="review.self_review"
+        )
     enrollment = await courses_repo.get_enrollment(db, user_id=author.id, course_id=course.id)
     if not enrollment:
         raise ForbiddenError("Enroll first to review", code="review.enroll_first")

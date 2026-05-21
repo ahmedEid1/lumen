@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 40)
+- **Blocked self-reviews on owned courses.** Instructors can enroll in
+  their own published course (handy for previewing what learners see)
+  but could then post a 5-star review of themselves, padding
+  `avg_rating` and the catalog's "top-rated" sort. The notification
+  path already had `if course.owner_id != author.id` — the codebase
+  knew the scenario but didn't reject it. `reviews.upsert` now
+  raises `review.self_review` for the owner, and the frontend hides
+  the review editor when viewer owns the course so we don't show a
+  button that always 403s. Covered by `tests/test_self_review.py`
+  (3 tests: PUT + PATCH rejection, avg_rating staying honest after
+  a rejected owner attempt, peer-instructor still allowed to review).
+
 ### Security (iteration 39)
 - **Unified password strength policy across register / reset / change.**
   Only `RegisterRequest` ran the "mix character classes" check; the
