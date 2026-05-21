@@ -22,6 +22,18 @@ CHANNEL_FMT = "lumen:chat:{course_id}"
 PRESENCE_FMT = "lumen:presence:{course_id}"
 
 
+def _channel(course_id: str) -> str:
+    return CHANNEL_FMT.format(course_id=course_id)
+
+
+def _presence(course_id: str) -> str:
+    return PRESENCE_FMT.format(course_id=course_id)
+
+
+def _now_ts() -> float:
+    return datetime.now(UTC).timestamp()
+
+
 async def get_redis() -> redis.Redis:
     return redis.Redis.from_url(get_settings().redis_url, decode_responses=True)
 
@@ -32,8 +44,7 @@ async def ensure_can_chat(db: AsyncSession, *, user: User, course_id: str) -> Co
         raise NotFoundError("Course not found", code="course.not_found")
     if user.is_admin() or course.owner_id == user.id:
         return course
-    enrollment = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
-    if not enrollment:
+    if not await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id):
         raise ForbiddenError("Enroll first to chat", code="chat.enroll_first")
     return course
 
@@ -59,28 +70,28 @@ async def post(db: AsyncSession, *, user: User, course: Course, body: str) -> di
 
 
 async def publish(r: redis.Redis, course_id: str, event: dict[str, Any]) -> None:
-    await r.publish(CHANNEL_FMT.format(course_id=course_id), json.dumps(event, default=str))
+    await r.publish(_channel(course_id), json.dumps(event, default=str))
 
 
 @asynccontextmanager
 async def subscribe(r: redis.Redis, course_id: str) -> AsyncIterator[redis.client.PubSub]:
     pubsub = r.pubsub()
+    channel = _channel(course_id)
     try:
-        await pubsub.subscribe(CHANNEL_FMT.format(course_id=course_id))
+        await pubsub.subscribe(channel)
         yield pubsub
     finally:
-        await pubsub.unsubscribe(CHANNEL_FMT.format(course_id=course_id))
+        await pubsub.unsubscribe(channel)
         await pubsub.aclose()
 
 
 async def mark_present(r: redis.Redis, *, course_id: str, user_id: str) -> None:
-    await r.zadd(PRESENCE_FMT.format(course_id=course_id), {user_id: datetime.now(UTC).timestamp()})
+    await r.zadd(_presence(course_id), {user_id: _now_ts()})
 
 
 async def mark_absent(r: redis.Redis, *, course_id: str, user_id: str) -> None:
-    await r.zrem(PRESENCE_FMT.format(course_id=course_id), user_id)
+    await r.zrem(_presence(course_id), user_id)
 
 
 async def list_present(r: redis.Redis, *, course_id: str, within_seconds: int = 60) -> list[str]:
-    threshold = datetime.now(UTC).timestamp() - within_seconds
-    return await r.zrangebyscore(PRESENCE_FMT.format(course_id=course_id), threshold, "+inf")
+    return await r.zrangebyscore(_presence(course_id), _now_ts() - within_seconds, "+inf")

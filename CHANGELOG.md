@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 31) — chat service tidy via simplifier
+Fifteenth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/services/chat.py`. Applied all 3 of its
+recommendations:
+
+- **`_channel(course_id)` and `_presence(course_id)` helpers**
+  collapse the `CHANNEL_FMT.format(course_id=course_id)` (×4)
+  and `PRESENCE_FMT.format(course_id=course_id)` (×3) call
+  sites into one-arg calls. `subscribe` also binds the channel
+  name once at the top so the unsubscribe in `finally` matches
+  by reference instead of re-formatting.
+- **`_now_ts()` helper** centralises `datetime.now(UTC).
+  timestamp()` for the presence-zset writes and the
+  `list_present` threshold. Single clock source — easier to
+  audit if a future test wants to freeze it.
+- **`ensure_can_chat`: dropped the unused `enrollment` local**
+  — only its truthiness was read, so `if not await
+  courses_repo.get_enrollment(...): raise ForbiddenError(...)`
+  expresses the same check directly.
+
+Every authz branch and the 60s presence window stay intact.
+Chat tests 8/8, backend pytest 321/321.
+
 ### Changed (simplify iter 30) — quiz grading tidy via simplifier
 Fourteenth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/services/quiz.py` (75-line tight file).
