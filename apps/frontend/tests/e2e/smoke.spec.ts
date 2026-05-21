@@ -16,8 +16,11 @@ test.describe("smoke", () => {
 
   test("student signs in and reaches dashboard", async ({ page }) => {
     await page.goto("/login");
-    // Login form is prefilled with seeded demo credentials.
-    await page.getByRole("button", { name: /Sign in/i }).click();
+    // Iter 101: the navbar's "Sign in" link contains a button with
+    // the same accessible name as the form's submit, so an unscoped
+    // getByRole('button') trips strict mode. Scope to the form
+    // element so we always pick the submit button.
+    await page.locator("form").getByRole("button", { name: /Sign in/i }).click();
     await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByRole("heading", { name: /Welcome/i })).toBeVisible();
   });

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 101) — strict-mode `Sign in` selector clash in e2e
+- All three sign-in-required e2e specs failed
+  `locator.click: strict mode violation: getByRole('button',
+  { name: /sign in/i }) resolved to 2 elements` because the
+  navbar's "Sign in" link contains a button with the same
+  accessible name as the form submit. Scoped the form-submit
+  selector to `page.locator("form").getByRole(...)` in
+  smoke.spec.ts, learner-journey.spec.ts, and
+  instructor-flow.spec.ts. No regression test — the strict-mode
+  violation IS the regression check; replacing it would be
+  redundant.
+- The 4/12 → 4/12 pass count is misleading: this fix removes
+  the strict-mode error, but the next-down failure (`expect
+  (page).toHaveURL(/\/dashboard/) → received
+  "http://web:3000/login"`) takes its place and keeps the
+  smoke + learner-journey + instructor-flow specs red. Root
+  cause: browser-side fetch from inside the e2e container tries
+  `http://localhost:8000` (bundle's `NEXT_PUBLIC_API_BASE_URL`)
+  which resolves to the e2e container, not the api. That's
+  iter 102.
+
 ### Fixed (iteration 100) — Playwright timeouts + worker contention against `pnpm dev`
 - **0/12 e2e specs passing**, all `TimeoutError: page.goto:
   Timeout 60000ms exceeded` once iter 99 made them runnable.

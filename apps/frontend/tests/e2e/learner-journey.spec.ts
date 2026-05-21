@@ -18,7 +18,9 @@ test.describe("learner journey", () => {
     await page.goto("/login");
     await page.getByLabel(/email/i).fill("student@lumen.test");
     await page.getByLabel(/password/i).fill("Learn!2026");
-    await page.getByRole("button", { name: /sign in/i }).click();
+    // Iter 101: scope to the form so we hit the submit button
+    // rather than the navbar's "Sign in" link (strict mode tie).
+    await page.locator("form").getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/dashboard/);
 
     // Catalog.

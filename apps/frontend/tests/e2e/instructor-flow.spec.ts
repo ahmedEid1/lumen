@@ -14,7 +14,8 @@ test.describe("instructor flow", () => {
     await page.goto("/login");
     await page.getByLabel(/email/i).fill("teacher@lumen.test");
     await page.getByLabel(/password/i).fill("Teach!2026");
-    await page.getByRole("button", { name: /sign in/i }).click();
+    // Iter 101: scope to the form (navbar Sign in link clashes).
+    await page.locator("form").getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/dashboard/);
 
     // Studio.
