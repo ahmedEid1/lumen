@@ -92,6 +92,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.middleware import SlowAPIMiddleware
+
+    from app.core.ratelimit import limiter
+
     app = FastAPI(
         title=settings.app_name,
         version="1.0.0",
@@ -103,6 +108,25 @@ def create_app() -> FastAPI:
         contact={"name": "Lumen", "url": "https://github.com/ahmedEid1/E-Learning-Platform"},
         license_info={"name": "MIT"},
     )
+
+    app.state.limiter = limiter
+    app.add_middleware(SlowAPIMiddleware)
+
+    @app.exception_handler(RateLimitExceeded)
+    async def _rate_limited(request: Request, exc: RateLimitExceeded):
+        rid = request.headers.get("x-request-id") or getattr(request.state, "request_id", None)
+        return ORJSONResponse(
+            status_code=429,
+            content={
+                "error": {
+                    "code": "rate_limited",
+                    "message": "Too many requests — please slow down",
+                    "details": {"limit": str(exc.detail)},
+                    "request_id": rid,
+                }
+            },
+            headers={"Retry-After": "60"},
+        )
 
     app.add_middleware(
         CORSMiddleware,

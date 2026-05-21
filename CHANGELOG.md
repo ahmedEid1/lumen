@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 15)
+- **Rate limiting was configured but never wired**. The `slowapi` limiter
+  is now mounted on the FastAPI app via `SlowAPIMiddleware`, and the
+  high-risk auth endpoints carry per-IP limits: `POST /auth/login` (10/min),
+  `POST /auth/register` (5/min), `POST /auth/password-reset/request`
+  (3/min), `POST /auth/verify/request` (3/min). 429 responses use the
+  standard envelope and include `Retry-After`. Tests use an in-memory
+  bucket reset via a `_reset_rate_limiter` autouse fixture.
+
+### Added (iteration 15)
+- Frontend tests: CohortCard (empty / mixed-progress / error states) and
+  NotificationsBell (unread badge count, mark-on-click, empty state).
+
 ### Added (iteration 14)
 - Studio courses page gains All / Drafts / Published / Archived filter
   tabs with counts so archived courses stop cluttering the live view.

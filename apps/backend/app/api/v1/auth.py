@@ -7,6 +7,7 @@ from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from app.api.deps import CurrentUser, DBSession, client_ip, user_agent
 from app.core.config import get_settings
 from app.core.errors import UnauthorizedError
+from app.core.ratelimit import limiter
 from app.schemas.auth import (
     EmailVerifyConfirm,
     LoginRequest,
@@ -53,6 +54,7 @@ def _clear_auth_cookies(response: Response) -> None:
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def register(payload: RegisterRequest, db: DBSession, request: Request) -> UserOut:
     user = await auth_service.register(db, payload, ip=client_ip(request), user_agent=user_agent(request))
     verify_service.queue_verification_email(user=user)
@@ -60,6 +62,7 @@ async def register(payload: RegisterRequest, db: DBSession, request: Request) ->
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def login(
     payload: LoginRequest,
     response: Response,
@@ -129,7 +132,10 @@ async def me(user: CurrentUser) -> UserOut:
 
 
 @router.post("/password-reset/request", response_model=OkResponse)
-async def password_reset_request(payload: PasswordResetRequest, db: DBSession) -> OkResponse:
+@limiter.limit("3/minute")
+async def password_reset_request(
+    payload: PasswordResetRequest, db: DBSession, request: Request
+) -> OkResponse:
     """Always returns ok to avoid leaking which emails exist."""
     user, token = await reset_service.request_reset(db, email=str(payload.email))
     if user and token:
@@ -160,7 +166,8 @@ async def password_reset_confirm(payload: PasswordResetConfirm, db: DBSession) -
 
 
 @router.post("/verify/request", response_model=OkResponse)
-async def verify_request(user: CurrentUser) -> OkResponse:
+@limiter.limit("3/minute")
+async def verify_request(user: CurrentUser, request: Request) -> OkResponse:
     """Resend the email-verification link for the current user."""
     if user.email_verified_at is None:
         verify_service.queue_verification_email(user=user)

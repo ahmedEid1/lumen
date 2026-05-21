@@ -103,6 +103,15 @@ async def app(_engine):
     return app
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Give every test a fresh in-memory limiter so buckets don't leak across tests."""
+    from app.core import ratelimit as ratelimit_mod
+
+    ratelimit_mod.reset_for_tests()
+    yield
+
+
 @pytest_asyncio.fixture
 async def client(app) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)
