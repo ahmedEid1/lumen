@@ -79,6 +79,7 @@ export interface CourseDetail extends CourseListItem {
   is_enrolled: boolean;
   is_bookmarked: boolean;
   progress_pct: number;
+  learning_outcomes: string[];
 }
 
 export interface Page<T> {

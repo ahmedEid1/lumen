@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Bookmark, BookmarkCheck, Layers, MessageSquare, Star, Users, Award } from "lucide-react";
+import { Bookmark, BookmarkCheck, Check, Layers, MessageSquare, Star, Users, Award } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -123,6 +123,24 @@ export function CourseDetailView({ slug }: { slug: string }) {
               Discussion forum
             </Link>
           </div>
+
+          {course.learning_outcomes && course.learning_outcomes.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>What you&apos;ll learn</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="grid gap-2 sm:grid-cols-2">
+                  {course.learning_outcomes.map((outcome, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                      <span>{outcome}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

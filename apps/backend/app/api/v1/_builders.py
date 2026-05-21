@@ -74,4 +74,5 @@ def detail(
         is_enrolled=is_enrolled,
         is_bookmarked=is_bookmarked,
         progress_pct=progress_pct,
+        learning_outcomes=list(course.learning_outcomes or []),
     )

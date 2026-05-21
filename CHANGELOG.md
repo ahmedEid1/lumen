@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 86)
+- **Course "What you'll learn" bullet list.** Standard LMS
+  conversion element. JSONB `learning_outcomes` column on
+  `courses` with Pydantic-side trimming, empty-drop, 240-char
+  per-item cap, 12-item list cap. Migration
+  `0006_course_learning_outcomes` backfills existing rows with
+  `[]`. CourseCreate / CourseUpdate / CourseDetail carry the
+  field; the detail page renders a 2-column emerald-check grid
+  above the syllabus, hidden when empty. Covered by
+  `tests/test_learning_outcomes.py` (6 tests).
+
 ### Added (iteration 85)
 - **Catalog search uses Postgres full-text with relevance ranking.**
   Pre-iter 85 `?q=` was pure ILIKE substring — no relevance order,

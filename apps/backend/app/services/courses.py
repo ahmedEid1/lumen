@@ -81,6 +81,7 @@ async def create_course(db: AsyncSession, owner: User, payload: CourseCreate) ->
         overview=payload.overview,
         difficulty=payload.difficulty,
         cover_url=payload.cover_url,
+        learning_outcomes=list(payload.learning_outcomes),
     )
     if payload.tag_ids:
         course.tags = await courses_repo.list_tags_by_ids(db, payload.tag_ids)
@@ -111,6 +112,8 @@ async def update_course(
         course.cover_url = payload.cover_url
     if payload.tag_ids is not None:
         course.tags = await courses_repo.list_tags_by_ids(db, payload.tag_ids)
+    if payload.learning_outcomes is not None:
+        course.learning_outcomes = list(payload.learning_outcomes)
     if payload.status is not None:
         prev = course.status
         await _transition_status(db, course, payload.status)

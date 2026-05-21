@@ -88,6 +88,14 @@ class Course(IdMixin, TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     slug: Mapped[str] = mapped_column(String(220), unique=True, nullable=False, index=True)
     overview: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Bullet list of "what you'll learn" outcomes shown above the
+    # syllabus on the detail page. Stored as JSONB so the API can
+    # validate length / item-count via Pydantic without a separate
+    # table. List ordering is the display order; instructors hand-
+    # sort during editing.
+    learning_outcomes: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default="[]", default=list
+    )
     cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     difficulty: Mapped[Difficulty] = mapped_column(String(20), nullable=False, default=Difficulty.beginner)
     status: Mapped[CourseStatus] = mapped_column(String(20), nullable=False, default=CourseStatus.draft, index=True)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.course import CourseStatus, Difficulty, LessonType
 from app.schemas.user import UserPublic
@@ -168,6 +168,15 @@ class ModuleOut(BaseModel):
 # ----- Courses -----
 
 
+def _validate_learning_outcomes(items: list[str]) -> list[str]:
+    """Trim, drop empties, and enforce per-item length."""
+    cleaned = [s.strip() for s in items if s and s.strip()]
+    for s in cleaned:
+        if len(s) > 240:
+            raise ValueError("each learning outcome must be ≤240 chars")
+    return cleaned
+
+
 class CourseCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     subject_id: str
@@ -175,6 +184,15 @@ class CourseCreate(BaseModel):
     difficulty: Difficulty = Difficulty.beginner
     tag_ids: list[str] = Field(default_factory=list, max_length=20)
     cover_url: str | None = Field(default=None, max_length=500)
+    # Iter 86: "What you'll learn" bullet list. Up to 12 items so
+    # the detail page stays scannable — past that the list stops
+    # being a conversion tool and starts being a wall of text.
+    learning_outcomes: list[str] = Field(default_factory=list, max_length=12)
+
+    @field_validator("learning_outcomes")
+    @classmethod
+    def _learning_outcomes(cls, v: list[str]) -> list[str]:
+        return _validate_learning_outcomes(v)
 
 
 class CourseUpdate(BaseModel):
@@ -185,6 +203,14 @@ class CourseUpdate(BaseModel):
     tag_ids: list[str] | None = Field(default=None, max_length=20)
     cover_url: str | None = Field(default=None, max_length=500)
     status: CourseStatus | None = None
+    learning_outcomes: list[str] | None = Field(default=None, max_length=12)
+
+    @field_validator("learning_outcomes")
+    @classmethod
+    def _learning_outcomes(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        return _validate_learning_outcomes(v)
 
 
 class CourseListItem(BaseModel):
@@ -213,6 +239,10 @@ class CourseDetail(CourseListItem):
     is_enrolled: bool = False
     is_bookmarked: bool = False
     progress_pct: float = 0.0
+    # "What you'll learn" bullet list, iter 86. Empty list means
+    # the instructor hasn't filled it in — the detail page hides
+    # the section in that case.
+    learning_outcomes: list[str] = Field(default_factory=list)
 
 
 # ----- Enrollment & progress -----
