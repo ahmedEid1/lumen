@@ -241,9 +241,12 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
         expose_headers=["X-Request-ID", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
     )
+    from app.core.idempotency import IdempotencyMiddleware
+
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(IdempotencyMiddleware)
     app.add_middleware(CSRFOriginMiddleware)
     app.add_middleware(AccessLogMiddleware)
 

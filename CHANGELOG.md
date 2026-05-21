@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 58)
+- **Idempotency-Key support on mutating endpoints.** CLAUDE.md flagged
+  this as planned in v1. Opt-in via the `Idempotency-Key` header on
+  POST/PUT/PATCH/DELETE. Behaviour follows the draft RFC: same key +
+  same body within the 24h TTL returns the cached response (with
+  `Idempotent-Replayed: true` so observability can distinguish
+  replays from re-executions); same key + *different* body returns
+  422 `idempotency.conflict`. Only 2xx responses are cached (so a
+  transient 401/5xx doesn't pin a failure), and responses larger
+  than 256 KB skip caching to avoid Redis bloat. Login / refresh /
+  logout and multipart uploads are skipped — they have their own
+  semantics. Redis being down fails open with a warning log; refusing
+  the request because the cache is unreachable would be its own
+  outage. Covered by `tests/test_idempotency.py` (6 tests: replay,
+  conflict, no-key passthrough, GET ignored, 4xx not cached,
+  oversized key rejected).
+
 ### Security (iteration 57)
 - **Origin-header CSRF guard for cookie-auth mutations.** SameSite=strict
   on our auth cookies already blocks the textbook browser CSRF case,
