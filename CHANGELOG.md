@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 18)
+- Per-course OpenGraph metadata. The course detail route is split into a
+  server `page.tsx` that exports `generateMetadata` and a client
+  `course-detail-view.tsx`. Shares now carry the course title,
+  description (first 280 chars of overview), `og:image` (cover), and a
+  canonical link; 404s become a "Course not found" title.
+- ImageUpload component test: file too large is rejected before the API
+  is called, signs + PUTs + calls onChange with the public URL, surfaces
+  an error toast on PUT failure, Remove clears the value, and the
+  preview/placeholder render paths are covered.
+
 ### Added (iteration 17)
 - SEO: Next.js generates `/robots.txt` (allows public routes, disallows
   auth + studio + admin + learn paths) and `/sitemap.xml` (static routes
