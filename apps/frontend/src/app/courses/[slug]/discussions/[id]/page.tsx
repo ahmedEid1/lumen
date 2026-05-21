@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Bell, BellOff, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +33,7 @@ type ThreadDetail = {
   updated_at: string;
   author: Author;
   replies: Reply[];
+  is_subscribed: boolean;
 };
 
 export default function ThreadPage({
@@ -62,6 +63,16 @@ export default function ThreadPage({
       qc.invalidateQueries({ queryKey: ["discussion", id] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Could not post reply"),
+  });
+
+  const toggleSubscribe = useMutation({
+    mutationFn: () =>
+      api<{ ok: true }>(
+        `/api/v1/discussions/${id}/subscribe`,
+        { method: threadQ.data?.is_subscribed ? "DELETE" : "POST" },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["discussion", id] }),
+    onError: (e: any) => toast.error(e?.message ?? "Could not update subscription"),
   });
 
   const deleteThread = useMutation({
@@ -106,17 +117,42 @@ export default function ThreadPage({
         <CardHeader className="space-y-2">
           <div className="flex items-start justify-between gap-3">
             <CardTitle>{t.title}</CardTitle>
-            {canEditThread && (
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Delete thread"
-                onClick={() => deleteThread.mutate()}
-                disabled={deleteThread.isPending}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
+            <div className="flex items-center gap-1">
+              {user && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => toggleSubscribe.mutate()}
+                  disabled={toggleSubscribe.isPending}
+                  title={
+                    t.is_subscribed
+                      ? "Stop getting notified about new replies"
+                      : "Get notified when someone replies"
+                  }
+                >
+                  {t.is_subscribed ? (
+                    <>
+                      <BellOff className="mr-1 h-3.5 w-3.5" /> Subscribed
+                    </>
+                  ) : (
+                    <>
+                      <Bell className="mr-1 h-3.5 w-3.5" /> Subscribe
+                    </>
+                  )}
+                </Button>
+              )}
+              {canEditThread && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Delete thread"
+                  onClick={() => deleteThread.mutate()}
+                  disabled={deleteThread.isPending}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Avatar className="h-5 w-5">

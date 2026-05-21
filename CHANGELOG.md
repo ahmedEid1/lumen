@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 91)
+- **Subscribe / Unsubscribe button on the discussion thread page.**
+  Surfaces iter 90 on the UI: Bell icon next to the thread title,
+  state-aware label (Subscribe vs Subscribed), tooltip explains
+  the consequence in plain English. Hidden for anonymous viewers.
+  Toggle hits POST or DELETE based on the current `is_subscribed`
+  flag from the detail response.
+
 ### Added (iteration 90)
 - **Discussion subscriptions.** Iter 79 notified only the thread
   *author* on each reply. Non-authors who found a useful thread
