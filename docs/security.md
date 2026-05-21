@@ -25,6 +25,10 @@
 ### Auth
 - Password policy: min 12 chars, mixed character classes; HIBP k-anonymity check optional.
 - Lockout: 5 failed logins → 15 min IP+account cooldown.
+- **No login enumeration**: the authenticate path always runs one Argon2
+  verification — against a real or a precomputed dummy hash — so the
+  wire-time latency for "no such email" and "wrong password" is dominated
+  by the same CPU work. Locked in by `tests/test_login_timing.py`.
 - Refresh tokens single-use; reuse triggers full chain revocation. Active
   sessions are listed at `GET /api/v1/users/me/sessions`; users can revoke
   one (`DELETE /me/sessions/{id}`) or all (`DELETE /me/sessions`).

@@ -27,6 +27,13 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+# Precomputed Argon2 hash of a value the user can never supply. ``verify_password``
+# against it does the same CPU work as a real check but always returns False.
+# We rely on this to flatten the login-latency side-channel that would
+# otherwise leak whether an email is registered (a missing user would skip
+# the hash and return ~10ms faster than a wrong password).
+_DUMMY_HASH = hash_password("\x00 not-a-real-password \x00")
+
 
 async def register(
     db: AsyncSession,
@@ -66,6 +73,11 @@ async def authenticate(
 ) -> tuple[User, TokenPair]:
     user = await users_repo.get_by_email(db, str(payload.email))
     if not user or not user.is_active:
+        # Run a dummy verify so the wire-time latency for "no such email" and
+        # "wrong password" is dominated by the same Argon2 work — denying an
+        # attacker the timing side-channel that would otherwise reveal which
+        # emails are registered.
+        verify_password(payload.password, _DUMMY_HASH)
         raise UnauthorizedError("Invalid credentials", code="auth.invalid_credentials")
     if user.locked_until and user.locked_until > datetime.now(timezone.utc):
         raise ForbiddenError("Account temporarily locked", code="auth.locked")

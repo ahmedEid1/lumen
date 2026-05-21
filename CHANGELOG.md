@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 32)
+- **Closed the login enumeration timing side-channel.** The authenticate
+  path skipped Argon2 verification when the email lookup returned None,
+  so a "no such email" response came back roughly an order of magnitude
+  faster than a "wrong password" response — a wire-observable oracle
+  for which emails are registered. We now run `verify_password` against
+  a precomputed dummy hash on the missing-user path, so both branches
+  do the same dominant CPU work. `tests/test_login_timing.py` asserts
+  the two latencies stay within 3× of each other. Documented in
+  `docs/security.md`.
+
 ### Fixed (iteration 31)
 - **Chat presence no longer drops active senders after 60 seconds.**
   `mark_present` ran once on WebSocket connect; `list_present` filters
