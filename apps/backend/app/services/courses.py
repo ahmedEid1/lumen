@@ -110,7 +110,7 @@ async def update_course(
         course.tags = await courses_repo.list_tags_by_ids(db, payload.tag_ids)
     if payload.status is not None:
         prev = course.status
-        await _transition_status(course, payload.status)
+        await _transition_status(db, course, payload.status)
         if prev != course.status:
             _schedule_index(course.id)
     return course
@@ -193,7 +193,9 @@ async def duplicate_course(db: AsyncSession, *, source_id: str, owner: User) -> 
     return cloned
 
 
-async def _transition_status(course: Course, target: CourseStatus) -> None:
+async def _transition_status(
+    db: AsyncSession, course: Course, target: CourseStatus
+) -> None:
     if course.status == target:
         return
     valid = {
@@ -209,6 +211,17 @@ async def _transition_status(course: Course, target: CourseStatus) -> None:
         if not course.title or not course.overview:
             raise ValidationAppError(
                 "Course must have a title and overview to publish", code="course.missing_fields"
+            )
+        # Refuse to publish a course with zero live lessons. Students who
+        # enrolled in an empty course would land on a blank syllabus with
+        # nothing to mark complete — progress is stuck at 0% forever
+        # (count_completed/count_lessons with total=0 returns 0.0), and
+        # they have no signal that the course is unfinished by the author.
+        lesson_count = await courses_repo.count_lessons_in_course(db, course.id)
+        if lesson_count == 0:
+            raise ValidationAppError(
+                "Add at least one lesson before publishing",
+                code="course.no_lessons",
             )
         course.published_at = datetime.now(timezone.utc)
     course.status = target

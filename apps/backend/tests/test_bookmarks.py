@@ -19,22 +19,23 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _publish(client: AsyncClient, headers: dict, subject_id: str) -> str:
+async def _publish(client: AsyncClient, headers: dict, subject_id: str, seed_lesson) -> str:
     create = await client.post(
         "/api/v1/courses",
         json={"title": "Bookmarkable", "subject_id": subject_id, "overview": "x"},
         headers=headers,
     )
     course_id = create.json()["id"]
+    await seed_lesson(course_id, headers)
     await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers)
     return course_id
 
 
-async def test_bookmark_round_trip(client: AsyncClient, auth_headers, db_session) -> None:
+async def test_bookmark_round_trip(client: AsyncClient, auth_headers, db_session, seed_lesson) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _publish(client, teacher, subject.id)
+    course_id = await _publish(client, teacher, subject.id, seed_lesson)
 
     # empty bookmarks
     empty = await client.get("/api/v1/me/bookmarks", headers=student)

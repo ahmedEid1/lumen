@@ -26,7 +26,7 @@ async def test_stats_requires_admin(client: AsyncClient, auth_headers) -> None:
 
 
 async def test_stats_reflect_seeded_state(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
     admin = await auth_headers(role=Role.admin)
     teacher = await auth_headers(role=Role.instructor)
@@ -39,6 +39,7 @@ async def test_stats_reflect_seeded_state(
         headers=teacher,
     )
     course_id = create.json()["id"]
+    await seed_lesson(course_id, teacher)
     await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 

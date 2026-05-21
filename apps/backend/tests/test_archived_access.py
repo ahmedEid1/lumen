@@ -31,25 +31,28 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _enrolled_course(client: AsyncClient, teacher: dict, student: dict, subject_id: str) -> str:
+async def _enrolled_course(
+    client: AsyncClient, teacher: dict, student: dict, subject_id: str, seed_lesson
+) -> str:
     create = await client.post(
         "/api/v1/courses",
         json={"title": "Archived", "subject_id": subject_id, "overview": "x"},
         headers=teacher,
     )
     course_id = create.json()["id"]
+    await seed_lesson(course_id, teacher)
     await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     return course_id
 
 
 async def test_enrolled_learner_still_sees_archived_course(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _enrolled_course(client, teacher, student, subject.id)
+    course_id = await _enrolled_course(client, teacher, student, subject.id, seed_lesson)
 
     # While published, both can read the detail
     pub = await client.get(f"/api/v1/courses/{course_id}", headers=student)
@@ -69,7 +72,7 @@ async def test_enrolled_learner_still_sees_archived_course(
 
 
 async def test_archived_course_is_invisible_to_non_enrolled_strangers(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     enrolled = await auth_headers(role=Role.student)
@@ -91,12 +94,12 @@ async def test_archived_course_is_invisible_to_non_enrolled_strangers(
 
 
 async def test_unpublished_back_to_draft_keeps_enrolled_access(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _enrolled_course(client, teacher, student, subject.id)
+    course_id = await _enrolled_course(client, teacher, student, subject.id, seed_lesson)
 
     # Unpublish (back to draft)
     await client.patch(f"/api/v1/courses/{course_id}", json={"status": "draft"}, headers=teacher)

@@ -30,7 +30,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _enrolled(
-    client: AsyncClient, teacher: dict, student: dict, subject_id: str, title: str
+    client: AsyncClient, teacher: dict, student: dict, subject_id: str, title: str, seed_lesson
 ) -> str:
     create = await client.post(
         "/api/v1/courses",
@@ -38,20 +38,21 @@ async def _enrolled(
         headers=teacher,
     )
     course_id = create.json()["id"]
+    await seed_lesson(course_id, teacher)
     await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     return course_id
 
 
 async def test_soft_deleted_courses_drop_off_the_dashboard(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
 
-    keep_id = await _enrolled(client, teacher, student, subject.id, "Keeps")
-    drop_id = await _enrolled(client, teacher, student, subject.id, "Drops")
+    keep_id = await _enrolled(client, teacher, student, subject.id, "Keeps", seed_lesson)
+    drop_id = await _enrolled(client, teacher, student, subject.id, "Drops", seed_lesson)
 
     before = await client.get("/api/v1/me/enrollments", headers=student)
     ids_before = {e["course"]["id"] for e in before.json()}
@@ -68,13 +69,13 @@ async def test_soft_deleted_courses_drop_off_the_dashboard(
 
 
 async def test_archived_courses_still_appear_on_dashboard(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
     """Companion to iteration 24: archive ≠ delete; learners keep access."""
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _enrolled(client, teacher, student, subject.id, "Archived")
+    course_id = await _enrolled(client, teacher, student, subject.id, "Archived", seed_lesson)
 
     await client.patch(
         f"/api/v1/courses/{course_id}", json={"status": "archived"}, headers=teacher

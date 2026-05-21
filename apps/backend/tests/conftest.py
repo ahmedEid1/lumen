@@ -143,6 +143,36 @@ async def make_user(db_session: AsyncSession):
 
 
 @pytest_asyncio.fixture
+async def seed_lesson(client: AsyncClient):
+    """Add one trivial module+lesson to a course so it satisfies the
+    publish-time minimum-content check introduced in iteration 43.
+    Most legacy tests publish empty courses; rather than retrofit every
+    one of them with duplicated boilerplate, call this once."""
+
+    async def _seed(course_id: str, headers: dict) -> str:
+        m = await client.post(
+            f"/api/v1/courses/{course_id}/modules",
+            json={"title": "Seeded module"},
+            headers=headers,
+        )
+        assert m.status_code == 201, m.text
+        module_id = m.json()["id"]
+        lesson = await client.post(
+            f"/api/v1/courses/modules/{module_id}/lessons",
+            json={
+                "title": "Seeded lesson",
+                "type": "text",
+                "data": {"type": "text", "body_markdown": "seed"},
+            },
+            headers=headers,
+        )
+        assert lesson.status_code == 201, lesson.text
+        return lesson.json()["id"]
+
+    return _seed
+
+
+@pytest_asyncio.fixture
 async def auth_headers(client: AsyncClient, make_user):
     async def _login(*, role: Role = Role.student) -> dict[str, str]:
         email = f"login-{uuid.uuid4().hex[:8]}@lumen.test"

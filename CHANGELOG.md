@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 43)
+- **Block publishing a course with zero live lessons.**
+  `_transition_status` checked only `title` and `overview` before
+  letting `draft → published` through. So an instructor could fill in
+  two fields, click publish, and push an empty shell into the catalog.
+  Students who enrolled landed on a blank syllabus, progress stuck at
+  0% forever, with no signal that the author hadn't finished. Now the
+  publish path counts live (non-soft-deleted) lessons across the
+  course and raises 422 `course.no_lessons` if there are none — same
+  rule applies after-the-fact (soft-deleting the last lesson and
+  trying to re-publish from draft is rejected). Covered by
+  `tests/test_publish_minimum_content.py` (4 tests). Added a
+  reusable `seed_lesson` conftest fixture and retrofitted 11 legacy
+  tests that had been publishing empty courses as test scaffolding.
+
 ### Fixed (iteration 42)
 - **`DELETE /admin/tags/{id}` now refuses when the tag is in use.**
   The endpoint issued a raw `db.delete(tag)`; `course_tags.tag_id`

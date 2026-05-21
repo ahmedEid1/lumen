@@ -25,13 +25,14 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _publish(client: AsyncClient, teacher: dict, subject_id: str, title: str) -> str:
+async def _publish(client: AsyncClient, teacher: dict, subject_id: str, title: str, seed_lesson) -> str:
     create = await client.post(
         "/api/v1/courses",
         json={"title": title, "subject_id": subject_id, "overview": "x"},
         headers=teacher,
     )
     cid = create.json()["id"]
+    await seed_lesson(cid, teacher)
     await client.patch(f"/api/v1/courses/{cid}", json={"status": "published"}, headers=teacher)
     return cid
 
@@ -44,13 +45,13 @@ async def _total_for(client: AsyncClient, subject_id: str) -> int:
 
 
 async def test_total_drops_when_a_published_course_is_soft_deleted(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
 
-    a = await _publish(client, teacher, subject.id, "A")
-    b = await _publish(client, teacher, subject.id, "B")
+    a = await _publish(client, teacher, subject.id, "A", seed_lesson)
+    b = await _publish(client, teacher, subject.id, "B", seed_lesson)
     assert await _total_for(client, subject.id) == 2
 
     deleted = await client.delete(f"/api/v1/courses/{a}", headers=teacher)
@@ -64,7 +65,7 @@ async def test_total_drops_when_a_published_course_is_soft_deleted(
 
 
 async def test_draft_and_archived_dont_count_either(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
@@ -78,7 +79,7 @@ async def test_draft_and_archived_dont_count_either(
     assert create.status_code == 201
 
     # Archived course (transitioned via published → archived) shouldn't count
-    archived = await _publish(client, teacher, subject.id, "Was published")
+    archived = await _publish(client, teacher, subject.id, "Was published", seed_lesson)
     await client.patch(f"/api/v1/courses/{archived}", json={"status": "archived"}, headers=teacher)
 
     assert await _total_for(client, subject.id) == 0

@@ -20,7 +20,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def test_invalid_transition_blocked(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
@@ -30,6 +30,7 @@ async def test_invalid_transition_blocked(
         headers=teacher,
     )
     course_id = r.json()["id"]
+    await seed_lesson(course_id, teacher)
     # draft → published → archived is allowed
     pub = await client.patch(
         f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
@@ -85,7 +86,7 @@ async def test_admin_can_edit_any_course(
 
 
 async def test_soft_delete_hides_from_catalog(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
@@ -95,6 +96,7 @@ async def test_soft_delete_hides_from_catalog(
         headers=teacher,
     )
     course_id = r.json()["id"]
+    await seed_lesson(course_id, teacher)
     await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
 
     catalog = await client.get("/api/v1/courses?page=1&page_size=50")
