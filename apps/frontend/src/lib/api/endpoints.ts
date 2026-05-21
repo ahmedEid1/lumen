@@ -147,6 +147,13 @@ export const Me = {
       token,
     }),
   notifications: (token?: string) => api("/api/v1/me/notifications", { token }),
+  markNotificationRead: (id: string, token?: string) =>
+    api<{ ok: true }>(`/api/v1/me/notifications/${id}/read`, { method: "POST", token }),
+  markAllNotificationsRead: (token?: string) =>
+    api<{ ok: true; marked_read: number }>("/api/v1/me/notifications/read-all", {
+      method: "POST",
+      token,
+    }),
   bookmarks: (token?: string) => api<CourseListItem[]>("/api/v1/me/bookmarks", { token }),
   bookmark: (courseId: string, token?: string) =>
     api<{ ok: true }>(`/api/v1/me/bookmarks/${courseId}`, { method: "PUT", token }),

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 55)
+- **Mark-all-read for notifications.** Previously a learner with N
+  unread notifications had to issue N round trips to clear the badge.
+  New `POST /me/notifications/read-all` does it in a single UPDATE,
+  returns the count touched so the UI updates without a follow-up
+  GET, and is strictly scoped to the calling user. The bell dropdown
+  now shows a "Mark all read" link when there's an unread count.
+  Covered by `tests/test_notifications_read_all.py` (3 tests:
+  scoped to caller, idempotent, auth required).
+
 ### Added (iteration 54)
 - **Cursor pagination on the admin audit log.** CLAUDE.md specifies
   "cursor for messages/audit" but the endpoint only supported `limit`

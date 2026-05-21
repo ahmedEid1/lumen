@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification, NotificationKind
@@ -34,3 +34,19 @@ async def list_for_user(db: AsyncSession, user_id: str, *, limit: int = 50) -> l
 async def mark_read(db: AsyncSession, notification: Notification) -> None:
     if not notification.read_at:
         notification.read_at = datetime.now(timezone.utc)
+
+
+async def mark_all_read_for_user(db: AsyncSession, *, user_id: str) -> int:
+    """Set read_at on every currently-unread notification owned by user.
+
+    Uses a single UPDATE so it's O(1) round-trips regardless of how many
+    notifications the learner has accumulated. Returns the rowcount so
+    the caller (and the UI badge) can react without a follow-up GET.
+    """
+    now = datetime.now(timezone.utc)
+    res = await db.execute(
+        update(Notification)
+        .where(Notification.user_id == user_id, Notification.read_at.is_(None))
+        .values(read_at=now)
+    )
+    return int(res.rowcount or 0)

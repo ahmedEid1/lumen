@@ -28,3 +28,14 @@ async def mark_read(notification_id: str, user: CurrentUser, db: DBSession) -> O
         raise NotFoundError("Notification not found", code="notification.not_found")
     await notifications_repo.mark_read(db, notification)
     return OkResponse()
+
+
+@router.post("/read-all", response_model=dict)
+async def mark_all_read(user: CurrentUser, db: DBSession) -> dict:
+    """Mark every unread notification for the current user as read.
+
+    Single round trip instead of N. Returns the count touched so the
+    UI can update its badge without another GET.
+    """
+    touched = await notifications_repo.mark_all_read_for_user(db, user_id=user.id)
+    return {"ok": True, "marked_read": touched}
