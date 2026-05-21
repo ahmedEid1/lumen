@@ -91,7 +91,7 @@ async def authenticate(
         raise UnauthorizedError("Invalid credentials", code="auth.invalid_credentials")
 
     await users_repo.update_login_success(db, user)
-    tokens = await _issue_tokens(db, user, ip=ip, user_agent=user_agent)
+    tokens, _ = await _issue_tokens_returning(db, user, ip=ip, user_agent=user_agent)
     await audit_repo.record(db, actor_id=user.id, action="auth.login", ip_address=ip, user_agent=user_agent)
     return user, tokens
 
@@ -103,6 +103,7 @@ async def rotate_refresh(
     ip: str | None = None,
     user_agent: str | None = None,
 ) -> tuple[User, TokenPair]:
+    now = datetime.now(UTC)
     token_hash = hash_refresh_token(presented)
     stored = await users_repo.get_refresh_token(db, token_hash)
     if not stored:
@@ -112,7 +113,7 @@ async def rotate_refresh(
         await users_repo.revoke_all_refresh_tokens(db, stored.user_id)
         await audit_repo.record(db, actor_id=stored.user_id, action="auth.refresh_reuse", ip_address=ip, user_agent=user_agent)
         raise UnauthorizedError("Refresh token reuse detected", code="auth.refresh_reuse")
-    if stored.expires_at < datetime.now(UTC):
+    if stored.expires_at < now:
         raise UnauthorizedError("Refresh token expired", code="auth.refresh_expired")
 
     user = await users_repo.get_by_id(db, stored.user_id)
@@ -127,31 +128,19 @@ async def rotate_refresh(
 async def logout(db: AsyncSession, presented: str | None) -> None:
     if not presented:
         return
-    token_hash = hash_refresh_token(presented)
-    stored = await users_repo.get_refresh_token(db, token_hash)
+    stored = await users_repo.get_refresh_token(db, hash_refresh_token(presented))
     if stored and stored.revoked_at is None:
         await users_repo.revoke_refresh_token(db, stored)
-
-
-async def _issue_tokens(
-    db: AsyncSession, user: User, *, ip: str | None, user_agent: str | None
-) -> TokenPair:
-    pair, _ = await _issue_tokens_returning(db, user, ip=ip, user_agent=user_agent)
-    return pair
 
 
 async def _issue_tokens_returning(
     db: AsyncSession, user: User, *, ip: str | None, user_agent: str | None
 ) -> tuple[TokenPair, RefreshToken]:
-    s = get_settings()
-    # str(user.role) works whether SQLAlchemy hands us a Role enum
-    # (when typed via Enum column type) or a plain str (current
-    # schema uses String(20) so reads come back as bare strings).
-    # Role is a StrEnum so both paths yield "student" / "instructor"
-    # / "admin" cleanly.
+    settings = get_settings()
+    # str() normalises Role (StrEnum) whether the column hands back enum or str.
     access, exp = create_access_token(subject=user.id, role=str(user.role))
     raw, digest = new_refresh_token()
-    rt_expires = datetime.now(UTC) + timedelta(seconds=s.refresh_token_ttl_seconds)
+    rt_expires = datetime.now(UTC) + timedelta(seconds=settings.refresh_token_ttl_seconds)
     stored = await users_repo.add_refresh_token(
         db,
         user=user,

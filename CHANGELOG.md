@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 22) — auth service tidy via simplifier
+Sixth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/services/auth.py` (169 → 158 lines).
+Applied all 5 of its recommendations:
+
+- **Dropped the `_issue_tokens` wrapper** — it was a one-line
+  shim around `_issue_tokens_returning` discarding the second
+  tuple element, used by exactly one caller. `authenticate`
+  now calls the returning form directly with `tokens, _ = ...`.
+- **Single `now` per refresh path** in `rotate_refresh` — the
+  expiry comparison and the audit/replace path now share one
+  `datetime.now(UTC)` evaluation so any future TTL logic
+  added in this scope sees a single instant.
+- **Compressed the 6-line `str(user.role)` explanation** to one
+  line. The reason holds; the verbosity didn't.
+- **Inlined the `token_hash` local in `logout`** — used once,
+  on the very next line. Left the `rotate_refresh` version
+  alone (security-critical flow benefits from the named step).
+- **Renamed `s` → `settings`** in `_issue_tokens_returning`
+  to match the rest of the codebase.
+
+Behaviour fully preserved — dummy-hash mitigation untouched,
+all security branches identical, refresh-reuse + revoke-all
+semantics intact. Backend pytest 321/321.
+
 ### Changed (simplify iter 21) — discussions service tidy via simplifier
 Fifth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/services/discussions.py` (248 lines).
