@@ -289,6 +289,12 @@ def create_app() -> FastAPI:
 
         sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.1, environment=settings.env.value)
 
+    # OpenTelemetry — opt-in via OTEL_EXPORTER_OTLP_ENDPOINT. No-op
+    # when unset (dev / test / air-gapped).
+    from app.core.tracing import init_tracing
+
+    init_tracing(app)
+
     return app
 
 

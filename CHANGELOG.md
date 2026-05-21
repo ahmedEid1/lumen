@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 71)
+- **OpenTelemetry tracing wired up.** The OTel dependencies and
+  settings (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`) have
+  been in the project since the rewrite; this adds the actual SDK
+  init. Opt-in (no-op when endpoint is empty so dev/CI/air-gapped
+  runs don't phone home), idempotent re-init guards (uvicorn
+  `--reload` would otherwise stack exporters). Auto-instruments
+  FastAPI (with `/metrics` + `/` excluded — Prometheus scrapes are
+  noise), SQLAlchemy, and Redis. Covered by `tests/test_tracing.py`
+  (no-endpoint is no-op + idempotent re-init).
+
 ### Security (iteration 70)
 - **Strict CSP on JSON responses.** Sets `Content-Security-Policy:
   default-src 'none'; frame-ancestors 'none'; base-uri 'none'` on
