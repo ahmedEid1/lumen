@@ -111,6 +111,9 @@ async def test_completed_flag_false_for_anon_and_non_enrolled(
         f"/api/v1/me/progress/lessons/{a}", json={"completed": True}, headers=student
     )
 
+    # Iter 115: clear cookies so the "anonymous" GET below isn't
+    # promoted to the student's session by the cookie jar.
+    client.cookies.clear()
     # Anonymous detail: all completion flags default False
     anon = await client.get(f"/api/v1/courses/{course_id}")
     assert anon.status_code == 200

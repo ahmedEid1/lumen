@@ -123,15 +123,17 @@ async def get_course(
         response.headers["Cache-Control"] = "public, max-age=60, must-revalidate"
     response.headers["Vary"] = "Accept-Encoding, Authorization, Cookie"
     if if_none_match == etag:
-        # Returning a Response with no body from a typed endpoint
-        # requires raising — FastAPI would otherwise serialise None
-        # against response_model. Status 304 also forbids a body.
-        # The Cache-Control / Vary set on ``response`` above DON'T
-        # propagate to a raised exception, so we re-emit them on the
-        # 304 headers manually.
-        from fastapi import HTTPException
+        # Status 304 forbids a body. Iter 115: was raising
+        # HTTPException(304) which FastAPI renders as a JSON error
+        # envelope — non-empty, violating the assertion in
+        # test_course_detail_etag.py and (technically) RFC 9110.
+        # Return a bare starlette Response so the body is the empty
+        # bytestring. The Cache-Control / Vary headers set on
+        # ``response`` above also don't survive a raise, so we
+        # re-emit them on the 304 here.
+        from starlette.responses import Response as _StarletteResponse
 
-        raise HTTPException(
+        return _StarletteResponse(
             status_code=304,
             headers={
                 "ETag": etag,
@@ -273,7 +275,11 @@ async def get_lesson(lesson_id: str, viewer: OptionalUser, db: DBSession) -> Les
     if course is None:
         raise NotFoundError("Course not found", code="course.not_found")
 
-    if lesson.is_preview and course.status.value == "published":
+    # Iter 115: same `str(...) vs .value` trap as iter 98 fixed for
+    # user.role — `course.status` is `Mapped[CourseStatus]` declared
+    # as a String column without a TypeDecorator, so SQLAlchemy
+    # returns a plain str on read and `.value` blows up.
+    if lesson.is_preview and str(course.status) == "published":
         return LessonOut.model_validate(lesson)
     if viewer is None:
         raise UnauthorizedError("Authentication required", code="auth.required")

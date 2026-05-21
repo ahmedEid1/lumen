@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 115) — backend pytest is fully green (321/321)
+Worked through every remaining red spec one root-cause cluster at
+a time. The cluster overlaps explain why each individual fix
+unblocked several tests at once.
+
+- **app: `db.flush()` before progress count.** The app's
+  sessionmaker has `autoflush=False`, so
+  `mark_lesson_progress`'s `mark_completed` change sat in the
+  identity map while the count SELECTs that immediately
+  followed read pre-change rows — every mark-complete returned
+  `progress_pct: 0`. Added an explicit `db.flush()` between
+  mutation and count.
+- **app: `str(course.status)` and `str(lesson.type)` instead
+  of `.value`.** Same family as iter 98 — these columns are
+  `Mapped[Enum]` declared as plain `String` without a
+  TypeDecorator, so SQLAlchemy returns a `str` at read time
+  and `.value` raises `AttributeError`. Fixed the lesson-
+  preview gate in `api/v1/courses.py` and the lesson-type
+  immutability check in `services/courses.py`.
+- **app: 304 returns an empty body.** `get_course` raised
+  `HTTPException(304)` which FastAPI renders as an error
+  envelope; ETag tests (and RFC 9110) want an empty body.
+  Switched to a bare starlette `Response`.
+- **app: certificate PDF stops compressing streams.** Newer
+  ReportLab enables `pageCompression=1` by default; the
+  verify URL ended up inside a deflate blob and the substring
+  test (`b"/verify/cert_..." in pdf`) couldn't find it.
+  Disabled compression — PDFs are 4–5 KB so the wire saving
+  is invisible, and accessibility/grep-ability are worth it.
+- **app: idempotency replay survives gzip.** The middleware
+  was storing the captured body as `body_bytes.decode("utf-8",
+  errors="replace")`, which corrupts gzip-encoded payloads
+  (GZipMiddleware sits inside Idempotency in the chain). On
+  replay the client got a `Content-Encoding: gzip` header
+  with garbage bytes → `zlib.error: incorrect header check`.
+  Switched the encode/decode pair to `latin-1` (1:1 for every
+  byte 0–255).
+- **app: PasswordResetConfirm token max_length raised to 600.**
+  Iter 109's longer JWT_SECRET + the full reset claim set
+  produces 247-char tokens; the old `max_length=200` 422'd
+  every reset confirmation. Matches the
+  `EmailVerifyConfirm` cap.
+- **test: `seed_lesson` wired into the publish tests.**
+  Iter 43 publish-guard requires ≥1 lesson; several tests
+  patched the course directly with `status=published` without
+  seeding a lesson and 422'd `course.no_lessons`. Wired the
+  fixture into `test_publish_and_list_in_catalog`,
+  `test_review_requires_enrollment`, and
+  `test_archived_course_is_invisible_to_non_enrolled_strangers`.
+- **test: clear `client.cookies` before "anonymous" requests.**
+  httpx persists cookies across requests on a shared client;
+  `auth_headers` stamps a login cookie that survived into the
+  follow-up "anonymous" GETs and made the api resolve a viewer.
+  Affected `test_course_detail_etag::test_cache_control_*`,
+  `test_lesson_preview::*`, `test_lesson_completion_flag::test_completed_flag_false_for_anon_and_non_enrolled`,
+  `test_archived_access::test_archived_course_is_invisible_to_non_enrolled_strangers`,
+  and `test_discussion_subscriptions::test_anonymous_is_subscribed_false`.
+  All call `client.cookies.clear()` before the anon hit now.
+- **test: discussion titles bumped to ≥3 chars.** The
+  `DiscussionCreate` schema's `Field(min_length=3)` 422'd
+  the legacy `"T"` / `"Q"` titles.
+- **test: email-stub `delay()` accepts `html=`.** Iter 83's
+  branded-HTML email work added an `html=` kwarg to
+  `send.delay`; the test stub still only accepted
+  `to, subject, text`, raised TypeError, and the endpoint's
+  broker-tolerant try/except swallowed it. Stub now accepts
+  `html=None` and captures it.
+- **test: `web_base_url` override in
+  `test_production_with_real_values_passes`.** Iter 37 added
+  a localhost-default guard for `WEB_BASE_URL` to
+  `assert_production_ready`; the legacy test didn't pass an
+  override and tripped the guard.
+
+Result: **321 passed, 0 failed, 0 errors** (was 231 → 107 →
+38 → 32 → 30 → 18 → 0 across iters 109-115).
+
 ### Verified (iteration 114) — manual Chrome MCP smoke pass
 Drove a real browser through the full stopping-criteria smoke
 list with the seeded credentials:

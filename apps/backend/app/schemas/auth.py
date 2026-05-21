@@ -49,7 +49,11 @@ class PasswordResetRequest(BaseModel):
 
 
 class PasswordResetConfirm(BaseModel):
-    token: str = Field(min_length=10, max_length=200)
+    # Iter 115: 200 chars overflows a real JWT-shaped reset token
+    # once `JWT_SECRET` is at the RFC 7518 minimum length and the
+    # payload carries the full claim set; bumped to 600 to match
+    # EmailVerifyConfirm below.
+    token: str = Field(min_length=10, max_length=600)
     password: str = Field(min_length=PASSWORD_MIN, max_length=128)
 
     @field_validator("password")

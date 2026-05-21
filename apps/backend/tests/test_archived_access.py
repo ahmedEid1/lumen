@@ -78,11 +78,15 @@ async def test_archived_course_is_invisible_to_non_enrolled_strangers(
     enrolled = await auth_headers(role=Role.student)
     stranger = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _enrolled_course(client, teacher, enrolled, subject.id)
+    course_id = await _enrolled_course(client, teacher, enrolled, subject.id, seed_lesson)
 
     await client.patch(
         f"/api/v1/courses/{course_id}", json={"status": "archived"}, headers=teacher
     )
+
+    # Iter 115: clear accumulated login cookies so the "anonymous"
+    # request below isn't auto-authed as the most recent user.
+    client.cookies.clear()
 
     # Anonymous: still 404
     anon = await client.get(f"/api/v1/courses/{course_id}")

@@ -133,6 +133,11 @@ async def test_cache_control_private_for_authed_public_for_anon(
     subject = await _make_subject(db_session)
     course_id = await _published(client, teacher, subject.id, seed_lesson)
 
+    # Iter 115: auth_headers's `POST /auth/login` sets cookies on
+    # the shared httpx client jar; without clearing, the "anonymous"
+    # GET below carries the most recent login cookie and the api
+    # resolves a viewer, swapping Cache-Control to "private".
+    client.cookies.clear()
     anon = await client.get(f"/api/v1/courses/{course_id}")
     assert anon.headers["cache-control"] == "public, max-age=60, must-revalidate"
 

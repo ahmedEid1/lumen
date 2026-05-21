@@ -147,6 +147,12 @@ async def mark_lesson(
         await courses_repo.mark_completed(db, lp, payload=payload)
     else:
         lp.completed_at = None
+    # Iter 115: the app's sessionmaker has `autoflush=False`, so the
+    # mark above sits in the identity map until the next implicit
+    # flush. The count SELECTs below read straight from the DB and
+    # would see the pre-change state (done=0, pct=0) for the lesson
+    # just marked. Force a flush so the count reflects the mutation.
+    await db.flush()
 
     total = await courses_repo.count_lessons_in_course(db, course.id)
     done = await courses_repo.count_completed_lessons(db, enrollment.id)

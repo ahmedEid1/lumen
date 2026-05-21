@@ -384,7 +384,9 @@ async def update_lesson(
     if payload.is_preview is not None:
         lesson.is_preview = payload.is_preview
     if payload.data is not None:
-        if payload.data.type != lesson.type.value:
+        # Iter 115: `lesson.type` is a String column (Mapped[LessonType]
+        # without a TypeDecorator) → str at read time, no .value.
+        if payload.data.type != str(lesson.type):
             raise ValidationAppError("Cannot change lesson type via update", code="lesson.type_immutable")
         lesson.data = payload.data.model_dump()
     return lesson

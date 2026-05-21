@@ -166,7 +166,15 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                     not in {"x-request-id", "content-length", "set-cookie"}
                 ],
                 "body_hash": body_hash,
-                "body": body_bytes.decode("utf-8", errors="replace"),
+                # Iter 115: `GZipMiddleware` (registered earlier in the
+                # chain) can gzip-encode the body before we see it.
+                # Storing with `utf-8 + errors=replace` silently corrupts
+                # binary data; the replay then ships a `gzip`
+                # Content-Encoding with garbage bytes and httpx clients
+                # fail `zlib.error: incorrect header check`. latin-1
+                # is 1:1 for every byte 0–255 so the body round-trips
+                # losslessly through JSON storage.
+                "body": body_bytes.decode("latin-1"),
             }
             try:
                 r = await self._get_redis()
@@ -197,7 +205,9 @@ async def _replay_body(request: Request, body: bytes) -> None:
 def _replay_response(entry: dict[str, Any]) -> Response:
     body = entry.get("body", "")
     if isinstance(body, str):
-        body = body.encode("utf-8")
+        # Iter 115: paired with the latin-1 encode at cache time
+        # so gzip-encoded bytes round-trip losslessly.
+        body = body.encode("latin-1")
     headers = {k: v for k, v in entry.get("headers", [])}
     # Tell downstream observability this was a replay so a sudden
     # burst of identical responses doesn't look like a bug.

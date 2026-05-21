@@ -58,6 +58,11 @@ async def test_preview_lesson_accessible_anonymously(
     ).json()
     await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
 
+    # Iter 115: clear the httpx cookie jar so "anonymous" requests
+    # below aren't auto-authed by the teacher login cookie sticky
+    # in the client.
+    client.cookies.clear()
+
     # Anonymous can fetch the preview lesson
     anon_preview = await client.get(f"/api/v1/courses/lessons/{preview['id']}")
     assert anon_preview.status_code == 200
@@ -101,6 +106,8 @@ async def test_preview_hidden_on_draft_courses(
         )
     ).json()
 
+    # Iter 115: drop stale teacher login cookie before the anon GET.
+    client.cookies.clear()
     # Course is draft, so preview is not public
     anon = await client.get(f"/api/v1/courses/lessons/{preview['id']}")
     assert anon.status_code == 401

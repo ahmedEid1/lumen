@@ -65,7 +65,7 @@ async def test_instructor_creates_course_with_unique_slug(
 
 
 async def test_publish_and_list_in_catalog(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, seed_lesson, db_session: AsyncSession
 ) -> None:
     subject = await _make_subject(db_session)
     headers = await _instructor_login(client, auth_headers)
@@ -76,6 +76,11 @@ async def test_publish_and_list_in_catalog(
         headers=headers,
     )
     course_id = r.json()["id"]
+
+    # Iter 43 publish-guard needs a lesson; iter 115 wires the
+    # `seed_lesson` fixture in here so the test exercises the
+    # green publish path instead of the no-lessons rejection.
+    await seed_lesson(course_id, headers)
 
     pub = await client.patch(
         f"/api/v1/courses/{course_id}",
@@ -183,7 +188,7 @@ async def test_enrollment_and_progress(
 
 
 async def test_review_requires_enrollment(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, seed_lesson, db_session: AsyncSession
 ) -> None:
     subject = await _make_subject(db_session)
     teacher = await auth_headers(role=Role.instructor)
@@ -195,6 +200,8 @@ async def test_review_requires_enrollment(
         headers=teacher,
     )
     course_id = create.json()["id"]
+    # Iter 115: iter 43 publish-guard requires a lesson.
+    await seed_lesson(course_id, teacher)
     await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
 
     r_fail = await client.put(

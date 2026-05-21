@@ -61,7 +61,8 @@ async def test_author_auto_subscribed_and_is_subscribed_flag(
 
     thread = (await client.post(
         f"/api/v1/courses/{course_id}/discussions",
-        json={"title": "Q", "body": ""},
+        # Iter 115: schema requires title >= 3 chars.
+        json={"title": "Question", "body": ""},
         headers=asker,
     )).json()
 
@@ -208,6 +209,9 @@ async def test_anonymous_is_subscribed_false(
         headers=student,
     )).json()
 
+    # Iter 115: drop stale login cookies so the read below really
+    # is anonymous and isn't auto-authed as the most recent user.
+    client.cookies.clear()
     # Anonymous read — is_subscribed must be False (and the endpoint
     # must succeed; subscription is per-user).
     r = await client.get(f"/api/v1/discussions/{thread['id']}")
