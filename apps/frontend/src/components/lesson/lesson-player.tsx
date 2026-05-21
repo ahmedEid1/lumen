@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import type { LessonOut } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { scoreQuiz, type QuizQuestion } from "@/lib/quiz";
+import { api, ApiError } from "@/lib/api/client";
+import { type QuizQuestion } from "@/lib/quiz";
 
 export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
   const data = lesson.data as Record<string, any>;
@@ -40,7 +42,13 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
         </a>
       );
     case "quiz":
-      return <Quiz questions={(data.questions ?? []) as QuizQuestion[]} pass={Number(data.pass_score ?? 60)} />;
+      return (
+        <Quiz
+          lessonId={lesson.id}
+          questions={(data.questions ?? []) as QuizQuestion[]}
+          pass={Number(data.pass_score ?? 60)}
+        />
+      );
     default:
       return <p className="text-muted-foreground">Unsupported lesson type: {lesson.type}</p>;
   }
@@ -71,9 +79,29 @@ function inline(s: string): string {
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
-function Quiz({ questions, pass }: { questions: QuizQuestion[]; pass: number }) {
+type QuizResult = {
+  score: number;
+  pass_score: number;
+  passed: boolean;
+  correct_count: number;
+  total: number;
+  results: { question_id: string; correct: boolean }[];
+};
+
+function Quiz({
+  lessonId,
+  questions,
+  pass,
+}: {
+  lessonId: string;
+  questions: QuizQuestion[];
+  pass: number;
+}) {
   const [answers, setAnswers] = useState<Record<string, string[] | string>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [result, setResult] = useState<QuizResult | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submitted = result !== null;
+  const correctByQuestion = new Map(result?.results.map((r) => [r.question_id, r.correct]) ?? []);
 
   function toggle(q: QuizQuestion, choice: string) {
     setAnswers((prev) => {
@@ -86,26 +114,49 @@ function Quiz({ questions, pass }: { questions: QuizQuestion[]; pass: number }) 
     });
   }
 
-  const score = submitted ? scoreQuiz(questions, answers) : null;
+  async function submit() {
+    setSubmitting(true);
+    try {
+      const out = await api<QuizResult>(`/api/v1/me/progress/lessons/${lessonId}/quiz`, {
+        method: "POST",
+        body: { answers },
+      });
+      setResult(out);
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : "Could not submit quiz";
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
       {questions.map((q, idx) => {
         const given = answers[q.id];
+        const questionCorrect = correctByQuestion.get(q.id);
         return (
           <div key={q.id} className="rounded-lg border p-4">
             <div className="mb-3 flex items-start justify-between gap-2">
               <p className="font-medium">
                 Q{idx + 1}. {q.prompt}
               </p>
-              <Badge variant="muted">{q.kind}</Badge>
+              <div className="flex items-center gap-2">
+                {submitted && (
+                  <Badge variant={questionCorrect ? "default" : "outline"}>
+                    {questionCorrect ? "correct" : "incorrect"}
+                  </Badge>
+                )}
+                <Badge variant="muted">{q.kind}</Badge>
+              </div>
             </div>
             {q.kind === "short" ? (
               <input
                 type="text"
                 value={typeof given === "string" ? given : ""}
                 onChange={(e) => setAnswers((p) => ({ ...p, [q.id]: e.target.value }))}
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                disabled={submitted}
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm disabled:opacity-70"
                 placeholder="Your answer"
               />
             ) : (
@@ -136,10 +187,16 @@ function Quiz({ questions, pass }: { questions: QuizQuestion[]; pass: number }) 
       })}
       <div className="flex items-center justify-between">
         {!submitted ? (
-          <Button onClick={() => setSubmitted(true)}>Submit quiz</Button>
+          <Button onClick={submit} disabled={submitting}>
+            {submitting ? "Submitting…" : "Submit quiz"}
+          </Button>
         ) : (
-          <p className={`text-sm ${score! >= pass ? "text-emerald-600" : "text-destructive"}`}>
-            You scored {score}%. {score! >= pass ? "Nice work!" : `Pass mark is ${pass}%. Try again.`}
+          <p
+            className={`text-sm ${result.passed ? "text-emerald-600" : "text-destructive"}`}
+            role="status"
+          >
+            You scored {result.score}% ({result.correct_count} of {result.total}).{" "}
+            {result.passed ? "Nice work — lesson marked complete!" : `Pass mark is ${pass}%. Try again.`}
           </p>
         )}
         {submitted && (
@@ -147,7 +204,7 @@ function Quiz({ questions, pass }: { questions: QuizQuestion[]; pass: number }) 
             variant="outline"
             onClick={() => {
               setAnswers({});
-              setSubmitted(false);
+              setResult(null);
             }}
           >
             Retake

@@ -7,14 +7,14 @@ from datetime import datetime
 from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from slugify import slugify
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import DBSession, RequireAdmin
 from app.api.v1 import _builders
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.models.audit import AuditEvent
-from app.models.course import Course, Subject, Tag
+from app.models.course import Course, CourseStatus, Enrollment, Subject, Tag
 from app.models.user import Role, User
 from app.repositories import audit as audit_repo
 from app.repositories import courses as courses_repo
@@ -284,3 +284,49 @@ async def reindex_search(admin: RequireAdmin, db: DBSession) -> OkResponse:
 
         await _reindex()
     return OkResponse()
+
+
+# ---------- Platform stats ----------
+
+
+class PlatformStatsOut(BaseModel):
+    users: int
+    active_users: int
+    instructors: int
+    courses_total: int
+    courses_published: int
+    courses_draft: int
+    enrollments: int
+
+
+@router.get("/stats", response_model=PlatformStatsOut)
+async def platform_stats(_: RequireAdmin, db: DBSession) -> PlatformStatsOut:
+    async def _count(stmt) -> int:
+        return int((await db.execute(stmt)).scalar_one())
+
+    users = await _count(select(func.count(User.id)))
+    active_users = await _count(select(func.count(User.id)).where(User.is_active.is_(True)))
+    instructors = await _count(
+        select(func.count(User.id)).where(User.role.in_([Role.instructor, Role.admin]))
+    )
+    courses_total = await _count(select(func.count(Course.id)).where(Course.deleted_at.is_(None)))
+    courses_published = await _count(
+        select(func.count(Course.id)).where(
+            Course.deleted_at.is_(None), Course.status == CourseStatus.published
+        )
+    )
+    courses_draft = await _count(
+        select(func.count(Course.id)).where(
+            Course.deleted_at.is_(None), Course.status == CourseStatus.draft
+        )
+    )
+    enrollments = await _count(select(func.count(Enrollment.id)))
+    return PlatformStatsOut(
+        users=users,
+        active_users=active_users,
+        instructors=instructors,
+        courses_total=courses_total,
+        courses_published=courses_published,
+        courses_draft=courses_draft,
+        enrollments=enrollments,
+    )

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 13)
+- Server-side quiz grading. `POST /api/v1/me/progress/lessons/{id}/quiz`
+  accepts an `{answers: {question_id: ...}}` payload, grades the quiz
+  server-side via the new `app.services.quiz` module, persists the score on
+  `LessonProgress.score`, marks the lesson complete on pass, and returns
+  per-question correctness. The lesson player now submits to this endpoint
+  and renders the server-graded result (per-question badges, pass/fail
+  message tied to the actual `pass_score`).
+- `GET /api/v1/admin/stats` returns platform totals (users, active users,
+  instructors, courses by status, enrollments). Admin home renders a
+  "Platform at a glance" tile row.
+
 ### Added (iteration 12)
 - Instructor cohort view: `GET /api/v1/courses/{course_id}/students` returns
   enrolled learners with per-student progress %, completion timestamp, and

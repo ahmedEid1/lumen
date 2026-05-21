@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, status
+from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, DBSession
 from app.api.v1 import _builders
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, ValidationAppError
+from app.models.course import LessonType
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
 from app.schemas.course import EnrollmentOut, ProgressUpdate
 from app.services import enrollment as enrollment_service
+from app.services import quiz as quiz_service
 
 router = APIRouter()
 
@@ -78,3 +83,82 @@ async def mark_lesson_progress(
         "progress_pct": pct,
         "certificate_id": enrollment.certificate_id,
     }
+
+
+# ---------- Quiz submission ----------
+
+
+class QuizSubmitRequest(BaseModel):
+    """Map of question id → answer.
+
+    Choice questions take a list of choice ids; short-answer questions take a
+    string.
+    """
+
+    answers: dict[str, Any] = Field(default_factory=dict, max_length=100)
+
+
+class QuizQuestionResultOut(BaseModel):
+    question_id: str
+    correct: bool
+
+
+class QuizSubmitResponse(BaseModel):
+    lesson_id: str
+    score: int
+    pass_score: int
+    passed: bool
+    correct_count: int
+    total: int
+    results: list[QuizQuestionResultOut]
+    progress_pct: float
+    completed_at: str | None = None
+    certificate_id: str | None = None
+
+
+@router.post("/progress/lessons/{lesson_id}/quiz", response_model=QuizSubmitResponse)
+async def submit_quiz(
+    lesson_id: str, payload: QuizSubmitRequest, user: CurrentUser, db: DBSession
+) -> QuizSubmitResponse:
+    """Server-graded quiz submission.
+
+    The client may grade locally for instant feedback, but this endpoint is
+    the authoritative source of the score that gets persisted on
+    ``LessonProgress``. Passing the quiz also marks the lesson complete.
+    """
+    lesson = await courses_repo.get_lesson(db, lesson_id)
+    if not lesson:
+        raise NotFoundError("Lesson not found", code="lesson.not_found")
+    if lesson.type != LessonType.quiz:
+        raise ValidationAppError("Lesson is not a quiz", code="quiz.not_a_quiz")
+
+    result = quiz_service.grade(lesson.data or {}, payload.answers)
+
+    enrollment, lp, pct = await enrollment_service.mark_lesson(
+        db,
+        user=user,
+        lesson=lesson,
+        completed=result.passed,
+        payload={
+            "answers": payload.answers,
+            "score": result.score,
+            "passed": result.passed,
+        },
+    )
+    lp.score = max(0, min(100, result.score))
+
+    return QuizSubmitResponse(
+        lesson_id=lesson.id,
+        score=result.score,
+        pass_score=result.pass_score,
+        passed=result.passed,
+        correct_count=result.correct_count,
+        total=result.total,
+        results=[
+            QuizQuestionResultOut(question_id=r.question_id, correct=r.correct)
+            for r in result.results
+        ],
+        progress_pct=pct,
+        completed_at=lp.completed_at.isoformat() if lp.completed_at else None,
+        certificate_id=enrollment.certificate_id,
+    )

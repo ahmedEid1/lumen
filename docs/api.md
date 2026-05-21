@@ -168,6 +168,7 @@ Lesson payload is discriminated by `type` (`text` | `video` | `image` | `file` |
 ### Enrollments + progress (`/api/v1/me`)
 - `GET /enrollments`, `POST /enrollments/{course_id}`, `DELETE /enrollments/{course_id}`
 - `POST /progress/lessons/{lesson_id}` — mark complete; the response includes `progress_pct` and a `certificate_id` once 100% complete
+- `POST /progress/lessons/{lesson_id}/quiz` — server-graded quiz submission; persists the score on `LessonProgress`, marks the lesson complete on pass, returns per-question correctness
 - `GET  /notifications`, `POST /notifications/{id}/read`
 - `GET  /bookmarks`, `PUT /bookmarks/{course_id}`, `DELETE /bookmarks/{course_id}`
 
@@ -192,6 +193,7 @@ Lesson payload is discriminated by `type` (`text` | `video` | `image` | `file` |
 - `GET /users?q=&limit=`, `PATCH /users/{user_id}/role`, `PATCH /users/{user_id}/active`
 - `GET /audit?action=&actor_id=&limit=` — append-only audit log
 - `POST /search/reindex` — queue a full search reindex (202 Accepted)
+- `GET  /stats` — platform totals (users, instructors, courses by status, enrollments)
 
 ### Health (`/api/v1/health`)
 - `GET /live` — process is up
