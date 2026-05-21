@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 68)
+- **Export CSV button on the cohort card.** Surfaces the iter 67
+  endpoint from the studio cohort view. Plain anchor with `download`
+  rather than fetch-blob so the cookie flow and any future Range
+  support stay automatic via the browser. Hidden when there are no
+  enrolled learners — nothing to export.
+
 ### Added (iteration 67)
 - **Cohort CSV export for instructors.** `GET /courses/{id}/students.csv`
   returns the same data the cohort UI shows as a downloadable CSV

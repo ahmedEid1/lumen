@@ -1,8 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { Download } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Courses } from "@/lib/api/endpoints";
@@ -13,11 +15,26 @@ export function CohortCard({ courseId }: { courseId: string }) {
     queryKey: ["course", courseId, "cohort"],
     queryFn: () => Courses.cohort(courseId),
   });
+  const hasRows = (q.data?.length ?? 0) > 0;
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>Students</CardTitle>
+        {hasRows && (
+          // Anchor link triggers a real download because the endpoint
+          // sets Content-Disposition: attachment. Going through the
+          // browser (instead of fetch+blob) keeps the cookie flow and
+          // Range support automatic.
+          <a
+            href={`/api/v1/courses/${courseId}/students.csv`}
+            download={`cohort-${courseId}.csv`}
+          >
+            <Button variant="outline" size="sm">
+              <Download className="mr-1 h-4 w-4" /> Export CSV
+            </Button>
+          </a>
+        )}
       </CardHeader>
       <CardContent>
         {q.isLoading ? (
