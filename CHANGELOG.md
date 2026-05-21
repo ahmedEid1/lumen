@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 100) — Playwright timeouts + worker contention against `pnpm dev`
+- **0/12 e2e specs passing**, all `TimeoutError: page.goto:
+  Timeout 60000ms exceeded` once iter 99 made them runnable.
+  Manual `curl` of `/` and `/login` returned in <1s, so the
+  server wasn't broken — it was *contention*. Playwright's
+  default 6 parallel workers each cold-loaded a different page,
+  Next.js dev mode compiles routes on first hit on a single
+  thread, and six compiles serialised behind one mutex blew
+  past the 30s default per-test timeout. The combined effect
+  was indistinguishable from a hung navigation.
+- **Two coordinated changes in `playwright.config.ts`**:
+  - lift `timeout` to 90s, `navigationTimeout` to 60s, and
+    `actionTimeout` to 15s so one cold compile fits inside the
+    test ceiling
+  - cap `workers` at 2 (override via `PLAYWRIGHT_WORKERS=N`)
+    so concurrent compiles don't trample each other while the
+    e2e service still runs against `pnpm dev`. The cap can be
+    removed once we point the service at a pre-built
+    `pnpm start` target.
+- **Regression test**: `apps/frontend/tests/playwright-
+  timeouts.test.ts` reads the resolved Playwright config and
+  pins minimum floors on `timeout`, `navigationTimeout`,
+  `actionTimeout`, and a `workers <= 2` upper bound — so a
+  future edit that quietly reverts any of them fails CI before
+  the symptom surfaces in the e2e run.
+- **Result**: 4/12 specs now green (`smoke › home page loads`
+  and `smoke › can navigate to catalog` for both chromium and
+  webkit). The remaining 8 surface real test/app bugs (Sign-in
+  button selector matches two elements; sign-in redirect to
+  /dashboard never fires) which belong to iter 101+.
+
 ### Fixed (iteration 99) — Playwright e2e runnable inside the stack
 - **`pnpm test:e2e` failed 12/12** with
   `browserType.launch: Executable doesn't exist at
