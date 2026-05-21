@@ -76,7 +76,7 @@ async def test_cohort_lists_students_with_progress(
     by_pct = {row["progress_pct"] for row in rows}
     assert 100.0 in by_pct
     assert 0.0 in by_pct
-    finished = [row for row in rows if row["progress_pct"] == 100.0][0]
+    finished = next(row for row in rows if row["progress_pct"] == 100.0)
     assert finished["completed_at"] is not None
     assert finished["certificate_id"] is not None
 

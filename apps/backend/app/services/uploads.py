@@ -102,7 +102,7 @@ def _safe_filename(name: str) -> str:
     return cleaned or "file"
 
 
-def _client() -> "boto3.client":  # type: ignore[name-defined]
+def _client() -> boto3.client:  # type: ignore[name-defined]
     s = get_settings()
     return boto3.client(
         "s3",

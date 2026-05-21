@@ -85,7 +85,7 @@ async def test_completed_flag_is_per_viewer(
     student_a = await auth_headers(role=Role.student)
     student_b = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, a, b = await _two_lesson_course(client, teacher, subject.id)
+    course_id, a, _b = await _two_lesson_course(client, teacher, subject.id)
 
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student_a)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student_b)

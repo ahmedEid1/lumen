@@ -60,7 +60,7 @@ async def _seed_student_in_course(db_session: AsyncSession, make_user):
 
 
 async def test_fresh_user_load_picks_up_deactivation(db_session, make_user):
-    student, course = await _seed_student_in_course(db_session, make_user)
+    student, _course = await _seed_student_in_course(db_session, make_user)
     # Connect-time snapshot — what the WS used to reuse forever.
     snapshot_is_active = student.is_active
     assert snapshot_is_active is True

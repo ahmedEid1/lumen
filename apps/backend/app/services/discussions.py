@@ -243,6 +243,4 @@ def _can_edit(
         return True
     if obj.author_id == user.id:
         return True
-    if course_owner_id is not None and course_owner_id == user.id:
-        return True
-    return False
+    return course_owner_id is not None and course_owner_id == user.id

@@ -14,17 +14,17 @@ from app.models.user import Role, User
 
 
 def _user(**overrides) -> User:
-    base = dict(
-        id="u_1",
-        email="i@lumen.test",
-        password_hash="x",
-        full_name="Tareq",
-        role=Role.instructor,
-        is_active=True,
-        failed_login_attempts=0,
-        created_at=datetime(2026, 1, 1, tzinfo=UTC),
-        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
-    )
+    base = {
+        "id": "u_1",
+        "email": "i@lumen.test",
+        "password_hash": "x",
+        "full_name": "Tareq",
+        "role": Role.instructor,
+        "is_active": True,
+        "failed_login_attempts": 0,
+        "created_at": datetime(2026, 1, 1, tzinfo=UTC),
+        "updated_at": datetime(2026, 1, 1, tzinfo=UTC),
+    }
     base.update(overrides)
     user = User(**base)
     return user

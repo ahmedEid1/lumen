@@ -208,7 +208,7 @@ def _replay_response(entry: dict[str, Any]) -> Response:
         # Iter 115: paired with the latin-1 encode at cache time
         # so gzip-encoded bytes round-trip losslessly.
         body = body.encode("latin-1")
-    headers = {k: v for k, v in entry.get("headers", [])}
+    headers = dict(entry.get("headers", []))
     # Tell downstream observability this was a replay so a sudden
     # burst of identical responses doesn't look like a bug.
     headers["Idempotent-Replayed"] = "true"

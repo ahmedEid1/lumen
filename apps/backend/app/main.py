@@ -76,7 +76,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # uvicorn`` by default; auditors flag this as information
         # disclosure (helps attackers fingerprint a known-version stack).
         # del with a missing key is a KeyError, so check first.
-        if "server" in (k.lower() for k in headers.keys()):
+        if "server" in (k.lower() for k in headers):
             with suppress(KeyError):
                 del headers["server"]
         # Don't clobber a header the inner handler set deliberately.

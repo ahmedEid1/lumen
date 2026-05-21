@@ -8,13 +8,13 @@ from app.core.config import Environment, Settings
 
 
 def _settings(**overrides):
-    base = dict(
-        env=Environment.production,
-        secret_key="change-me",
-        jwt_secret="change-me",
-        s3_secret_access_key="lumen-secret",
-        cors_origins=["https://lumen.example.com"],
-    )
+    base = {
+        "env": Environment.production,
+        "secret_key": "change-me",
+        "jwt_secret": "change-me",
+        "s3_secret_access_key": "lumen-secret",
+        "cors_origins": ["https://lumen.example.com"],
+    }
     base.update(overrides)
     return Settings(**base)
 

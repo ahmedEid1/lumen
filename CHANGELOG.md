@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 7) — bundle of small ruff simplifications
+Nine micro-fixes that ruff flagged across the backend. Each one
+is cosmetic in isolation; the bundle clears a band of low-value
+issues so the lint backlog stops carrying them.
+
+- **`C416` → `dict(...)`** at `core/idempotency.py:211`
+  (unnecessary dict comprehension).
+- **`SIM118` → drop `.keys()`** at `main.py:79` — Python dict
+  iteration is by key by default; the `.keys()` was a tic.
+- **`SIM103` → return-the-condition** at
+  `services/discussions.py:246` — three trailing
+  `if X: return True / return False` lines collapse to
+  `return X`.
+- **`UP037` → unquote type hint** at `services/uploads.py:105`
+  — the file already has `from __future__ import annotations`,
+  so quoting `boto3.client` was redundant.
+- **`C408` → dict-literal** in `tests/test_builders.py` and
+  `tests/test_config_guard.py` (two `base = dict(...)` calls).
+- **`RUF059` → underscore-prefix unused tuple elements** in
+  `tests/test_chat_ws_revalidate.py` and
+  `tests/test_lesson_completion_flag.py` — only the unused
+  occurrences (other tests in the same files genuinely use
+  those names).
+- **`RUF015` → `next(...)`** at `tests/test_cohort.py:79`
+  — replaces a `[expr for ... if ...][0]` that built the
+  whole list just to take the first element.
+
+Backend pytest 321/321 (155s).
+
 ### Changed (simplify iter 6) — frontend dead-code purge
 ESLint flagged dead vars and stale `// eslint-disable` directives.
 Cleared the unambiguous wins; left the broader `no-explicit-any`
