@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 34) — email-verify service: hoist users_repo
+Eighteenth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/services/email_verify.py`. Applied only the
+single safe recommendation:
+
+- **Hoisted `from app.repositories import users as users_repo`**
+  to the module-level import block. The inline import inside
+  `confirm()` was a leftover, not a deliberate cycle break —
+  the sibling `email_change.py` already imports `users_repo`
+  at module top with no problem.
+
+Skipped: extracting a `_decode(token) -> dict` helper. The
+agent recommended it for symmetry with a hypothetical
+`email_change.py` pattern, but neither file actually has the
+helper, and a 1-callsite extraction is premature per CLAUDE.md.
+Also skipped: unifying the `"Hi {name or 'there'}"` formatting
+between plain-text and HTML bodies (would be a real behaviour
+change in the empty-name case).
+
+Backend pytest 321/321.
+
 ### Changed (simplify iter 33) — email-change service tidy via simplifier
 Seventeenth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/services/email_change.py`. Applied 2 of its 5

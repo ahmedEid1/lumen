@@ -13,6 +13,7 @@ from app.core.errors import UnauthorizedError
 from app.core.logging import get_logger
 from app.models.user import User
 from app.repositories import audit as audit_repo
+from app.repositories import users as users_repo
 
 log = get_logger(__name__)
 
@@ -45,8 +46,6 @@ async def confirm(db: AsyncSession, *, token: str) -> User:
         raise UnauthorizedError("Verification link is invalid or expired", code="verify.invalid") from exc
     if payload.get("purpose") != _PURPOSE:
         raise UnauthorizedError("Verification link is invalid", code="verify.invalid")
-
-    from app.repositories import users as users_repo
 
     user = await users_repo.get_by_id(db, str(payload.get("sub", "")))
     if not user or not user.is_active:
