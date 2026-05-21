@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 29)
+- **Catalog `?sort=` no longer crashes on unknown / non-column values.**
+  `search_courses` resolved the sort field with
+  `getattr(Course, name, Course.created_at)`. Crafted values like
+  `sort=modules` (relationship), `sort=metadata` (SQLAlchemy
+  bookkeeping), or `sort=__class__` returned attributes whose
+  `.desc()` raised `AttributeError` and surfaced as a 500. Replaced
+  with an explicit allow-list (`created_at`, `published_at`, `title`,
+  `is_featured`); unknown values quietly fall back to `created_at`.
+  Three regression tests in `test_catalog_sort.py`.
+
 ### Fixed (iteration 28)
 - **Admin subject deletion no longer 500s when courses are attached.**
   `DELETE /api/v1/admin/subjects/{id}` issued an unconditional DELETE

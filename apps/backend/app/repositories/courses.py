@@ -18,6 +18,15 @@ from app.models.course import (
     Tag,
 )
 
+# Allow-list for `?sort=` on the catalog. Restricted to columns whose
+# ``desc()`` / ``asc()`` is meaningful and that don't leak internal state.
+_SORTABLE_COLUMNS = {
+    "created_at": Course.created_at,
+    "published_at": Course.published_at,
+    "title": Course.title,
+    "is_featured": Course.is_featured,
+}
+
 
 async def get_subject(db: AsyncSession, subject_id: str) -> Subject | None:
     return await db.get(Subject, subject_id)
@@ -123,7 +132,10 @@ async def search_courses(
 
     direction = "desc" if sort.startswith("-") else "asc"
     field_name = sort.lstrip("-")
-    col = getattr(Course, field_name, Course.created_at)
+    # ``getattr(Course, ...)`` happily returns relationships and dunder
+    # attributes whose ``.desc()`` blows up with AttributeError → 500.
+    # Constrain to columns we know are safe + useful to order on.
+    col = _SORTABLE_COLUMNS.get(field_name, Course.created_at)
     stmt = stmt.order_by(col.desc() if direction == "desc" else col.asc())
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
