@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 90)
+- **Discussion subscriptions.** Iter 79 notified only the thread
+  *author* on each reply. Non-authors who found a useful thread
+  had to manually re-visit. New `discussion_subscriptions` table +
+  endpoints (`POST/DELETE /discussions/{id}/subscribe`) plus
+  auto-subscribe for the thread author at create and for any
+  replier at reply (GitHub pattern: replying is an interest
+  signal). Reply notifications fan out to every subscriber except
+  the replier, capped at 200 per reply so a runaway-popular thread
+  can't storm the notifications table.
+  `DiscussionDetail.is_subscribed` exposes the per-viewer flag so
+  the UI can render Subscribe vs Unsubscribe without a second
+  round-trip. Migration `0007_discussion_subscriptions`. Covered
+  by `tests/test_discussion_subscriptions.py` (6 tests).
+
 ### Added (iteration 89)
 - **Studio editor for course title / overview / difficulty / cover.**
   Previously those four fields were locked at create time — to fix

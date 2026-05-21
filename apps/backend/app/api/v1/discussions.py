@@ -43,7 +43,7 @@ def _to_list_item(d, reply_count: int, last_activity) -> DiscussionListItem:
     )
 
 
-def _to_detail(d) -> DiscussionDetail:
+def _to_detail(d, *, is_subscribed: bool = False) -> DiscussionDetail:
     return DiscussionDetail(
         id=d.id,
         course_id=d.course_id,
@@ -63,6 +63,7 @@ def _to_detail(d) -> DiscussionDetail:
             for r in d.replies
             if r.deleted_at is None
         ],
+        is_subscribed=is_subscribed,
     )
 
 
@@ -121,7 +122,28 @@ async def get_discussion(
     course = await courses_repo.get_course(db, d.course_id)
     if not course or not await courses_service.can_view_course(db, course, viewer):
         raise NotFoundError("Discussion not found", code="discussion.not_found")
-    return _to_detail(d)
+    sub = await discussions_service.is_subscribed(
+        db, discussion_id=d.id, user=viewer
+    )
+    return _to_detail(d, is_subscribed=sub)
+
+
+@router.post("/discussions/{discussion_id}/subscribe", response_model=OkResponse)
+async def subscribe_to_discussion(
+    discussion_id: str, user: CurrentUser, db: DBSession
+) -> OkResponse:
+    await discussions_service.subscribe(db, discussion_id=discussion_id, user=user)
+    return OkResponse()
+
+
+@router.delete("/discussions/{discussion_id}/subscribe", response_model=OkResponse)
+async def unsubscribe_from_discussion(
+    discussion_id: str, user: CurrentUser, db: DBSession
+) -> OkResponse:
+    await discussions_service.unsubscribe(
+        db, discussion_id=discussion_id, user=user
+    )
+    return OkResponse()
 
 
 @router.patch("/discussions/{discussion_id}", response_model=DiscussionDetail)
