@@ -43,6 +43,18 @@ def _to_list_item(d, reply_count: int, last_activity) -> DiscussionListItem:
     )
 
 
+def _to_reply(r, *, author=None) -> DiscussionReplyOut:
+    """Render a single reply; defaults to the ORM-loaded author."""
+    resolved = author if author is not None else r.author
+    return DiscussionReplyOut(
+        id=r.id,
+        body=r.body,
+        created_at=r.created_at,
+        updated_at=r.updated_at,
+        author=UserPublic.model_validate(resolved) if resolved else None,
+    )
+
+
 def _to_detail(d, *, is_subscribed: bool = False) -> DiscussionDetail:
     return DiscussionDetail(
         id=d.id,
@@ -52,17 +64,7 @@ def _to_detail(d, *, is_subscribed: bool = False) -> DiscussionDetail:
         created_at=d.created_at,
         updated_at=d.updated_at,
         author=UserPublic.model_validate(d.author) if d.author else None,
-        replies=[
-            DiscussionReplyOut(
-                id=r.id,
-                body=r.body,
-                created_at=r.created_at,
-                updated_at=r.updated_at,
-                author=UserPublic.model_validate(r.author) if r.author else None,
-            )
-            for r in d.replies
-            if r.deleted_at is None
-        ],
+        replies=[_to_reply(r) for r in d.replies if r.deleted_at is None],
         is_subscribed=is_subscribed,
     )
 
@@ -76,9 +78,7 @@ async def list_discussions(
     page_size: int = Query(20, ge=1, le=50),
 ) -> Page[DiscussionListItem]:
     course = await courses_repo.get_course(db, course_id)
-    if not course:
-        raise NotFoundError("Course not found", code="course.not_found")
-    if not await courses_service.can_view_course(db, course, viewer):
+    if not course or not await courses_service.can_view_course(db, course, viewer):
         raise NotFoundError("Course not found", code="course.not_found")
     rows = await discussions_repo.list_for_course(
         db, course_id=course.id, limit=page_size, offset=(page - 1) * page_size
@@ -123,9 +123,7 @@ async def get_discussion(
     course = await courses_repo.get_course(db, d.course_id)
     if not course or not await courses_service.can_view_course(db, course, viewer):
         raise NotFoundError("Discussion not found", code="discussion.not_found")
-    sub = await discussions_service.is_subscribed(
-        db, discussion_id=d.id, user=viewer
-    )
+    sub = await discussions_service.is_subscribed(db, discussion_id=d.id, user=viewer)
     return _to_detail(d, is_subscribed=sub)
 
 
@@ -141,9 +139,7 @@ async def subscribe_to_discussion(
 async def unsubscribe_from_discussion(
     discussion_id: str, user: CurrentUser, db: DBSession
 ) -> OkResponse:
-    await discussions_service.unsubscribe(
-        db, discussion_id=discussion_id, user=user
-    )
+    await discussions_service.unsubscribe(db, discussion_id=discussion_id, user=user)
     return OkResponse()
 
 
@@ -188,13 +184,7 @@ async def reply_to_discussion(
     r = await discussions_service.reply(
         db, discussion_id=discussion_id, user=user, payload=payload
     )
-    return DiscussionReplyOut(
-        id=r.id,
-        body=r.body,
-        created_at=r.created_at,
-        updated_at=r.updated_at,
-        author=UserPublic.model_validate(user),
-    )
+    return _to_reply(r, author=user)
 
 
 @router.delete("/discussions/replies/{reply_id}", response_model=OkResponse)

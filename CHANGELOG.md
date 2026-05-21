@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 26) — discussions router tidy via simplifier
+Tenth dispatch of the `code-simplifier` plugin agent on
+`apps/backend/app/api/v1/discussions.py` (205 → 195 lines).
+Applied 3 of its 5 recommendations:
+
+- **`_to_reply(r, *, author=None)` helper** extracts the
+  `DiscussionReplyOut(id=..., body=..., ...)` block that was
+  duplicated between `_to_detail`'s comprehension and
+  `reply_to_discussion`. The fresh-user case passes
+  `author=user`; default falls back to the ORM-loaded
+  `r.author`.
+- **Collapsed the double `NotFoundError` in `list_discussions`**
+  to one short-circuit `or` predicate. Matches the pattern
+  `get_discussion` (lines 123-125) already used; file now
+  consistent.
+- **Single-line `is_subscribed` / `unsubscribe` call sites**
+  — they fit comfortably under the 100-char line cap.
+
+Skipped: the create_discussion re-fetch drop (would need
+service-layer load semantics verification — not worth the
+risk for one I/O saving) and the helper for the
+`load+viewable` pair (only two call sites; defer until a
+third forces the issue).
+
+Behaviour preserved end-to-end. Discussion-touching tests
+16/16, backend pytest 321/321.
+
 ### Changed (simplify iter 25) — analytics service DRY via simplifier
 Ninth dispatch of the `code-simplifier` plugin agent on
 `apps/backend/app/services/analytics.py`. Applied 3 of its 5
