@@ -95,6 +95,19 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Admin / subjects — the disciplines
+  "adminSubjects.cartouche": "The disciplines",
+  "adminSubjects.title": "Subjects",
+  "adminSubjects.addCard": "Add subject",
+  "adminSubjects.titlePlaceholder": "Title (e.g. Programming)",
+  "adminSubjects.slugPlaceholder": "Slug (optional)",
+  "adminSubjects.allCard": "All subjects",
+  "adminSubjects.courseCount": "{n} courses",
+  "adminSubjects.empty": "No subjects yet.",
+  "adminSubjects.successToast": "Subject added",
+  "adminSubjects.addError": "Could not add",
+  "adminSubjects.deleteError": "Could not delete",
+
   // Admin / tags — the seals
   "adminTags.cartouche": "The seals",
   "adminTags.title": "Tags",

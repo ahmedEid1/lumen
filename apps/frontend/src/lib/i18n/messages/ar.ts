@@ -102,6 +102,19 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Admin / subjects — الفروع
+  "adminSubjects.cartouche": "الفروع",
+  "adminSubjects.title": "المواضيع",
+  "adminSubjects.addCard": "إضافة موضوع",
+  "adminSubjects.titlePlaceholder": "العنوان (مثلًا البرمجة)",
+  "adminSubjects.slugPlaceholder": "المعرّف (اختياري)",
+  "adminSubjects.allCard": "جميع المواضيع",
+  "adminSubjects.courseCount": "{n} دورة",
+  "adminSubjects.empty": "لا مواضيع بعد.",
+  "adminSubjects.successToast": "تمت إضافة الموضوع",
+  "adminSubjects.addError": "تعذّرت الإضافة",
+  "adminSubjects.deleteError": "تعذّر الحذف",
+
   // Admin / tags — الأختام
   "adminTags.cartouche": "الأختام",
   "adminTags.title": "الوسوم",
