@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 6) — frontend dead-code purge
+ESLint flagged dead vars and stale `// eslint-disable` directives.
+Cleared the unambiguous wins; left the broader `no-explicit-any`
+cluster (~30 sites) for a future, more thoughtful pass.
+
+- **`LessonEditor`: dropped unused `courseId` prop** end-to-end.
+  The component took it in `Props`, destructured it in the body,
+  and the parent route passed `courseId={id}` twice — but
+  nothing read it. Removed all three sites.
+- **`LessonEditor`: dropped unused `saving / setSaving` state.**
+  The mutation has its own `isPending`; the local boolean was a
+  leftover from before TanStack Query landed.
+- **`LessonEditor::stripType`: renamed unused destructure to
+  `_type`** so the convention-marker matches the
+  `Allowed unused vars must match /^_/u` rule.
+- **`app/error.tsx`: removed unused `// eslint-disable-next-line
+  no-console`** — the `no-console` rule isn't enabled, so the
+  directive was a no-op.
+- **`LessonPlayer`: moved the `react-hooks/exhaustive-deps`
+  disable** from before the `useEffect` opener to just above the
+  dependency array, where ESLint actually emits the warning.
+
+Frontend vitest 95/95, TypeScript clean.
+
 ### Changed (simplify iter 5) — try/except/pass → contextlib.suppress
 Four `try: x() except E: pass` blocks rewritten as
 `with contextlib.suppress(E): x()`. Same semantics, fewer

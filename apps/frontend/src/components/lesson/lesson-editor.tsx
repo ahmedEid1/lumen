@@ -22,7 +22,6 @@ type QuizQuestion = {
 };
 
 type Props = {
-  courseId: string;
   moduleId: string;
   lesson?: LessonOut;
   newType?: LessonType;
@@ -31,14 +30,13 @@ type Props = {
   onCancel?: () => void;
 };
 
-export function LessonEditor({ courseId, moduleId, lesson, newType, onSaved, onDeleted, onCancel }: Props) {
+export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, onCancel }: Props) {
   const type = (lesson?.type ?? newType ?? "text") as LessonType;
   const [title, setTitle] = useState(lesson?.title ?? "");
   const [duration, setDuration] = useState(lesson?.duration_seconds ?? 0);
   const [isPreview, setIsPreview] = useState<boolean>(lesson?.is_preview ?? false);
   const initial = useMemo(() => normalizeData(type, lesson?.data ?? {}), [type, lesson]);
   const [data, setData] = useState<any>(initial);
-  const [saving, setSaving] = useState(false);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -454,6 +452,6 @@ function normalizeData(type: LessonType, raw: any): any {
 }
 
 function stripType(obj: any) {
-  const { type, ...rest } = obj;
+  const { type: _type, ...rest } = obj;
   return rest;
 }

@@ -132,9 +132,9 @@ function Quiz({
   // Load past attempts on mount so a returning learner sees "you've
   // tried this 3 times" before they submit again. Refreshed after
   // every submit so the new attempt shows immediately.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId]);
   async function loadHistory() {
     try {
