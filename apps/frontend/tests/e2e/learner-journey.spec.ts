@@ -18,7 +18,7 @@ test.describe("learner journey", () => {
     await page.goto("/login");
     await page.getByLabel(/email/i).fill("student@lumen.test");
     await page.getByLabel(/password/i).fill("Learn!2026");
-    // Iter 101: scope to the form so we hit the submit button
+    // scope to the form so we hit the submit button
     // rather than the navbar's "Sign in" link (strict mode tie).
     await page.locator("form").getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/dashboard/);
@@ -67,7 +67,7 @@ test.describe("learner journey", () => {
     // Default starts as English (LTR).
     await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
 
-    // Iter 104: the LocaleSwitcher's aria-label is `${t("common.language")}: …`,
+    // the LocaleSwitcher's aria-label is `${t("common.language")}: …`,
     // i.e. it localises to "Language" in EN and "اللغة" in AR. Matching only
     // /language/i works on the first click (page is in EN) but fails on the
     // second click (page is now AR), so the regex below covers both.

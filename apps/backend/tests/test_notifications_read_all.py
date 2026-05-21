@@ -1,10 +1,10 @@
 """Mark-all-read endpoint for notifications.
 
-Before iter 55 a learner with N unread notifications had to issue N
-``POST /me/notifications/{id}/read`` round trips to clear the badge.
-The new ``POST /me/notifications/read-all`` does it in one UPDATE,
-returns the count touched so the UI can update without a follow-up
-GET, and is scoped strictly to the calling user.
+A learner with N unread notifications used to need N
+``POST /me/notifications/{id}/read`` round trips to clear the
+badge. ``POST /me/notifications/read-all`` does it in one
+UPDATE, returns the count touched so the UI can update without
+a follow-up GET, and is scoped strictly to the calling user.
 """
 
 from __future__ import annotations

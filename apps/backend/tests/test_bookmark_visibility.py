@@ -59,7 +59,7 @@ async def test_cannot_bookmark_other_users_draft(
     course_id = await _create_draft(client, owner, subject.id)
 
     r = await client.put(f"/api/v1/me/bookmarks/{course_id}", headers=student)
-    # 404 (not 403) — match the existence-hiding posture iter 46 used.
+    # 404 (not 403) — match the existence-hiding posture used elsewhere.
     assert r.status_code == 404, r.text
     assert r.json()["error"]["code"] == "course.not_found"
 

@@ -16,7 +16,7 @@ test.describe("smoke", () => {
 
   test("student signs in and reaches dashboard", async ({ page }) => {
     await page.goto("/login");
-    // Iter 101: the navbar's "Sign in" link contains a button with
+    // the navbar's "Sign in" link contains a button with
     // the same accessible name as the form's submit, so an unscoped
     // getByRole('button') trips strict mode. Scope to the form
     // element so we always pick the submit button.

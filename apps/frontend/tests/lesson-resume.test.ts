@@ -25,8 +25,8 @@ describe("pickResumeLessonId", () => {
   });
 
   it("skips completed lessons and returns the first unfinished", () => {
-    // iter 35 core behaviour: "Continue learning" should drop the learner
-    // at the next thing they haven't done, not at lesson 1 every time.
+    // Core "Continue learning" behaviour: drop the learner at the next
+    // thing they haven't done, not at lesson 1 every time.
     expect(
       pickResumeLessonId([L("a", true), L("b", true), L("c"), L("d")]),
     ).toBe("c");

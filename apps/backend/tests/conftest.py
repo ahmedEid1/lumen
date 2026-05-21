@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 # Ensure test env is set before app modules read config.
 os.environ.setdefault("ENV", "test")
-# Iter 109: PyJWT raises `InsecureKeyLengthWarning` for HS256 keys
+# PyJWT raises `InsecureKeyLengthWarning` for HS256 keys
 # under 32 bytes (and `filterwarnings = ["error"]` promotes that
 # to a test failure). FORCE-overwrite the value: the dev `.env`
 # in the api container ships a short `myjwtsecret`, and
@@ -127,7 +127,7 @@ def _reset_rate_limiter():
 @pytest_asyncio.fixture
 async def client(app) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)
-    # Iter 110: the api ships a CSRF-origin middleware that rejects
+    # the api ships a CSRF-origin middleware that rejects
     # cookie-authenticated mutations whose Origin header isn't in
     # `cors_origins`. The httpx test client doesn't set Origin by
     # default, so every cookie-authed POST/PATCH/DELETE came back

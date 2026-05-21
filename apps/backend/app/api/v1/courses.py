@@ -123,14 +123,13 @@ async def get_course(
         response.headers["Cache-Control"] = "public, max-age=60, must-revalidate"
     response.headers["Vary"] = "Accept-Encoding, Authorization, Cookie"
     if if_none_match == etag:
-        # Status 304 forbids a body. Iter 115: was raising
-        # HTTPException(304) which FastAPI renders as a JSON error
-        # envelope — non-empty, violating the assertion in
-        # test_course_detail_etag.py and (technically) RFC 9110.
-        # Return a bare starlette Response so the body is the empty
-        # bytestring. The Cache-Control / Vary headers set on
-        # ``response`` above also don't survive a raise, so we
-        # re-emit them on the 304 here.
+        # Status 304 forbids a body. `HTTPException(304)` would
+        # render as a JSON error envelope — non-empty, violating
+        # both the cache-revalidation tests and (technically)
+        # RFC 9110. Return a bare starlette Response so the body
+        # is the empty bytestring. The Cache-Control / Vary headers
+        # set on ``response`` above also don't survive a raise,
+        # so we re-emit them on the 304 here.
         from starlette.responses import Response as _StarletteResponse
 
         return _StarletteResponse(
@@ -275,10 +274,10 @@ async def get_lesson(lesson_id: str, viewer: OptionalUser, db: DBSession) -> Les
     if course is None:
         raise NotFoundError("Course not found", code="course.not_found")
 
-    # Iter 115: same `str(...) vs .value` trap as iter 98 fixed for
-    # user.role — `course.status` is `Mapped[CourseStatus]` declared
-    # as a String column without a TypeDecorator, so SQLAlchemy
-    # returns a plain str on read and `.value` blows up.
+    # `course.status` is `Mapped[CourseStatus]` declared as a String
+    # column without a TypeDecorator, so SQLAlchemy returns a plain
+    # str on read and `.value` blows up. Same trap also bit
+    # `user.role` and `lesson.type`.
     if lesson.is_preview and str(course.status) == "published":
         return LessonOut.model_validate(lesson)
     if viewer is None:

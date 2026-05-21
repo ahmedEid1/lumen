@@ -48,7 +48,7 @@ class PasswordResetRequest(BaseModel):
 
 
 class PasswordResetConfirm(BaseModel):
-    # Iter 115: 200 chars overflows a real JWT-shaped reset token
+    # 200 chars overflows a real JWT-shaped reset token
     # once `JWT_SECRET` is at the RFC 7518 minimum length and the
     # payload carries the full claim set; bumped to 600 to match
     # EmailVerifyConfirm below.

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 9) — purge "Iter NN:" dev-journal prefixes
+Comments that prefix themselves with "Iter 115:" or
+"Pre-iter 76 …" carry a number that means nothing to a future
+reader — the iteration counter is local to this branch's
+ralph-loop runtime, not a stable concept anyone outside the
+loop can resolve. Per CLAUDE.md ("Don't reference the current
+task, fix, or callers, since those belong in the PR
+description and rot as the codebase evolves"), these belong in
+the commit message, not the code.
+
+Two-pass strip:
+
+1. **Mechanical prefix purge** (~30 files) via a one-shot
+   regex script — `^(\s*#\s+)Iter \d+:\s*` and the JS/TS
+   `//` equivalent. Stripped only the `Iter NN: ` token; the
+   prose body is preserved.
+2. **Inline reference rephrase** (~12 docstrings and
+   comments) — places where "Pre-iter 73 only X persisted"
+   became "Earlier, only X persisted", "iter 79 extends the
+   reply path" became "The reply path emits", and so on.
+
+What remains: ~36 inline mentions inside docstrings and
+Alembic migration headers; those are weaker violations and
+some need careful per-site rephrasing. Earmarked for a
+follow-up.
+
+Backend pytest 321/321 (246s — slow run, no failures).
+
 ### Changed (simplify iter 8) — readability + one real fix
 Six fixes that each have a small but real upside.
 

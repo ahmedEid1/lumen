@@ -48,8 +48,9 @@ def test_production_with_real_values_passes() -> None:
         secret_key="real-app-secret",
         s3_secret_access_key="real-s3-secret",
         cors_origins=["https://lumen.example.com"],
-        # Iter 115: iter 37 added a web_base_url guard; without
-        # this override the test trips on the localhost default.
+        # A web_base_url guard rejects the localhost default in
+        # production; provide a real one so the test reaches the
+        # green path.
         web_base_url="https://lumen.example.com",
     )
     # Should not raise.

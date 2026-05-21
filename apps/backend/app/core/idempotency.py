@@ -166,7 +166,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                     not in {"x-request-id", "content-length", "set-cookie"}
                 ],
                 "body_hash": body_hash,
-                # Iter 115: `GZipMiddleware` (registered earlier in the
+                # `GZipMiddleware` (registered earlier in the
                 # chain) can gzip-encode the body before we see it.
                 # Storing with `utf-8 + errors=replace` silently corrupts
                 # binary data; the replay then ships a `gzip`
@@ -205,7 +205,7 @@ async def _replay_body(request: Request, body: bytes) -> None:
 def _replay_response(entry: dict[str, Any]) -> Response:
     body = entry.get("body", "")
     if isinstance(body, str):
-        # Iter 115: paired with the latin-1 encode at cache time
+        # paired with the latin-1 encode at cache time
         # so gzip-encoded bytes round-trip losslessly.
         body = body.encode("latin-1")
     headers = dict(entry.get("headers", []))

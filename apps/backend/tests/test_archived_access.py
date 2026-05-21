@@ -84,7 +84,7 @@ async def test_archived_course_is_invisible_to_non_enrolled_strangers(
         f"/api/v1/courses/{course_id}", json={"status": "archived"}, headers=teacher
     )
 
-    # Iter 115: clear accumulated login cookies so the "anonymous"
+    # clear accumulated login cookies so the "anonymous"
     # request below isn't auto-authed as the most recent user.
     client.cookies.clear()
 

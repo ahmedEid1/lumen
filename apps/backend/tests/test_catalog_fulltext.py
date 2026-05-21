@@ -1,6 +1,6 @@
 """Postgres full-text ranking on the catalog search.
 
-Pre-iter 85 the catalog `?q=...` was pure ILIKE substring match —
+Earlier the catalog `?q=...` was pure ILIKE substring match —
 no relevance ordering, no quoted-phrase support, partial-word
 matches only by coincidence. The Postgres ``websearch_to_tsquery``
 + ``ts_rank`` upgrade adds:

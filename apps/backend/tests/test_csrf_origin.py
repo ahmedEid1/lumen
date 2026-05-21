@@ -34,7 +34,7 @@ async def test_cookie_post_without_origin_is_rejected(
     client: AsyncClient, make_user
 ) -> None:
     cookie = await _login_set_cookie(client, make_user)
-    # Iter 110: conftest sets a default `Origin: http://testserver`
+    # conftest sets a default `Origin: http://testserver`
     # so most tests don't trip CSRF. Pop it for this one so the
     # no-Origin rejection path is the one we exercise.
     client.headers.pop("Origin", None)
@@ -112,7 +112,7 @@ async def test_referer_fallback_when_origin_missing(
     """Some browsers omit Origin on same-origin POSTs; the middleware
     falls back to the Referer's scheme://host."""
     cookie = await _login_set_cookie(client, make_user)
-    # Iter 110: pop the conftest default Origin so the Referer-
+    # pop the conftest default Origin so the Referer-
     # fallback path is the one exercised.
     client.headers.pop("Origin", None)
     r = await client.post(

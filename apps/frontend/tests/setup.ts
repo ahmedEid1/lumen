@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { vi } from "vitest";
 
-// Iter 108: components under test pull `useRouter` /
+// components under test pull `useRouter` /
 // `useSearchParams` / `usePathname` from `next/navigation`. Outside
 // a real Next.js page tree those hooks throw
 // `invariant expected app router to be mounted`. Stub them at the
@@ -22,7 +22,7 @@ vi.mock("next/navigation", () => ({
   notFound: vi.fn(),
 }));
 
-// Iter 108: components like HeaderSearch use `useT()` which
+// components like HeaderSearch use `useT()` which
 // throws outside a LocaleProvider. Stub the provider hooks to
 // return the real English string for the key (not the key
 // itself) so accessibility-name selectors keep matching.

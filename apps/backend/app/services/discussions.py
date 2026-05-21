@@ -61,8 +61,8 @@ async def create_discussion(
     db.add(d)
     await db.flush()
     # Auto-subscribe the author so they get the same notification path
-    # as any other subscriber — iter 90 unifies on subscription fanout
-    # rather than special-casing the author in the reply notifier.
+    # as any other subscriber — the fanout treats every subscriber
+    # uniformly rather than special-casing the author.
     await _ensure_subscribed(db, user_id=user.id, discussion_id=d.id)
     return d
 
@@ -115,7 +115,7 @@ async def reply(
     # sort surfaces the bumped thread.
     d.updated_at = datetime.now(UTC)
     await db.flush()
-    # Iter 90: subscription fanout. Auto-subscribe the replier
+    # subscription fanout. Auto-subscribe the replier
     # (they've shown interest — same shape as GitHub's auto-
     # subscribe on comment) then notify every subscriber except
     # the replier themselves. Caps at 200 fanout rows per reply

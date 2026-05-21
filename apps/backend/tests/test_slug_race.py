@@ -62,7 +62,7 @@ async def test_create_recovers_when_obvious_slug_already_claimed(
         json={"title": "Async Python", "subject_id": subject.id, "overview": "x"},
         headers=teacher_b,
     )
-    # Before iter 49 this would have failed in the second INSERT (the
+    # An earlier implementation would have failed in the second INSERT (the
     # collision-safe loop in _unique_slug would have appended -2, but the
     # race scenario where two requests both pick the same "-2" suffix
     # would still 500). Now the create succeeds with a disambiguated

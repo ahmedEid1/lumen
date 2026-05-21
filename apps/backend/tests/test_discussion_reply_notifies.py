@@ -1,7 +1,7 @@
 """When someone replies to my thread, I should be notified.
 
-iter 79 extends the discussion reply path with a notification ping
-to the thread author, scoped:
+The discussion reply path emits a notification ping to the
+thread author, scoped:
 
 * never to self (self-replies don't generate a notification)
 * never to a deleted author (author_id is SET NULL on user delete)

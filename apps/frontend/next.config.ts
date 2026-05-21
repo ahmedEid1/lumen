@@ -7,7 +7,7 @@ const config: NextConfig = {
   experimental: {
     typedRoutes: true,
   },
-  // Iter 105: proxy /api/v1/* through Next so browser-side fetches
+  // proxy /api/v1/* through Next so browser-side fetches
   // are same-origin. The auth cookies are SameSite=Strict — a
   // direct browser→api request from web:3000 to api:8000 (the e2e
   // container case) is cross-site and the cookie never travels,

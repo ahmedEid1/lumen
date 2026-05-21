@@ -94,7 +94,7 @@ async def test_logout_clears_cookies(client: AsyncClient, make_user) -> None:
 async def test_dev_cookie_name_is_accepted_for_auth(
     client: AsyncClient, make_user
 ) -> None:
-    """Iter 106: ``auth.py`` sets the access cookie as ``access`` in dev
+    """``auth.py`` sets the access cookie as ``access`` in dev
     (no ``__Host-*`` prefix because that prefix is only valid on HTTPS),
     but ``deps.get_current_user_optional`` previously only read the
     ``__Host-access`` alias. The mismatch turned every browser cookie

@@ -184,7 +184,7 @@ class CourseCreate(BaseModel):
     difficulty: Difficulty = Difficulty.beginner
     tag_ids: list[str] = Field(default_factory=list, max_length=20)
     cover_url: str | None = Field(default=None, max_length=500)
-    # Iter 86: "What you'll learn" bullet list. Up to 12 items so
+    # "What you'll learn" bullet list. Up to 12 items so
     # the detail page stays scannable — past that the list stops
     # being a conversion tool and starts being a wall of text.
     learning_outcomes: list[str] = Field(default_factory=list, max_length=12)

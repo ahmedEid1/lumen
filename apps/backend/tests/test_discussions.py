@@ -120,7 +120,7 @@ async def test_get_thread_returns_replies_in_order(
 
     thread = (await client.post(
         f"/api/v1/courses/{course_id}/discussions",
-        # Iter 115: schema requires title >= 3 chars; "T" 422'd.
+        # schema requires title >= 3 chars; "T" 422'd.
         json={"title": "Thread", "body": ""},
         headers=student,
     )).json()
@@ -233,7 +233,7 @@ async def test_reply_endpoint_rate_limited(
 
     thread = (await client.post(
         f"/api/v1/courses/{course_id}/discussions",
-        # Iter 115: schema requires title >= 3 chars.
+        # schema requires title >= 3 chars.
         json={"title": "Thread", "body": ""},
         headers=student,
     )).json()

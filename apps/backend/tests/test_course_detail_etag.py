@@ -2,7 +2,7 @@
 
 The course detail endpoint is the highest-traffic personalised-but-
 cacheable read in the API (every catalog click, every learner
-returning to /learn). Pre-iter 76 every hit re-served the same body
+returning to /learn). Previously every hit re-served the same body
 even when nothing had changed. The new ETag is a weak hash of
 ``(course_id, updated_at, viewer-derived flags, stats counters)`` —
 covers everything that goes into the response, so a server-side
@@ -124,7 +124,7 @@ async def test_etag_differs_for_enrolled_vs_anonymous(
 async def test_cache_control_private_for_authed_public_for_anon(
     client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
-    """Iter 84: per-viewer fields in the body mean an authenticated
+    """per-viewer fields in the body mean an authenticated
     response must not be cached in any shared proxy. Anonymous can
     be cached briefly but Vary tells a CDN it cannot serve an authed
     request with the cached anon body."""
@@ -133,7 +133,7 @@ async def test_cache_control_private_for_authed_public_for_anon(
     subject = await _make_subject(db_session)
     course_id = await _published(client, teacher, subject.id, seed_lesson)
 
-    # Iter 115: auth_headers's `POST /auth/login` sets cookies on
+    # auth_headers's `POST /auth/login` sets cookies on
     # the shared httpx client jar; without clearing, the "anonymous"
     # GET below carries the most recent login cookie and the api
     # resolves a viewer, swapping Cache-Control to "private".

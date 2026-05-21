@@ -77,9 +77,9 @@ async def test_publish_and_list_in_catalog(
     )
     course_id = r.json()["id"]
 
-    # Iter 43 publish-guard needs a lesson; iter 115 wires the
-    # `seed_lesson` fixture in here so the test exercises the
-    # green publish path instead of the no-lessons rejection.
+    # The publish-guard needs at least one lesson; `seed_lesson`
+    # provides it so this test exercises the green publish path
+    # instead of the no-lessons rejection.
     await seed_lesson(course_id, headers)
 
     pub = await client.patch(
@@ -200,7 +200,7 @@ async def test_review_requires_enrollment(
         headers=teacher,
     )
     course_id = create.json()["id"]
-    # Iter 115: iter 43 publish-guard requires a lesson.
+    # The publish-guard requires at least one lesson.
     await seed_lesson(course_id, teacher)
     await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
 

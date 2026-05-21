@@ -1,13 +1,13 @@
 """Per-user rate-limit keying.
 
-Pre-iter 61 slowapi's default key was the remote address. Two
+Earlier, slowapi's default key was the remote address. Two
 learners behind the same NAT (office, school, coffee shop) shared
 one bucket — a single noisy account could lock out every colleague
-on the same gateway. The new ``_identity_key`` derives the bucket
-from the JWT ``sub`` when present, the auth cookie when not, and
-only falls back to IP for fully anonymous traffic.
+on the same gateway. The current ``_identity_key`` derives the
+bucket from the JWT ``sub`` when present, the auth cookie when
+not, and only falls back to IP for fully anonymous traffic.
 
-We assert this by exhausting the chat-post bucket (30/minute, iter
+We assert this by exhausting the chat-post bucket (30/minute,
 53) as one user and verifying a second user — same test client,
 same "IP" from slowapi's perspective — can still post.
 """

@@ -1,7 +1,7 @@
 """Append-only quiz attempt history.
 
-Pre-iter 73 only ``LessonProgress.payload`` held the latest attempt;
-retakes silently overwrote it. The new ``quiz_attempts`` table is
+Earlier only ``LessonProgress.payload`` held the latest attempt;
+retakes silently overwrote it. The ``quiz_attempts`` table is
 append-only — every submission writes a fresh row, indexed for
 "latest N attempts for this (enrollment, lesson)" reads.
 """

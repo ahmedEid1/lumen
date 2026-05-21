@@ -1,6 +1,6 @@
 """Regression: presign carries an S3-enforced content-length-range.
 
-Before iter 56 ``size_bytes`` in the presign request was advisory —
+``size_bytes`` in the presign request used to be advisory —
 the server's per-kind cap was checked against the *client-claimed*
 size before signing, but the resulting ``generate_presigned_url(PUT)``
 embedded no length constraint. A client could lie ("size_bytes": 1024)

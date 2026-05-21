@@ -14,7 +14,7 @@ test.describe("instructor flow", () => {
     await page.goto("/login");
     await page.getByLabel(/email/i).fill("teacher@lumen.test");
     await page.getByLabel(/password/i).fill("Teach!2026");
-    // Iter 101: scope to the form (navbar Sign in link clashes).
+    // scope to the form (navbar Sign in link clashes).
     await page.locator("form").getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/dashboard/);
 
@@ -42,9 +42,9 @@ test.describe("instructor flow", () => {
     await page.getByRole("link", { name: /edit lessons/i }).first().click();
     await expect(page).toHaveURL(/\/studio\/[^/]+\/modules\/[^/]+$/);
 
-    // Add a text lesson via the "Add lesson" buttons. Iter 107:
-    // the actual button text is "+ Text" (the `+` is part of the
-    // accessible name), so the original `/^text$/i` matched nothing.
+    // Add a text lesson via the "Add lesson" buttons.
+    // The actual button text is "+ Text" (the `+` is part of the
+    // accessible name), so a `/^text$/i` regex matches nothing.
     await page.getByRole("button", { name: /^\+ text$/i }).click();
     await page.getByLabel(/^title$/i).first().fill("Hello world");
     // Markdown body
@@ -54,7 +54,7 @@ test.describe("instructor flow", () => {
     // Back to course studio.
     await page.goto(page.url().replace(/\/modules\/[^/]+$/, ""));
 
-    // Publish — iter 43 requires at least one lesson, which we just added.
+    // Publish — the publish-guard requires at least one lesson, which we just added.
     await page.getByRole("button", { name: /^publish$/i }).click();
     // Status badge swaps to published.
     await expect(page.locator("text=published").first()).toBeVisible();

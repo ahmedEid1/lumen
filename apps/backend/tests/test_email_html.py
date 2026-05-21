@@ -90,7 +90,7 @@ async def test_password_reset_request_now_sends_multipart(
     msg = _capture_email[0]
     # Plain text still sent (clients that don't render HTML).
     assert "reset" in msg["text"].lower()
-    # HTML alternative is the iter 83 addition — pin its shape.
+    # HTML alternative — pin its shape so a refactor doesn't quietly drop it.
     assert msg["html"] is not None
     assert "Reset password" in msg["html"]
     assert "/reset-password?token=" in msg["html"]

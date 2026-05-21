@@ -22,7 +22,7 @@ VERIFY_PATH = "/verify"
 def render(*, learner_name: str, course_title: str, certificate_id: str) -> bytes:
     """Render a certificate PDF, return bytes (caller decides storage)."""
     buf = BytesIO()
-    # Iter 115: newer ReportLab versions enable stream compression
+    # newer ReportLab versions enable stream compression
     # by default. That hides the verify URL as a deflate blob and
     # breaks the substring check tests (and downstream accessibility
     # scanners) rely on. The PDF is a few KB — compression saves

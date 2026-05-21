@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { ImageUpload } from "@/components/shared/image-upload";
 import * as apiClient from "@/lib/api/client";
 
-// Iter 108: `vi.mock()` is hoisted to the top of the module by the
+// `vi.mock()` is hoisted to the top of the module by the
 // vitest transformer, so references inside the factory are
 // evaluated BEFORE module-level `const`s exist. Wrap the toast
 // spies in `vi.hoisted()` so they're available when the factory
@@ -15,7 +15,7 @@ const { toastError, toastSuccess } = vi.hoisted(() => ({
 }));
 vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }));
 
-// Iter 56: presign switched from PUT to POST so S3 enforces the
+// presign switched from PUT to POST so S3 enforces the
 // content-length-range. Response shape is now {url, fields, max_bytes}.
 const PRESIGN = {
   method: "POST" as const,

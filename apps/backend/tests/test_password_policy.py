@@ -62,7 +62,7 @@ def test_register_schema_uses_shared_policy() -> None:
 
 def test_reset_confirm_schema_uses_shared_policy() -> None:
     with pytest.raises(ValueError):
-        # Before iter 39 this would parse OK because only min_length=12 ran.
+        # The shared policy rejects this; a bare `min_length=12` would let it through.
         PasswordResetConfirm(token="x" * 20, password="alllowercase1")
 
 

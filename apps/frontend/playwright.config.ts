@@ -6,7 +6,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
-  // Iter 100: Next.js dev mode compiles routes on first hit on a
+  // Next.js dev mode compiles routes on first hit on a
   // single thread. With the default 6 parallel workers each cold-
   // loading a different page, compiles serialise behind one mutex
   // and the slow ones blew past 60s — every test failed

@@ -116,7 +116,7 @@ ignore_missing_imports = true
 # ---------------- pytest ----------------
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-# Iter 109: pytest-asyncio 1.x changed the default fixture loop
+# pytest-asyncio 1.x changed the default fixture loop
 # scope from session to function. Our session-scoped `_engine`
 # fixture creates an asyncpg connection on the session loop; if
 # every test then runs on its own function-scoped loop, that
@@ -129,7 +129,7 @@ asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 addopts = "-ra --strict-markers --cov=app --cov-report=term-missing --cov-fail-under=80"
 filterwarnings = [
-  # Iter 110: dropped strict "error" mode. The Python ecosystem
+  # dropped strict "error" mode. The Python ecosystem
   # upgraded faster than the code (starlette 1, httpx 0.28+,
   # FastAPI's ORJSONResponse deprecation, PyJWT's
   # InsecureKeyLengthWarning, structlog 25, pytest-asyncio 1)

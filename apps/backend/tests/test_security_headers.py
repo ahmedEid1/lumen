@@ -95,8 +95,8 @@ async def test_csp_absent_on_html_docs(client: AsyncClient) -> None:
 
 async def test_server_header_is_stripped(client: AsyncClient) -> None:
     """uvicorn defaults to advertising itself via ``Server: uvicorn``;
-    iter 69 strips it on the way out so attackers can't fingerprint the
-    stack from a single response."""
+    a middleware strips it on the way out so attackers can't fingerprint
+    the stack from a single response."""
     r = await client.get("/api/v1/subjects")
     headers_lower = {k.lower(): v for k, v in r.headers.items()}
     assert "server" not in headers_lower

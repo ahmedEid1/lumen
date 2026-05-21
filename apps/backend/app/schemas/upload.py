@@ -13,10 +13,10 @@ class PresignRequest(BaseModel):
 
 
 class PresignResponse(BaseModel):
-    # Switched from PUT to POST in iter 56 — POST presign carries a
-    # ``content-length-range`` policy condition that S3 actually
-    # enforces server-side. The client must submit ``fields`` plus a
-    # final ``file`` form field via multipart/form-data.
+    # POST presign carries a ``content-length-range`` policy condition
+    # that S3 actually enforces server-side; the old PUT presign was
+    # advisory only. The client must submit ``fields`` plus a final
+    # ``file`` form field via multipart/form-data.
     method: Literal["POST"] = "POST"
     url: str
     fields: dict[str, str]

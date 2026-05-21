@@ -1,6 +1,6 @@
 """Quiz attempt history.
 
-Pre-iter 73 a quiz attempt only persisted to ``LessonProgress.payload``,
+Earlier, a quiz attempt only persisted to ``LessonProgress.payload``,
 which got overwritten on every retake. That meant:
 
 * a learner couldn't see "did I get better?";

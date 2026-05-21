@@ -1,6 +1,6 @@
 """Catalog reads carry Cache-Control hints.
 
-Pre-iter 66 the public catalog endpoints returned no cache headers.
+The public catalog endpoints previously returned no cache headers.
 Every catalog hit (homepage, subject browsing, course search) went
 to the database, even via a CDN or reverse proxy. ``Cache-Control:
 public, max-age=60, stale-while-revalidate=300`` for anonymous reads
