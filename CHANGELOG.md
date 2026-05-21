@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 22)
+- **Progress could exceed 100% after a lesson was soft-deleted.**
+  `count_completed_lessons`, the per-course `avg_progress_pct`, and the
+  cohort listing all counted every `LessonProgress` row regardless of
+  whether the parent lesson still existed. Soft-deleting a finished
+  lesson left ``done > total``, which produced >100% progress for the
+  learner and the cohort view, and risked spurious certificate issuance.
+  The queries now join `Lesson` and filter on `Lesson.deleted_at IS NULL`,
+  so progress always clamps to the surviving curriculum. Three
+  regression tests in `test_progress_soft_delete.py` lock the fix in
+  for the learner, cohort, and per-course-analytics paths.
+
 ### Added (iteration 21)
 - ChatRoom test (vitest): swaps in a MockWebSocket double and asserts the
   empty/connecting state, server-pushed messages render, presence count

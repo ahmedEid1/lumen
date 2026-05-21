@@ -224,9 +224,19 @@ async def count_lessons_in_course(db: AsyncSession, course_id: str) -> int:
 
 
 async def count_completed_lessons(db: AsyncSession, enrollment_id: str) -> int:
+    """Count completions for lessons that still exist.
+
+    A naive ``COUNT(LessonProgress)`` over-reports when lessons are
+    soft-deleted after the learner completed them, which can push
+    ``progress_pct`` past 100% and trigger spurious certificates.
+    """
     res = await db.execute(
-        select(func.count(LessonProgress.id)).where(
-            LessonProgress.enrollment_id == enrollment_id, LessonProgress.completed_at.is_not(None)
+        select(func.count(LessonProgress.id))
+        .join(Lesson, Lesson.id == LessonProgress.lesson_id)
+        .where(
+            LessonProgress.enrollment_id == enrollment_id,
+            LessonProgress.completed_at.is_not(None),
+            Lesson.deleted_at.is_(None),
         )
     )
     return int(res.scalar_one())

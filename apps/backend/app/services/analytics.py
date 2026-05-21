@@ -84,7 +84,13 @@ async def for_course(db: AsyncSession, *, course_id: str, viewer: User) -> Cours
                     LessonProgress.completed_at.is_not(None),
                 ),
             )
-            .where(Enrollment.course_id == course.id)
+            # Same soft-delete guard as the cohort query — completions for
+            # removed lessons must not skew the average.
+            .outerjoin(Lesson, Lesson.id == LessonProgress.lesson_id)
+            .where(
+                Enrollment.course_id == course.id,
+                (LessonProgress.id.is_(None)) | (Lesson.deleted_at.is_(None)),
+            )
             .group_by(Enrollment.id)
         )
         ratios = [float(done) / total_lessons for _, done in completed_per_enrollment.all()]
@@ -172,7 +178,13 @@ async def cohort_for_course(db: AsyncSession, *, course_id: str, viewer: User) -
                     LessonProgress.completed_at.is_not(None),
                 ),
             )
-            .where(Enrollment.course_id == course.id)
+            # Don't count completions for lessons that have been soft-deleted
+            # — otherwise pct can exceed 100% when curriculum shrinks.
+            .outerjoin(Lesson, Lesson.id == LessonProgress.lesson_id)
+            .where(
+                Enrollment.course_id == course.id,
+                (LessonProgress.id.is_(None)) | (Lesson.deleted_at.is_(None)),
+            )
             .group_by(Enrollment.id)
             .order_by(Enrollment.created_at.desc())
             .limit(500)
