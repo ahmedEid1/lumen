@@ -150,6 +150,7 @@ async def duplicate_course(db: AsyncSession, *, source_id: str, owner: User) -> 
                     type=src_lesson.type,
                     order=src_lesson.order,
                     duration_seconds=src_lesson.duration_seconds,
+                    is_preview=src_lesson.is_preview,
                     data=dict(src_lesson.data or {}),
                 )
             )
@@ -251,6 +252,7 @@ async def create_lesson(
         type=LessonType(payload.type.value),
         order=order,
         duration_seconds=payload.duration_seconds,
+        is_preview=payload.is_preview,
         data=payload.data.model_dump(),
     )
     db.add(lesson)
@@ -266,6 +268,8 @@ async def update_lesson(
         lesson.title = payload.title
     if payload.duration_seconds is not None:
         lesson.duration_seconds = payload.duration_seconds
+    if payload.is_preview is not None:
+        lesson.is_preview = payload.is_preview
     if payload.data is not None:
         if payload.data.type != lesson.type.value:
             raise ValidationAppError("Cannot change lesson type via update", code="lesson.type_immutable")

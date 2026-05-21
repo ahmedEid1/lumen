@@ -137,6 +137,7 @@ class Lesson(IdMixin, TimestampMixin, Base):
     order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     type: Mapped[LessonType] = mapped_column(String(20), nullable=False)
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_preview: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

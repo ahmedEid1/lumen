@@ -8,6 +8,7 @@ from app.api.deps import CurrentUser, DBSession, client_ip, user_agent
 from app.core.config import get_settings
 from app.core.errors import UnauthorizedError
 from app.schemas.auth import (
+    EmailVerifyConfirm,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -17,6 +18,7 @@ from app.schemas.auth import (
 from app.schemas.common import OkResponse
 from app.schemas.user import UserOut
 from app.services import auth as auth_service
+from app.services import email_verify as verify_service
 from app.services import password_reset as reset_service
 
 router = APIRouter()
@@ -53,6 +55,7 @@ def _clear_auth_cookies(response: Response) -> None:
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest, db: DBSession, request: Request) -> UserOut:
     user = await auth_service.register(db, payload, ip=client_ip(request), user_agent=user_agent(request))
+    verify_service.queue_verification_email(user=user)
     return UserOut.model_validate(user)
 
 
@@ -153,4 +156,18 @@ async def password_reset_request(payload: PasswordResetRequest, db: DBSession) -
 @router.post("/password-reset/confirm", response_model=OkResponse)
 async def password_reset_confirm(payload: PasswordResetConfirm, db: DBSession) -> OkResponse:
     await reset_service.confirm_reset(db, token=payload.token, new_password=payload.password)
+    return OkResponse()
+
+
+@router.post("/verify/request", response_model=OkResponse)
+async def verify_request(user: CurrentUser) -> OkResponse:
+    """Resend the email-verification link for the current user."""
+    if user.email_verified_at is None:
+        verify_service.queue_verification_email(user=user)
+    return OkResponse()
+
+
+@router.post("/verify/confirm", response_model=OkResponse)
+async def verify_confirm(payload: EmailVerifyConfirm, db: DBSession) -> OkResponse:
+    await verify_service.confirm(db, token=payload.token)
     return OkResponse()

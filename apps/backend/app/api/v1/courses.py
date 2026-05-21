@@ -248,6 +248,35 @@ async def reorder_lessons(
     return OkResponse()
 
 
+@router.get("/lessons/{lesson_id}", response_model=LessonOut)
+async def get_lesson(lesson_id: str, viewer: OptionalUser, db: DBSession) -> LessonOut:
+    """Fetch a lesson for playback.
+
+    Allowed when the viewer is enrolled, the course owner, an admin, or when
+    the lesson is flagged ``is_preview`` (free preview).
+    """
+    from app.core.errors import ForbiddenError, NotFoundError, UnauthorizedError
+
+    lesson = await courses_repo.get_lesson(db, lesson_id)
+    if lesson is None or lesson.deleted_at is not None:
+        raise NotFoundError("Lesson not found", code="lesson.not_found")
+    mod = await courses_repo.get_module(db, lesson.module_id)
+    course = await courses_repo.get_course(db, mod.course_id) if mod else None
+    if course is None:
+        raise NotFoundError("Course not found", code="course.not_found")
+
+    if lesson.is_preview and course.status.value == "published":
+        return LessonOut.model_validate(lesson)
+    if viewer is None:
+        raise UnauthorizedError("Authentication required", code="auth.required")
+    if viewer.is_admin() or course.owner_id == viewer.id:
+        return LessonOut.model_validate(lesson)
+    enrollment = await courses_repo.get_enrollment(db, user_id=viewer.id, course_id=course.id)
+    if not enrollment:
+        raise ForbiddenError("Enroll first", code="lesson.enroll_first")
+    return LessonOut.model_validate(lesson)
+
+
 # ---------- Analytics ----------
 
 

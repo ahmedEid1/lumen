@@ -1,4 +1,5 @@
 from app.schemas.auth import (
+    EmailVerifyConfirm,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,

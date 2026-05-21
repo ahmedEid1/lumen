@@ -99,6 +99,55 @@ async def export_my_data(user: CurrentUser, db: DBSession) -> dict:
     }
 
 
+from datetime import datetime as _dt
+from pydantic import ConfigDict
+from sqlalchemy import desc, select
+
+
+class SessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    issued_at: _dt
+    expires_at: _dt
+    revoked_at: _dt | None = None
+    user_agent: str | None = None
+    ip_address: str | None = None
+
+
+@router.get("/me/sessions", response_model=list[SessionOut])
+async def list_my_sessions(user: CurrentUser, db: DBSession) -> list[SessionOut]:
+    from app.models.user import RefreshToken
+
+    rows = (
+        await db.execute(
+            select(RefreshToken)
+            .where(RefreshToken.user_id == user.id)
+            .order_by(desc(RefreshToken.issued_at))
+            .limit(50)
+        )
+    ).scalars().all()
+    return [SessionOut.model_validate(r) for r in rows]
+
+
+@router.delete("/me/sessions", response_model=OkResponse)
+async def revoke_all_my_sessions(user: CurrentUser, db: DBSession) -> OkResponse:
+    await users_repo.revoke_all_refresh_tokens(db, user.id)
+    return OkResponse()
+
+
+@router.delete("/me/sessions/{session_id}", response_model=OkResponse)
+async def revoke_my_session(session_id: str, user: CurrentUser, db: DBSession) -> OkResponse:
+    from app.models.user import RefreshToken
+
+    row = await db.get(RefreshToken, session_id)
+    if not row or row.user_id != user.id:
+        raise ValidationAppError("Session not found", code="session.not_found")
+    if row.revoked_at is None:
+        await users_repo.revoke_refresh_token(db, row)
+    return OkResponse()
+
+
 @router.delete("/me", response_model=OkResponse)
 async def delete_me(
     payload: DeleteAccountRequest, user: CurrentUser, db: DBSession, request: Request

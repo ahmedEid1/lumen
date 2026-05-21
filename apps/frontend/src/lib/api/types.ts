@@ -60,6 +60,7 @@ export interface LessonOut {
   type: LessonType;
   order: number;
   duration_seconds: number | null;
+  is_preview: boolean;
   data: Record<string, unknown>;
 }
 

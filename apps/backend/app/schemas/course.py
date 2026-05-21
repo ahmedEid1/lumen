@@ -101,12 +101,14 @@ class LessonCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     type: LessonType
     duration_seconds: int | None = Field(default=None, ge=0, le=60 * 60 * 8)
+    is_preview: bool = False
     data: LessonData
 
 
 class LessonUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     duration_seconds: int | None = Field(default=None, ge=0, le=60 * 60 * 8)
+    is_preview: bool | None = None
     data: LessonData | None = None
 
 
@@ -117,6 +119,7 @@ class LessonOut(BaseModel):
     title: str
     type: LessonType
     order: int
+    is_preview: bool = False
     duration_seconds: int | None = None
     data: dict[str, Any]
 

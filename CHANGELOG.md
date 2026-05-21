@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 7)
+- Email verification flow: register queues a verification email, `POST
+  /api/v1/auth/verify/request` resends, `POST /api/v1/auth/verify/confirm`
+  marks `email_verified_at`. Tokens are stateless JWTs bound to the current
+  email; idempotent on replay; rejected after email change. Profile page
+  shows a verified/unverified badge and a Resend button.
+- `/verify-email` page handles the link landing flow.
+- Lesson free-preview flag: `is_preview` on lessons; published-course
+  preview lessons are fetchable anonymously via `GET
+  /api/v1/courses/lessons/{lesson_id}`. Course detail tags them with a
+  "free preview" badge; lesson editor exposes the toggle.
+- Active sessions: `GET /api/v1/users/me/sessions`,
+  `DELETE /api/v1/users/me/sessions` (sign out everywhere),
+  `DELETE /api/v1/users/me/sessions/{id}` (revoke one).
+
 ### Added (iteration 6)
 - `GET /api/v1/courses/{course_id}/analytics` returns per-course metrics
   (enrollments, completions, completion rate, avg rating + count, avg

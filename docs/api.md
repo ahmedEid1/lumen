@@ -122,19 +122,23 @@ The WebSocket path used by the client is `/api/v1/chat/ws/{course_id}?token=...`
 OpenAPI at `/openapi.json` is the source of truth; this list points to the resources you'll actually use.
 
 ### Auth (`/api/v1/auth`)
-- `POST /register` — create account
+- `POST /register` — create account; queues an email-verification link
 - `POST /login` — exchange credentials for an access token + refresh cookie
 - `POST /refresh` — rotate the refresh token (reuse is detected and revokes the chain)
 - `POST /logout` — clear cookies + revoke the presented refresh token
 - `GET  /me` — current authenticated user
 - `POST /password-reset/request` — always 200 (does not leak email existence)
 - `POST /password-reset/confirm` — single-use token bound to the current password hash
+- `POST /verify/request` — resend the email-verification link for the current user
+- `POST /verify/confirm` — confirm an email-verification token (idempotent)
 
 ### Users (`/api/v1/users`)
 - `GET /me`, `PATCH /me` — view and edit profile
 - `POST /me/change-password` — verifies current password, revokes all refresh tokens
 - `GET /me/export` — lightweight GDPR export (profile + counts)
 - `DELETE /me` — deactivate, scramble PII, revoke refresh tokens; requires password
+- `GET /me/sessions`, `DELETE /me/sessions`, `DELETE /me/sessions/{id}` —
+  list / revoke-all / revoke-one active refresh-token sessions
 
 ### Catalog (`/api/v1`)
 - `GET /subjects` — list with `total_courses`
@@ -149,10 +153,14 @@ OpenAPI at `/openapi.json` is the source of truth; this list points to the resou
 - `GET  /mine` — instructor's own courses
 - `GET  /{slug-or-id}` — detail; owners and admins see drafts
 - `PATCH /{course_id}`, `DELETE /{course_id}` — owner/admin only
+- `POST /{course_id}/duplicate` — clone modules + lessons as a draft owned by the caller (any instructor)
+- `GET /{course_id}/analytics` — owner/admin only; per-course metrics
 - `POST /{course_id}/modules`, `PATCH /modules/{module_id}`, `DELETE /modules/{module_id}`
 - `POST /{course_id}/modules/order` — reorder via id→order map
 - `POST /modules/{module_id}/lessons`, `PATCH /lessons/{lesson_id}`, `DELETE /lessons/{lesson_id}`
 - `POST /modules/{module_id}/lessons/order`
+- `GET  /lessons/{lesson_id}` — fetch a lesson; allowed for owner/admin/enrolled,
+  or anonymous when `is_preview` is true and the course is published
 
 Lesson payload is discriminated by `type` (`text` | `video` | `image` | `file` | `quiz`). Quiz schemas validate that choice-based questions have answer_keys subset of the choice ids.
 

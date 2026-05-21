@@ -119,11 +119,10 @@ export default function CourseDetailPage({ params }: { params: Promise<{ slug: s
                             key={lesson.id}
                             className="flex items-center justify-between rounded px-2 py-1 hover:bg-muted/50"
                           >
-                            <span>
-                              <Badge variant="muted" className="mr-2">
-                                {lesson.type}
-                              </Badge>
-                              {lesson.title}
+                            <span className="flex items-center gap-2">
+                              <Badge variant="muted">{lesson.type}</Badge>
+                              {lesson.is_preview && <Badge variant="secondary">free preview</Badge>}
+                              <span>{lesson.title}</span>
                             </span>
                             {lesson.duration_seconds ? (
                               <span className="text-xs text-muted-foreground">

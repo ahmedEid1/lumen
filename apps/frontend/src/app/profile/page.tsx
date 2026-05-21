@@ -104,9 +104,34 @@ export default function ProfilePage() {
             <Badge variant="muted" className="capitalize">
               {user.role}
             </Badge>
+            {user.email_verified_at ? (
+              <Badge variant="secondary">verified</Badge>
+            ) : (
+              <Badge variant="outline">unverified</Badge>
+            )}
           </div>
         </div>
       </header>
+
+      {!user.email_verified_at && (
+        <div className="flex items-center justify-between rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <p>Your email isn&apos;t verified yet — check your inbox or resend the link.</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              try {
+                await api("/api/v1/auth/verify/request", { method: "POST" });
+                toast.success("Verification email sent");
+              } catch (e: any) {
+                toast.error(e?.message ?? "Could not send verification email");
+              }
+            }}
+          >
+            Resend
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader>

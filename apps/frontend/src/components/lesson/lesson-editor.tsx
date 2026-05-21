@@ -35,6 +35,7 @@ export function LessonEditor({ courseId, moduleId, lesson, newType, onSaved, onD
   const type = (lesson?.type ?? newType ?? "text") as LessonType;
   const [title, setTitle] = useState(lesson?.title ?? "");
   const [duration, setDuration] = useState(lesson?.duration_seconds ?? 0);
+  const [isPreview, setIsPreview] = useState<boolean>(lesson?.is_preview ?? false);
   const initial = useMemo(() => normalizeData(type, lesson?.data ?? {}), [type, lesson]);
   const [data, setData] = useState<any>(initial);
   const [saving, setSaving] = useState(false);
@@ -45,12 +46,14 @@ export function LessonEditor({ courseId, moduleId, lesson, newType, onSaved, onD
         title,
         duration_seconds: duration || undefined,
         type,
+        is_preview: isPreview,
         data: { type, ...stripType(data) },
       };
       if (lesson) {
         await Courses.patchLesson(lesson.id, {
           title: payload.title,
           duration_seconds: payload.duration_seconds,
+          is_preview: payload.is_preview,
           data: payload.data,
         });
       } else {
@@ -108,6 +111,17 @@ export function LessonEditor({ courseId, moduleId, lesson, newType, onSaved, onD
             />
           </div>
         </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={isPreview}
+            onChange={(e) => setIsPreview(e.target.checked)}
+            className="h-4 w-4 rounded border-input"
+          />
+          <span>
+            Free preview (visible to non-enrolled visitors when the course is published)
+          </span>
+        </label>
 
         {type === "text" && (
           <div className="space-y-1.5">
