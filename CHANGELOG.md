@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs (iteration 72)
+- **ADR-0012 documenting the cache + observability stack.** Pairs
+  the rationale for the catalog cache headers (iter 66), the JSON-
+  only CSP (iter 70), and the OTel wire-up (iter 71). All three
+  share the same "cheap when off, useful when on" shape and the
+  same "removing this looks safe but isn't" review hazard — so
+  documenting them together makes the future "is this load-bearing?"
+  question answerable from the docs alone.
+
 ### Added (iteration 71)
 - **OpenTelemetry tracing wired up.** The OTel dependencies and
   settings (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`) have
