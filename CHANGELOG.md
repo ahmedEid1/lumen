@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (simplify iter 20) — courses router refactor via simplifier
+Fourth dispatch of the `code-simplifier` plugin agent. Applied
+all 5 of its recommendations on `apps/backend/app/api/v1/courses.py`
+(400 → 428 lines; helpers add lines but each call site shrinks).
+
+- **Hoisted four deferred imports** (`hashlib`, `csv`, `io`,
+  `starlette.responses.Response`) from inside three handlers
+  to the module's top-level import block. Each was running
+  on every request hit.
+- **`_course_detail_etag(course, stats, ...)` helper** extracts
+  the 14-line fingerprint-and-hash block out of `get_course`,
+  so the handler reads as "load → ETag → render" instead of
+  burying the cache key in a `"|".join([...])` literal.
+- **`is_bookmarked` via `db.scalar(...)`** instead of
+  `db.execute(...).first() is not None`. Same SQL, one fewer
+  wrapper layer.
+- **`_load_course_with_stats(db, course_id)` helper** replaces
+  the `get_course → 404 → stats_for_courses(...).get(...)`
+  trio in `create_course` and `duplicate_course`. `update_course`
+  keeps its current form because it pairs the load with an
+  enrollment lookup that diverges from the helper's contract.
+- **`_CACHE_PRIVATE` / `_CACHE_PUBLIC_60` / `_VARY_AUTH`
+  constants** at module scope. The 304 branch no longer
+  round-trips through `response.headers["Cache-Control"]` to
+  rediscover the value the if/else just set — it uses the
+  derived `cache_control` variable directly, removing an
+  implicit ordering dependency.
+
+Behaviour fully preserved: same endpoint URLs, same response
+shapes, same ETag (hash of the same fingerprint), same 304
+empty-body posture. Backend pytest 321/321.
+
 ### Changed (simplify iter 19) — purge unused `# type: ignore` comments
 Same shape as iter 3's noqa cleanup. `mypy` already runs with
 `warn_unused_ignores = true` per `pyproject.toml`, but the

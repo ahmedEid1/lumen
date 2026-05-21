@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import csv
+import hashlib
+import io
 from datetime import datetime
 
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
+from starlette.responses import Response as StarletteResponse
 
 from app.api.deps import DBSession, OptionalUser, RequireInstructor
 from app.api.v1 import _builders
 from app.core.errors import ForbiddenError, NotFoundError, UnauthorizedError
 from app.models.bookmark import Bookmark
+from app.models.course import Course
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
 from app.schemas.course import (
@@ -34,16 +39,58 @@ from app.services import enrollment as enrollment_service
 router = APIRouter()
 
 
+# Auth-aware Cache-Control values used by the course-detail ETag flow.
+# Anonymous reads can be short-cached publicly; authed reads carry
+# per-viewer fields and must stay private.
+_CACHE_PRIVATE = "private, max-age=0, must-revalidate"
+_CACHE_PUBLIC_60 = "public, max-age=60, must-revalidate"
+_VARY_AUTH = "Accept-Encoding, Authorization, Cookie"
+
+
+async def _load_course_with_stats(
+    db: DBSession, course_id: str
+) -> tuple[Course, dict]:
+    """Refresh + 404 + stats — the trio every write-then-render endpoint needs."""
+    course = await courses_repo.get_course(db, course_id)
+    if course is None:
+        raise NotFoundError("Course not found", code="course.not_found")
+    stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
+    return course, stats
+
+
+def _course_detail_etag(
+    course: Course,
+    stats: dict,
+    *,
+    is_enrolled: bool,
+    is_bookmarked: bool,
+    pct: float,
+    done_count: int,
+) -> str:
+    """Weak ETag covering the per-viewer detail body."""
+    fingerprint = "|".join(
+        [
+            course.id,
+            course.updated_at.isoformat() if course.updated_at else "",
+            "1" if is_enrolled else "0",
+            "1" if is_bookmarked else "0",
+            f"{pct:.1f}",
+            str(done_count),
+            str(stats.get("modules_count", 0)),
+            str(stats.get("enrollments_count", 0)),
+            f"{stats.get('avg_rating') or 0:.2f}",
+        ]
+    )
+    return 'W/"' + hashlib.sha256(fingerprint.encode()).hexdigest()[:32] + '"'
+
+
 # ---------- Course CRUD ----------
 
 
 @router.post("", response_model=CourseListItem, status_code=status.HTTP_201_CREATED)
 async def create_course(payload: CourseCreate, user: RequireInstructor, db: DBSession) -> CourseListItem:
     course = await courses_service.create_course(db, user, payload)
-    refreshed = await courses_repo.get_course(db, course.id)
-    if refreshed is None:
-        raise NotFoundError("Course not found", code="course.not_found")
-    stats = (await courses_repo.stats_for_courses(db, [refreshed.id])).get(refreshed.id, {})
+    refreshed, stats = await _load_course_with_stats(db, course.id)
     return _builders.list_item(refreshed, stats)
 
 
@@ -80,12 +127,12 @@ async def get_course(
             pct = await enrollment_service.progress_pct(db, enrollment=enrollment)
             done = await courses_repo.completed_lesson_ids(db, enrollment.id)
         is_bookmarked = (
-            await db.execute(
+            await db.scalar(
                 select(Bookmark.id).where(
                     Bookmark.user_id == viewer.id, Bookmark.course_id == course.id
                 )
             )
-        ).first() is not None
+        ) is not None
 
     # Weak ETag covering everything that goes into the response body:
     # the course row's update timestamp + the viewer-derived flags.
@@ -93,22 +140,14 @@ async def get_course(
     # If-None-Match shortcut saves a few KB of JSON per repeat hit —
     # huge cumulative win for clients (mobile, returning learner)
     # that poll the detail page.
-    import hashlib
-
-    fingerprint = "|".join(
-        [
-            course.id,
-            course.updated_at.isoformat() if course.updated_at else "",
-            "1" if is_enrolled else "0",
-            "1" if is_bookmarked else "0",
-            f"{pct:.1f}",
-            str(len(done)),
-            str(stats.get("modules_count", 0)),
-            str(stats.get("enrollments_count", 0)),
-            f"{stats.get('avg_rating') or 0:.2f}",
-        ]
+    etag = _course_detail_etag(
+        course,
+        stats,
+        is_enrolled=is_enrolled,
+        is_bookmarked=is_bookmarked,
+        pct=pct,
+        done_count=len(done),
     )
-    etag = 'W/"' + hashlib.sha256(fingerprint.encode()).hexdigest()[:32] + '"'
     if_none_match = request.headers.get("if-none-match", "")
     # Auth-aware caching headers. The body carries per-viewer fields
     # (is_enrolled, is_bookmarked, completed lessons) so:
@@ -117,11 +156,9 @@ async def get_course(
     # Vary makes the difference explicit so a CDN cannot serve a
     # cached anonymous body to an authenticated request with the same
     # URL (or vice versa).
-    if viewer is not None:
-        response.headers["Cache-Control"] = "private, max-age=0, must-revalidate"
-    else:
-        response.headers["Cache-Control"] = "public, max-age=60, must-revalidate"
-    response.headers["Vary"] = "Accept-Encoding, Authorization, Cookie"
+    cache_control = _CACHE_PRIVATE if viewer is not None else _CACHE_PUBLIC_60
+    response.headers["Cache-Control"] = cache_control
+    response.headers["Vary"] = _VARY_AUTH
     if if_none_match == etag:
         # Status 304 forbids a body. `HTTPException(304)` would
         # render as a JSON error envelope — non-empty, violating
@@ -130,14 +167,12 @@ async def get_course(
         # is the empty bytestring. The Cache-Control / Vary headers
         # set on ``response`` above also don't survive a raise,
         # so we re-emit them on the 304 here.
-        from starlette.responses import Response as _StarletteResponse
-
-        return _StarletteResponse(
+        return StarletteResponse(
             status_code=304,
             headers={
                 "ETag": etag,
-                "Cache-Control": response.headers["Cache-Control"],
-                "Vary": response.headers["Vary"],
+                "Cache-Control": cache_control,
+                "Vary": _VARY_AUTH,
             },
         )
     response.headers["ETag"] = etag
@@ -349,9 +384,6 @@ async def course_cohort_csv(
     We hand-format CSV rather than pull in a dependency — it's six
     columns of scalars, escaping handled by Python's stdlib ``csv``.
     """
-    import csv
-    import io
-
     rows = await analytics_service.cohort_for_course(
         db, course_id=course_id, viewer=user
     )
@@ -392,8 +424,5 @@ async def duplicate_course(
     course_id: str, user: RequireInstructor, db: DBSession
 ) -> CourseListItem:
     course = await courses_service.duplicate_course(db, source_id=course_id, owner=user)
-    refreshed = await courses_repo.get_course(db, course.id)
-    if refreshed is None:
-        raise NotFoundError("Course not found", code="course.not_found")
-    stats = (await courses_repo.stats_for_courses(db, [refreshed.id])).get(refreshed.id, {})
+    refreshed, stats = await _load_course_with_stats(db, course.id)
     return _builders.list_item(refreshed, stats)
