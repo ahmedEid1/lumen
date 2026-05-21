@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Verified (iteration 114) — manual Chrome MCP smoke pass
+Drove a real browser through the full stopping-criteria smoke
+list with the seeded credentials:
+
+- **Signed-out catalog browse** — `/courses` renders 5 courses
+  including the seeded "FastAPI from Zero" (plus four
+  e2e-residue courses) with all subject / tag filters present.
+- **Login for all three roles** — student / teacher / admin
+  via `POST /api/v1/auth/login` followed by RSC navigation;
+  dashboards render the expected role-specific UI (student
+  sees enrolled-courses, teacher sees Studio nav, admin sees
+  Admin nav).
+- **Learner enroll → complete a lesson** — `/courses/fastapi-
+  from-zero` shows "Continue learning" (already enrolled);
+  `/learn/fastapi-from-zero` renders the player with
+  outline + Mark complete & continue; after click,
+  `GET /me/enrollments` shows `progress_pct: 40` for the
+  seeded student.
+- **Instructor cohort CSV** — `GET /api/v1/courses/{id}/students.csv`
+  for the teacher-owned "FastAPI from Zero" returns 143
+  bytes starting with the
+  `user_id,full_name,enrolled_at,completed_…` header row.
+- **Admin audit-log paging** — `/admin/audit` renders 66
+  rows (current dataset fits in one page; pagination
+  controls aren't shown because there's nothing to page
+  through, not because they're broken).
+- **Language switcher to Arabic and back** — click flips
+  `<html lang="ar" dir="rtl">`; second click returns to
+  `lang="en" dir="ltr"`.
+- **Dark-mode toggle** — Theme toggle adds `class="dark"` on
+  `<html>` and the body background flips to `rgb(9, 14, 26)`.
+
 ### Verified (iteration 113) — 60s idle log check is clean
 - `docker compose logs api worker web` captured over a 60s
   idle window after a fresh down + up cycle: 111 log lines
