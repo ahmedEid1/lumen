@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 112) — MinIO healthcheck race + IPv6 pin
+- `docker compose down && up -d` failed
+  `dependency failed to start: container lumen-s3-1 is unhealthy`
+  on a cold boot: MinIO takes ~15-20s to bind 9000 but the
+  default 15s `start_period` was too tight — the first healthcheck
+  fires inside that window and gets `curl: (7) Failed to connect`,
+  cascading to `api`'s dependency check and aborting the up.
+  Also the healthcheck used `http://localhost:9000` which has the
+  same IPv4/IPv6 trap iter 98 hit on Meilisearch.
+- **Fix**: `start_period: 30s` for s3 + healthcheck pinned to
+  `http://127.0.0.1:9000`. Verified by a full `down` + `up -d`
+  cycle: all 10 services come up healthy in one pass, api and
+  web both reachable, migrations at head.
+
 ### Fixed (iteration 111) — CSRF tests use httpx 0.28-compatible header pop
 - The two CSRF tests that exercise the no-Origin rejection path
   (`test_cookie_post_without_origin_is_rejected`,

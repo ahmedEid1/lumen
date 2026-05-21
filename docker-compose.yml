@@ -88,7 +88,13 @@ services:
       - s3-data:/data
     healthcheck:
       <<: *healthcheck-defaults
-      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      # Iter 112: MinIO needs ~10-20s on first boot before it binds
+      # port 9000; the default 15s start_period sometimes trips
+      # `dependency failed to start` for s3-init / api during a
+      # cold `docker compose up`. Bump it so the first-boot race
+      # stops being flaky.
+      start_period: 30s
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
     ports:
       - "9000:9000"
       - "9001:9001"
