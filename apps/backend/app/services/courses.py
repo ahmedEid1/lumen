@@ -138,14 +138,26 @@ async def duplicate_course(db: AsyncSession, *, source_id: str, owner: User) -> 
     """Clone a course (modules + lessons) as a draft owned by ``owner``.
 
     The caller does not need to own the source — instructors can copy any
-    published course to remix it. Drafts are not visible to anyone but the
-    owner / admins.
+    *published* course to remix it. Drafts and archived courses are
+    private to their owner/admins; duplicating them from another account
+    would exfiltrate unreleased content based on knowing the course id.
     """
     if not owner.is_instructor_or_admin():
         raise ForbiddenError("Only instructors can duplicate courses", code="courses.forbidden")
 
     source = await courses_repo.get_course(db, source_id, with_modules=True)
     if not source:
+        raise NotFoundError("Course not found", code="course.not_found")
+    # A non-owner can only duplicate a published source. Anything else is
+    # the source author's private working material — surfacing it via
+    # duplicate would defeat the visibility rules enforced by every other
+    # course endpoint. Admins can duplicate anything; owners can
+    # duplicate their own draft/archived material as a remixing workflow.
+    if source.status != CourseStatus.published and not (
+        owner.is_admin() or source.owner_id == owner.id
+    ):
+        # 404 (not 403) to avoid confirming the course exists at all to
+        # a caller who shouldn't see it.
         raise NotFoundError("Course not found", code="course.not_found")
 
     new_title = f"{source.title} (copy)"

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 46)
+- **`duplicate_course` no longer exposes other instructors' drafts.**
+  The docstring claimed *"instructors can copy any **published**
+  course to remix it"* but the code loaded the source via
+  `courses_repo.get_course` (filters only `deleted_at`), so an
+  instructor who knew or guessed a draft's id could duplicate
+  another author's unreleased material into their own account —
+  every module and lesson. Catalog / detail / search all already
+  hide non-published courses from non-owners; duplicate now matches:
+  published is duplicable by any instructor, drafts and archived
+  are duplicable only by the owner or an admin. Non-owner attempts
+  return 404 (not 403) so we don't confirm existence to a caller
+  who shouldn't see it. Covered by
+  `tests/test_duplicate_visibility.py` (5 tests: other-instructor
+  blocked on draft + on archived, owner can dupe own draft, admin
+  can dupe anyone, and the original published-source happy path
+  still works).
+
 ### Fixed (iteration 45)
 - **Cert PDF download survives course soft-delete.**
   `download_certificate` loaded the course via
