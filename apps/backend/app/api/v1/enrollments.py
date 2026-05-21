@@ -72,7 +72,7 @@ async def mark_lesson_progress(
     lesson_id: str, payload: ProgressUpdate, user: CurrentUser, db: DBSession
 ) -> dict:
     lesson = await courses_repo.get_lesson(db, lesson_id)
-    if not lesson:
+    if not lesson or lesson.deleted_at is not None:
         raise NotFoundError("Lesson not found", code="lesson.not_found")
     enrollment, lp, pct = await enrollment_service.mark_lesson(
         db, user=user, lesson=lesson, completed=payload.completed, payload=payload.payload
@@ -127,7 +127,7 @@ async def submit_quiz(
     ``LessonProgress``. Passing the quiz also marks the lesson complete.
     """
     lesson = await courses_repo.get_lesson(db, lesson_id)
-    if not lesson:
+    if not lesson or lesson.deleted_at is not None:
         raise NotFoundError("Lesson not found", code="lesson.not_found")
     if lesson.type != LessonType.quiz:
         raise ValidationAppError("Lesson is not a quiz", code="quiz.not_a_quiz")

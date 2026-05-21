@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 27)
+- **Progress writes against a soft-deleted lesson now 404 cleanly.**
+  `POST /me/progress/lessons/{id}` and the quiz submission both routed
+  through `courses_repo.get_lesson`, which doesn't filter `deleted_at`.
+  An enrolled learner holding a stale lesson id (cached SPA state,
+  request replay, etc.) could persist a `LessonProgress` row pointing
+  at a removed lesson — the row didn't count toward progress (the count
+  query is already filtered, iteration 22) but it cluttered the DB and
+  returned a misleading 200. Both endpoints now reject deleted lessons
+  with `lesson.not_found`. Two regression tests in
+  `test_deleted_lesson_writes.py`.
+
 ### Fixed (iteration 26)
 - **The learner dashboard no longer renders enrollments to soft-deleted
   courses.** `list_enrollments_for_user` returned every row regardless of
