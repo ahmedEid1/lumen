@@ -7,7 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed (iteration 112) — MinIO healthcheck race + IPv6 pin
+### Verified (iteration 113) — 60s idle log check is clean
+- `docker compose logs api worker web` captured over a 60s
+  idle window after a fresh down + up cycle: 111 log lines
+  total (mostly the api healthcheck heartbeat at
+  ``/api/v1/health/live``), 0 lines matching
+  `(ERROR|Exception|Traceback|FATAL|CRITICAL)`.
+- Two pre-existing warning lines surfaced and are recorded
+  here as known noise, not actionable:
+  - FastAPI's `ORJSONResponse is deprecated` (printed once
+    on the api's first request after start; the codebase
+    has two remaining `ORJSONResponse(...)` call sites in
+    `app/main.py` that should migrate eventually).
+  - Celery's `SecurityWarning: You're running the worker
+    with superuser privileges` (true in dev because the
+    container runs as root; prod images run as a non-root
+    user).
+- This satisfies the stopping criterion "No new errors in
+  `docker compose logs api worker web` over 60s of idle".
 - `docker compose down && up -d` failed
   `dependency failed to start: container lumen-s3-1 is unhealthy`
   on a cold boot: MinIO takes ~15-20s to bind 9000 but the
