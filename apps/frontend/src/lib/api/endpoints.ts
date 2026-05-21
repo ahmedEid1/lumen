@@ -114,6 +114,19 @@ export const Courses = {
 
   duplicate: (courseId: string, token?: string) =>
     api<CourseListItem>(`/api/v1/courses/${courseId}/duplicate`, { method: "POST", token }),
+
+  cohort: (courseId: string, token?: string) =>
+    api<
+      Array<{
+        user_id: string;
+        full_name: string;
+        avatar_url: string | null;
+        enrolled_at: string;
+        completed_at: string | null;
+        progress_pct: number;
+        certificate_id: string | null;
+      }>
+    >(`/api/v1/courses/${courseId}/students`, { token }),
 };
 
 // ---------- Enrollments ----------

@@ -23,14 +23,29 @@
 - CORS: allow-list of front-end origin only.
 
 ### Auth
-- Password policy: min 12 chars, against haveibeenpwned k-anonymity API (optional, configurable).
+- Password policy: min 12 chars, mixed character classes; HIBP k-anonymity check optional.
 - Lockout: 5 failed logins → 15 min IP+account cooldown.
-- Refresh tokens single-use; reuse triggers full chain revocation and security email.
+- Refresh tokens single-use; reuse triggers full chain revocation. Active
+  sessions are listed at `GET /api/v1/users/me/sessions`; users can revoke
+  one (`DELETE /me/sessions/{id}`) or all (`DELETE /me/sessions`).
+- **Password change** (`POST /me/change-password`) requires the current
+  password and revokes every refresh token to force re-auth everywhere.
+- **Password reset** (`POST /auth/password-reset/request|confirm`) uses a
+  stateless JWT bound to the user's current password hash, so each link is
+  single-use and a successful reset invalidates outstanding links.
+- **Email verification** (`POST /auth/verify/request|confirm`) uses a
+  stateless JWT bound to the user's current email — changing the email
+  invalidates outstanding tokens; replays are idempotent.
 - Optional 2FA (TOTP) post-MVP — schema already supports it.
 
 ### Data
 - PII columns marked in models; logging filter redacts emails by default.
-- GDPR endpoints: `GET /api/v1/users/me/export` (background job → email link) and `DELETE /api/v1/users/me`.
+- GDPR endpoints: `GET /api/v1/users/me/export` and `DELETE /api/v1/users/me`
+  (password required; scrambles PII, deactivates the account, revokes all
+  refresh tokens).
+- Public **certificate verification** at `GET /api/v1/certificates/verify/{id}`
+  intentionally returns only the learner's *display name* and the course
+  metadata — never the email or any other PII.
 - Backups encrypted at rest (operator-provided).
 
 ### Application
@@ -43,6 +58,10 @@
 - Never in repo; `.env` is git-ignored; production secrets via the operator's secret store.
 - `gitleaks` runs on pre-commit and CI.
 - Signing keys rotated every 90 d (planned; manual via `make rotate-jwt`).
+- **Startup guard**: `Settings.assert_production_ready()` refuses to boot
+  when `ENV=production` if `SECRET_KEY`, `JWT_SECRET`, or
+  `S3_SECRET_ACCESS_KEY` are still the dev defaults, or if `CORS_ORIGINS`
+  contains `localhost`. Covered by `tests/test_config_guard.py`.
 
 ### Dependencies
 - Renovate weekly; Dependabot security alerts.

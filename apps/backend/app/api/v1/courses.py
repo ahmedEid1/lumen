@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
@@ -242,6 +244,29 @@ async def course_analytics(
 ) -> CourseAnalyticsOut:
     data = await analytics_service.for_course(db, course_id=course_id, viewer=user)
     return CourseAnalyticsOut.model_validate(data)
+
+
+# ---------- Cohort ----------
+
+
+class CohortRowOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: str
+    full_name: str
+    avatar_url: str | None = None
+    enrolled_at: datetime
+    completed_at: datetime | None = None
+    progress_pct: float
+    certificate_id: str | None = None
+
+
+@router.get("/{course_id}/students", response_model=list[CohortRowOut])
+async def course_cohort(
+    course_id: str, user: RequireInstructor, db: DBSession
+) -> list[CohortRowOut]:
+    rows = await analytics_service.cohort_for_course(db, course_id=course_id, viewer=user)
+    return [CohortRowOut.model_validate(r) for r in rows]
 
 
 # ---------- Duplication ----------

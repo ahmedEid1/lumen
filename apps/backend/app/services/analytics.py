@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.errors import ForbiddenError, NotFoundError
 from app.models.course import Course, Enrollment, Lesson, LessonProgress, Module, Review
@@ -121,3 +122,76 @@ async def for_course(db: AsyncSession, *, course_id: str, viewer: User) -> Cours
         enrollments_last_7d=enrollments_7,
         enrollments_last_30d=enrollments_30,
     )
+
+
+@dataclass(slots=True)
+class CohortRow:
+    user_id: str
+    full_name: str
+    avatar_url: str | None
+    enrolled_at: datetime
+    completed_at: datetime | None
+    progress_pct: float
+    certificate_id: str | None
+
+
+async def cohort_for_course(db: AsyncSession, *, course_id: str, viewer: User) -> list[CohortRow]:
+    """Return the enrolled cohort for the given course with progress.
+
+    Visible to the course owner and to admins. The list is ordered by
+    enrolment time (newest first) and capped at 500 rows; bigger cohorts
+    can be paginated in a follow-up.
+    """
+    course = await courses_repo.get_course(db, course_id)
+    if not course:
+        raise NotFoundError("Course not found", code="course.not_found")
+    if not (viewer.is_admin() or course.owner_id == viewer.id):
+        raise ForbiddenError("Not your course", code="cohort.forbidden")
+
+    total_lessons = int(
+        (
+            await db.execute(
+                select(func.count(Lesson.id))
+                .join(Module, Module.id == Lesson.module_id)
+                .where(Module.course_id == course.id, Lesson.deleted_at.is_(None))
+            )
+        ).scalar_one()
+    )
+
+    rows = (
+        await db.execute(
+            select(
+                Enrollment,
+                func.count(LessonProgress.id).label("done"),
+            )
+            .options(selectinload(Enrollment.user))
+            .outerjoin(
+                LessonProgress,
+                and_(
+                    LessonProgress.enrollment_id == Enrollment.id,
+                    LessonProgress.completed_at.is_not(None),
+                ),
+            )
+            .where(Enrollment.course_id == course.id)
+            .group_by(Enrollment.id)
+            .order_by(Enrollment.created_at.desc())
+            .limit(500)
+        )
+    ).all()
+
+    out: list[CohortRow] = []
+    for enrollment, done in rows:
+        pct = round((float(done) / total_lessons) * 100.0, 1) if total_lessons else 0.0
+        u = enrollment.user
+        out.append(
+            CohortRow(
+                user_id=u.id,
+                full_name=u.full_name,
+                avatar_url=u.avatar_url,
+                enrolled_at=enrollment.created_at,
+                completed_at=enrollment.completed_at,
+                progress_pct=pct,
+                certificate_id=enrollment.certificate_id,
+            )
+        )
+    return out

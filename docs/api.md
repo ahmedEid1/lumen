@@ -155,6 +155,7 @@ OpenAPI at `/openapi.json` is the source of truth; this list points to the resou
 - `PATCH /{course_id}`, `DELETE /{course_id}` — owner/admin only
 - `POST /{course_id}/duplicate` — clone modules + lessons as a draft owned by the caller (any instructor)
 - `GET /{course_id}/analytics` — owner/admin only; per-course metrics
+- `GET /{course_id}/students` — owner/admin only; cohort listing with per-student progress
 - `POST /{course_id}/modules`, `PATCH /modules/{module_id}`, `DELETE /modules/{module_id}`
 - `POST /{course_id}/modules/order` — reorder via id→order map
 - `POST /modules/{module_id}/lessons`, `PATCH /lessons/{lesson_id}`, `DELETE /lessons/{lesson_id}`

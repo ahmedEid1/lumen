@@ -12,12 +12,17 @@ import { qk } from "@/lib/query/keys";
 export default function CatalogPage() {
   const params = useSearchParams();
   const [q, setQ] = useState(params.get("q") ?? "");
-  const [subject, setSubject] = useState<string | undefined>(undefined);
-  const [difficulty, setDifficulty] = useState<string | undefined>(undefined);
-  const [tag, setTag] = useState<string | undefined>(undefined);
+  const [subject, setSubject] = useState<string | undefined>(params.get("subject") ?? undefined);
+  const [difficulty, setDifficulty] = useState<string | undefined>(
+    params.get("difficulty") ?? undefined,
+  );
+  const [tag, setTag] = useState<string | undefined>(params.get("tag") ?? undefined);
 
   useEffect(() => {
     setQ(params.get("q") ?? "");
+    setSubject(params.get("subject") ?? undefined);
+    setDifficulty(params.get("difficulty") ?? undefined);
+    setTag(params.get("tag") ?? undefined);
   }, [params]);
 
   const subjects = useQuery({ queryKey: qk.subjects, queryFn: () => Catalog.subjects() });

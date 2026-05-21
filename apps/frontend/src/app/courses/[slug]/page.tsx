@@ -71,12 +71,35 @@ export default function CourseDetailPage({ params }: { params: Promise<{ slug: s
         <div className="space-y-6">
           <div>
             <div className="mb-2 flex flex-wrap gap-2">
-              <Badge variant="secondary">{course.subject.title}</Badge>
-              <Badge variant="muted">{course.difficulty}</Badge>
-              {course.tags.map((t) => (
-                <Badge key={t.id} variant="outline">
-                  {t.name}
+              <Link
+                href={`/courses?subject=${encodeURIComponent(course.subject.slug)}`}
+                aria-label={`More ${course.subject.title} courses`}
+              >
+                <Badge
+                  variant="secondary"
+                  className="cursor-pointer transition-colors hover:bg-secondary/80"
+                >
+                  {course.subject.title}
                 </Badge>
+              </Link>
+              <Link
+                href={`/courses?difficulty=${encodeURIComponent(course.difficulty)}`}
+                aria-label={`More ${course.difficulty} courses`}
+              >
+                <Badge variant="muted" className="cursor-pointer hover:bg-muted/80">
+                  {course.difficulty}
+                </Badge>
+              </Link>
+              {course.tags.map((t) => (
+                <Link
+                  key={t.id}
+                  href={`/courses?tag=${encodeURIComponent(t.slug)}`}
+                  aria-label={`More ${t.name} courses`}
+                >
+                  <Badge variant="outline" className="cursor-pointer hover:bg-muted">
+                    {t.name}
+                  </Badge>
+                </Link>
               ))}
             </div>
             <h1 className="text-3xl font-bold tracking-tight md:text-4xl">{course.title}</h1>

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 12)
+- Instructor cohort view: `GET /api/v1/courses/{course_id}/students` returns
+  enrolled learners with per-student progress %, completion timestamp, and
+  certificate id. Rendered on the studio course page as a new "Students"
+  card with status badges (completed / in progress / not started).
+- Course detail badges (subject, difficulty, tags) are now Links into
+  `/courses?subject=…`, `?difficulty=…`, `?tag=…` for one-click discovery.
+- Catalog page now seeds `subject`, `difficulty`, and `tag` from the URL
+  in addition to `q`, so deep-links from elsewhere "just work".
+
+### Changed (iteration 12)
+- `docs/security.md` refreshed to cover the post-iteration-7 auth surface:
+  password change + revoke, password reset (hash-bound JWT), email verify
+  (email-bound JWT, idempotent), active sessions, public certificate
+  verify (no PII), and the production startup guard.
+
 ### Added (iteration 11)
 - Chat WebSocket auto-reconnects with exponential backoff (1s → 30s, six
   steps) and a coloured status pill ("Reconnecting…"). Server-refused

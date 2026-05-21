@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CohortCard } from "@/components/course/cohort-card";
 import { Courses } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import type { ModuleOut } from "@/lib/api/types";
@@ -140,6 +141,10 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
           </CardContent>
         </Card>
       )}
+
+      <div className="mb-6">
+        <CohortCard courseId={id} />
+      </div>
 
       <Card>
         <CardHeader>
