@@ -60,6 +60,20 @@ export const en = {
   "auth.register.haveAccount": "Already have an account?",
   "auth.forgotPassword": "Forgot password?",
 
+  // Dashboard — scribe's hall of records
+  "dashboard.cartouche": "Your hall of records",
+  "dashboard.welcome": "Welcome back, {name}",
+  "dashboard.subtitle": "Pick up where you left your stylus.",
+  "dashboard.inProgress": "In progress",
+  "dashboard.bookmarks": "Bookmarks",
+  "dashboard.completed": "Completed",
+  "dashboard.empty.enrollments": "You haven't enrolled in a course yet.",
+  "dashboard.empty.browse": "Browse the catalog",
+  "dashboard.empty.completed": "No completions yet — every scribe starts with a blank papyrus.",
+  "dashboard.percentComplete": "{pct}% complete",
+  "dashboard.continue": "Continue",
+  "dashboard.certificate": "Certificate",
+
   // Generic
   "common.loading": "Loading…",
   "common.save": "Save",

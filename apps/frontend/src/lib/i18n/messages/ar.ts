@@ -69,6 +69,20 @@ export const ar: Record<MessageKey, string> = {
   "auth.register.haveAccount": "لديك حساب بالفعل؟",
   "auth.forgotPassword": "نسيت كلمة المرور؟",
 
+  // Dashboard — قاعة سجلات الكاتب
+  "dashboard.cartouche": "قاعة سجلاتك",
+  "dashboard.welcome": "أهلًا بعودتك يا {name}",
+  "dashboard.subtitle": "تابع من حيث تركت قلمك.",
+  "dashboard.inProgress": "قيد التقدّم",
+  "dashboard.bookmarks": "العلامات المرجعية",
+  "dashboard.completed": "مكتمل",
+  "dashboard.empty.enrollments": "لم تسجّل في أي دورة بعد.",
+  "dashboard.empty.browse": "تصفّح الدورات",
+  "dashboard.empty.completed": "لا اكتمالات بعد — كل كاتب يبدأ بورق فارغ.",
+  "dashboard.percentComplete": "{pct}٪ مكتمل",
+  "dashboard.continue": "متابعة",
+  "dashboard.certificate": "الشهادة",
+
   // Generic
   "common.loading": "جارٍ التحميل…",
   "common.save": "حفظ",
