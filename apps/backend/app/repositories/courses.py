@@ -134,9 +134,38 @@ async def search_courses(
         stmt = stmt.join(Course.tags).where(Tag.slug == tag_slug)
     if difficulty:
         stmt = stmt.where(Course.difficulty == difficulty)
+    # Search ranking: when ``q`` is set we use Postgres' full-text
+    # ``websearch_to_tsquery`` for relevance (handles quoted phrases,
+    # operators, stop-word stripping) and fall back to ILIKE for
+    # partial-word matches the FTS would miss (e.g. "java" finding
+    # "javascript"). Hits matching the full-text path get a ts_rank;
+    # ILIKE-only hits get a small floor so they still appear under
+    # exact matches. We don't add a tsvector column / GIN index here
+    # — at the courses-table size we're operating at, an inline
+    # ``to_tsvector('english', title || ' ' || overview)`` is cheap.
+    # Promote to materialised column if the table grows past ~1M rows.
+    rank_col: object | None = None
     if q:
+        ts_query = func.websearch_to_tsquery("english", q)
+        title_overview = func.coalesce(Course.title, "") + " " + func.coalesce(Course.overview, "")
+        ts_doc = func.to_tsvector("english", title_overview)
         like = f"%{q}%"
-        stmt = stmt.where(or_(Course.title.ilike(like), Course.overview.ilike(like)))
+        stmt = stmt.where(
+            or_(
+                ts_doc.op("@@")(ts_query),
+                Course.title.ilike(like),
+                Course.overview.ilike(like),
+            )
+        )
+        # ts_rank when the FTS matched; 0.0 floor for the ILIKE-only
+        # fallback. ``case`` keeps rank-aware ORDER BY working even
+        # when the FTS expression evaluates to false on a row.
+        from sqlalchemy import case
+
+        rank_col = case(
+            (ts_doc.op("@@")(ts_query), func.ts_rank(ts_doc, ts_query)),
+            else_=0.0,
+        )
 
     count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
     total = int((await db.execute(count_stmt)).scalar_one())
@@ -147,7 +176,20 @@ async def search_courses(
     # attributes whose ``.desc()`` blows up with AttributeError → 500.
     # Constrain to columns we know are safe + useful to order on.
     col = _SORTABLE_COLUMNS.get(field_name, Course.created_at)
-    stmt = stmt.order_by(col.desc() if direction == "desc" else col.asc())
+    if q and rank_col is not None:
+        # When the caller didn't override sort, push rank to the front
+        # so the most relevant match shows first; otherwise honour
+        # their explicit sort (e.g. ``-published_at``) and use rank
+        # only as a tiebreaker.
+        if sort == "-created_at":  # the implicit default
+            stmt = stmt.order_by(rank_col.desc(), Course.created_at.desc())
+        else:
+            stmt = stmt.order_by(
+                col.desc() if direction == "desc" else col.asc(),
+                rank_col.desc(),
+            )
+    else:
+        stmt = stmt.order_by(col.desc() if direction == "desc" else col.asc())
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
     res = await db.execute(stmt)

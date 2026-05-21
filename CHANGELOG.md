@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 85)
+- **Catalog search uses Postgres full-text with relevance ranking.**
+  Pre-iter 85 `?q=` was pure ILIKE substring — no relevance order,
+  no quoted-phrase support, partial-word matches only by accident.
+  Now uses `websearch_to_tsquery` + `ts_rank` against
+  `to_tsvector('english', title || overview)` for tokenised stem-
+  aware matching, with the ILIKE substring kept as a fallback so
+  "java" still finds "javascript" (FTS would only match "java"
+  or "javas"). Title-position weighting in ts_rank surfaces title
+  hits above body-only hits. Explicit `?sort=` still wins; rank
+  becomes the tiebreaker. No new indexes — at current table sizes
+  the inline `to_tsvector` is cheap; promote to a materialised
+  tsvector column + GIN index once a course catalog crosses ~1M
+  rows. Covered by `tests/test_catalog_fulltext.py` (4 tests:
+  title-hit ranks above body-only, partial-word fallback works,
+  stem matching via FTS, no-query path honours sort).
+
 ### Security (iteration 84)
 - **ETag on course detail now carries auth-aware cache hints.** Iter
   76 added the ETag itself but the response had no `Cache-Control`
