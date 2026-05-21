@@ -95,6 +95,16 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Admin / tags — the seals
+  "adminTags.cartouche": "The seals",
+  "adminTags.title": "Tags",
+  "adminTags.addCard": "Add tag",
+  "adminTags.namePlaceholder": "Name (e.g. Python)",
+  "adminTags.add": "Add",
+  "adminTags.allCard": "All tags",
+  "adminTags.empty": "No tags yet.",
+  "adminTags.error": "Could not add",
+
   // Admin root — hall of the high priest
   "admin.cartouche": "Hall of the high priest",
   "admin.title": "Admin",

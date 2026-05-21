@@ -102,6 +102,16 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Admin / tags — الأختام
+  "adminTags.cartouche": "الأختام",
+  "adminTags.title": "الوسوم",
+  "adminTags.addCard": "إضافة وسم",
+  "adminTags.namePlaceholder": "الاسم (مثلًا Python)",
+  "adminTags.add": "إضافة",
+  "adminTags.allCard": "جميع الوسوم",
+  "adminTags.empty": "لا وسوم بعد.",
+  "adminTags.error": "تعذّرت الإضافة",
+
   // Admin root — قاعة الكاهن الأعظم
   "admin.cartouche": "قاعة الكاهن الأعظم",
   "admin.title": "الإدارة",
