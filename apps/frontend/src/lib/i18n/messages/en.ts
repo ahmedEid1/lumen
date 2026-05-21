@@ -95,6 +95,24 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Admin / courses — curator's shelf
+  "adminCourses.cartouche": "Curator's shelf",
+  "adminCourses.title": "Courses",
+  "adminCourses.subtitle": "Manage featured selection and oversee the catalog.",
+  "adminCourses.searchPlaceholder": "Search title or overview…",
+  "adminCourses.featuredOnly": "Featured only",
+  "adminCourses.allCard": "All courses",
+  "adminCourses.col.course": "Course",
+  "adminCourses.col.owner": "Owner",
+  "adminCourses.col.status": "Status",
+  "adminCourses.col.featured": "Featured",
+  "adminCourses.col.action": "Action",
+  "adminCourses.feature": "Feature",
+  "adminCourses.unfeature": "Unfeature",
+  "adminCourses.empty": "No courses match.",
+  "adminCourses.successToast": "Updated",
+  "adminCourses.error": "Could not update",
+
   // Admin / users — names in the ledger
   "adminUsers.cartouche": "Names in the ledger",
   "adminUsers.title": "Users",

@@ -9,11 +9,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Cartouche } from "@/components/lumen/cartouche";
+import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import type { CourseListItem } from "@/lib/api/types";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 export default function AdminCourses() {
   const qc = useQueryClient();
+  const t = useT();
   const [q, setQ] = useState("");
   const [onlyFeatured, setOnlyFeatured] = useState(false);
 
@@ -35,110 +40,149 @@ export default function AdminCourses() {
         body: { is_featured: next },
       }),
     onSuccess: () => {
-      toast.success("Updated");
+      toast.success(t("adminCourses.successToast"));
       qc.invalidateQueries({ queryKey: ["admin", "courses"] });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not update"),
+    onError: (e: Error) => toast.error(e?.message ?? t("adminCourses.error")),
   });
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-10">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Courses</h1>
-          <p className="text-muted-foreground">Manage featured selection and oversee the catalog.</p>
+    <div className="container mx-auto max-w-5xl px-4 py-14">
+      <header className="mb-8 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-3">
+          <Cartouche>{t("adminCourses.cartouche")}</Cartouche>
+          <h1 className="font-display text-3xl font-medium tracking-tight">
+            {t("adminCourses.title")}
+          </h1>
+          <p className="font-body text-muted-foreground">{t("adminCourses.subtitle")}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative w-72">
-            <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gold/60" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search title or overview…"
-              className="ps-9"
+              placeholder={t("adminCourses.searchPlaceholder")}
+              className="border-gold/25 bg-background/60 ps-9 focus-visible:border-gold/60"
             />
           </div>
-          <label className="inline-flex items-center gap-2 text-sm">
+          <label className="inline-flex items-center gap-2 font-body text-sm">
             <input
               type="checkbox"
               checked={onlyFeatured}
               onChange={(e) => setOnlyFeatured(e.target.checked)}
-              className="h-4 w-4 rounded border-input"
+              className="h-4 w-4 rounded border-gold/40 accent-[hsl(var(--gold-leaf))]"
             />
-            Featured only
+            {t("adminCourses.featuredOnly")}
           </label>
         </div>
       </header>
 
-      <Card>
+      <Card className="scroll-paper border-gold/20">
         <CardHeader>
-          <CardTitle>All courses</CardTitle>
+          <CardTitle className="font-display text-xl">{t("adminCourses.allCard")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-start">
-              <tr>
-                <th className="px-4 py-2">Course</th>
-                <th className="px-4 py-2">Owner</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Featured</th>
-                <th className="px-4 py-2 text-end">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {coursesQ.data?.map((c) => (
-                <tr key={c.id} className="border-t align-middle">
-                  <td className="px-4 py-2">
-                    <Link
-                      href={`/courses/${c.slug}`}
-                      className="font-medium hover:underline"
-                      target="_blank"
-                    >
-                      {c.title}
-                    </Link>
-                    <div className="text-xs text-muted-foreground">{c.subject.title}</div>
-                  </td>
-                  <td className="px-4 py-2 text-muted-foreground">{c.owner.full_name}</td>
-                  <td className="px-4 py-2">
-                    <Badge variant={c.status === "published" ? "default" : "muted"}>{c.status}</Badge>
-                  </td>
-                  <td className="px-4 py-2">
-                    {c.is_featured ? (
-                      <Badge>featured</Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggle.mutate({ id: c.id, next: !c.is_featured })}
-                      disabled={toggle.isPending}
-                    >
-                      {c.is_featured ? (
-                        <>
-                          <StarOff className="me-1 h-4 w-4" /> Unfeature
-                        </>
-                      ) : (
-                        <>
-                          <Star className="me-1 h-4 w-4" /> Feature
-                        </>
-                      )}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {!coursesQ.data?.length && (
+            <table className="w-full text-sm">
+              <thead className="border-b border-gold/15 bg-muted/30 text-[0.65rem] uppercase tracking-[0.28em] text-gold/70">
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
-                    No courses match.
-                  </td>
+                  <th className="px-4 py-3 text-start font-medium">
+                    {t("adminCourses.col.course")}
+                  </th>
+                  <th className="px-4 py-3 text-start font-medium">
+                    {t("adminCourses.col.owner")}
+                  </th>
+                  <th className="px-4 py-3 text-start font-medium">
+                    {t("adminCourses.col.status")}
+                  </th>
+                  <th className="px-4 py-3 text-start font-medium">
+                    {t("adminCourses.col.featured")}
+                  </th>
+                  <th className="px-4 py-3 text-end font-medium">
+                    {t("adminCourses.col.action")}
+                  </th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="font-body">
+                {coursesQ.data?.map((c) => (
+                  <tr
+                    key={c.id}
+                    className="border-t border-border align-middle transition-colors hover:bg-muted/20"
+                  >
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/courses/${c.slug}`}
+                        className="font-display text-base font-medium transition-colors hover:text-gold"
+                        target="_blank"
+                      >
+                        {c.title}
+                      </Link>
+                      <div className="text-xs text-muted-foreground">{c.subject.title}</div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{c.owner.full_name}</td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        className={
+                          c.status === "published"
+                            ? "border border-gold/40 bg-gold/10 uppercase tracking-wider text-gold"
+                            : c.status === "archived"
+                              ? "bg-muted uppercase tracking-wider text-muted-foreground"
+                              : "bg-secondary uppercase tracking-wider text-secondary-foreground"
+                        }
+                      >
+                        {t(`studio.filter.${c.status}` as MessageKey)}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      {c.is_featured ? (
+                        <Badge className="border border-gold/40 bg-gold/10 text-gold">
+                          {t("catalog.featuredBadge")}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggle.mutate({ id: c.id, next: !c.is_featured })}
+                        disabled={toggle.isPending}
+                        className="text-muted-foreground hover:text-gold"
+                      >
+                        {c.is_featured ? (
+                          <>
+                            <StarOff className="me-1 h-4 w-4" /> {t("adminCourses.unfeature")}
+                          </>
+                        ) : (
+                          <>
+                            <Star className="me-1 h-4 w-4" /> {t("adminCourses.feature")}
+                          </>
+                        )}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {!coursesQ.data?.length && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-12">
+                      <div className="flex flex-col items-center gap-3 text-center">
+                        <Glyph
+                          name="feather"
+                          size={40}
+                          mode="tint"
+                          className="text-gold/40"
+                        />
+                        <p className="font-body italic text-muted-foreground">
+                          {t("adminCourses.empty")}
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </CardContent>
       </Card>

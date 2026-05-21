@@ -102,6 +102,24 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Admin / courses — رفّ القيّم
+  "adminCourses.cartouche": "رفّ القيّم",
+  "adminCourses.title": "الدورات",
+  "adminCourses.subtitle": "أدر اختيار الدورات المميّزة وأشرف على الكتالوج.",
+  "adminCourses.searchPlaceholder": "ابحث بالعنوان أو النبذة…",
+  "adminCourses.featuredOnly": "المميّزة فقط",
+  "adminCourses.allCard": "جميع الدورات",
+  "adminCourses.col.course": "الدورة",
+  "adminCourses.col.owner": "المالك",
+  "adminCourses.col.status": "الحالة",
+  "adminCourses.col.featured": "مميّزة",
+  "adminCourses.col.action": "إجراء",
+  "adminCourses.feature": "تمييز",
+  "adminCourses.unfeature": "إلغاء التمييز",
+  "adminCourses.empty": "لا توجد دورات مطابقة.",
+  "adminCourses.successToast": "تم التحديث",
+  "adminCourses.error": "تعذّر التحديث",
+
   // Admin / users — أسماء في السجل
   "adminUsers.cartouche": "أسماء في السجل",
   "adminUsers.title": "المستخدمون",
