@@ -94,6 +94,75 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class CSRFOriginMiddleware(BaseHTTPMiddleware):
+    """Origin-header CSRF guard for cookie-authenticated mutations.
+
+    SameSite=strict on our auth cookies already blocks most browser
+    CSRF (browsers won't send the cookie on a cross-site request) but
+    it doesn't help if:
+
+    * a same-site origin gets compromised (subdomain takeover);
+    * a future cookie rotation accidentally weakens SameSite;
+    * an older browser without modern SameSite support is in play.
+
+    For mutating methods we therefore also require the request to
+    carry an ``Origin`` (or fall back to ``Referer``) that matches one
+    of the configured CORS origins — i.e. the same set the API has
+    decided it's willing to talk to. Bearer-token clients (mobile,
+    Postman, server-to-server) skip the check because they had to
+    explicitly set the Authorization header to make the call in the
+    first place — CSRF doesn't apply to them.
+    """
+
+    _MUTATING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method in self._MUTATING:
+            # Bearer wins: if the request explicitly carries an
+            # Authorization header, it's an API client (mobile, Postman,
+            # server-to-server) and CSRF doesn't apply — the attacker
+            # cannot set that header cross-origin. We check this BEFORE
+            # the cookie check so a browser-cookie-and-bearer-both case
+            # (e.g., post-login session that also kept the cookie) still
+            # routes through the Bearer-trusted path.
+            has_bearer = bool(request.headers.get("authorization"))
+            has_cookie_auth = any(
+                k in request.cookies
+                for k in ("__Host-access", "__Host-refresh", "access", "refresh")
+            )
+            if has_cookie_auth and not has_bearer:
+                allowed = {o.rstrip("/") for o in get_settings().cors_origins}
+                origin = (request.headers.get("origin") or "").rstrip("/")
+                if not origin:
+                    # Some browsers omit Origin on same-origin POSTs; fall
+                    # back to Referer's scheme://host[:port] in that case.
+                    referer = request.headers.get("referer") or ""
+                    if referer:
+                        # Cheap scheme://host extraction — full URL parse
+                        # isn't worth the cost on the hot path.
+                        try:
+                            from urllib.parse import urlsplit
+
+                            parts = urlsplit(referer)
+                            if parts.scheme and parts.netloc:
+                                origin = f"{parts.scheme}://{parts.netloc}".rstrip("/")
+                        except ValueError:
+                            origin = ""
+                if origin not in allowed:
+                    return ORJSONResponse(
+                        status_code=403,
+                        content={
+                            "error": {
+                                "code": "csrf.bad_origin",
+                                "message": "Request origin is not trusted for cookie-authenticated mutations",
+                                "details": {"origin": origin or None},
+                                "request_id": getattr(request.state, "request_id", None),
+                            }
+                        },
+                    )
+        return await call_next(request)
+
+
 class AccessLogMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start = time.perf_counter()
@@ -175,6 +244,7 @@ def create_app() -> FastAPI:
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(CSRFOriginMiddleware)
     app.add_middleware(AccessLogMiddleware)
 
     install_handlers(app)

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (iteration 57)
+- **Origin-header CSRF guard for cookie-auth mutations.** SameSite=strict
+  on our auth cookies already blocks the textbook browser CSRF case,
+  but the gap is narrow rather than zero: a same-site origin compromise
+  (subdomain takeover), an older browser without modern SameSite
+  support, or a future cookie-policy regression. New
+  `CSRFOriginMiddleware` requires every mutating method (POST/PUT/
+  PATCH/DELETE) carrying an auth *cookie* to also carry an `Origin`
+  (or fall back to `Referer`) matching one of the configured
+  `CORS_ORIGINS`. Bearer-token requests skip the check — they can't
+  be CSRF'd because the attacker can't set `Authorization`
+  cross-origin without explicit user action; the gate intentionally
+  prefers Bearer when both are present. Rejected requests return
+  `403 csrf.bad_origin`. Covered by `tests/test_csrf_origin.py` (6
+  tests: missing/untrusted/trusted Origin, Bearer-skip, GET-not-checked,
+  Referer fallback).
+
 ### Security (iteration 56) — BREAKING (upload contract)
 - **S3 upload size cap is now enforced by S3, not the client.** The
   presign endpoint switched from `generate_presigned_url(PUT)` to
