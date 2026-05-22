@@ -1,0 +1,4 @@
+# Eval reports land here as <suite>-<ISO-timestamp>.jsonl.
+# Committed via this .gitkeep so the directory survives a fresh clone;
+# the report files themselves are intentionally tracked too so the
+# README badge and the admin dashboard can point at reproducible runs.

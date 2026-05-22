@@ -1,0 +1,10 @@
+{"id": "i-001", "url": "https://www.youtube.com/watch?v=rfscVS0vtbw", "kind": "youtube", "expected_chapter_count": 6, "expected_key_phrases": ["python", "function", "variable"]}
+{"id": "i-002", "url": "https://www.youtube.com/watch?v=8jLOx1hD3_o", "kind": "youtube", "expected_chapter_count": 5, "expected_key_phrases": ["machine learning", "data", "model"]}
+{"id": "i-003", "url": "https://www.youtube.com/watch?v=PkZNo7MFNFg", "kind": "youtube", "expected_chapter_count": 5, "expected_key_phrases": ["javascript", "function", "variable"]}
+{"id": "i-004", "url": "https://www.youtube.com/watch?v=Z1Yd7upQsXY", "kind": "youtube", "expected_chapter_count": 5, "expected_key_phrases": ["bjarne stroustrup", "c++", "programming"]}
+{"id": "i-005", "url": "https://www.youtube.com/watch?v=fKl2JW_qrso", "kind": "youtube", "expected_chapter_count": 4, "expected_key_phrases": ["sql", "database", "query"]}
+{"id": "i-006", "url": "https://www.notion.so/notion/Getting-Started-d27692e2c3d1473880f4f1a4ec45dfbf", "kind": "notion", "expected_chapter_count": 3, "expected_key_phrases": ["page", "notion", "workspace"]}
+{"id": "i-007", "url": "https://www.notion.so/help/guides/category/notion-basics", "kind": "notion", "expected_chapter_count": 4, "expected_key_phrases": ["block", "page", "basics"]}
+{"id": "i-008", "url": "https://www.notion.so/help/guides/category/databases", "kind": "notion", "expected_chapter_count": 4, "expected_key_phrases": ["database", "property", "view"]}
+{"id": "i-009", "url": "https://www.notion.so/help/guides/category/teamspaces", "kind": "notion", "expected_chapter_count": 3, "expected_key_phrases": ["team", "workspace", "permission"]}
+{"id": "i-010", "url": "https://www.notion.so/help/guides/category/sharing-and-collaboration", "kind": "notion", "expected_chapter_count": 4, "expected_key_phrases": ["share", "collaboration", "permission"]}
