@@ -502,8 +502,8 @@ export const en = {
   "studioNew.successToast": "Course created",
   "studioNew.error": "Could not create course",
 
-  // Studio root — instructor atelier
-  "studio.cartouche": "The atelier",
+  // Studio root — instructor studio
+  "studio.cartouche": "Studio",
   "studio.filterAria": "Filter courses by status",
   "studio.title": "Instructor studio",
   "studio.subtitle": "Manage your courses and content.",
@@ -512,7 +512,7 @@ export const en = {
   "studio.filter.draft": "Drafts",
   "studio.filter.published": "Published",
   "studio.filter.archived": "Archived",
-  "studio.empty.none": "You haven't inscribed any courses yet.",
+  "studio.empty.none": "You haven't created any courses yet.",
   "studio.empty.filter": "No courses in this state.",
   "studio.moduleCount": "{n} modules",
   "studio.studentCount": "{n} students",

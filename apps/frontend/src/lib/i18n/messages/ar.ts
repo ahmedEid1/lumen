@@ -510,7 +510,7 @@ export const ar: Record<MessageKey, string> = {
   "studioNew.error": "تعذّر إنشاء الدورة",
 
   // Studio root — ورشة المدرّس
-  "studio.cartouche": "ورشة الكاتب",
+  "studio.cartouche": "الاستوديو",
   "studio.filterAria": "تصفية الدورات حسب الحالة",
   "studio.title": "ورشة المدرّس",
   "studio.subtitle": "أدر دوراتك ومحتواها.",
@@ -519,7 +519,7 @@ export const ar: Record<MessageKey, string> = {
   "studio.filter.draft": "مسودّات",
   "studio.filter.published": "منشورة",
   "studio.filter.archived": "مؤرشفة",
-  "studio.empty.none": "لم تنقش أي دورة بعد.",
+  "studio.empty.none": "لم تنشئ أي دورة بعد.",
   "studio.empty.filter": "لا توجد دورات بهذه الحالة.",
   "studio.moduleCount": "{n} وحدة",
   "studio.studentCount": "{n} طالب",

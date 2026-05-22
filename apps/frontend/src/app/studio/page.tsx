@@ -8,8 +8,6 @@ import { Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { Courses } from "@/lib/api/endpoints";
 import type { CourseListItem, CourseStatus } from "@/lib/api/types";
 import { qk } from "@/lib/query/keys";
@@ -56,15 +54,17 @@ export default function StudioPage() {
   if (!ready || !user || user.role === "student") return null;
 
   return (
-    <div className="container mx-auto px-4 py-14">
-      <header className="mb-8 flex flex-col gap-3">
-        <Cartouche>{t("studio.cartouche")}</Cartouche>
+    <div className="container mx-auto px-6 py-14">
+      <header className="mb-10 flex flex-col gap-3">
+        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          {t("studio.cartouche")}
+        </p>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-display text-4xl font-medium tracking-tight">
+            <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
               {t("studio.title")}
             </h1>
-            <p className="font-body text-lg text-muted-foreground">{t("studio.subtitle")}</p>
+            <p className="mt-2 font-body text-lg text-muted-foreground">{t("studio.subtitle")}</p>
           </div>
           <Link href="/studio/new">
             <Button>
@@ -89,14 +89,14 @@ export default function StudioPage() {
               onClick={() => setFilter(f.value)}
               className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-body transition-colors ${
                 active
-                  ? "border-gold/60 bg-gold/10 text-gold"
-                  : "border-border text-muted-foreground hover:border-gold/30 hover:text-foreground"
+                  ? "border-primary/60 bg-primary/10 text-primary"
+                  : "border-border/60 text-muted-foreground hover:border-foreground/30 hover:text-foreground"
               }`}
             >
               {t(f.labelKey)}
               <span
                 className={`rounded-full px-2 text-xs tabular-nums ${
-                  active ? "bg-gold/15 text-gold" : "bg-muted text-muted-foreground"
+                  active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
                 }`}
               >
                 {counts[f.value]}
@@ -109,10 +109,11 @@ export default function StudioPage() {
       {mine.isLoading ? (
         <p className="font-body text-muted-foreground">{t("common.loading")}</p>
       ) : !mine.data || mine.data.length === 0 ? (
-        <Card className="scroll-paper border-gold/20">
-          <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
-            <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
-            <p className="font-body italic text-muted-foreground">{t("studio.empty.none")}</p>
+        <Card className="surface">
+          <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
+            <p className="font-display text-2xl italic text-muted-foreground">
+              {t("studio.empty.none")}
+            </p>
             <Link href="/studio/new">
               <Button className="mt-2">
                 <Plus className="me-2 h-4 w-4" /> {t("studio.newCourse")}
@@ -121,10 +122,11 @@ export default function StudioPage() {
           </CardContent>
         </Card>
       ) : visible.length === 0 ? (
-        <Card className="scroll-paper border-gold/20">
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <Glyph name="ankh" size={40} mode="tint" className="text-gold/40" />
-            <p className="font-body italic text-muted-foreground">{t("studio.empty.filter")}</p>
+        <Card className="surface">
+          <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+            <p className="font-display text-2xl italic text-muted-foreground">
+              {t("studio.empty.filter")}
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -132,14 +134,14 @@ export default function StudioPage() {
           {visible.map((c) => (
             <Card
               key={c.id}
-              className="scroll-paper border-border transition-colors hover:border-gold/40"
+              className="surface lift-3d transition-colors hover:border-primary/30"
             >
               <CardHeader>
                 <div className="mb-1.5 flex items-center gap-2">
                   <Badge
                     className={
                       c.status === "published"
-                        ? "border border-gold/40 bg-gold/10 uppercase tracking-wider text-gold"
+                        ? "border border-primary/40 bg-primary/10 uppercase tracking-wider text-primary"
                         : c.status === "archived"
                           ? "bg-muted text-muted-foreground uppercase tracking-wider"
                           : "bg-secondary text-secondary-foreground uppercase tracking-wider"
@@ -150,7 +152,7 @@ export default function StudioPage() {
                   <Badge variant="secondary">{c.subject.title}</Badge>
                 </div>
                 <CardTitle className="font-display text-xl leading-tight">
-                  <Link href={`/studio/${c.id}`} className="transition-colors hover:text-gold">
+                  <Link href={`/studio/${c.id}`} className="transition-colors hover:text-primary">
                     {c.title}
                   </Link>
                 </CardTitle>
