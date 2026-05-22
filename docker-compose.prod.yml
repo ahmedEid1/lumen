@@ -21,9 +21,6 @@ x-api-env: &api-env
   S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
   S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
   S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
-  SEARCH_BACKEND: ${SEARCH_BACKEND:-meilisearch}
-  MEILI_URL: ${MEILI_URL}
-  MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
   SMTP_HOST: ${SMTP_HOST}
   SMTP_PORT: ${SMTP_PORT}
   SMTP_USERNAME: ${SMTP_USERNAME}
@@ -85,15 +82,6 @@ services:
     volumes:
       - s3-data:/data
 
-  search:
-    image: getmeili/meilisearch:v1.10
-    restart: unless-stopped
-    environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
-      MEILI_ENV: production
-    volumes:
-      - search-data:/meili_data
-
   api:
     image: ghcr.io/ahmedeid1/lumen-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -102,7 +90,6 @@ services:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
       s3: { condition: service_started }
-      search: { condition: service_started }
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/v1/health/ready', timeout=2).status==200 else 1)"]
       interval: 20s
@@ -165,7 +152,6 @@ volumes:
   db-data:
   redis-data:
   s3-data:
-  search-data:
   caddy-data:
   caddy-config:
   prom-data:

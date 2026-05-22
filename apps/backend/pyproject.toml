@@ -26,7 +26,6 @@ dependencies = [
   "celery[redis]>=5.4",
   "boto3>=1.35",
   "botocore>=1.35",
-  "meilisearch>=0.34",
   "structlog>=24.4",
   "orjson>=3.10",
   "slowapi>=0.1.9",
@@ -107,7 +106,7 @@ plugins = ["pydantic.mypy"]
 exclude = "alembic/versions"
 
 [[tool.mypy.overrides]]
-module = ["passlib.*", "meilisearch.*", "celery.*", "slowapi.*"]
+module = ["passlib.*", "celery.*", "slowapi.*"]
 ignore_missing_imports = true
 
 # ---------------- pytest ----------------

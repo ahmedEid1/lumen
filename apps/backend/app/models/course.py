@@ -10,6 +10,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Column,
+    Computed,
     DateTime,
     ForeignKey,
     Index,
@@ -21,7 +22,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
@@ -91,6 +92,11 @@ class Course(IdMixin, TimestampMixin, Base):
             unique=True,
             postgresql_where=text("deleted_at IS NULL"),
         ),
+        Index(
+            "ix_courses_search_vector",
+            "search_vector",
+            postgresql_using="gin",
+        ),
     )
 
     owner_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
@@ -113,6 +119,18 @@ class Course(IdMixin, TimestampMixin, Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Postgres GENERATED ALWAYS AS STORED tsvector over title + overview.
+    # Read-only at the ORM level; populated and refreshed by the DB on
+    # every insert/update. Search queries hit this column via the
+    # ix_courses_search_vector GIN index (Alembic 0014).
+    search_vector: Mapped[str | None] = mapped_column(
+        TSVECTOR,
+        Computed(
+            "to_tsvector('english', coalesce(title, '') || ' ' || coalesce(overview, ''))",
+            persisted=True,
+        ),
+        nullable=True,
+    )
 
     owner: Mapped[User] = relationship(back_populates="courses_owned", foreign_keys=[owner_id])
     subject: Mapped[Subject] = relationship(back_populates="courses")

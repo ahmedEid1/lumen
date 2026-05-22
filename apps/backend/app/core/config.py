@@ -75,12 +75,6 @@ class Settings(BaseSettings):
     s3_force_path_style: bool = True
     s3_presign_ttl_seconds: int = 900
 
-    # ---------- Search ----------
-    search_backend: Literal["meilisearch", "postgres"] = "meilisearch"
-    meili_url: str = "http://search:7700"
-    meili_master_key: SecretStr = SecretStr("lumen-search-key")
-    meili_index_courses: str = "courses"
-
     # ---------- Email ----------
     smtp_host: str = "mail"
     smtp_port: int = 1025

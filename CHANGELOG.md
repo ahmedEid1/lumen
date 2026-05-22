@@ -112,6 +112,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   decide whether to rename it as part of the surface repaint. en.ts +
   ar.ts remain at 550/550 keys, parity preserved.
 ### Removed (rebuild phase A)
+- **Meilisearch + the entire search worker (Cut A9).** The Meili
+  client + service wrapper + scheduled reindex worker existed but did
+  not work as advertised: the reindex worker shipped without
+  integration tests, the `MEILI_*` env never landed in the
+  test/conftest fixture, and search via the Meili path silently
+  returned empty for catalogs that had never been reindexed. The
+  existing Postgres ILIKE+ts_rank fallback in `search_courses` was
+  the only working path. Per Lumen 2.0 rebuild spec section 3.3 we
+  cut the external search service entirely and promote the existing
+  Postgres-native FTS to a stored generated column + GIN index for
+  performance. Removed: `apps/backend/app/services/search.py`,
+  `apps/backend/app/workers/tasks/search.py`, the `reindex-catalog`
+  beat schedule + `search` include in `celery_app.py`, the
+  `_schedule_index` helper + its two call-sites in
+  `apps/backend/app/services/courses.py`, the
+  `search_backend / meili_url / meili_master_key /
+  meili_index_courses` config keys, the `meilisearch>=0.34` dep +
+  its mypy override in `pyproject.toml`, the `search` service block +
+  `search-data` volume in both compose files, `SEARCH_BACKEND` +
+  `MEILI_*` env vars from `.env.example`, and the meilisearch row
+  from `docs/architecture.md`. The admin `POST /search/reindex`
+  endpoint stays as a 202 no-op (audit row still records the intent;
+  the schema is auto-maintained so there is nothing to reindex).
+### Changed (rebuild phase A)
+- **Promoted course full-text search to a stored generated tsvector
+  with a GIN index (Cut A9).** `courses.search_vector` is now a
+  Postgres `GENERATED ALWAYS AS (to_tsvector('english', coalesce(title,'')
+  || ' ' || coalesce(overview,''))) STORED` column, paired with the
+  GIN-indexed `ix_courses_search_vector`. `repositories/courses.py`
+  reads the column directly via `Course.__table__.c.search_vector`
+  instead of recomputing `to_tsvector` per row at query time, so the
+  same query plan picks up the index and tail latency drops with
+  catalog size. The repo's ILIKE fallback for partial-word matches
+  is preserved. Alembic 0014 adds the column + index with a
+  reversible downgrade.
 - **Per-course WebSocket chat (Cut A8).** The chat module shipped a
   WebSocket connection manager, a paginated REST history endpoint, a
   ChatMessage model + table, a presence counter, and the

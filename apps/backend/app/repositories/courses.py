@@ -141,34 +141,28 @@ async def search_courses(
         stmt = stmt.join(Course.tags).where(Tag.slug == tag_slug)
     if difficulty:
         stmt = stmt.where(Course.difficulty == difficulty)
-    # Search ranking: when ``q`` is set we use Postgres' full-text
-    # ``websearch_to_tsquery`` for relevance (handles quoted phrases,
-    # operators, stop-word stripping) and fall back to ILIKE for
-    # partial-word matches the FTS would miss (e.g. "java" finding
-    # "javascript"). Hits matching the full-text path get a ts_rank;
-    # ILIKE-only hits get a small floor so they still appear under
-    # exact matches. We don't add a tsvector column / GIN index here
-    # — at the courses-table size we're operating at, an inline
-    # ``to_tsvector('english', title || ' ' || overview)`` is cheap.
-    # Promote to materialised column if the table grows past ~1M rows.
+    # Search ranking: when ``q`` is set we hit the GIN-indexed
+    # ``courses.search_vector`` column (a Postgres generated tsvector
+    # over title + overview, maintained automatically). ILIKE stays as
+    # a partial-word fallback so "java" still finds "javascript", which
+    # the stemmed FTS would otherwise miss. ts_rank lights up only when
+    # the FTS branch matches; ILIKE-only hits get a 0.0 floor so they
+    # still appear under exact matches. Migration 0014 introduced the
+    # column + GIN index.
     rank_col: object | None = None
     if q:
         ts_query = func.websearch_to_tsquery("english", q)
-        title_overview = func.coalesce(Course.title, "") + " " + func.coalesce(Course.overview, "")
-        ts_doc = func.to_tsvector("english", title_overview)
+        search_vec = Course.__table__.c.search_vector
         like = f"%{q}%"
         stmt = stmt.where(
             or_(
-                ts_doc.op("@@")(ts_query),
+                search_vec.op("@@")(ts_query),
                 Course.title.ilike(like),
                 Course.overview.ilike(like),
             )
         )
-        # ts_rank when the FTS matched; 0.0 floor for the ILIKE-only
-        # fallback. ``case`` keeps rank-aware ORDER BY working even
-        # when the FTS expression evaluates to false on a row.
         rank_col = case(
-            (ts_doc.op("@@")(ts_query), func.ts_rank(ts_doc, ts_query)),
+            (search_vec.op("@@")(ts_query), func.ts_rank(search_vec, ts_query)),
             else_=0.0,
         )
 

@@ -49,7 +49,6 @@ Background:                           Email:
 | `db`          | `postgres:17-alpine`         | Primary datastore |
 | `redis`       | `redis:7-alpine`             | Cache, broker, pub/sub |
 | `s3`          | `minio/minio`                | Object storage (lessons, avatars) |
-| `search`      | `getmeili/meilisearch:v1.10` | Full-text search |
 | `mail`        | `axllent/mailpit`            | Dev SMTP UI |
 | `proxy`       | `caddy:2-alpine`             | TLS termination + routing |
 | `prom`        | `prom/prometheus`            | (prod profile) metrics scrape |

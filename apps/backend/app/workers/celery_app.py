@@ -16,7 +16,6 @@ celery = Celery(
     include=[
         "app.workers.tasks.email",
         "app.workers.tasks.media",
-        "app.workers.tasks.search",
         "app.workers.tasks.certificates",
     ],
 )
@@ -38,9 +37,5 @@ celery.conf.beat_schedule = {
     "sweep-unclaimed-assets": {
         "task": "app.workers.tasks.media.sweep_unclaimed_assets",
         "schedule": crontab(hour="3", minute="0"),
-    },
-    "reindex-catalog": {
-        "task": "app.workers.tasks.search.reindex_catalog",
-        "schedule": crontab(hour="*/6", minute="15"),
     },
 }

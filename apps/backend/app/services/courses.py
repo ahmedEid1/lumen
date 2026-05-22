@@ -113,10 +113,7 @@ async def update_course(
     if payload.learning_outcomes is not None:
         course.learning_outcomes = list(payload.learning_outcomes)
     if payload.status is not None:
-        prev = course.status
         await _transition_status(db, course, payload.status)
-        if prev != course.status:
-            _schedule_index(course.id)
     # When the title changed we minted a new slug via _unique_slug, but
     # that check is racy — a concurrent rename could have just claimed
     # the same candidate. Flush the slug update inside a savepoint with
@@ -131,19 +128,6 @@ async def update_course(
 async def delete_course(db: AsyncSession, *, course_id: str, owner: User) -> None:
     course = await _owned_course(db, course_id, owner)
     course.deleted_at = datetime.now(UTC)
-    _schedule_index(course.id)
-
-
-def _schedule_index(course_id: str) -> None:
-    """Best-effort: enqueue a search reindex. Tolerates broker being down in dev/tests."""
-    try:
-        from app.workers.tasks.search import index_course
-
-        index_course.delay(course_id)
-    except Exception:
-        from app.core.logging import get_logger
-
-        get_logger(__name__).info("search_index_skipped", course_id=course_id)
 
 
 _VALID_STATUS_TRANSITIONS: dict[CourseStatus, set[CourseStatus]] = {

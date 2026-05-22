@@ -335,21 +335,16 @@ async def list_audit(
 
 @router.post("/search/reindex", response_model=OkResponse, status_code=status.HTTP_202_ACCEPTED)
 async def reindex_search(admin: RequireAdmin, db: DBSession) -> OkResponse:
-    """Queue a full catalog reindex.
+    """Reindex acknowledgement (no-op under Postgres FTS).
 
-    The Celery task is best-effort: if the broker is unavailable (e.g. in a
-    minimal dev/test environment) we run the reindex inline so the operator
-    still gets a result.
+    Since rebuild Cut A9 the search index is a GENERATED ALWAYS AS
+    STORED tsvector column maintained by Postgres on every write — no
+    out-of-band worker reindex can put it ahead of the table. The
+    endpoint is kept (with the original 202 contract + audit row) so
+    existing operator tooling continues to work; the audit row is
+    still a useful "an admin asked for a reindex" signal.
     """
     await audit_repo.record(db, actor_id=admin.id, action="admin.search.reindex")
-    try:
-        from app.workers.tasks.search import reindex_catalog
-
-        reindex_catalog.delay()
-    except Exception:  # broker unavailable
-        from app.workers.tasks.search import _reindex
-
-        await _reindex()
     return OkResponse()
 
 
