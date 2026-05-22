@@ -99,6 +99,7 @@ async def db_session(_engine) -> AsyncIterator[AsyncSession]:
         await session.execute(text(
             "TRUNCATE assets, audit_events, notifications, reviews, quiz_attempts, "
             "review_cards, discussion_replies, discussions, lesson_chunks, "
+            "tutor_messages, tutor_conversations, "
             "lesson_progress, enrollments, lessons, modules, course_tags, courses, "
             "tags, subjects, auth_refresh_tokens, users RESTART IDENTITY CASCADE"
         ))

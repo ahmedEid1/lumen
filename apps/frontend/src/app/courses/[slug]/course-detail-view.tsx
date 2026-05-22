@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -8,9 +9,11 @@ import {
   Check,
   Layers,
   MessageSquare,
+  Sparkles,
   Star,
   Users,
   ArrowRight,
+  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Courses, Me, Reviews } from "@/lib/api/endpoints";
 import { MyReviewEditor } from "@/components/course/my-review-editor";
+import { TutorPanel } from "@/components/tutor/tutor-panel";
 import type { CourseDetail } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
@@ -29,6 +33,10 @@ export function CourseDetailView({ slug }: { slug: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const t = useT();
+  // Tutor opens in a modal-style overlay on the syllabus page so we
+  // don't restructure the existing two-column layout. Enrolled-only
+  // gating is enforced at render time below.
+  const [tutorOpen, setTutorOpen] = useState(false);
 
   const courseQ = useQuery({
     queryKey: qk.course(slug),
@@ -161,10 +169,21 @@ export function CourseDetailView({ slug }: { slug: string }) {
           )}
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
               <CardTitle className="font-display text-xl leading-tight">
                 {t("course.syllabus")}
               </CardTitle>
+              {course.is_enrolled && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTutorOpen(true)}
+                  aria-label={t("tutor.askButton")}
+                >
+                  <Sparkles className="me-1.5 h-3.5 w-3.5" />
+                  {t("tutor.askButton")}
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {course.modules.length === 0 ? (
@@ -394,6 +413,32 @@ export function CourseDetailView({ slug }: { slug: string }) {
           </Card>
         </aside>
       </div>
+
+      {/* Tutor overlay — modal-style so we don't disrupt the existing
+          syllabus layout. Enrolled-only by gate above (the button
+          doesn't render for non-enrolled visitors). Click outside or
+          the close button to dismiss. */}
+      {tutorOpen && course.is_enrolled && (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-end bg-foreground/20 p-4 sm:items-center sm:justify-center sm:p-6"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setTutorOpen(false);
+          }}
+        >
+          <div className="relative h-[80vh] w-full max-w-xl">
+            <Button
+              variant="outline"
+              size="sm"
+              className="absolute -top-3 -right-3 z-10 h-8 w-8 rounded-full p-0"
+              onClick={() => setTutorOpen(false)}
+              aria-label={t("tutor.closeButton")}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            <TutorPanel courseId={course.id} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

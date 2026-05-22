@@ -3,15 +3,15 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Courses } from "@/lib/api/endpoints";
+import { AI, Courses } from "@/lib/api/endpoints";
 import type { LessonOut, LessonType, TextLessonData } from "@/lib/api/types";
 import { BlockEditor } from "@/components/lesson/block-editor";
-import { resolveTextLessonDoc, type BlockDoc } from "@/lib/lesson/blocks";
+import { resolveTextLessonDoc, type BlockDoc, isBlockDoc, emptyDoc } from "@/lib/lesson/blocks";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
@@ -26,6 +26,11 @@ type QuizQuestion = {
 
 type Props = {
   moduleId: string;
+  /** Optional — only used to feed the "course context" to the AI assist
+   *  buttons. The lesson editor stays usable without it (the AI calls
+   *  just send an empty context string). */
+  courseId?: string;
+  courseTitle?: string;
   lesson?: LessonOut;
   newType?: LessonType;
   onSaved: () => void;
@@ -33,7 +38,16 @@ type Props = {
   onCancel?: () => void;
 };
 
-export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, onCancel }: Props) {
+export function LessonEditor({
+  moduleId,
+  courseId: _courseId,
+  courseTitle,
+  lesson,
+  newType,
+  onSaved,
+  onDeleted,
+  onCancel,
+}: Props) {
   const t = useT();
   const type = (lesson?.type ?? newType ?? "text") as LessonType;
   const [title, setTitle] = useState(lesson?.title ?? "");
@@ -41,6 +55,52 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
   const [isPreview, setIsPreview] = useState<boolean>(lesson?.is_preview ?? false);
   const initial = useMemo(() => normalizeData(type, lesson?.data ?? {}), [type, lesson]);
   const [data, setData] = useState<any>(initial);
+  const [aiBusy, setAiBusy] = useState(false);
+
+  async function draftBodyWithAi() {
+    if (!title.trim()) {
+      toast.error(t("lessonEdit.ai.needTitle"));
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const res = await AI.lessonBody({
+        lesson_title: title.trim(),
+        course_context: courseTitle ?? "",
+      });
+      const blocks = isBlockDoc(res.blocks) ? res.blocks : emptyDoc();
+      setData((prev: any) => ({ ...prev, blocks }));
+      toast.success(t("lessonEdit.ai.bodyDraftedToast"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("lessonEdit.ai.error"));
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function generateQuizWithAi() {
+    if (!title.trim()) {
+      toast.error(t("lessonEdit.ai.needTitle"));
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const res = await AI.quiz({
+        lesson_title: title.trim(),
+        course_context: courseTitle ?? "",
+        n: 4,
+      });
+      setData((prev: any) => ({
+        ...prev,
+        questions: res.questions,
+      }));
+      toast.success(t("lessonEdit.ai.quizDraftedToast"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("lessonEdit.ai.error"));
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   const save = useMutation({
     mutationFn: async () => {
@@ -134,9 +194,22 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
 
         {type === "text" && (
           <div className="space-y-1.5">
-            <label className="font-body text-sm font-medium" id="lesson-body-label">
-              {t("lessonEdit.body")}
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="font-body text-sm font-medium" id="lesson-body-label">
+                {t("lessonEdit.body")}
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={draftBodyWithAi}
+                disabled={aiBusy || !title.trim()}
+                aria-label={t("lessonEdit.ai.draftBody")}
+              >
+                <Sparkles className="me-1 h-3.5 w-3.5" />
+                {aiBusy ? t("lessonEdit.ai.drafting") : t("lessonEdit.ai.draftBody")}
+              </Button>
+            </div>
             <div aria-labelledby="lesson-body-label">
               <BlockEditor
                 value={data.blocks as BlockDoc}
@@ -260,7 +333,24 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
           </div>
         )}
 
-        {type === "quiz" && <QuizEditor data={data} onChange={setData} />}
+        {type === "quiz" && (
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={generateQuizWithAi}
+                disabled={aiBusy || !title.trim()}
+                aria-label={t("lessonEdit.ai.generateQuiz")}
+              >
+                <Sparkles className="me-1 h-3.5 w-3.5" />
+                {aiBusy ? t("lessonEdit.ai.drafting") : t("lessonEdit.ai.generateQuiz")}
+              </Button>
+            </div>
+            <QuizEditor data={data} onChange={setData} />
+          </div>
+        )}
       </CardContent>
       <CardFooter className="justify-between">
         <Button onClick={() => save.mutate()} disabled={!title || save.isPending}>

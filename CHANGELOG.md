@@ -8,6 +8,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added (rebuild phase E)
+- **Course-scoped RAG AI tutor (E1).** "Ask the tutor" lands on
+  every course surface (lesson player toolbar + course detail
+  syllabus card for enrolled learners). Each answer is grounded
+  in *this course's* lessons via E0's pgvector retrieval and
+  carries inline `[L:<lesson_id>]` citations that render as
+  clickable pills under the assistant turn. Provider abstraction
+  in `app/services/llm.py` exposes one `LLMProvider` Protocol
+  with three concrete backends (Anthropic / OpenAI / Noop); the
+  noop backend mines lesson ids out of the system prompt's
+  context block and emits `[L:<id>]` tokens so the test suite
+  exercises retrieval + citation extraction end-to-end without
+  burning tokens or depending on outbound network. System prompt
+  pins the model to retrieved chunks; two refusal guardrails
+  (empty-retrieval short-circuit + citation validation against
+  retrieval set) make it impossible to render a citation pointing
+  at a lesson the answer wasn't grounded in. New tables
+  `tutor_conversations` + `tutor_messages` (Alembic `0021`)
+  persist every turn — user turn lands before the LLM call so
+  the audit log shows what a learner asked even on errors; the
+  assistant turn (with citation JSONB) lands only on success.
+  Four endpoints (start / list / get / post-message) with the
+  message-post path rate-limited at 20/minute per identity. UI:
+  `<TutorPanel courseId>` is a Workbench-style card with a
+  single lime CTA, optimistic user-message rendering, in-flight
+  loading sentinel, and citation pills that open lessons in a
+  new tab. Mounted lazily (no LLM round-trip) until the learner
+  toggles "Ask the tutor". 15 i18n keys, en+ar parity.
+
+- **Multi-modal content ingest (E3).** Instructors can paste a
+  YouTube video, public Notion page, or public Google Doc URL into a
+  new "Import from URL" panel in the studio and the system returns a
+  draft course (modules + lessons) ready to review and commit. New
+  endpoints under `/api/v1/studio/ingest/*`: `POST /detect` (cheap
+  regex source detection — 60/min), `POST /preview` (full extraction,
+  no persistence — 3/min), `POST /commit` (writes modules + lessons
+  into a named course — 10/min). All three require instructor /
+  admin.
+
+  **Source detection pattern.** A pure `detect_source(url)` function
+  in `app/services/content_ingest.py` returns one of
+  `"youtube" | "notion" | "google_docs" | "unknown"` from a URL host
+  + path match. We expose it both as a server endpoint (so a tampered
+  client can't bypass our extractor whitelist) and re-implement the
+  same shape client-side in the studio modal so the "Detected:
+  YouTube" badge updates instantly while the user types — no network
+  round-trip for what is, fundamentally, a regex.
+
+  **Typed `IngestPayload` contract.** Every extractor returns the
+  same Pydantic model: `{title, source_url, source, modules: [{title,
+  lessons: [{title, type: "text", body, anchor?}]}]}`. The discriminated
+  `source` field is what the UI uses to badge each draft; the
+  `anchor` field on lessons is a deep link back to the original (a
+  YouTube `&t={seconds}` URL, a Notion block anchor, etc.) and is
+  prepended to the lesson body markdown on commit so a learner can
+  always jump to the source. Lessons land as `LessonType.text` for
+  v1 — we don't yet transcode YouTube into a Lumen-hosted video,
+  we just embed the chunked transcript prose and let the anchor
+  carry the timestamp.
+
+  **Auth posture per source.** YouTube uses
+  `youtube-transcript-api`, which scrapes the public transcript feed
+  with no API key (videos with disabled transcripts return a clean
+  422 `ingest.youtube.no_transcript`). Notion uses the official
+  `notion-client` SDK + `NOTION_TOKEN` (new
+  `Settings.notion_token`); v1 is **token-only** — the spec hinted
+  at a public-page scraping fallback but Notion's
+  `__NEXT_DATA__` blob is brittle enough that we'd rather degrade
+  with an explicit `ingest.notion.no_token` error than ship a
+  silently-flaky path. Google Docs uses `httpx` against
+  `https://docs.google.com/document/d/{id}/export?format=txt` — any
+  "anyone with the link" doc exposes a plaintext export with no
+  auth; private docs return 401/403 which we surface as a clean 422
+  `ingest.google_docs.private`. None of the three need a paid /
+  managed API account; the only credential is the optional Notion
+  token.
+
+  **Human-in-the-loop preview flow.** The studio modal renders the
+  payload tree (modules → lessons) inline with every title field as
+  an editable `<input>`, and only the user-clicked **Create draft
+  course** CTA commits the payload. For v1 the commit always creates
+  a *new* draft course (using the first subject by alphabetical
+  order — same default as `/studio/new`); appending to an existing
+  course is a future enhancement. The two-request commit (create
+  course, then append modules) keeps the `ingest/commit` endpoint
+  course-agnostic and reusable for that future flow.
+
+  **Studio integration.** `apps/frontend/src/components/studio/ingest-modal.tsx`
+  is a self-contained bespoke `role="dialog"` overlay — the project
+  doesn't ship a shared Dialog primitive yet and the few existing
+  modals (mobile nav, onboarding tour) each roll their own. The
+  studio root page (`apps/frontend/src/app/studio/page.tsx`) gains
+  an "Import from URL" outline button alongside the existing "New
+  course" CTA. ~25 new i18n keys under the `studio.import.*`
+  namespace, with full Arabic parity.
+
+  **Why block-on-request vs. background task.** The spec called
+  out a 202 + task-id polling option for >5s extractions; v1
+  ships the block-on-request path because (a) the 3/min rate
+  limit caps the worst-case server load, (b) a YouTube transcript
+  for a 90-minute lecture is still tens of KB so the extractor
+  itself rarely takes >2s, and (c) the upstream network hop
+  dominates anyway — moving it to Celery just adds a Redis
+  round-trip without changing the user-perceived latency. If a
+  source genuinely needs minutes of work (long-form Notion
+  workspaces, PDFs) we'll add a background variant in a follow-up
+  ADR.
+
 - **Open Badges 3.0 / W3C Verifiable Credentials issuance + public
   verification (E5).** Every certificate minted on 100% course
   completion now also produces a signed OB3 JSON-LD credential, stored

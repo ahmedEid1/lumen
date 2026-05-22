@@ -181,6 +181,8 @@ export default function ModuleEditorPage({
           {editing ? (
             <LessonEditor
               moduleId={moduleId}
+              courseId={id}
+              courseTitle={courseQ.data?.title}
               lesson={editing}
               onSaved={() => qc.invalidateQueries({ queryKey: qk.course(id) })}
               onDeleted={() => {
@@ -191,6 +193,8 @@ export default function ModuleEditorPage({
           ) : creatingType ? (
             <LessonEditor
               moduleId={moduleId}
+              courseId={id}
+              courseTitle={courseQ.data?.title}
               newType={creatingType}
               onSaved={() => {
                 setCreatingType(null);

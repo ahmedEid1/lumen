@@ -5,12 +5,21 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Circle } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Circle,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Courses, Me } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { LessonPlayer } from "@/components/lesson/lesson-player";
+import { TutorPanel } from "@/components/tutor/tutor-panel";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 import { pickResumeLessonId } from "@/lib/lesson-resume";
@@ -35,6 +44,10 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
   const t = useT();
   const courseQ = useQuery({ queryKey: qk.course(slug), queryFn: () => Courses.get(slug) });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The tutor panel mounts in a right-hand column when toggled. We
+  // keep it unmounted by default so the conversation isn't opened
+  // (= no LLM round-trip) until the learner actually asks for it.
+  const [tutorOpen, setTutorOpen] = useState(false);
 
   const lessons = useMemo(() => {
     if (!courseQ.data) return [];
@@ -111,7 +124,14 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
   }
 
   return (
-    <div className="container mx-auto grid gap-6 px-6 py-10 lg:grid-cols-[300px_1fr]">
+    <div
+      className={cn(
+        "container mx-auto grid gap-6 px-6 py-10",
+        tutorOpen
+          ? "lg:grid-cols-[300px_1fr_360px]"
+          : "lg:grid-cols-[300px_1fr]",
+      )}
+    >
       {/* Outline panel — surface-1, sticky on lg, subtle module dividers. */}
       <aside className="order-2 lg:order-none">
         <div className="surface lg:sticky lg:top-20">
@@ -184,12 +204,32 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
       <section className="order-1 min-w-0 lg:order-none">
         {selected ? (
           <>
-            <p className="mb-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-              {t("learn.cartouche")}
-            </p>
-            <h1 className="mb-6 font-display text-2xl leading-tight tracking-tight sm:text-3xl">
-              {selected.title}
-            </h1>
+            <div className="mb-6 flex items-start justify-between gap-3">
+              <div>
+                <p className="mb-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                  {t("learn.cartouche")}
+                </p>
+                <h1 className="font-display text-2xl leading-tight tracking-tight sm:text-3xl">
+                  {selected.title}
+                </h1>
+              </div>
+              <Button
+                variant={tutorOpen ? "default" : "outline"}
+                size="sm"
+                onClick={() => setTutorOpen((open) => !open)}
+                aria-pressed={tutorOpen}
+                aria-label={
+                  tutorOpen ? t("tutor.closeButton") : t("tutor.askButton")
+                }
+              >
+                {tutorOpen ? (
+                  <X className="me-1.5 h-3.5 w-3.5" />
+                ) : (
+                  <Sparkles className="me-1.5 h-3.5 w-3.5" />
+                )}
+                {tutorOpen ? t("tutor.closeButton") : t("tutor.askButton")}
+              </Button>
+            </div>
             <LessonPlayer lesson={selected} />
             <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-6">
               <div className="flex items-center gap-2">
@@ -233,6 +273,18 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
           </div>
         )}
       </section>
+
+      {/* Tutor panel — unmounted until the learner toggles it on so
+          the conversation isn't opened (= no LLM round-trip) before
+          they actually ask. */}
+      {tutorOpen && (
+        <aside
+          className="order-3 min-w-0 lg:order-none lg:sticky lg:top-20 lg:h-[calc(100vh-7rem)]"
+          aria-label={t("tutor.heading")}
+        >
+          <TutorPanel courseId={course.id} />
+        </aside>
+      )}
     </div>
   );
 }

@@ -4,10 +4,12 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     admin,
+    ai_authoring,
     auth,
     badges,
     catalog,
     certificates,
+    content_ingest,
     courses,
     discussions,
     enrollments,
@@ -37,3 +39,13 @@ api_router.include_router(certificates.router, prefix="/certificates", tags=["ce
 api_router.include_router(badges.router, prefix="/credentials", tags=["badges"])
 api_router.include_router(discussions.router, tags=["discussions"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
+# Content ingest (Phase E3) — paste a URL, get a draft course.
+api_router.include_router(
+    content_ingest.router, prefix="/studio/ingest", tags=["studio-ingest"]
+)
+# AI-assisted authoring (Phase E2) — outline + lesson body + quiz
+# generation. All four endpoints share the ``/studio/ai`` prefix and
+# the per-user 5/minute rate limit declared inside the module.
+api_router.include_router(
+    ai_authoring.router, prefix="/studio", tags=["studio-ai"]
+)

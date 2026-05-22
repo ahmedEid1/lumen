@@ -60,6 +60,25 @@ dependencies = [
   # the per-(user, lesson) review queue at /me/reviews. Replaces
   # SM-2 across the modern Anki / Mochi / RemNote ecosystem.
   "fsrs>=5.0",
+  # LLM client SDKs (rebuild Phase E1 — course-scoped RAG tutor).
+  # The tutor service talks to one ``LLMProvider`` abstraction;
+  # these are the concrete provider deps. Both are optional at
+  # runtime — the ``noop`` provider has no external dependency
+  # and is what tests exercise — but we list them in the base
+  # install so a fresh ``pip install`` of the API container is
+  # ready for either provider without an extras dance.
+  "anthropic>=0.40",
+  "openai>=1.50",
+  # Multi-modal content ingest (rebuild Phase E3 — paste a URL, get a
+  # draft course). ``youtube-transcript-api`` scrapes YouTube's
+  # public transcript feed (no API key needed). ``notion-client``
+  # is the official Notion SDK and requires ``NOTION_TOKEN`` to be
+  # set; without it the Notion path raises a clean 422 rather than
+  # falling back to fragile HTML scraping. The Google Docs path
+  # uses plain ``httpx`` against ``/export?format=txt`` and needs
+  # no extra dep.
+  "youtube-transcript-api>=0.6",
+  "notion-client>=2.2",
   "typer>=0.15",
   "rich>=13.9",
 ]
@@ -126,7 +145,15 @@ plugins = ["pydantic.mypy"]
 exclude = "alembic/versions"
 
 [[tool.mypy.overrides]]
-module = ["passlib.*", "celery.*", "slowapi.*", "pgvector.*", "sentence_transformers.*"]
+module = [
+  "passlib.*",
+  "celery.*",
+  "slowapi.*",
+  "pgvector.*",
+  "sentence_transformers.*",
+  "anthropic.*",
+  "openai.*",
+]
 ignore_missing_imports = true
 
 # ---------------- pytest ----------------

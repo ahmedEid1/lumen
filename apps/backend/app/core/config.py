@@ -125,6 +125,31 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openai_api_base: str = "https://api.openai.com/v1"
 
+    # ---------- LLM (Phase E1 RAG tutor + E2 authoring assistant) ----------
+    # Provider selector for ``app.services.llm`` — drives both the
+    # RAG tutor (Phase E1) and the AI-assisted authoring service
+    # (Phase E2). ``noop`` returns deterministic canned text for
+    # tests so every CI run that touches an LLM path stays
+    # network-free. Operators flip the provider via ``LLM_PROVIDER``;
+    # ``LLM_MODEL`` overrides the per-provider default model id.
+    llm_provider: Literal["anthropic", "openai", "noop"] = "anthropic"
+    llm_model: str | None = None
+    anthropic_api_key: SecretStr | None = None
+    anthropic_api_base: str | None = None
+    llm_max_tokens: int = 1024
+
+    # ---------- Content ingest (Phase E3) ----------
+    # Optional Notion integration token. When unset, the Notion
+    # extractor refuses with a clean 422 ("set NOTION_TOKEN") rather
+    # than attempting to scrape Notion's HTML. Public Notion pages
+    # *can* be served without auth, but the embedded ``__NEXT_DATA__``
+    # JSON shape is brittle enough that we'd rather lean on the
+    # supported integration API. YouTube + Google Docs paths don't
+    # need any credentials — public videos expose transcripts to
+    # ``youtube-transcript-api`` and "anyone with the link" Docs
+    # expose a plaintext export.
+    notion_token: SecretStr | None = None
+
     # ---------- HIBP (breach-list lookup) ----------
     # Opt-in because (a) it adds a ~200ms external call to register/reset
     # and (b) some deployments don't want any third-party callout. When
