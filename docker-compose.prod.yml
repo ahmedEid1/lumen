@@ -48,7 +48,9 @@ services:
       - web
 
   db:
-    image: postgres:17-alpine
+    # pgvector pre-installed — required by Phase E0. See the dev
+    # compose comment for the choice of tag.
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}

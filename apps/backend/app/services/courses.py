@@ -11,9 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.ids import new_id
+from app.core.logging import get_logger
 from app.models.course import Course, CourseStatus, Lesson, LessonType, Module
 from app.models.user import User
 from app.repositories import courses as courses_repo
+
+log = get_logger(__name__)
 
 if TYPE_CHECKING:
     from app.schemas.course import (
@@ -164,6 +167,31 @@ async def _transition_status(
             )
         course.published_at = datetime.now(UTC)
     course.status = target
+    if target == CourseStatus.published:
+        _schedule_embedding_index(course.id)
+
+
+def _schedule_embedding_index(course_id: str) -> None:
+    """Best-effort enqueue of the embedding-index task on publish.
+
+    Phase E0 wires every publish/re-publish through Celery so the
+    course's lesson chunks land in ``lesson_chunks`` before the
+    learner has a chance to ask the tutor anything. The send is
+    best-effort by design: if the broker is unreachable (the dev
+    stack ships without a worker by default, and Redis can blip in
+    prod), we log a warning and move on. The same defensive shape
+    that A9 removed when search was reindex-on-publish — we never
+    let a downstream subsystem block a successful publish.
+    """
+    try:
+        # Deferred import so importing this module from a context
+        # without Celery installed (alembic, migrations CLI, etc.)
+        # still works.
+        from app.workers.tasks.embeddings import index_course_embeddings
+
+        index_course_embeddings.delay(course_id)
+    except Exception:  # pragma: no cover — broker may be down
+        log.warning("embedding_index_enqueue_failed", course_id=course_id)
 
 
 async def _unique_slug(db: AsyncSession, title: str, *, exclude_id: str | None = None) -> str:

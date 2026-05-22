@@ -18,6 +18,7 @@ celery = Celery(
         "app.workers.tasks.media",
         "app.workers.tasks.certificates",
         "app.workers.tasks.digest",
+        "app.workers.tasks.embeddings",
     ],
 )
 

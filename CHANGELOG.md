@@ -8,6 +8,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added (rebuild phase E)
+- **pgvector + per-lesson chunk index + provider-agnostic embedding
+  service (E0).** Lays the storage and ingestion plumbing the rest of
+  the AI moat (E1 tutor / E2 authoring / E3 multi-modal / E7 mastery
+  dashboard) sits on top of. Postgres-side: the `db` service swaps
+  from `postgres:17-alpine` to `pgvector/pgvector:pg17` so the
+  `vector` extension is available in dev + prod; the init SQL adds
+  `CREATE EXTENSION IF NOT EXISTS "vector"`; a new Alembic migration
+  `0017_pgvector_extension` runs the same `CREATE EXTENSION` against
+  upgrades of existing volumes; a second migration `0018_lesson_chunks`
+  creates the per-chunk table — `id`, `lesson_id (FK ON DELETE
+  CASCADE)`, `chunk_index`, `text`, `embedding vector(384)`,
+  `token_count`, `created_at` — plus an HNSW index
+  (`vector_cosine_ops`) for sub-linear ANN search. Python-side: new
+  `pgvector>=0.3` dep for the SQLAlchemy `Vector` adapter, new
+  `app/models/lesson_chunk.py` registered in `models/__init__.py`,
+  and `EMBEDDING_DIM = 384` as the single source of truth for the
+  column shape.
+
+  Why 384 dims: `sentence-transformers/all-MiniLM-L6-v2` (our
+  default self-hosted provider) emits 384, and OpenAI's
+  `text-embedding-3-small` accepts `dimensions=384` as a
+  truncation knob — so operators can flip
+  `EMBEDDING_PROVIDER=local|openai` without a re-index or schema
+  change. Why HNSW: read-heavy, append-on-publish workload; IVFFlat
+  would need a `REINDEX` after every ingest to perform, which is
+  operationally expensive given courses publish one at a time.
+
+  Provider interface (`app/services/embeddings.py`): an abstract
+  `EmbeddingProvider` Protocol with three concrete implementations.
+  `LocalEmbeddingProvider` defers the `sentence_transformers` import
+  to first `embed()` call (the package pulls in torch — ~200MB and
+  slow — and worker boot would crawl if we imported eagerly).
+  `OpenAIEmbeddingProvider` posts to `/v1/embeddings` with
+  `dimensions=384`, sorts the response by `index` defensively, and
+  surfaces network failures up to the Celery retry policy.
+  `NoopEmbeddingProvider` is a deterministic SHA-256 + L2-normalize
+  stub for tests — same input maps to the same unit vector, different
+  inputs map to different ones, no network. New config keys
+  `embedding_provider` (default `"local"`), `embedding_model_local`,
+  `embedding_model_openai`, `openai_api_key` (SecretStr, optional),
+  `openai_api_base`.
+
+  Chunker + ingest (`app/services/embeddings_ingest.py`):
+  ~500-token sliding windows with 50-token overlap, using a cheap
+  whitespace + 1.3 tokens/word proxy so the chunker stays independent
+  of the embedding model's tokenizer. Quiz lessons concatenate every
+  question's prompt into one document; image/file/video lessons fall
+  back to title + alt/filename/description so the retriever always
+  has *something* to point at. `ingest_lesson` is idempotent —
+  re-runs delete the lesson's existing chunks before inserting new
+  ones. `ingest_course` walks every live lesson in the course; a
+  Celery task `app.workers.tasks.embeddings.index_course_embeddings`
+  wraps it with the async-to-sync bridge used by `digest_daily`.
+
+  Publish hook: `_transition_status` in `app/services/courses.py`
+  enqueues `index_course_embeddings.delay(course_id)` whenever a
+  course lands in `published`. Best-effort by design — if the
+  broker is unreachable (the dev stack ships without a worker by
+  default), we log a warning and don't block the publish, matching
+  the defensive shape `_schedule_index` used pre-A9.
+
+  Retrieval helper (`app/services/embeddings_retrieval.py`):
+  `find_relevant_chunks(db, course_id, query, top_k=5)` embeds the
+  query, runs a `<=>` cosine-distance search joined to live lessons
+  in the target course, and returns ORM `LessonChunk` rows with
+  their parent `Lesson` eagerly loaded so callers can render
+  citations without a second SELECT. The course scope is enforced
+  in SQL — chunks from other courses are unreachable through this
+  surface.
+
+  Admin reindex: `POST /api/v1/admin/search/reindex` has been a 202
+  no-op since A9 (the FTS column is a generated `tsvector` and has
+  nothing to rebuild). It now legitimately fans out one
+  `index_course_embeddings` task per live published course — useful
+  when an operator flips `EMBEDDING_PROVIDER`, after a chunker
+  bug-fix, or on a fresh deploy that needs the historical catalogue
+  backfilled. Existing test coverage on the audit-row contract is
+  unchanged.
+
+  Tests: `apps/backend/tests/test_embeddings.py` covers the chunker
+  on multi-paragraph text + quiz + image-with-alt + empty bodies,
+  asserts overlap on consecutive windows, exercises
+  `ingest_lesson`'s idempotency contract (re-ingest count
+  unchanged), confirms `find_relevant_chunks` orders by cosine
+  distance correctly (exact-stored-text query → distance-0 top
+  hit), and asserts `top_k` truncation + blank-query short-circuit.
+  The provider is swapped to `noop` per-test via
+  `monkeypatch.setenv("EMBEDDING_PROVIDER", "noop")` +
+  `get_settings.cache_clear()` — the CLAUDE.md-documented pattern
+  for runtime config flips. Reference spec §4 Phase E item 0.
 - **Block editor for `text` lessons — Tiptap, Notion-style (E6).**
   The free-form markdown `<Textarea>` that backed text lessons is
   replaced with a block-based editor. Authors compose paragraphs,

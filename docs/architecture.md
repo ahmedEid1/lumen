@@ -46,7 +46,7 @@ Background:                           Email:
 | `api`         | `python:3.13-slim` → custom  | FastAPI HTTP + WebSocket |
 | `worker`      | same as `api`                | Celery worker (uploads, emails, indexing, certs) |
 | `beat`        | same as `api`                | Celery beat scheduler |
-| `db`          | `postgres:17-alpine`         | Primary datastore |
+| `db`          | `pgvector/pgvector:pg17`     | Primary datastore + pgvector for semantic search (Phase E0) |
 | `redis`       | `redis:7-alpine`             | Cache, broker, pub/sub |
 | `s3`          | `minio/minio`                | Object storage (lessons, avatars) |
 | `mail`        | `axllent/mailpit`            | Dev SMTP UI |

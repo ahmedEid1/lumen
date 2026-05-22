@@ -335,16 +335,48 @@ async def list_audit(
 
 @router.post("/search/reindex", response_model=OkResponse, status_code=status.HTTP_202_ACCEPTED)
 async def reindex_search(admin: RequireAdmin, db: DBSession) -> OkResponse:
-    """Reindex acknowledgement (no-op under Postgres FTS).
+    """Reindex acknowledgement — fans out per-course embedding rebuilds.
 
-    Since rebuild Cut A9 the search index is a GENERATED ALWAYS AS
-    STORED tsvector column maintained by Postgres on every write — no
-    out-of-band worker reindex can put it ahead of the table. The
-    endpoint is kept (with the original 202 contract + audit row) so
-    existing operator tooling continues to work; the audit row is
-    still a useful "an admin asked for a reindex" signal.
+    The Postgres full-text ``search_vector`` column is a STORED
+    generated column maintained by Postgres on every write (rebuild
+    Cut A9), so the *FTS* side of search has nothing to rebuild here.
+    What this endpoint now drives is the *embedding* side: one
+    ``index_course_embeddings`` Celery task per live published course,
+    refreshing every lesson's chunks against the currently-configured
+    embedding provider. Useful when:
+
+    * we change ``EMBEDDING_PROVIDER`` and want existing catalogues
+      re-embedded against the new model;
+    * a chunker bug-fix shipped and we want to backfill;
+    * a fresh deploy has empty ``lesson_chunks`` rows and we want to
+      backfill the historical catalogue without re-publishing
+      every course by hand.
+
+    Enqueue is best-effort per course — broker failures are logged
+    by the task itself. The endpoint stays 202 (accepted, not done)
+    because the actual work runs on the worker.
     """
     await audit_repo.record(db, actor_id=admin.id, action="admin.search.reindex")
+    # Deferred import — see service-layer ``_schedule_embedding_index``
+    # for the same reasoning.
+    try:
+        from app.workers.tasks.embeddings import index_course_embeddings
+    except Exception:  # pragma: no cover — Celery not importable
+        return OkResponse()
+
+    res = await db.execute(
+        select(Course.id).where(
+            Course.deleted_at.is_(None),
+            Course.status == CourseStatus.published,
+        )
+    )
+    for (course_id,) in res.all():
+        try:
+            index_course_embeddings.delay(course_id)
+        except Exception:  # pragma: no cover — broker may be down
+            # We swallow per-course so one stuck enqueue doesn't
+            # truncate the fan-out; the operator can re-run.
+            continue
     return OkResponse()
 
 

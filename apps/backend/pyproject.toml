@@ -15,6 +15,12 @@ dependencies = [
   "sqlalchemy[asyncio]>=2.0.36",
   "asyncpg>=0.30",
   "psycopg[binary]>=3.2",
+  # pgvector SQLAlchemy adapter — the Python side of the ``vector``
+  # column used by ``lesson_chunks`` (Phase E0). The Postgres-side
+  # extension is enabled by migration ``0017_pgvector_extension`` and
+  # requires the ``pgvector/pgvector:pg17`` image (or any build that
+  # bundles the extension) — bare ``postgres:17-alpine`` will not work.
+  "pgvector>=0.3",
   "alembic>=1.14",
   "passlib[argon2]>=1.7.4",
   "argon2-cffi>=23.1",
@@ -40,6 +46,20 @@ dependencies = [
   "python-slugify>=8.0",
   "nanoid>=2.0.0",
   "reportlab>=4.2",
+  # Open Badges 3.0 / W3C VC issuance (rebuild Phase E5):
+  # cryptography ships Ed25519 in pure-Rust primitives; pyld is the
+  # reference JSON-LD library — we keep it on hand for future
+  # URDNA2015 canonicalization once we move to a did:web issuer.
+  # Today's signing path uses JCS (RFC 8785-style deterministic
+  # JSON) over the credential, which is enough for OB3 §8.2
+  # "EdDSA over JCS" and avoids the C-extension dance.
+  "cryptography>=42",
+  "pyld>=2.0",
+  # Free Spaced Repetition Scheduler v6 (rebuild Phase E4).
+  # Pure-Python implementation of the FSRS-6 algorithm — drives
+  # the per-(user, lesson) review queue at /me/reviews. Replaces
+  # SM-2 across the modern Anki / Mochi / RemNote ecosystem.
+  "fsrs>=5.0",
   "typer>=0.15",
   "rich>=13.9",
 ]
@@ -106,7 +126,7 @@ plugins = ["pydantic.mypy"]
 exclude = "alembic/versions"
 
 [[tool.mypy.overrides]]
-module = ["passlib.*", "celery.*", "slowapi.*"]
+module = ["passlib.*", "celery.*", "slowapi.*", "pgvector.*", "sentence_transformers.*"]
 ignore_missing_imports = true
 
 # ---------------- pytest ----------------

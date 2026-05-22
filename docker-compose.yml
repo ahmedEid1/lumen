@@ -46,7 +46,13 @@ x-healthcheck-defaults: &healthcheck-defaults
 
 services:
   db:
-    image: postgres:17-alpine
+    # pgvector/pgvector ships the upstream Postgres image with the
+    # ``vector`` extension pre-installed — required by Phase E0's
+    # embedding pipeline. ``pgvector/pgvector:pg17`` tracks the same
+    # 17.x line as the prior ``postgres:17-alpine`` so existing dev
+    # volumes upgrade in place (debian-based vs alpine, no data
+    # format change).
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-lumen}

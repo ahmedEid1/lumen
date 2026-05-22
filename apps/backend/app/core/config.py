@@ -95,6 +95,36 @@ class Settings(BaseSettings):
     rate_limit_auth_per_minute: int = 10
     rate_limit_user_per_minute: int = 240
 
+    # ---------- Open Badges 3.0 / W3C VC (Phase E5) ----------
+    # ``badges_issuer_url`` is the platform's public identifier that
+    # ends up baked into every issued credential's ``issuer.id``.
+    # Per OB3 §8.1 verifiers expect it to dereference to a Profile
+    # document (today the Lumen domain root suffices; once we migrate
+    # to did:web the issuer ID will switch to ``did:web:<domain>``).
+    # ``badges_signing_key`` is the Ed25519 private key in PEM form.
+    # When unset (typical in dev/test) :mod:`app.core.badges_keys`
+    # falls back to a key deterministically derived from
+    # ``secret_key`` so a fresh ``docker compose up`` can issue and
+    # verify credentials end-to-end without any extra setup. The
+    # production guard refuses to boot if the dev secret leaks
+    # through; see :meth:`assert_production_ready`.
+    badges_issuer_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8000")
+    badges_signing_key: SecretStr = SecretStr("")
+
+    # ---------- Embeddings (Phase E0) ----------
+    # Provider for ``app.services.embeddings`` — selects which concrete
+    # ``EmbeddingProvider`` implementation backs the ingest + retrieval
+    # pipeline. ``local`` uses ``sentence-transformers/all-MiniLM-L6-v2``
+    # (CPU-friendly, fully self-hostable, 384-dim). ``openai`` calls
+    # ``text-embedding-3-small`` with ``dimensions=384`` so the column
+    # shape stays constant across providers. ``noop`` returns zero
+    # vectors with a deterministic seed — for tests only.
+    embedding_provider: Literal["local", "openai", "noop"] = "local"
+    embedding_model_local: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_model_openai: str = "text-embedding-3-small"
+    openai_api_key: SecretStr | None = None
+    openai_api_base: str = "https://api.openai.com/v1"
+
     # ---------- HIBP (breach-list lookup) ----------
     # Opt-in because (a) it adds a ~200ms external call to register/reset
     # and (b) some deployments don't want any third-party callout. When
@@ -132,6 +162,11 @@ class Settings(BaseSettings):
             problems.append("CORS_ORIGINS contains localhost in production")
         if "localhost" in str(self.web_base_url):
             problems.append("WEB_BASE_URL is still the localhost default — emails would link to a dev host")
+        if "localhost" in str(self.badges_issuer_url):
+            problems.append(
+                "BADGES_ISSUER_URL is still the localhost default — issued OB3"
+                " credentials would resolve to a dev host and fail external verification"
+            )
         if problems:
             raise RuntimeError(
                 "Refusing to start: " + "; ".join(problems) + ". Update your .env."
