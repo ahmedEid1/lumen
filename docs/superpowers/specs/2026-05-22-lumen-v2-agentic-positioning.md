@@ -222,3 +222,13 @@ Once those six are true, the project is the strongest single-repo argument for "
 - LLM API keys go in `.env`: `ANTHROPIC_API_KEY` (preferred) or `OPENAI_API_KEY`. Operator must set them before any non-noop path will work.
 - Deployment target (H4): the operator hasn't picked one yet. Recommend Fly.io for pgvector ergonomics; Railway is simpler if the operator prefers a single-dashboard experience. Ask the operator before committing.
 - Cost guardrail (H1) is mandatory before flipping to a live demo — otherwise a single curious visitor's bad-actor loop could rack up real dollars.
+
+## 8. Execution addendum (2026-05-22, locked at next-session kickoff)
+
+Operator picked free-tier paths over the spec's defaults. Spec text above is preserved as the design intent; this addendum is the **operative truth** for the v2 execution.
+
+- **H4 deploy target → free-tier stack, not Fly-only.** Vercel (Next.js) + Fly.io scale-to-zero (FastAPI + Celery worker) + Supabase (Postgres + pgvector, free 500 MB) + Upstash (Redis, free 10k cmds/day) + Cloudflare R2 (storage, free 10 GB). Steady-state cost target: **$0/mo idle**; pay only if the demo gets sustained traffic. Daily Celery digest runs as a GitHub-Actions cron because Fly idle suspends `celery beat`.
+- **H1 / H2 / I2 / I3 LLM backend → Groq Llama 3.3 70B (free tier) via OpenAI-compatible endpoint.** No new provider code: Lumen's existing `OpenAIProvider` already accepts `api_base`. Env: `LLM_PROVIDER=openai` + `OPENAI_API_BASE=https://api.groq.com/openai/v1` + `OPENAI_API_KEY=<groq-key>` + `LLM_MODEL=llama-3.3-70b-versatile`. The Anthropic / OpenAI codepaths stay intact and tested; the spec's "prod default = anthropic" becomes "prod default = openai-compatible, configured for Groq."
+- **Eval-as-judge (H2) runs on the same Groq Llama 3.3 70B.** Weaker than Claude as a judge but free + reproducible. README will surface this honestly ("eval judge: Llama 3.3 70B via Groq").
+- **Portfolio positioning frame → "swappable LLM layer, demo runs Groq for $0, prod-ready for Anthropic/OpenAI."** Not "powered by Claude." This is more honest given what the live demo actually runs and a stronger engineering story (provider abstraction earns its keep when it's actually exercised across vendors).
+- **Cost guard (H1) still mandatory** even with free LLM tier — Groq's free-tier RPM cap will throttle long before $$ becomes a problem, but the same meter table powers the admin observability surface and prevents footguns when the operator later flips to paid Anthropic for production.
