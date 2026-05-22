@@ -6,26 +6,23 @@ import { AuthProvider } from "@/lib/auth/store";
 import { LocaleProvider } from "@/lib/i18n/provider";
 import { SiteHeader } from "@/components/shared/site-header";
 import { SiteFooter } from "@/components/shared/site-footer";
-import { fraunces, lora } from "@/lib/fonts";
+import { instrumentSerif, geist, geistMono } from "@/lib/fonts";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
-  title: {
-    default: "Lumen · The library of Thoth, opened",
-    template: "%s · Lumen",
-  },
+  title: { default: "Skillpath — Take a path. Become it.", template: "%s · Skillpath" },
   description:
-    "A scholar's platform for any discipline. Inscribe a course in an evening, gather a cohort by torchlight, keep your scrolls forever.",
-  applicationName: "Lumen",
-  authors: [{ name: "Lumen Maintainers" }],
-  openGraph: { title: "Lumen", siteName: "Lumen", type: "website" },
+    "Modern courses for the skills you actually need. Cohort chat, hands-on projects, certificates that mean something.",
+  applicationName: "Skillpath",
+  authors: [{ name: "Skillpath" }],
+  openGraph: { title: "Skillpath", siteName: "Skillpath", type: "website" },
   twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F4ECD8" },
-    { media: "(prefers-color-scheme: dark)", color: "#0B0E14" },
+    { media: "(prefers-color-scheme: light)", color: "#FCFCFC" },
+    { media: "(prefers-color-scheme: dark)", color: "#0A0A0A" },
   ],
 };
 
@@ -34,10 +31,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${fraunces.variable} ${lora.variable}`}
+      className={`${instrumentSerif.variable} ${geist.variable} ${geistMono.variable}`}
     >
       <body className="min-h-screen bg-background text-foreground antialiased">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <LocaleProvider>
             <QueryProvider>
               <AuthProvider>
@@ -54,7 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </main>
                   <SiteFooter />
                 </div>
-                <Toaster richColors position="top-center" theme="dark" />
+                <Toaster richColors position="top-center" />
               </AuthProvider>
             </QueryProvider>
           </LocaleProvider>

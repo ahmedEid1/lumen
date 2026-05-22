@@ -1,104 +1,96 @@
 @import "tailwindcss";
 
 /*
- * Lumen — Midnight Library of Thoth
+ * Skillpath — Apple-grade modern e-learning.
  *
- * Dark is the lead palette: moonlit hypostyle hall, lapis-deep walls,
- * gold-leaf incised glyphs catching torchlight. Light is a Papyrus Day
- * Scriptorium counterpoint kept for users who prefer it.
+ * Light by default. Dark optional via the theme toggle. A single
+ * cobalt accent carries every CTA / link / focused state. Typography
+ * does most of the work; backgrounds stay quiet so the content can
+ * breathe.
  */
 
 @layer base {
   :root {
-    /* ── Papyrus Day Scriptorium ─────────────────────────────────────── */
-    --background: 40 32% 90%;        /* #F4ECD8 sun-bleached */
-    --foreground: 24 50% 12%;        /* #2A1D10 carbon-stick ink */
-    --card: 40 38% 95%;
-    --card-foreground: 24 50% 12%;
-    --muted: 36 28% 84%;             /* #DCC899 linen-weave */
-    --muted-foreground: 30 22% 32%;  /* #5C4A33 palm-bark */
-    --primary: 22 78% 38%;           /* #B8541C ochre-ink */
-    --primary-foreground: 40 38% 95%;
-    --primary-hi: 22 70% 50%;        /* #D86F2A sandstone-fire */
-    --secondary: 36 28% 84%;
-    --secondary-foreground: 24 50% 12%;
-    --accent: 210 62% 30%;           /* #1F4F7A pure-lapis */
-    --accent-foreground: 40 38% 95%;
-    --destructive: 0 60% 32%;        /* #8B2A20 dried-blood */
-    --destructive-foreground: 40 38% 95%;
-    --border: 36 22% 70%;
-    --input: 36 22% 70%;
-    --ring: 22 78% 38%;
-    --radius: 0.5rem;
+    /* ── Light (default) ──────────────────────────────────────────── */
+    --background: 0 0% 99%;              /* #FCFCFC near-white */
+    --foreground: 0 0% 4%;               /* #0A0A0A near-black ink */
+    --card: 0 0% 100%;                   /* pure white above the bg */
+    --card-foreground: 0 0% 4%;
+    --muted: 220 14% 96%;                /* #F2F4F7 cool-grey wash */
+    --muted-foreground: 220 9% 36%;      /* #525A6B muted ink */
+    --primary: 228 95% 58%;              /* #2A4FFF cobalt */
+    --primary-foreground: 0 0% 99%;
+    --primary-hi: 228 100% 68%;          /* #547DFF brighter cobalt */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 0 0% 4%;
+    --accent: 228 95% 58%;
+    --accent-foreground: 0 0% 99%;
+    --destructive: 0 75% 50%;            /* #E0282E confident red */
+    --destructive-foreground: 0 0% 99%;
+    --border: 220 13% 91%;               /* #E5E7EB Apple-ish hairline */
+    --input: 220 13% 91%;
+    --ring: 228 95% 58%;
+    --radius: 0.75rem;                   /* generous, modern */
 
-    /* Brand constants (not palette-flipped) */
-    --gold-leaf: 40 73% 63%;         /* #E6B85C */
-    --gold-sun: 40 100% 74%;         /* #FFD27A */
-    --lapis-deep: 222 33% 12%;
-    --carnelian: 7 56% 50%;
+    /* Constants (not theme-flipped) */
+    --cobalt: 228 95% 58%;
+    --cobalt-hi: 228 100% 68%;
   }
 
   .dark {
-    /* ── Midnight Library of Thoth ───────────────────────────────────── */
-    --background: 222 30% 6%;        /* #0B0E14 carbon-papyrus */
-    --foreground: 39 65% 89%;        /* #F5E9D2 bleached-papyrus */
-    --card: 222 33% 12%;             /* #131826 lapis-deep */
-    --card-foreground: 39 65% 89%;
-    --muted: 224 32% 16%;            /* #1B2236 royal-tomb */
-    --muted-foreground: 41 22% 62%;  /* #B9A982 weathered-linen */
-    --primary: 40 73% 63%;           /* #E6B85C gold-leaf */
-    --primary-foreground: 222 30% 6%;
-    --primary-hi: 40 100% 74%;       /* #FFD27A sun-disc */
-    --secondary: 224 32% 16%;
-    --secondary-foreground: 39 65% 89%;
-    --accent: 204 36% 60%;           /* #6FA8C6 khepri-blue */
-    --accent-foreground: 222 30% 6%;
-    --destructive: 7 56% 50%;        /* #C24A3D carnelian */
-    --destructive-foreground: 39 65% 89%;
-    --border: 224 32% 22%;
-    --input: 224 32% 22%;
-    --ring: 40 73% 63%;
+    /* ── Dark ─────────────────────────────────────────────────────── */
+    --background: 0 0% 4%;               /* #0A0A0A jet */
+    --foreground: 0 0% 98%;              /* #FAFAFA off-white */
+    --card: 0 0% 7%;                     /* #121212 slightly lifted */
+    --card-foreground: 0 0% 98%;
+    --muted: 0 0% 12%;                   /* #1F1F1F */
+    --muted-foreground: 220 9% 65%;      /* #9BA1AE */
+    --primary: 228 100% 68%;             /* #547DFF brighter cobalt */
+    --primary-foreground: 0 0% 4%;
+    --primary-hi: 228 100% 76%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 98%;
+    --accent: 228 100% 68%;
+    --accent-foreground: 0 0% 4%;
+    --destructive: 0 70% 60%;
+    --destructive-foreground: 0 0% 4%;
+    --border: 0 0% 16%;                  /* #292929 */
+    --input: 0 0% 16%;
+    --ring: 228 100% 68%;
   }
 
   * {
     border-color: hsl(var(--border));
   }
   html {
-    color-scheme: dark light;
+    color-scheme: light dark;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: var(--font-body), Georgia, "Times New Roman", serif;
-    font-feature-settings: "rlig" 1, "calt" 1, "kern" 1, "liga" 1;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
+    font-family: var(--font-body), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1, "kern" 1, "ss01";
+    letter-spacing: -0.005em;
   }
   ::selection {
-    background-color: hsl(var(--primary) / 0.4);
-    color: hsl(var(--primary-foreground));
+    background-color: hsl(var(--primary) / 0.18);
+    color: hsl(var(--foreground));
   }
   *:focus-visible {
     outline: 2px solid hsl(var(--primary));
     outline-offset: 3px;
-    border-radius: 2px;
+    border-radius: 4px;
   }
 
-  /* Headings get the display face by default. Body components opt out
-     with font-body where prose readability matters more. */
+  /* Display face on h1-h4 by default. Components opt out with
+     font-body where prose readability matters more. */
   h1, h2, h3, h4 {
-    font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
-    font-feature-settings: "ss01", "ss02", "kern", "liga", "dlig";
-    letter-spacing: -0.01em;
-  }
-
-  /* Hieroglyph rendering — falls back through several known carriers
-     of the U+13000–U+1342F block before giving up to default sans. */
-  .font-glyph,
-  [data-glyph] {
-    font-family: "Noto Sans Egyptian Hieroglyphs", "Aegyptus", "Segoe UI Historic",
-      "Apple Symbols", "Noto Sans", sans-serif;
-    font-feature-settings: normal;
+    font-family: var(--font-display), Georgia, "Times New Roman", serif;
+    letter-spacing: -0.02em;
+    font-weight: 400;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -129,79 +121,88 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  --color-gold: hsl(var(--gold-leaf));
-  --color-gold-hi: hsl(var(--gold-sun));
-  --color-lapis: hsl(var(--lapis-deep));
+  --color-cobalt: hsl(var(--cobalt));
+  --color-cobalt-hi: hsl(var(--cobalt-hi));
 
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 2px);
-  --radius-xl: calc(var(--radius) + 6px);
+  --color-gold: hsl(var(--primary));     /* compat alias for legacy lumen components — points to cobalt now */
+  --color-gold-hi: hsl(var(--primary-hi));
+  --color-lapis: hsl(var(--card));
 
-  --font-display: var(--font-fraunces), "Cormorant Garamond", Georgia, serif;
-  --font-body: var(--font-lora), Georgia, "Times New Roman", serif;
-  --font-mono: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 12px);
+
+  --font-display: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  --font-body: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "JetBrains Mono", monospace;
 }
 
-/* ── Custom keyframes ─────────────────────────────────────────────────
-   All durations respect prefers-reduced-motion (silenced in base).
-*/
+/* ── Keyframes — Apple-style smooth motion ───────────────────────── */
 @keyframes rise {
-  from { opacity: 0; transform: translateY(18px); filter: blur(6px); }
-  to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 @keyframes drift {
   0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-6px); }
+  50%      { transform: translateY(-8px); }
 }
-@keyframes torch-flicker {
-  0%, 100% { opacity: 1; }
-  47%      { opacity: 0.96; }
-  52%      { opacity: 0.88; }
-  61%      { opacity: 0.98; }
-  72%      { opacity: 0.92; }
-}
-@keyframes gold-shimmer {
+@keyframes shine {
   0%   { background-position: 200% 50%; }
   100% { background-position: -200% 50%; }
 }
-@keyframes pulse-ring {
-  0%   { box-shadow: 0 0 0 0 hsl(var(--gold-leaf) / 0.45); }
-  100% { box-shadow: 0 0 0 18px hsl(var(--gold-leaf) / 0); }
-}
-@keyframes inscribe {
-  from { stroke-dashoffset: 1; }
-  to   { stroke-dashoffset: 0; }
-}
-@keyframes scroll-unfurl {
-  from { transform: scaleY(0.96) translateY(8px); opacity: 0; }
-  to   { transform: scaleY(1)    translateY(0);   opacity: 1; }
+@keyframes mesh-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33%      { transform: translate3d(2%, -1%, 0) scale(1.02); }
+  66%      { transform: translate3d(-1%, 2%, 0) scale(0.98); }
 }
 
-/* Scroll-driven reveal — entrance animation when sections cross the
-   viewport. Browsers without animation-timeline render the final state
-   immediately via the rise keyframe's @starting-style fallback below. */
+/* Scroll-driven reveal with browser-feature fallback. */
 @supports (animation-timeline: view()) {
   .reveal {
-    animation: rise 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: rise 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
     animation-timeline: view();
-    animation-range: entry 0% cover 35%;
+    animation-range: entry 0% cover 30%;
   }
 }
 @supports not (animation-timeline: view()) {
   .reveal {
-    animation: rise 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: rise 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
 
-/* Utility helpers consumed by Lumen components ───────────────────────── */
-@utility text-gold-gradient {
+/* ── Custom utilities ───────────────────────────────────────────── */
+
+/* Apple-style 3D hover lift for cards. Uses perspective + a tiny
+   rotateX so the card feels like it's leaning toward the cursor. */
+@utility lift-3d {
+  transform-style: preserve-3d;
+  transition:
+    transform 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 300ms ease;
+  will-change: transform;
+}
+@utility lift-3d-hover {
+  transform: translateY(-6px) perspective(900px) rotateX(2deg);
+  box-shadow:
+    0 24px 48px -16px hsl(0 0% 0% / 0.18),
+    0 8px 24px -12px hsl(var(--primary) / 0.12);
+}
+
+/* Sweeping shine across text — used sparingly on the hero. */
+@utility text-shine {
   background: linear-gradient(
     100deg,
-    hsl(var(--gold-leaf)) 0%,
-    hsl(var(--gold-sun)) 45%,
-    hsl(var(--gold-leaf)) 55%,
-    hsl(var(--gold-sun)) 100%
+    hsl(var(--foreground)) 0%,
+    hsl(var(--primary)) 45%,
+    hsl(var(--foreground)) 55%,
+    hsl(var(--primary)) 100%
   );
   background-size: 200% 100%;
   background-clip: text;
@@ -210,29 +211,40 @@
   -webkit-text-fill-color: transparent;
 }
 
-@utility gold-edge {
-  border: 1px solid hsl(var(--gold-leaf) / 0.35);
-  box-shadow:
-    inset 0 1px 0 hsl(var(--gold-sun) / 0.18),
-    inset 0 0 0 1px hsl(var(--gold-leaf) / 0.08),
-    0 1px 32px -12px hsl(var(--gold-leaf) / 0.45);
+/* Apple-style soft mesh background. Two large blurred radial blobs
+   that drift slowly — gives a subtle living quality to hero areas
+   without competing with content. Lives outside @utility because
+   Tailwind 4 utility names can't contain pseudo-element selectors. */
+.mesh-bg {
+  position: relative;
 }
-
-@utility ink-shadow {
-  text-shadow:
-    0 1px 0 hsl(var(--background) / 0.6),
-    0 0 28px hsl(var(--gold-leaf) / 0.18);
-}
-
-@utility scroll-paper {
+.mesh-bg::before {
+  content: "";
+  position: absolute;
+  inset: -10%;
+  z-index: -1;
   background:
-    radial-gradient(ellipse at 50% 0%, hsl(var(--gold-leaf) / 0.06), transparent 65%),
-    linear-gradient(180deg, hsl(var(--card)), hsl(var(--muted)));
+    radial-gradient(circle at 20% 20%, hsl(var(--primary) / 0.12), transparent 45%),
+    radial-gradient(circle at 80% 70%, hsl(var(--primary-hi) / 0.10), transparent 50%);
+  filter: blur(40px);
+  animation: mesh-drift 14s ease-in-out infinite;
+  pointer-events: none;
 }
 
-@utility hypostyle {
-  background-image:
-    radial-gradient(circle at 25% 30%, hsl(var(--gold-leaf) / 0.06), transparent 40%),
-    radial-gradient(circle at 75% 70%, hsl(var(--accent) / 0.08), transparent 45%),
-    linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted) / 0.4));
+/* Hairline divider — Apple's signature 1px line that adapts to the
+   surrounding surface. */
+@utility hairline {
+  border: 0;
+  height: 1px;
+  background: hsl(var(--border));
+}
+
+/* Card surface — slightly lifted, soft hairline, ready for hover. */
+@utility surface {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow:
+    0 1px 0 hsl(0 0% 100% / 0.04) inset,
+    0 1px 2px hsl(0 0% 0% / 0.04);
 }

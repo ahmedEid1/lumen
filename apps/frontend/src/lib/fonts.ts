@@ -1,28 +1,35 @@
-import { Fraunces, Lora } from "next/font/google";
+import { Instrument_Serif, Geist, Geist_Mono } from "next/font/google";
 
 /**
- * Display face — Fraunces variable. Display optical size + slight WONK
- * lend the headings a carved, slightly off-axis character without
- * tipping into pastiche. Tuned through CSS font-variation-settings on
- * specific elements when needed.
+ * Display face — Instrument Serif. High-contrast, slightly editorial
+ * serif. Pairs cleanly with a modern grotesque; carries headlines at
+ * any size from 18px to 144px without losing its character.
  */
-export const fraunces = Fraunces({
+export const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
-  variable: "--font-fraunces",
+  variable: "--font-instrument-serif",
   display: "swap",
-  weight: ["300", "400", "500", "600", "700", "900"],
+  weight: ["400"],
   style: ["normal", "italic"],
 });
 
 /**
- * Body face — Lora. Warm transitional serif designed for long reading,
- * pairs with Fraunces by sharing a humanist axis without copying its
- * personality.
+ * Body face — Geist. Vercel's neutral grotesque. Functions as the
+ * SF-Pro stand-in for cross-platform consistency and renders crisply
+ * at body and UI sizes.
  */
-export const lora = Lora({
+export const geist = Geist({
   subsets: ["latin"],
-  variable: "--font-lora",
+  variable: "--font-geist",
   display: "swap",
-  weight: ["400", "500", "600", "700"],
-  style: ["normal", "italic"],
+});
+
+/**
+ * Mono face — Geist Mono. Used for code, kbd, and any tabular data
+ * (durations, counts) where the body grotesque would feel wobbly.
+ */
+export const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+  display: "swap",
 });

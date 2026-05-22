@@ -10,10 +10,32 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { HeaderSearch } from "@/components/shared/header-search";
 import { LocaleSwitcher } from "@/components/shared/locale-switcher";
 import { NotificationsBell } from "@/components/shared/notifications-bell";
-import { Glyph } from "@/components/lumen/glyph";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
+
+/**
+ * Skillpath mark — a forward-leaning chevron stack. Two strokes
+ * suggest a path advancing. Renders in cobalt; sits exactly the
+ * height of the wordmark capline.
+ */
+function SkillpathMark({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M5 7l6 5-6 5" />
+      <path d="M13 7l6 5-6 5" />
+    </svg>
+  );
+}
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -23,13 +45,11 @@ function ThemeToggle() {
       variant="ghost"
       size="icon"
       aria-label={t("header.themeToggle")}
-      className="text-gold/80 hover:text-gold"
+      className="text-muted-foreground hover:text-foreground"
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
     >
       <Sun className="h-5 w-5 dark:hidden" />
-      <Moon
-        className="hidden h-5 w-5 drop-shadow-[0_0_6px_hsl(var(--gold-leaf)/0.5)] dark:block"
-      />
+      <Moon className="hidden h-5 w-5 dark:block" />
     </Button>
   );
 }
@@ -51,7 +71,8 @@ function navLinksFor(role: "student" | "instructor" | "admin" | undefined): NavL
   const links: NavLink[] = [{ href: "/courses", labelKey: "nav.catalog" }];
   if (!role) return links;
   links.push({ href: "/dashboard", labelKey: "nav.dashboard" });
-  if (role === "instructor" || role === "admin") links.push({ href: "/studio", labelKey: "nav.studio" });
+  if (role === "instructor" || role === "admin")
+    links.push({ href: "/studio", labelKey: "nav.studio" });
   if (role === "admin") links.push({ href: "/admin", labelKey: "nav.admin" });
   return links;
 }
@@ -62,7 +83,6 @@ export function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const t = useT();
 
-  // Close the mobile menu on any route change.
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
@@ -70,20 +90,19 @@ export function SiteHeader() {
   const links = navLinksFor(user?.role);
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-gold/15 bg-background/75 backdrop-blur supports-[backdrop-filter]:bg-background/55">
+    <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/65">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href="/" className="group flex items-center gap-2.5">
-          <Glyph
-            name="eye"
-            size={28}
-            className="text-gold drop-shadow-[0_0_8px_hsl(var(--gold-leaf)/0.45)] transition-transform group-hover:scale-110"
-          />
-          <span className="font-display text-xl font-medium leading-none tracking-[0.18em] text-gold">
-            LVMEN
+        <Link href="/" className="group flex items-center gap-2">
+          <SkillpathMark className="h-5 w-5 text-primary transition-transform group-hover:translate-x-0.5" />
+          <span className="font-body text-base font-semibold leading-none tracking-tight text-foreground">
+            Skillpath
           </span>
         </Link>
 
-        <nav className="hidden gap-6 text-sm md:flex" aria-label={t("header.primaryNav")}>
+        <nav
+          className="hidden gap-7 text-sm md:flex"
+          aria-label={t("header.primaryNav")}
+        >
           {links.map((l) => {
             const active = pathname?.startsWith(l.href);
             return (
@@ -91,8 +110,10 @@ export function SiteHeader() {
                 key={l.href}
                 href={l.href}
                 aria-current={active ? "page" : undefined}
-                className={`hover:text-foreground ${
-                  active ? "text-foreground" : "text-muted-foreground"
+                className={`font-body transition-colors ${
+                  active
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {t(l.labelKey)}
@@ -110,13 +131,22 @@ export function SiteHeader() {
           ) : user ? (
             <>
               <NotificationsBell />
-              <Link href="/profile" className="hidden md:inline-flex" aria-label={t("nav.profile")}>
+              <Link
+                href="/profile"
+                className="hidden md:inline-flex"
+                aria-label={t("nav.profile")}
+              >
                 <Avatar>
                   <AvatarImage src={user.avatar_url ?? undefined} alt={user.full_name} />
                   <AvatarFallback>{initials(user.full_name)}</AvatarFallback>
                 </Avatar>
               </Link>
-              <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => logout()}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hidden md:inline-flex"
+                onClick={() => logout()}
+              >
                 <LogOut className="me-1 h-4 w-4" />
                 {t("nav.signOut")}
               </Button>
@@ -149,8 +179,16 @@ export function SiteHeader() {
       </div>
 
       {menuOpen && (
-        <div id="mobile-nav" className="border-t bg-background md:hidden" role="dialog" aria-label={t("header.mobileMenu")}>
-          <nav className="container mx-auto flex flex-col gap-1 px-4 py-3" aria-label={t("header.mobilePrimaryNav")}>
+        <div
+          id="mobile-nav"
+          className="border-t border-border/60 bg-background md:hidden"
+          role="dialog"
+          aria-label={t("header.mobileMenu")}
+        >
+          <nav
+            className="container mx-auto flex flex-col gap-1 px-4 py-3"
+            aria-label={t("header.mobilePrimaryNav")}
+          >
             {links.map((l) => {
               const active = pathname?.startsWith(l.href);
               return (
@@ -158,7 +196,7 @@ export function SiteHeader() {
                   key={l.href}
                   href={l.href}
                   aria-current={active ? "page" : undefined}
-                  className={`rounded-md px-3 py-2 text-sm hover:bg-muted ${
+                  className={`rounded-md px-3 py-2 font-body text-sm hover:bg-muted ${
                     active ? "bg-muted font-medium" : ""
                   }`}
                 >
@@ -166,12 +204,15 @@ export function SiteHeader() {
                 </Link>
               );
             })}
-            <div className="my-2 border-t" />
+            <div className="my-2 border-t border-border/60" />
             <HeaderSearch className="px-1 py-1" />
-            <div className="my-2 border-t" />
+            <div className="my-2 border-t border-border/60" />
             {ready && user ? (
               <>
-                <Link href="/profile" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted">
+                <Link
+                  href="/profile"
+                  className="flex items-center gap-2 rounded-md px-3 py-2 font-body text-sm hover:bg-muted"
+                >
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={user.avatar_url ?? undefined} alt={user.full_name} />
                     <AvatarFallback>{initials(user.full_name)}</AvatarFallback>
@@ -180,17 +221,20 @@ export function SiteHeader() {
                 </Link>
                 <button
                   onClick={() => logout()}
-                  className="flex items-center gap-2 rounded-md px-3 py-2 text-start text-sm hover:bg-muted"
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-start font-body text-sm hover:bg-muted"
                 >
                   <LogOut className="h-4 w-4" /> {t("nav.signOut")}
                 </button>
               </>
             ) : (
               <>
-                <Link href="/login" className="rounded-md px-3 py-2 text-sm hover:bg-muted">
+                <Link href="/login" className="rounded-md px-3 py-2 font-body text-sm hover:bg-muted">
                   {t("nav.signIn")}
                 </Link>
-                <Link href="/register" className="rounded-md px-3 py-2 text-sm hover:bg-muted">
+                <Link
+                  href="/register"
+                  className="rounded-md px-3 py-2 font-body text-sm hover:bg-muted"
+                >
                   {t("nav.signUp")}
                 </Link>
               </>
