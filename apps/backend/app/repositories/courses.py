@@ -102,13 +102,15 @@ async def get_course_by_slug(db: AsyncSession, slug: str, *, with_modules: bool 
 
 
 async def slug_is_taken(db: AsyncSession, slug: str, *, exclude_id: str | None = None) -> bool:
-    """Has any row (alive or soft-deleted) claimed this slug?
+    """Has any *live* row claimed this slug?
 
-    The DB enforces ``UNIQUE(courses.slug)`` regardless of ``deleted_at``,
-    so callers minting new slugs must check against the raw table — not
-    via ``get_course_by_slug`` which already hides deleted rows.
+    Since rebuild Fix B3 the DB enforces ``slug`` uniqueness via a
+    partial unique index (``uq_courses_slug_live``) that ignores
+    soft-deleted rows. The minter therefore only needs to avoid
+    slugs claimed by live rows — tombstoned rows are allowed to
+    share a slug with a freshly created live row.
     """
-    pred = Course.slug == slug
+    pred = and_(Course.slug == slug, Course.deleted_at.is_(None))
     if exclude_id is not None:
         pred = and_(pred, Course.id != exclude_id)
     return bool((await db.execute(select(exists().where(pred)))).scalar())

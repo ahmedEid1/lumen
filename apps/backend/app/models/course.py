@@ -19,6 +19,7 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -77,16 +78,27 @@ course_tags = Table(
 
 class Course(IdMixin, TimestampMixin, Base):
     __tablename__ = "courses"
+    # `slug` uniqueness is enforced via a *partial* unique index that
+    # only considers live rows (`deleted_at IS NULL`). Soft-deleted
+    # courses keep their slug, but a fresh course (or restored one)
+    # can reclaim a freed slug without colliding. See migration 0008
+    # and the rebuild Fix B3 regression test.
     __table_args__ = (
         Index("ix_courses_status_subject", "status", "subject_id"),
         Index("ix_courses_published_at", "published_at"),
+        Index(
+            "uq_courses_slug_live",
+            "slug",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
     )
 
     owner_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     subject_id: Mapped[str] = mapped_column(ForeignKey("subjects.id", ondelete="RESTRICT"), nullable=False, index=True)
 
     title: Mapped[str] = mapped_column(String(200), nullable=False)
-    slug: Mapped[str] = mapped_column(String(220), unique=True, nullable=False, index=True)
+    slug: Mapped[str] = mapped_column(String(220), nullable=False, index=True)
     overview: Mapped[str] = mapped_column(Text, nullable=False, default="")
     # Bullet list of "what you'll learn" outcomes shown above the
     # syllabus on the detail page. Stored as JSONB so the API can

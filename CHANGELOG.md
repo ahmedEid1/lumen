@@ -19,6 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   planner skip the sort entirely for the bell-icon dropdown. Alembic
   migration `0008_notifications_index_swap` is reversible.
 
+### Fixed (rebuild phase B)
+- **`courses.slug` uniqueness now ignores soft-deleted rows
+  (rebuild Fix B3).** The initial schema enforced `slug` uniqueness
+  globally via `uq_courses_slug` + the unique `ix_courses_slug`.
+  Because Lumen soft-deletes courses (`deleted_at IS NOT NULL`
+  tombstones), a freed slug stayed locked forever, and restoring a
+  soft-deleted course risked silently colliding with whatever live
+  row had since claimed the slug — the collision only surfaced at
+  runtime in unrelated code paths. Migration drops the global unique
+  constraint + unique lookup index and replaces them with a
+  *partial* unique index `uq_courses_slug_live` gated by
+  `WHERE deleted_at IS NULL`, plus a non-unique `ix_courses_slug`
+  for plain lookups. Tombstoned rows keep their slug as a tombstone
+  but no longer block live duplicates; attempting to restore a
+  soft-deleted row while a live duplicate exists now fails the
+  constraint at commit time. Regression covered by
+  `apps/backend/tests/test_courses_slug_partial_unique.py`.
+
 ### Security (rebuild phase B)
 - **Rate-limited the public `/certificates/verify/{id}` endpoint
   (`@limiter.limit("20/minute")`).** The route is intentionally
