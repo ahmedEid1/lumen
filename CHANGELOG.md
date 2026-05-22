@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (rebuild phase C)
+- **Workbench visual foundation — tokens + fonts + primitives
+  (C0 + C1).** Replaces the Skillpath cobalt + Instrument Serif +
+  Geist stack with the Workbench palette: dark-first
+  (`#0A0B0D` background, `#111316`/`#171A1F`/`#1E2228` surface ramp,
+  `#E8EAED` foreground, `#C8FF00` electric-lime accent, desaturated
+  `#E5484D`/`#46A758`/`#F5A524` semantic), `cubic-bezier(0.16,1,0.3,1)`
+  easing at 80/160/240ms durations, 6px radius, 2px lime focus ring.
+  Light mode is now an explicit opt-in (`.light` class) rather than
+  the default. Fonts: Inter + Inter Display + JetBrains Mono via
+  next/font, with `--font-display`/`--font-body`/`--font-mono`
+  Tailwind theme variables pointing at the next/font CSS variables
+  (`--font-inter-display`, `--font-inter`, `--font-jetbrains-mono`).
+  `mesh-bg`, `text-shine`, `lift-3d`, `lift-3d-hover`, `drift`,
+  `mesh-drift`, `shine` keyframes + utilities are removed; `surface`
+  + `hairline` + new `skeleton` utility remain. Primitives repainted:
+  Button (no shadow, single-color hover, 9/8/10 height ramp), Card
+  (single border, no shadow, surface-1 bg, 20px padding), Input +
+  Textarea (sit on muted, focus tightens border to lime ring),
+  Progress (1px-tall, lime indicator, 240ms ease), Badge (rounded-sm
+  pill with bordered tinted background per semantic, plus mono
+  variant for IDs). Site header chevron mark replaced with a square-
+  bracket-and-dot Lumen mark; wordmark + 7 i18n strings + page
+  metadata rebrand from Skillpath → Lumen. Per-surface repaints land
+  in Phase C2 (each as its own commit).
+
 ### Performance (rebuild phase B)
 - **Batched progress lookup on the dashboard listing (Fix B1).**
   `GET /api/v1/me/enrollments` previously called

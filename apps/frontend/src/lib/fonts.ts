@@ -1,35 +1,28 @@
-import { Instrument_Serif, Geist, Geist_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 
 /**
- * Display face — Instrument Serif. High-contrast, slightly editorial
- * serif. Pairs cleanly with a modern grotesque; carries headlines at
- * any size from 18px to 144px without losing its character.
+ * Workbench typography stack — single sans (Inter) used at two weight
+ * variables for "display" vs body context, plus JetBrains Mono for
+ * IDs / durations / timestamps. Components reference `font-display`,
+ * `font-body`, and `font-mono` Tailwind utilities; those resolve via
+ * @theme in globals.css to the next/font CSS variables below.
  */
-export const instrumentSerif = Instrument_Serif({
+
+export const interDisplay = Inter({
   subsets: ["latin"],
-  variable: "--font-instrument-serif",
+  variable: "--font-inter-display",
   display: "swap",
-  weight: ["400"],
-  style: ["normal", "italic"],
+  weight: ["500", "600", "700"],
 });
 
-/**
- * Body face — Geist. Vercel's neutral grotesque. Functions as the
- * SF-Pro stand-in for cross-platform consistency and renders crisply
- * at body and UI sizes.
- */
-export const geist = Geist({
+export const interBody = Inter({
   subsets: ["latin"],
-  variable: "--font-geist",
+  variable: "--font-inter",
   display: "swap",
 });
 
-/**
- * Mono face — Geist Mono. Used for code, kbd, and any tabular data
- * (durations, counts) where the body grotesque would feel wobbly.
- */
-export const geistMono = Geist_Mono({
+export const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-geist-mono",
+  variable: "--font-jetbrains-mono",
   display: "swap",
 });

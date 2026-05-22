@@ -104,7 +104,7 @@ export const ar: Record<MessageKey, string> = {
   "catalogPage.cartouche": "الكتالوج",
   "catalogPage.h1_1": "كل علم،",
   "catalogPage.h1_2": "مفهرس",
-  "catalogPage.subline": "تصفّح ما يدرّسه المدرّسون عبر Skillpath. صَفِّ حسب الموضوع أو المستوى أو الوسم.",
+  "catalogPage.subline": "تصفّح ما يدرّسه المدرّسون عبر لومِن. صَفِّ حسب الموضوع أو المستوى أو الوسم.",
   "catalogPage.searchPlaceholder": "ابحث في الكتالوج…",
   "catalogPage.searchAria": "ابحث في الدورات",
   "catalogPage.anyDifficulty": "الكل",
@@ -125,7 +125,7 @@ export const ar: Record<MessageKey, string> = {
   "home.heroSubline": "دورات حديثة للمهارات التي تحتاجها فعلًا. مشاريع عملية، مجموعات تعلّم مباشرة، شهادات لها معنى.",
   "home.enterLibrary": "تصفّح الدورات",
   "home.inscribeYourself": "ابدأ مجانًا",
-  "home.pillarsCartouche": "لماذا سكِلپاث",
+  "home.pillarsCartouche": "لماذا لومِن",
   "home.pillarsH2_1": "منصّة تحترم وقتك.",
   "home.pillarsH2_2": "وعمق العمل.",
   "home.pillar1.number": "٠١",
@@ -314,7 +314,7 @@ export const ar: Record<MessageKey, string> = {
   "quiz.retake": "إعادة المحاولة",
 
   // تذييل الموقع
-  "footer.copyright": "© {year} سكِلپاث · رخصة MIT",
+  "footer.copyright": "© {year} لومِن · رخصة MIT",
   "footer.docs": "الوثائق",
 
   // Admin / courses
@@ -551,7 +551,7 @@ export const ar: Record<MessageKey, string> = {
 
   "verifyCert.cartouche": "الشهادة",
   "verifyCert.title": "التحقق من الشهادة",
-  "verifyCert.subtitle": "ابحث عن شهادة سكِلپاث بواسطة رقمها التعريفي.",
+  "verifyCert.subtitle": "ابحث عن شهادة لومِن بواسطة رقمها التعريفي.",
   "verifyCert.checking": "جارٍ التحقق…",
   "verifyCert.notFound": "لا توجد شهادة بهذا الرقم.",
   "verifyCert.goHome": "العودة للرئيسية",
@@ -566,7 +566,7 @@ export const ar: Record<MessageKey, string> = {
   "profile.banner.unverified": "بريدك لم يُوثَّق بعد — تفقّد صندوق الوارد أو أعد إرسال الرابط.",
   "profile.banner.resend": "أعد الإرسال",
   "profile.section.profile": "الملف الشخصي",
-  "profile.section.profileDesc": "هكذا يراك الآخرون على سكِلپاث.",
+  "profile.section.profileDesc": "هكذا يراك الآخرون على لومِن.",
   "profile.field.bio": "نبذة",
   "profile.field.avatar": "الصورة الشخصية",
   "profile.save": "حفظ التغييرات",

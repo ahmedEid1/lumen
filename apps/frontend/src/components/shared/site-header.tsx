@@ -15,24 +15,26 @@ import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
 /**
- * Skillpath mark — a forward-leaning chevron stack. Two strokes
- * suggest a path advancing. Renders in cobalt; sits exactly the
- * height of the wordmark capline.
+ * Lumen mark — an open square bracket with a pulsing dot inside.
+ * Reads as "the container of what you're learning"; the dot is the
+ * cursor that moves with you. Renders in lime; capline-height so it
+ * lines up with the wordmark without ascender drift.
  */
-function SkillpathMark({ className }: { className?: string }) {
+function LumenMark({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.4"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
       aria-hidden
     >
-      <path d="M5 7l6 5-6 5" />
-      <path d="M13 7l6 5-6 5" />
+      <path d="M7 4H4v16h3" />
+      <path d="M17 4h3v16h-3" />
+      <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
     </svg>
   );
 }
@@ -93,9 +95,9 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/65">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="group flex items-center gap-2">
-          <SkillpathMark className="h-5 w-5 text-primary transition-transform group-hover:translate-x-0.5" />
+          <LumenMark className="h-5 w-5 text-primary" />
           <span className="font-body text-base font-semibold leading-none tracking-tight text-foreground">
-            Skillpath
+            Lumen
           </span>
         </Link>
 

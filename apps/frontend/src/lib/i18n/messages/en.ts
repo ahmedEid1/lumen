@@ -97,7 +97,7 @@ export const en = {
   "catalogPage.cartouche": "Catalogue",
   "catalogPage.h1_1": "Every subject,",
   "catalogPage.h1_2": "catalogued",
-  "catalogPage.subline": "Browse what instructors across Skillpath are teaching. Filter by subject, difficulty, or tag.",
+  "catalogPage.subline": "Browse what instructors across Lumen are teaching. Filter by subject, difficulty, or tag.",
   "catalogPage.searchPlaceholder": "Search the catalogue…",
   "catalogPage.searchAria": "Search courses",
   "catalogPage.anyDifficulty": "Any",
@@ -118,7 +118,7 @@ export const en = {
   "home.heroSubline": "Modern courses for the skills you actually use. Hands-on projects, live cohorts, certificates that mean something.",
   "home.enterLibrary": "Explore courses",
   "home.inscribeYourself": "Get started — free",
-  "home.pillarsCartouche": "Why Skillpath",
+  "home.pillarsCartouche": "Why Lumen",
   "home.pillarsH2_1": "A platform that respects your time.",
   "home.pillarsH2_2": "And the depth of the work.",
   "home.pillar1.number": "01",
@@ -307,7 +307,7 @@ export const en = {
   "quiz.retake": "Retake",
 
   // Site footer
-  "footer.copyright": "© {year} Skillpath · MIT licensed",
+  "footer.copyright": "© {year} Lumen · MIT licensed",
   "footer.docs": "Docs",
 
   // Admin / courses — curator's shelf
@@ -544,7 +544,7 @@ export const en = {
 
   "verifyCert.cartouche": "Certificate",
   "verifyCert.title": "Certificate verification",
-  "verifyCert.subtitle": "Look up a Skillpath certificate by its ID.",
+  "verifyCert.subtitle": "Look up a Lumen certificate by its ID.",
   "verifyCert.checking": "Checking…",
   "verifyCert.notFound": "No certificate with that ID.",
   "verifyCert.goHome": "Go home",
@@ -559,7 +559,7 @@ export const en = {
   "profile.banner.unverified": "Your email isn't verified yet — check your inbox or resend the link.",
   "profile.banner.resend": "Resend",
   "profile.section.profile": "Profile",
-  "profile.section.profileDesc": "How others see you on Skillpath.",
+  "profile.section.profileDesc": "How others see you on Lumen.",
   "profile.field.bio": "Bio",
   "profile.field.avatar": "Avatar",
   "profile.save": "Save changes",

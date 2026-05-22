@@ -1,96 +1,125 @@
 @import "tailwindcss";
 
 /*
- * Skillpath — Apple-grade modern e-learning.
+ * Lumen — Workbench visual.
  *
- * Light by default. Dark optional via the theme toggle. A single
- * cobalt accent carries every CTA / link / focused state. Typography
- * does most of the work; backgrounds stay quiet so the content can
- * breathe.
+ * Linear / Raycast / Vercel-dashboard density. Dark-first. One
+ * electric-lime accent per screen, never twice. Borders do the
+ * elevation work — no shadows, no glass blur, no gradients. Inter
+ * for chrome + headlines, JetBrains Mono for IDs / durations /
+ * timestamps. 8px grid, religious adherence.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
  */
 
 @layer base {
   :root {
-    /* ── Light (default) ──────────────────────────────────────────── */
-    --background: 0 0% 99%;              /* #FCFCFC near-white */
-    --foreground: 0 0% 4%;               /* #0A0A0A near-black ink */
-    --card: 0 0% 100%;                   /* pure white above the bg */
-    --card-foreground: 0 0% 4%;
-    --muted: 220 14% 96%;                /* #F2F4F7 cool-grey wash */
-    --muted-foreground: 220 9% 36%;      /* #525A6B muted ink */
-    --primary: 228 95% 58%;              /* #2A4FFF cobalt */
-    --primary-foreground: 0 0% 99%;
-    --primary-hi: 228 100% 68%;          /* #547DFF brighter cobalt */
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 0 0% 4%;
-    --accent: 228 95% 58%;
-    --accent-foreground: 0 0% 99%;
-    --destructive: 0 75% 50%;            /* #E0282E confident red */
-    --destructive-foreground: 0 0% 99%;
-    --border: 220 13% 91%;               /* #E5E7EB Apple-ish hairline */
-    --input: 220 13% 91%;
-    --ring: 228 95% 58%;
-    --radius: 0.75rem;                   /* generous, modern */
+    /* ── Dark (default) ──────────────────────────────────────────── */
+    --background: 220 14% 4%;            /* #0A0B0D */
+    --foreground: 220 9% 92%;            /* #E8EAED */
+    --card: 220 14% 7%;                  /* #111316 */
+    --card-foreground: 220 9% 92%;
+    --muted: 220 14% 11%;                /* #171A1F */
+    --muted-foreground: 213 8% 64%;      /* #9BA1AA */
+    --primary: 72 100% 50%;              /* #C8FF00 electric lime */
+    --primary-foreground: 220 14% 4%;
+    --secondary: 220 14% 14%;            /* #1E2228 */
+    --secondary-foreground: 220 9% 92%;
+    --accent: 215 17% 57%;               /* #7C8FA8 cool blue-grey */
+    --accent-foreground: 220 14% 4%;
+    --destructive: 358 76% 59%;          /* #E5484D desaturated red */
+    --destructive-foreground: 220 9% 92%;
+    --success: 131 41% 47%;              /* #46A758 desaturated green */
+    --success-foreground: 220 9% 92%;
+    --warning: 38 91% 55%;               /* #F5A524 amber */
+    --warning-foreground: 220 14% 4%;
+    --border: 220 14% 14%;               /* #1E2228 — border = surface-2 */
+    --input: 220 14% 14%;
+    --ring: 72 100% 50%;                 /* lime focus ring */
+    --radius: 0.375rem;                  /* 6px — tight, mechanical */
 
-    /* Constants (not theme-flipped) */
-    --cobalt: 228 95% 58%;
-    --cobalt-hi: 228 100% 68%;
+    /* Surface ramp for layered chrome (overlays, popovers, side panels) */
+    --surface-1: 220 14% 7%;             /* #111316 */
+    --surface-2: 220 14% 11%;            /* #171A1F */
+    --surface-3: 220 14% 14%;            /* #1E2228 */
   }
 
-  .dark {
-    /* ── Dark ─────────────────────────────────────────────────────── */
-    --background: 0 0% 4%;               /* #0A0A0A jet */
-    --foreground: 0 0% 98%;              /* #FAFAFA off-white */
-    --card: 0 0% 7%;                     /* #121212 slightly lifted */
-    --card-foreground: 0 0% 98%;
-    --muted: 0 0% 12%;                   /* #1F1F1F */
-    --muted-foreground: 220 9% 65%;      /* #9BA1AE */
-    --primary: 228 100% 68%;             /* #547DFF brighter cobalt */
-    --primary-foreground: 0 0% 4%;
-    --primary-hi: 228 100% 76%;
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 0 0% 98%;
-    --accent: 228 100% 68%;
-    --accent-foreground: 0 0% 4%;
-    --destructive: 0 70% 60%;
-    --destructive-foreground: 0 0% 4%;
-    --border: 0 0% 16%;                  /* #292929 */
-    --input: 0 0% 16%;
-    --ring: 228 100% 68%;
+  .light {
+    /* ── Light (explicit opt-in, not the default) ────────────────── */
+    --background: 60 9% 98%;             /* #FAFAF9 */
+    --foreground: 220 14% 4%;
+    --card: 0 0% 100%;                   /* #FFFFFF */
+    --card-foreground: 220 14% 4%;
+    --muted: 60 5% 96%;                  /* #F4F4F2 */
+    --muted-foreground: 213 7% 40%;      /* #5E646C */
+    --primary: 72 80% 38%;               /* darker lime for light bg contrast */
+    --primary-foreground: 220 14% 4%;
+    --secondary: 60 5% 96%;
+    --secondary-foreground: 220 14% 4%;
+    --accent: 215 17% 47%;
+    --accent-foreground: 60 9% 98%;
+    --destructive: 358 76% 49%;
+    --destructive-foreground: 60 9% 98%;
+    --success: 131 41% 37%;
+    --warning: 38 91% 45%;
+    --border: 60 5% 90%;
+    --input: 60 5% 90%;
+    --ring: 72 80% 38%;
+
+    --surface-1: 0 0% 100%;
+    --surface-2: 60 5% 96%;
+    --surface-3: 60 5% 92%;
   }
 
   * {
     border-color: hsl(var(--border));
   }
   html {
-    color-scheme: light dark;
+    color-scheme: dark;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
+  html.light {
+    color-scheme: light;
+  }
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: var(--font-body), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-feature-settings: "rlig" 1, "calt" 1, "kern" 1, "ss01";
-    letter-spacing: -0.005em;
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    letter-spacing: -0.01em;
   }
   ::selection {
-    background-color: hsl(var(--primary) / 0.18);
-    color: hsl(var(--foreground));
+    background-color: hsl(var(--primary) / 0.35);
+    color: hsl(var(--primary-foreground));
   }
   *:focus-visible {
-    outline: 2px solid hsl(var(--primary));
-    outline-offset: 3px;
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
     border-radius: 4px;
   }
 
-  /* Display face on h1-h4 by default. Components opt out with
-     font-body where prose readability matters more. */
+  /* Display face on h1-h4. Workbench tracks them tight — the
+     headline is a label for the page, not a flourish. */
   h1, h2, h3, h4 {
-    font-family: var(--font-display), Georgia, "Times New Roman", serif;
+    font-family: var(--font-inter-display), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     letter-spacing: -0.02em;
-    font-weight: 400;
+    font-weight: 600;
+  }
+
+  /* Tabular numerics on any element that primarily holds numbers
+     (durations, counts, percentages, IDs). Components opt-in by
+     class; this is the floor so machine-emitted values never wobble. */
+  .mono,
+  code,
+  kbd,
+  samp,
+  pre,
+  time,
+  [data-numeric] {
+    font-family: var(--font-jetbrains-mono), ui-monospace, "JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -111,136 +140,96 @@
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-primary-hi: hsl(var(--primary-hi));
   --color-secondary: hsl(var(--secondary));
   --color-secondary-foreground: hsl(var(--secondary-foreground));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  --color-cobalt: hsl(var(--cobalt));
-  --color-cobalt-hi: hsl(var(--cobalt-hi));
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
+  --color-surface-1: hsl(var(--surface-1));
+  --color-surface-2: hsl(var(--surface-2));
+  --color-surface-3: hsl(var(--surface-3));
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
   --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 12px);
+  --radius-2xl: calc(var(--radius) + 8px);
 
-  --font-display: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
-  --font-body: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, "JetBrains Mono", monospace;
+  --font-display: var(--font-inter-display), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "JetBrains Mono", monospace;
+
+  /* Motion: cubic-bezier(0.16, 1, 0.3, 1), durations 80 / 160 / 240ms.
+     Components reference these via Tailwind's transition utilities;
+     the variable form keeps them swappable per-theme later. */
+  --ease-out-quart: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 80ms;
+  --duration-base: 160ms;
+  --duration-slow: 240ms;
 }
 
-/* ── Keyframes — Apple-style smooth motion ───────────────────────── */
-@keyframes rise {
-  from { opacity: 0; transform: translateY(24px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
 @keyframes fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-@keyframes drift {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-8px); }
-}
-@keyframes shine {
-  0%   { background-position: 200% 50%; }
-  100% { background-position: -200% 50%; }
-}
-@keyframes mesh-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  33%      { transform: translate3d(2%, -1%, 0) scale(1.02); }
-  66%      { transform: translate3d(-1%, 2%, 0) scale(0.98); }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Scroll-driven reveal with browser-feature fallback. */
+/* Subtle pulse for skeletons — single fade, no metallic shimmer. */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+/* Scroll-driven reveal — kept but tightened. Workbench doesn't do
+   big entrance animations; this is a 160ms settle for content as it
+   enters the viewport, not a marketing flourish. */
 @supports (animation-timeline: view()) {
   .reveal {
-    animation: rise 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: rise var(--duration-slow, 240ms) var(--ease-out-quart, cubic-bezier(0.16, 1, 0.3, 1)) both;
     animation-timeline: view();
-    animation-range: entry 0% cover 30%;
+    animation-range: entry 0% cover 20%;
   }
 }
 @supports not (animation-timeline: view()) {
   .reveal {
-    animation: rise 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: rise var(--duration-slow, 240ms) var(--ease-out-quart, cubic-bezier(0.16, 1, 0.3, 1)) both;
   }
 }
 
-/* ── Custom utilities ───────────────────────────────────────────── */
+/* ── Utilities ──────────────────────────────────────────────────── */
 
-/* Apple-style 3D hover lift for cards. Uses perspective + a tiny
-   rotateX so the card feels like it's leaning toward the cursor. */
-@utility lift-3d {
-  transform-style: preserve-3d;
-  transition:
-    transform 600ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 600ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 300ms ease;
-  will-change: transform;
-}
-@utility lift-3d-hover {
-  transform: translateY(-6px) perspective(900px) rotateX(2deg);
-  box-shadow:
-    0 24px 48px -16px hsl(0 0% 0% / 0.18),
-    0 8px 24px -12px hsl(var(--primary) / 0.12);
+/* Card surface — single border, no shadow. Borders do the elevation
+   work in Workbench; if a card needs more lift, raise it via the
+   surface-{1,2,3} ramp instead of stacking shadows. */
+@utility surface {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
 }
 
-/* Sweeping shine across text — used sparingly on the hero. */
-@utility text-shine {
-  background: linear-gradient(
-    100deg,
-    hsl(var(--foreground)) 0%,
-    hsl(var(--primary)) 45%,
-    hsl(var(--foreground)) 55%,
-    hsl(var(--primary)) 100%
-  );
-  background-size: 200% 100%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-}
-
-/* Apple-style soft mesh background. Two large blurred radial blobs
-   that drift slowly — gives a subtle living quality to hero areas
-   without competing with content. Lives outside @utility because
-   Tailwind 4 utility names can't contain pseudo-element selectors. */
-.mesh-bg {
-  position: relative;
-}
-.mesh-bg::before {
-  content: "";
-  position: absolute;
-  inset: -10%;
-  z-index: -1;
-  background:
-    radial-gradient(circle at 20% 20%, hsl(var(--primary) / 0.12), transparent 45%),
-    radial-gradient(circle at 80% 70%, hsl(var(--primary-hi) / 0.10), transparent 50%);
-  filter: blur(40px);
-  animation: mesh-drift 14s ease-in-out infinite;
-  pointer-events: none;
-}
-
-/* Hairline divider — Apple's signature 1px line that adapts to the
-   surrounding surface. */
+/* Hairline divider — 1px, adapts to the surrounding surface. */
 @utility hairline {
   border: 0;
   height: 1px;
   background: hsl(var(--border));
 }
 
-/* Card surface — slightly lifted, soft hairline, ready for hover. */
-@utility surface {
-  background-color: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
-  box-shadow:
-    0 1px 0 hsl(0 0% 100% / 0.04) inset,
-    0 1px 2px hsl(0 0% 0% / 0.04);
+/* Skeleton loader — single subtle fade, no shimmer sweep. */
+@utility skeleton {
+  background-color: hsl(var(--muted));
+  border-radius: calc(var(--radius) - 2px);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
 }
