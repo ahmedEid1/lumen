@@ -331,6 +331,51 @@ export interface CommitOutlineResponse {
   modules: CommittedModule[];
 }
 
+// ---------- I3: self-critique authoring loop ----------
+
+export interface CriticScoresOut {
+  coverage: number;
+  learning_arc: number;
+  scope: number;
+  mean: number;
+}
+
+export interface DraftCourseResponse {
+  course_id: string;
+  slug: string;
+  module_count: number;
+  lesson_count: number;
+  final_score: CriticScoresOut;
+  final_rationale: string;
+  draft_id: string;
+  revisions_used: number;
+}
+
+export interface DraftTraceStep {
+  id: string;
+  draft_id: string;
+  course_id: string | null;
+  step:
+    | "researcher"
+    | "outliner"
+    | "critic"
+    | "reviser"
+    | "lesson_drafter"
+    | "final_critic"
+    | string;
+  step_index: number;
+  status: "ok" | "error" | string;
+  duration_ms: number;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface DraftTraceResponse {
+  course_id: string;
+  draft_id: string | null;
+  steps: DraftTraceStep[];
+}
+
 export const AI = {
   outline: (input: { brief: string; target_modules?: number }, token?: string) =>
     api<CourseOutline>("/api/v1/studio/ai/outline", {
@@ -365,6 +410,20 @@ export const AI = {
       body: input,
       token,
     }),
+  draftCourse: (
+    input: { brief: string; subject_slug: string },
+    token?: string,
+  ) =>
+    api<DraftCourseResponse>("/api/v1/studio/ai/draft-course", {
+      method: "POST",
+      body: input,
+      token,
+    }),
+  draftTrace: (courseId: string, token?: string) =>
+    api<DraftTraceResponse>(
+      `/api/v1/studio/drafts/${encodeURIComponent(courseId)}/trace`,
+      { token },
+    ),
 };
 
 // ---------- Reviews ----------

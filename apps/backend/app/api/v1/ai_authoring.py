@@ -33,13 +33,13 @@ from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import DBSession, RequireInstructor
-from app.core.errors import NotFoundError
+from app.api.deps import CurrentUser, DBSession, RequireInstructor
+from app.core.errors import ForbiddenError, NotFoundError
 from app.core.ratelimit import limiter
 from app.models.course import Course
 from app.repositories import courses as courses_repo
 from app.schemas.course import QuizQuestion
-from app.services import ai_authoring
+from app.services import ai_authoring, authoring_orchestrator
 
 router = APIRouter()
 
@@ -93,6 +93,72 @@ class CommittedModuleOut(BaseModel):
 class CommitOutlineResponse(BaseModel):
     course_id: str
     modules: list[CommittedModuleOut]
+
+
+# ---------- Phase I3: self-critique authoring loop ----------
+
+
+class DraftCourseRequest(BaseModel):
+    """Body for ``POST /studio/ai/draft-course``.
+
+    ``brief`` is the same one-paragraph free-form description the
+    single-shot ``/ai/outline`` endpoint accepts. ``subject_slug``
+    resolves to a real :class:`Subject` row up-front — we can't
+    create one on behalf of the instructor here, so a missing slug
+    is a 404 the UI surfaces as "pick a subject before drafting."
+    """
+
+    brief: str = Field(min_length=1, max_length=4_000)
+    subject_slug: str = Field(min_length=1, max_length=220)
+
+
+class CriticScoresOut(BaseModel):
+    """Three-axis score block — mirrors :class:`CriticScores`."""
+
+    coverage: int
+    learning_arc: int
+    scope: int
+    mean: float
+
+
+class DraftCourseResponse(BaseModel):
+    """Full output of one self-critique authoring run.
+
+    Renders as the success payload the studio modal needs to deep-
+    link the instructor into ``/studio/draft/{course_id}`` for the
+    reasoning trace.
+    """
+
+    course_id: str
+    slug: str
+    module_count: int
+    lesson_count: int
+    final_score: CriticScoresOut
+    final_rationale: str
+    draft_id: str
+    revisions_used: int
+
+
+class DraftTraceStepOut(BaseModel):
+    """One step in the rendered reasoning timeline."""
+
+    id: str
+    draft_id: str
+    course_id: str | None
+    step: str
+    step_index: int
+    status: str
+    duration_ms: int
+    payload: dict[str, object]
+    created_at: str
+
+
+class DraftTraceResponse(BaseModel):
+    """Full critique-revise chain for one course's most-recent draft."""
+
+    course_id: str
+    draft_id: str | None
+    steps: list[DraftTraceStepOut]
 
 
 # ---------- Endpoints ----------
@@ -229,3 +295,104 @@ def _commit_response(course: Course) -> CommitOutlineResponse:
             )
         )
     return CommitOutlineResponse(course_id=course.id, modules=mods)
+
+
+# ---------- Phase I3 endpoints ----------
+
+
+@router.post(
+    "/ai/draft-course",
+    response_model=DraftCourseResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+@limiter.limit("5/minute")
+async def draft_course(
+    payload: DraftCourseRequest,
+    user: RequireInstructor,
+    db: DBSession,
+    request: Request,
+    response: Response,
+) -> DraftCourseResponse:
+    """Run the self-critique authoring loop end-to-end (Lumen v2 I3).
+
+    Orchestrates researcher → outliner → critic ↺ reviser →
+    lesson-drafter → final-critic. Persists a draft course +
+    modules + lessons AND the full ``course_draft_traces`` chain.
+    Returns the final critic's score so the studio surface can
+    render the publish-anyway button with an honest signal.
+
+    Shares the existing ``/ai/*`` 5/minute per-user rate limit —
+    one full draft burns up to ``6 + 2 × N_lessons + 1`` LLM calls,
+    so 5/minute is already extremely generous; we don't add a
+    separate tighter limit.
+    """
+    result = await authoring_orchestrator.draft_course(
+        db,
+        user=user,
+        brief=payload.brief,
+        subject_slug=payload.subject_slug,
+    )
+    return DraftCourseResponse(
+        course_id=result.course_id,
+        slug=result.slug,
+        module_count=result.module_count,
+        lesson_count=result.lesson_count,
+        final_score=CriticScoresOut(
+            coverage=result.final_score.coverage,
+            learning_arc=result.final_score.learning_arc,
+            scope=result.final_score.scope,
+            mean=round(result.final_score.mean, 2),
+        ),
+        final_rationale=result.final_rationale,
+        draft_id=result.draft_id,
+        revisions_used=result.revisions_used,
+    )
+
+
+@router.get(
+    "/drafts/{course_id}/trace",
+    response_model=DraftTraceResponse,
+)
+async def get_draft_trace(
+    course_id: str,
+    user: CurrentUser,
+    db: DBSession,
+) -> DraftTraceResponse:
+    """Return the full critique-revise trace for ``course_id``'s draft.
+
+    Authorisation: the caller must own the course OR be an admin.
+    Instructors-other-than-the-owner get 403 — a trace reveals the
+    course's drafting context which would leak the instructor's
+    authoring approach. We surface a 404 for non-existent courses
+    so we don't leak whether a private slug exists.
+
+    Returns the rows in step-index order (the same order the
+    timeline renders top-to-bottom).
+    """
+    course = await courses_repo.get_course(db, course_id)
+    if course is None:
+        raise NotFoundError("Course not found", code="course.not_found")
+    if not (user.is_admin() or course.owner_id == user.id):
+        raise ForbiddenError("Not your course", code="course.forbidden")
+
+    rows = await authoring_orchestrator.list_traces_for_course(
+        db, course_id=course.id
+    )
+    steps = [
+        DraftTraceStepOut(
+            id=r.id,
+            draft_id=r.draft_id,
+            course_id=r.course_id,
+            step=r.step,
+            step_index=r.step_index,
+            status=r.status,
+            duration_ms=r.duration_ms,
+            payload=dict(r.payload or {}),
+            created_at=r.created_at.isoformat(),
+        )
+        for r in rows
+    ]
+    draft_id = steps[0].draft_id if steps else None
+    return DraftTraceResponse(
+        course_id=course.id, draft_id=draft_id, steps=steps
+    )
