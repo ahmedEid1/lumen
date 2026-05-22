@@ -95,6 +95,14 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Preview lesson — open scroll for non-enrolled visitors
+  "preview.cartouche": "Open scroll",
+  "preview.lessonFallback": "Lesson",
+  "preview.forbidden": "This lesson is for enrolled students. Enroll in the course to read it.",
+  "preview.notFound": "Lesson not found.",
+  "preview.error": "Could not load this preview.",
+  "preview.cta": "Enjoying it? Enroll to unlock the rest of the course.",
+
   // Single thread + replies
   "thread.notFound": "Thread not found.",
   "thread.allDiscussions": "All discussions",

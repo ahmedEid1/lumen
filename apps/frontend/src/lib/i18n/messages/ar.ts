@@ -102,6 +102,14 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Preview lesson — لفافة مفتوحة لغير المسجّلين
+  "preview.cartouche": "لفافة مفتوحة",
+  "preview.lessonFallback": "درس",
+  "preview.forbidden": "هذا الدرس مخصّص للطلاب المسجّلين. سجّل في الدورة لقراءته.",
+  "preview.notFound": "الدرس غير موجود.",
+  "preview.error": "تعذّر تحميل هذه المعاينة.",
+  "preview.cta": "أعجبك؟ سجّل في الدورة لفتح بقيّة الدروس.",
+
   // Single thread + replies
   "thread.notFound": "الموضوع غير موجود.",
   "thread.allDiscussions": "كل النقاشات",
