@@ -240,7 +240,6 @@ class CourseListItem(BaseModel):
 class CourseDetail(CourseListItem):
     modules: list[ModuleOut] = Field(default_factory=list)
     is_enrolled: bool = False
-    is_bookmarked: bool = False
     progress_pct: float = 0.0
     # "What you'll learn" bullet list. Empty list means the
     # instructor hasn't filled it in — the detail page hides the

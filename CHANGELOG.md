@@ -112,6 +112,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   decide whether to rename it as part of the surface repaint. en.ts +
   ar.ts remain at 550/550 keys, parity preserved.
 ### Removed (rebuild phase A)
+- **Bookmarks (Cut A7).** The Bookmark model + `bookmarks` table +
+  three `/me/bookmarks` endpoints tracked "saved for later" courses
+  per learner. The state was UX-redundant with enrollment: anything a
+  learner actually cared about they enrolled in (free, idempotent);
+  anything they bookmarked-and-never-enrolled rotted in the dashboard
+  as a permanent reminder of indecision. The audit flagged it as an
+  anti-pattern and the cuts-inventory agent agreed; per Lumen 2.0
+  rebuild spec section 3.2 the whole surface goes. Removed: the
+  model, the API module + router registration, `is_bookmarked` on
+  `CourseDetail` schema + `_builders.detail` + ETag fingerprint, the
+  `Bookmark` import from `courses.py`, the dashboard Bookmarks
+  section, the course-detail toggle button, the `Me.bookmark*` API
+  clients, the `qk.bookmarks` query key, `is_bookmarked` from the TS
+  `CourseDetail` type, and four bookmark-related i18n keys
+  (`course.bookmark`, `course.bookmarked`, `courseDetail.bookmarkError`,
+  `dashboard.bookmarks`) plus their Arabic siblings. Alembic 0012
+  drops the `bookmarks` table with a reversible downgrade that
+  re-creates the original schema. en.ts + ar.ts remain at 546/546
+  keys.
 - **Course duplication feature (Cut A5).** `POST
   /api/v1/courses/{id}/duplicate` cloned a course with all its modules
   and lessons into a fresh draft owned by the caller. The feature is

@@ -5,8 +5,6 @@ import { toast } from "sonner";
 import Link from "next/link";
 import {
   Award,
-  Bookmark,
-  BookmarkCheck,
   Check,
   Layers,
   MessageSquare,
@@ -49,16 +47,6 @@ export function CourseDetailView({ slug }: { slug: string }) {
       qc.invalidateQueries({ queryKey: qk.enrollments });
     },
     onError: (e: Error) => toast.error(e?.message ?? t("courseDetail.enrollError")),
-  });
-
-  const toggleBookmark = useMutation({
-    mutationFn: () =>
-      courseQ.data!.is_bookmarked ? Me.unbookmark(courseQ.data!.id) : Me.bookmark(courseQ.data!.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.course(slug) });
-      qc.invalidateQueries({ queryKey: qk.bookmarks });
-    },
-    onError: (e: Error) => toast.error(e?.message ?? t("courseDetail.bookmarkError")),
   });
 
   if (courseQ.isLoading) {
@@ -362,26 +350,6 @@ export function CourseDetailView({ slug }: { slug: string }) {
                     : user
                       ? t("course.enroll")
                       : t("course.signInToEnroll")}
-                </Button>
-              )}
-
-              {user && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => toggleBookmark.mutate()}
-                  disabled={toggleBookmark.isPending}
-                >
-                  {course.is_bookmarked ? (
-                    <>
-                      <BookmarkCheck className="me-2 h-4 w-4 fill-current" />{" "}
-                      {t("course.bookmarked")}
-                    </>
-                  ) : (
-                    <>
-                      <Bookmark className="me-2 h-4 w-4" /> {t("course.bookmark")}
-                    </>
-                  )}
                 </Button>
               )}
 

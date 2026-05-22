@@ -15,7 +15,6 @@ from starlette.responses import Response as StarletteResponse
 from app.api.deps import DBSession, OptionalUser, RequireInstructor
 from app.api.v1 import _builders
 from app.core.errors import ForbiddenError, NotFoundError, UnauthorizedError
-from app.models.bookmark import Bookmark
 from app.models.course import Course
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
@@ -63,7 +62,6 @@ def _course_detail_etag(
     stats: dict,
     *,
     is_enrolled: bool,
-    is_bookmarked: bool,
     pct: float,
     done_count: int,
 ) -> str:
@@ -73,7 +71,6 @@ def _course_detail_etag(
             course.id,
             course.updated_at.isoformat() if course.updated_at else "",
             "1" if is_enrolled else "0",
-            "1" if is_bookmarked else "0",
             f"{pct:.1f}",
             str(done_count),
             str(stats.get("modules_count", 0)),
@@ -117,7 +114,6 @@ async def get_course(
 
     stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
     is_enrolled = False
-    is_bookmarked = False
     pct = 0.0
     done: set[str] = set()
     if viewer:
@@ -126,13 +122,6 @@ async def get_course(
             is_enrolled = True
             pct = await enrollment_service.progress_pct(db, enrollment=enrollment)
             done = await courses_repo.completed_lesson_ids(db, enrollment.id)
-        is_bookmarked = (
-            await db.scalar(
-                select(Bookmark.id).where(
-                    Bookmark.user_id == viewer.id, Bookmark.course_id == course.id
-                )
-            )
-        ) is not None
 
     # Weak ETag covering everything that goes into the response body:
     # the course row's update timestamp + the viewer-derived flags.
@@ -144,13 +133,12 @@ async def get_course(
         course,
         stats,
         is_enrolled=is_enrolled,
-        is_bookmarked=is_bookmarked,
         pct=pct,
         done_count=len(done),
     )
     if_none_match = request.headers.get("if-none-match", "")
     # Auth-aware caching headers. The body carries per-viewer fields
-    # (is_enrolled, is_bookmarked, completed lessons) so:
+    # (is_enrolled, completed lessons) so:
     #   * authenticated  → private cache only; no CDN, no shared proxy
     #   * anonymous      → short public cache, must-revalidate against ETag
     # Vary makes the difference explicit so a CDN cannot serve a
@@ -182,7 +170,6 @@ async def get_course(
         list(course.modules),
         stats,
         is_enrolled=is_enrolled,
-        is_bookmarked=is_bookmarked,
         progress_pct=pct,
         completed_lesson_ids=done,
     )
@@ -208,7 +195,6 @@ async def update_course(
         list(course.modules),
         stats,
         is_enrolled=is_enrolled,
-        is_bookmarked=False,
         progress_pct=pct,
     )
 
