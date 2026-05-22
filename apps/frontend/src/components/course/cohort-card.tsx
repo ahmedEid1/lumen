@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Glyph } from "@/components/lumen/glyph";
 import { Courses } from "@/lib/api/endpoints";
 import { formatRelative } from "@/lib/utils";
 import { useT } from "@/lib/i18n/provider";
@@ -21,7 +20,7 @@ export function CohortCard({ courseId }: { courseId: string }) {
   const hasRows = (q.data?.length ?? 0) > 0;
 
   return (
-    <Card className="scroll-paper border-gold/20">
+    <Card className="surface">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="font-display text-2xl">{t("cohort.title")}</CardTitle>
         {hasRows && (
@@ -47,16 +46,15 @@ export function CohortCard({ courseId }: { courseId: string }) {
             {(q.error as Error).message ?? t("cohort.loadError")}
           </p>
         ) : !q.data?.length ? (
-          <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <Glyph name="ankh" size={36} mode="tint" className="text-gold/35" />
-            <p className="font-body text-sm italic text-muted-foreground">
+          <div className="py-10 text-center">
+            <p className="font-display text-lg italic text-muted-foreground">
               {t("cohort.empty")}
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-start text-[0.62rem] uppercase tracking-[0.28em] text-gold/70">
+              <thead className="text-start text-[0.62rem] uppercase tracking-[0.28em] text-muted-foreground">
                 <tr>
                   <th className="pb-2 text-start font-medium">{t("cohort.col.student")}</th>
                   <th className="pb-2 text-start font-medium">{t("cohort.col.enrolled")}</th>
@@ -68,11 +66,11 @@ export function CohortCard({ courseId }: { courseId: string }) {
                 {q.data.map((row) => (
                   <tr
                     key={row.user_id}
-                    className="border-t border-border align-middle transition-colors hover:bg-muted/20"
+                    className="border-t border-border/60 align-middle transition-colors hover:bg-muted/30"
                   >
                     <td className="py-2">
                       <div className="flex items-center gap-2">
-                        <Avatar className="h-7 w-7 border border-gold/30">
+                        <Avatar className="h-7 w-7 border border-border/60">
                           <AvatarImage src={row.avatar_url ?? undefined} alt={row.full_name} />
                           <AvatarFallback>
                             {row.full_name.slice(0, 1).toUpperCase()}
@@ -89,14 +87,14 @@ export function CohortCard({ courseId }: { courseId: string }) {
                     <td className="w-48 py-2">
                       <div className="flex items-center gap-2">
                         <Progress value={row.progress_pct} className="flex-1" />
-                        <span className="tabular-nums text-xs text-gold/85">
+                        <span className="tabular-nums text-xs text-primary">
                           {row.progress_pct.toFixed(0)}%
                         </span>
                       </div>
                     </td>
                     <td className="py-2">
                       {row.completed_at ? (
-                        <Badge className="border border-gold/40 bg-gold/10 text-gold">
+                        <Badge className="border border-primary/40 bg-primary/10 text-primary">
                           {t("cohort.status.completed")}
                         </Badge>
                       ) : row.progress_pct > 0 ? (
