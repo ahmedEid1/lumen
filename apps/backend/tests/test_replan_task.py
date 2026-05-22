@@ -195,6 +195,22 @@ async def test_replan_picks_up_stale_paths(
     succeeded = await replan_task.replan_paths_monthly_async()
     assert succeeded == 1
 
+    # The beat job commits in a *separate* session, so ``db_session``'s
+    # identity map still holds the cached ``initial`` row with its
+    # original ``status='active'`` attribute (the conftest configures
+    # ``expire_on_commit=False`` so committed objects keep their loaded
+    # state — see ``conftest._engine``). Without expiring, the SELECT
+    # below returns the cached object and the test sees a stale
+    # ``status``. ``expunge_all`` removes the cached objects from the
+    # session entirely so the next query returns fresh instances
+    # whose attributes match the DB. ``expire_all`` marks them
+    # expired-but-still-in-the-identity-map, which means attribute
+    # access triggers a lazy reload — and lazy reloads in async
+    # SQLAlchemy require a greenlet context the bare list-comp below
+    # doesn't provide (MissingGreenlet). ``expunge_all`` sidesteps
+    # the whole expired-attribute path. Synchronous on AsyncSession.
+    db_session.expunge_all()
+
     # The original path is archived, a fresh active one exists.
     rows = (
         await db_session.execute(

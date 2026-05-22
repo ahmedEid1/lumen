@@ -18,8 +18,10 @@ from app.models.course import (
     course_tags,
 )
 from app.models.discussion import Discussion, DiscussionReply
+from app.models.learning_path import LearningPath, LearningPathStep
 from app.models.lesson_chunk import EMBEDDING_DIM, LessonChunk
 from app.models.llm_call import LLMCall
+from app.models.mcp_client import MCPClient
 from app.models.notification import Notification, NotificationKind
 from app.models.quiz_attempt import QuizAttempt
 from app.models.retrieval_audit import RetrievalAudit
@@ -44,9 +46,12 @@ __all__ = [
     "Enrollment",
     "Lesson",
     "LLMCall",
+    "LearningPath",
+    "LearningPathStep",
     "LessonChunk",
     "LessonProgress",
     "LessonType",
+    "MCPClient",
     "Module",
     "Notification",
     "NotificationKind",

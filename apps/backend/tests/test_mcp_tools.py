@@ -19,7 +19,9 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.mcp import tools as mcp_tools
@@ -119,8 +121,18 @@ async def _seed_published_course(
         )
         db.add(lesson)
     await db.flush()
-    await db.refresh(course)
-    return course
+    # Re-query with explicit eager loads. Without this, callers that
+    # touch ``course.modules[0].lessons[0]`` trigger a sync lazy-load
+    # in an async session and hit ``MissingGreenlet`` — async ORM
+    # demands every relationship be loaded up front (or via
+    # ``awaitable_attrs``). ``db.refresh(course)`` re-reads the row's
+    # columns but does not populate relationships.
+    loaded = await db.execute(
+        select(Course)
+        .options(selectinload(Course.modules).selectinload(Module.lessons))
+        .where(Course.id == course.id)
+    )
+    return loaded.scalar_one()
 
 
 # ---------- list_courses ----------
@@ -434,13 +446,60 @@ async def test_create_course_draft_requires_instructor(db_session: AsyncSession,
 
 
 @pytest.mark.asyncio
-async def test_create_course_draft_persists_draft(db_session: AsyncSession, make_user) -> None:
-    """Instructor mints a draft; the noop LLM provider returns a
-    deterministic outline shape we can assert on without burning tokens.
+async def test_create_course_draft_persists_draft(
+    db_session: AsyncSession, make_user, monkeypatch
+) -> None:
+    """Instructor mints a draft; we script a minimal outline reply so
+    the authoring service's JSON-schema validation is satisfied without
+    the test depending on a real LLM. The noop provider returns plain
+    prose (citation-prefix sentinel) which the outline parser rejects
+    as malformed — mirroring ``test_ai_authoring.py``'s scripted-reply
+    pattern.
     """
+    import json as _json
+
+    from app.services import llm as _llm_module
+
     instructor = await make_user(role=Role.instructor)
     db_session.add(Subject(title="Programming", slug="programming"))
     await db_session.commit()
+
+    minimal_outline = {
+        "title": "Python Basics for Absolute Beginners",
+        "overview": "A friendly introduction to Python 3 for first-timers.",
+        "modules": [
+            {
+                "title": "Getting Set Up",
+                "lessons": [
+                    {"title": "Install Python", "type": "text"},
+                    {"title": "Hello, World", "type": "text"},
+                ],
+            }
+        ],
+    }
+
+    class _OneShotProvider:
+        name = "scripted-outline"
+
+        async def chat(self, messages, temperature: float = 0.2) -> str:
+            del messages, temperature
+            return _json.dumps(minimal_outline)
+
+        async def chat_with_usage(self, messages, temperature: float = 0.2):
+            # ai_authoring routes through llm_call_log.call_logged which
+            # prefers chat_with_usage when available. Provide a minimal
+            # ChatResponse-shaped fallback so the metered path works.
+            text = await self.chat(messages, temperature=temperature)
+            return _llm_module.ChatResponse(
+                text=text,
+                prompt_tokens=64,
+                completion_tokens=64,
+                model="scripted-outline",
+            )
+
+    # ai_authoring imports ``llm_service.get_provider()`` lazily —
+    # patching the function on ``llm_module`` is the only target.
+    monkeypatch.setattr(_llm_module, "get_provider", lambda: _OneShotProvider())
 
     result = await mcp_tools.create_course_draft(
         db_session,

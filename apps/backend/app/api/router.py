@@ -6,6 +6,7 @@ from app.api.v1 import (
     admin,
     admin_evals,
     admin_llm_calls,
+    admin_mcp_clients,
     admin_observability,
     admin_rate_limit_stats,
     ai_authoring,
@@ -18,6 +19,7 @@ from app.api.v1 import (
     discussions,
     enrollments,
     health,
+    learning_path,
     mastery,
     notifications,
     reviews,
@@ -69,6 +71,17 @@ api_router.include_router(
 # recent retrieval-quality list, and Celery queue/health snapshot.
 api_router.include_router(
     admin_observability.router, prefix="/admin", tags=["admin-observability"]
+)
+# Phase I1 — MCP client CRUD (admin-only): create + list + revoke
+# the OAuth client-credential rows that the Lumen MCP server checks
+# tokens against. Mounted under /api/v1/admin/mcp-clients.
+api_router.include_router(
+    admin_mcp_clients.router, prefix="/admin", tags=["admin-mcp-clients"]
+)
+# Phase I5 — Personalized learning-path agent. Endpoints live under
+# /api/v1/me/learning-path{,/today,/steps/{id}/complete,/replan}.
+api_router.include_router(
+    learning_path.router, prefix="/me", tags=["learning-path"]
 )
 # Content ingest (Phase E3) — paste a URL, get a draft course.
 api_router.include_router(
