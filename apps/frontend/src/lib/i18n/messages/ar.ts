@@ -388,7 +388,7 @@ export const ar: Record<MessageKey, string> = {
   "adminAudit.loadOlder": "تحميل أحداث أقدم",
 
   // Admin / subjects — الفروع
-  "adminSubjects.cartouche": "الفروع",
+  "adminSubjects.cartouche": "المواضيع",
   "adminSubjects.title": "المواضيع",
   "adminSubjects.addCard": "إضافة موضوع",
   "adminSubjects.titlePlaceholder": "العنوان (مثلًا البرمجة)",

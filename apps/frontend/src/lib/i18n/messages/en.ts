@@ -381,7 +381,7 @@ export const en = {
   "adminAudit.loadOlder": "Load older events",
 
   // Admin / subjects — the disciplines
-  "adminSubjects.cartouche": "The disciplines",
+  "adminSubjects.cartouche": "Subjects",
   "adminSubjects.title": "Subjects",
   "adminSubjects.addCard": "Add subject",
   "adminSubjects.titlePlaceholder": "Title (e.g. Programming)",

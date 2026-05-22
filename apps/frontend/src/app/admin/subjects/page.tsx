@@ -7,14 +7,10 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import { Catalog } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { useT } from "@/lib/i18n/provider";
-
-const inputClass = "border-gold/25 bg-background/60 focus-visible:border-gold/60";
 
 export default function AdminSubjects() {
   const qc = useQueryClient();
@@ -44,15 +40,17 @@ export default function AdminSubjects() {
   });
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-14">
+    <div className="container mx-auto max-w-3xl px-6 py-14">
       <header className="mb-8 flex flex-col gap-3">
-        <Cartouche>{t("adminSubjects.cartouche")}</Cartouche>
-        <h1 className="font-display text-3xl font-medium tracking-tight">
+        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          {t("adminSubjects.cartouche")}
+        </p>
+        <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
           {t("adminSubjects.title")}
         </h1>
       </header>
 
-      <Card className="scroll-paper border-gold/20">
+      <Card className="surface">
         <CardHeader>
           <CardTitle className="font-display text-xl">{t("adminSubjects.addCard")}</CardTitle>
         </CardHeader>
@@ -69,13 +67,11 @@ export default function AdminSubjects() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
-              className={inputClass}
             />
             <Input
               placeholder={t("adminSubjects.slugPlaceholder")}
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
-              className={inputClass}
             />
             <Button type="submit" disabled={!title || create.isPending}>
               <Plus className="me-1 h-4 w-4" /> {t("adminTags.add")}
@@ -84,18 +80,19 @@ export default function AdminSubjects() {
         </CardContent>
       </Card>
 
-      <Card className="mt-6 scroll-paper border-gold/20">
+      <Card className="surface mt-6">
         <CardHeader>
           <CardTitle className="font-display text-xl">{t("adminSubjects.allCard")}</CardTitle>
         </CardHeader>
         <CardContent>
           {!subjectsQ.data?.length ? (
-            <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <Glyph name="feather" size={40} mode="tint" className="text-gold/40" />
-              <p className="font-body italic text-muted-foreground">{t("adminSubjects.empty")}</p>
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <p className="font-display text-xl italic text-muted-foreground">
+                {t("adminSubjects.empty")}
+              </p>
             </div>
           ) : (
-            <ul className="divide-y divide-gold/15">
+            <ul className="divide-y divide-border/60">
               {subjectsQ.data.map((s) => (
                 <li key={s.id} className="flex items-center justify-between py-3">
                   <div>
