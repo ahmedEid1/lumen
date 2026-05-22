@@ -21,13 +21,24 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Courses } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import type { LessonOut, LessonType } from "@/lib/api/types";
 import { LessonEditor } from "@/components/lesson/lesson-editor";
 import { useT } from "@/lib/i18n/provider";
+import { cn } from "@/lib/utils";
 import type { MessageKey } from "@/lib/i18n/messages/en";
+
+/**
+ * Module / lesson editor — Workbench repaint.
+ *
+ * Two columns: left sidebar (surface-1) lists lessons as compact rows
+ * with a drag handle + lesson-type badge; bottom of the sidebar has the
+ * type-specific create buttons. Right column hosts the lesson editor —
+ * the form sits on `surface` inside `lesson-editor.tsx` already.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
 
 const LESSON_TYPES: { value: LessonType; key: MessageKey }[] = [
   { value: "text", key: "lessonType.text" },
@@ -72,14 +83,14 @@ export default function ModuleEditorPage({
 
   if (courseQ.isLoading)
     return (
-      <div className="container mx-auto px-6 py-14 text-center font-body text-muted-foreground">
+      <div className="container mx-auto px-6 py-14 font-body text-sm text-muted-foreground">
         {t("common.loading")}
       </div>
     );
   if (!courseQ.data || !module)
     return (
-      <div className="container mx-auto flex flex-col items-center gap-3 px-6 py-20 text-center">
-        <p className="font-display text-2xl italic text-muted-foreground">
+      <div className="container mx-auto flex flex-col items-start gap-3 px-6 py-20">
+        <p className="font-display text-xl leading-tight tracking-tight text-muted-foreground">
           {t("moduleEdit.notFound")}
         </p>
       </div>
@@ -98,34 +109,36 @@ export default function ModuleEditorPage({
     <div className="container mx-auto px-6 py-14">
       <Link
         href={`/studio/${id}`}
-        className="mb-4 inline-flex items-center font-body text-sm text-muted-foreground transition-colors hover:text-primary"
+        className="mb-4 inline-flex items-center font-body text-sm text-muted-foreground transition-colors duration-[160ms] hover:text-foreground"
       >
         <ArrowLeft className="me-1 h-4 w-4" /> {t("moduleEdit.backToCourse")}
       </Link>
       <header className="mb-8 flex flex-col gap-3">
-        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
           {t("moduleEdit.cartouche")}
         </p>
-        <div className="text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
+        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
           {courseQ.data.title} · {t("courseDetail.module", { n: module.order + 1 })}
-        </div>
-        <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
+        </p>
+        <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
           {module.title}
         </h1>
         {module.description && (
-          <p className="font-body text-muted-foreground">{module.description}</p>
+          <p className="font-body text-sm text-muted-foreground">{module.description}</p>
         )}
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        <Card className="surface">
-          <CardHeader>
-            <CardTitle className="font-display text-lg">{t("moduleEdit.lessons")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+      <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
+        <aside className="surface lg:sticky lg:top-20 lg:self-start">
+          <div className="border-b border-border p-4">
+            <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+              {t("moduleEdit.lessons")}
+            </p>
+          </div>
+          <div className="p-2">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
               <SortableContext items={lessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-                <ul className="space-y-1.5">
+                <ul className="space-y-1">
                   {lessons.map((lesson) => (
                     <SortableLesson
                       key={lesson.id}
@@ -140,31 +153,31 @@ export default function ModuleEditorPage({
                 </ul>
               </SortableContext>
             </DndContext>
+          </div>
 
-            <div className="border-t border-border/60 pt-3">
-              <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-                {t("moduleEdit.addLesson")}
-              </p>
-              <div className="grid grid-cols-3 gap-1">
-                {LESSON_TYPES.map(({ value, key }) => (
-                  <Button
-                    key={value}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setCreatingType(value);
-                      setEditing(null);
-                    }}
-                  >
-                    <Plus className="me-1 h-3 w-3" /> {t(key)}
-                  </Button>
-                ))}
-              </div>
+          <div className="border-t border-border p-4">
+            <p className="mb-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+              {t("moduleEdit.addLesson")}
+            </p>
+            <div className="grid grid-cols-3 gap-1">
+              {LESSON_TYPES.map(({ value, key }) => (
+                <Button
+                  key={value}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setCreatingType(value);
+                    setEditing(null);
+                  }}
+                >
+                  <Plus className="me-1 h-3 w-3" /> {t(key)}
+                </Button>
+              ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </aside>
 
-        <section>
+        <section className="min-w-0">
           {editing ? (
             <LessonEditor
               moduleId={moduleId}
@@ -186,13 +199,9 @@ export default function ModuleEditorPage({
               onCancel={() => setCreatingType(null)}
             />
           ) : (
-            <Card className="surface">
-              <CardContent className="py-16 text-center">
-                <p className="font-display text-xl italic text-muted-foreground">
-                  {t("moduleEdit.empty")}
-                </p>
-              </CardContent>
-            </Card>
+            <div className="surface flex items-center justify-center p-12">
+              <p className="font-body text-sm text-muted-foreground">{t("moduleEdit.empty")}</p>
+            </div>
           )}
         </section>
       </div>
@@ -222,16 +231,17 @@ function SortableLesson({
   return (
     <li ref={setNodeRef} style={style}>
       <div
-        className={`flex items-center gap-2 rounded-md border bg-background/60 p-2 text-sm transition-colors ${
+        className={cn(
+          "flex items-center gap-2 rounded-md border-l-2 px-2 py-1.5 text-sm transition-colors duration-[160ms]",
           selected
-            ? "border-primary/60 bg-primary/10 text-primary"
-            : "border-border/60 hover:border-primary/30"
-        }`}
+            ? "border-foreground/40 bg-muted text-foreground"
+            : "border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+        )}
       >
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab text-muted-foreground hover:text-primary"
+          className="cursor-grab text-muted-foreground transition-colors duration-[160ms] hover:text-foreground"
           aria-label={t("studioEdit.dragHandle")}
         >
           <GripVertical className="h-4 w-4" />

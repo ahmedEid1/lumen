@@ -7,13 +7,25 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Courses } from "@/lib/api/endpoints";
 import type { CourseListItem, CourseStatus } from "@/lib/api/types";
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
+import { cn } from "@/lib/utils";
 import type { MessageKey } from "@/lib/i18n/messages/en";
+
+/**
+ * Studio root — Workbench repaint.
+ *
+ * Filter tabs use `border-b-2 border-primary` for the active state (the
+ * Linear / Vercel pattern), not pill chips. Courses render as bordered
+ * rows — not cards — for density; the title is small and label-like,
+ * meta sits in mono on the right. No `lift-3d` tilt; hover only shifts
+ * the border colour.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
 
 type FilterValue = "all" | CourseStatus;
 
@@ -56,15 +68,15 @@ export default function StudioPage() {
   return (
     <div className="container mx-auto px-6 py-14">
       <header className="mb-10 flex flex-col gap-3">
-        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
           {t("studio.cartouche")}
         </p>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
+            <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
               {t("studio.title")}
             </h1>
-            <p className="mt-2 font-body text-lg text-muted-foreground">{t("studio.subtitle")}</p>
+            <p className="mt-2 font-body text-sm text-muted-foreground">{t("studio.subtitle")}</p>
           </div>
           <Link href="/studio/new">
             <Button>
@@ -74,8 +86,9 @@ export default function StudioPage() {
         </div>
       </header>
 
+      {/* Filter tabs — border-b-2 active marker, no pill chips. */}
       <div
-        className="mb-8 flex flex-wrap gap-2"
+        className="mb-6 flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         role="tablist"
         aria-label={t("studio.filterAria")}
       >
@@ -87,18 +100,15 @@ export default function StudioPage() {
               role="tab"
               aria-selected={active}
               onClick={() => setFilter(f.value)}
-              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-body transition-colors ${
+              className={cn(
+                "-mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-3 pb-2 pt-1 font-body text-sm font-medium transition-colors duration-[160ms]",
                 active
-                  ? "border-primary/60 bg-primary/10 text-primary"
-                  : "border-border/60 text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-              }`}
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
             >
               {t(f.labelKey)}
-              <span
-                className={`rounded-full px-2 text-xs tabular-nums ${
-                  active ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
-                }`}
-              >
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
                 {counts[f.value]}
               </span>
             </button>
@@ -107,63 +117,58 @@ export default function StudioPage() {
       </div>
 
       {mine.isLoading ? (
-        <p className="font-body text-muted-foreground">{t("common.loading")}</p>
+        <p className="font-body text-sm text-muted-foreground">{t("common.loading")}</p>
       ) : !mine.data || mine.data.length === 0 ? (
-        <Card className="surface">
-          <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
-            <p className="font-display text-2xl italic text-muted-foreground">
-              {t("studio.empty.none")}
-            </p>
-            <Link href="/studio/new">
-              <Button className="mt-2">
-                <Plus className="me-2 h-4 w-4" /> {t("studio.newCourse")}
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+        <div className="surface flex flex-col items-start gap-3 p-8">
+          <p className="font-display text-base leading-tight tracking-tight">
+            {t("studio.empty.none")}
+          </p>
+          <Link href="/studio/new">
+            <Button size="sm">
+              <Plus className="me-2 h-4 w-4" /> {t("studio.newCourse")}
+            </Button>
+          </Link>
+        </div>
       ) : visible.length === 0 ? (
-        <Card className="surface">
-          <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
-            <p className="font-display text-2xl italic text-muted-foreground">
-              {t("studio.empty.filter")}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="surface p-8">
+          <p className="font-body text-sm text-muted-foreground">{t("studio.empty.filter")}</p>
+        </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <ul className="divide-y divide-border border-y border-border">
           {visible.map((c) => (
-            <Card
+            <li
               key={c.id}
-              className="surface lift-3d transition-colors hover:border-primary/30"
+              className="flex items-center justify-between gap-4 px-1 py-3 transition-colors duration-[160ms] hover:bg-muted/30"
             >
-              <CardHeader>
-                <div className="mb-1.5 flex items-center gap-2">
+              <div className="flex min-w-0 flex-col gap-1">
+                <Link
+                  href={`/studio/${c.id}`}
+                  className="font-display text-base leading-tight tracking-tight text-foreground transition-colors duration-[160ms] hover:text-muted-foreground"
+                >
+                  {c.title}
+                </Link>
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge
-                    className={
+                    variant={
                       c.status === "published"
-                        ? "border border-primary/40 bg-primary/10 uppercase tracking-wider text-primary"
+                        ? "default"
                         : c.status === "archived"
-                          ? "bg-muted text-muted-foreground uppercase tracking-wider"
-                          : "bg-secondary text-secondary-foreground uppercase tracking-wider"
+                          ? "muted"
+                          : "secondary"
                     }
                   >
                     {t(`studio.filter.${c.status}` as MessageKey)}
                   </Badge>
-                  <Badge variant="secondary">{c.subject.title}</Badge>
+                  <Badge variant="outline">{c.subject.title}</Badge>
                 </div>
-                <CardTitle className="font-display text-xl leading-tight">
-                  <Link href={`/studio/${c.id}`} className="transition-colors hover:text-primary">
-                    {c.title}
-                  </Link>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between font-body text-sm text-muted-foreground">
+              </div>
+              <div className="hidden shrink-0 items-center gap-6 font-mono text-xs tabular-nums text-muted-foreground sm:flex">
                 <span>{t("studio.moduleCount", { n: c.modules_count })}</span>
                 <span>{t("studio.studentCount", { n: c.enrollments_count })}</span>
-              </CardContent>
-            </Card>
+              </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

@@ -23,7 +23,7 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
       );
     case "video":
       return (
-        <div className="aspect-video w-full overflow-hidden rounded-md border border-border/60 bg-black">
+        <div className="aspect-video w-full overflow-hidden rounded-md border border-border bg-black">
           <video
             controls
             crossOrigin={data.captions_url ? "anonymous" : undefined}
@@ -51,7 +51,7 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
         <img
           alt={String(data.alt ?? "")}
           src={String(data.public_url ?? data.asset_key ?? "")}
-          className="max-h-[600px] w-full rounded-md border border-border/60 object-contain"
+          className="max-h-[600px] w-full rounded-md border border-border object-contain"
         />
       );
     case "file":
@@ -59,7 +59,7 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
         <a
           href={String(data.public_url ?? "#")}
           download={String(data.filename ?? "")}
-          className="inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-4 py-2 font-body text-sm text-primary transition-colors hover:bg-primary/10"
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-muted px-4 py-2 font-body text-sm text-foreground transition-colors duration-[160ms] hover:border-foreground/40"
         >
           <Download className="h-4 w-4" />
           {t("player.download", { name: String(data.filename ?? "") })}
@@ -198,8 +198,8 @@ function Quiz({
   return (
     <div className="space-y-6">
       {history.length > 0 && (
-        <div className="surface rounded-md p-3 font-body text-xs">
-          <div className="mb-2 text-[0.62rem] uppercase tracking-[0.28em] text-muted-foreground">
+        <div className="surface p-4 font-body text-xs">
+          <div className="mb-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
             {t("quiz.pastAttempts", { n: history.length })}
           </div>
           <ol className="flex flex-wrap gap-2">
@@ -207,10 +207,10 @@ function Quiz({
               <li
                 key={a.id}
                 className={[
-                  "inline-flex items-center gap-1 rounded border px-2 py-0.5 tabular-nums",
+                  "inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 font-mono tabular-nums",
                   a.passed
                     ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-muted-foreground/30 text-muted-foreground",
+                    : "border-border text-muted-foreground",
                 ].join(" ")}
                 title={new Date(a.submitted_at).toLocaleString()}
               >
@@ -224,24 +224,17 @@ function Quiz({
         const given = answers[q.id];
         const questionCorrect = correctByQuestion.get(q.id);
         return (
-          <div
-            key={q.id}
-            className="surface rounded-md p-4"
-          >
+          <div key={q.id} className="surface p-5">
             <div className="mb-3 flex items-start justify-between gap-2">
-              <p className="font-display text-base font-medium">
-                <span className="text-primary">{t("quiz.questionNumber", { n: idx + 1 })}</span>{" "}
+              <p className="font-body text-sm font-medium text-foreground">
+                <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                  {t("quiz.questionNumber", { n: idx + 1 })}
+                </span>{" "}
                 {q.prompt}
               </p>
               <div className="flex items-center gap-2">
                 {submitted && (
-                  <Badge
-                    className={
-                      questionCorrect
-                        ? "border border-primary/40 bg-primary/10 text-primary"
-                        : "border border-destructive/40 bg-destructive/10 text-destructive"
-                    }
-                  >
+                  <Badge variant={questionCorrect ? "default" : "destructive"}>
                     {questionCorrect ? t("quiz.correct") : t("quiz.incorrect")}
                   </Badge>
                 )}
@@ -254,7 +247,7 @@ function Quiz({
                 value={typeof given === "string" ? given : ""}
                 onChange={(e) => setAnswers((p) => ({ ...p, [q.id]: e.target.value }))}
                 disabled={submitted}
-                className="h-10 w-full rounded-md border border-border/60 bg-background/60 px-3 font-body text-sm transition-colors focus-visible:border-primary/60 focus-visible:outline-none disabled:opacity-70"
+                className="flex h-9 w-full rounded-md border border-border bg-muted px-3 py-2 font-body text-sm text-foreground transition-colors duration-[160ms] focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none disabled:opacity-60"
                 placeholder={t("quiz.shortPlaceholder")}
               />
             ) : (
@@ -268,11 +261,11 @@ function Quiz({
                         onClick={() => toggle(q, c.id)}
                         disabled={submitted}
                         className={[
-                          "w-full rounded-md border px-3 py-2 text-start font-body text-sm transition-colors",
+                          "w-full rounded-md border px-3 py-2 text-start font-body text-sm transition-colors duration-[160ms]",
                           selected
-                            ? "border-primary/60 bg-primary/10 text-primary"
-                            : "border-border/60 hover:border-primary/30",
-                          isCorrect ? "border-primary bg-primary/15 text-primary" : "",
+                            ? "border-foreground/40 bg-muted text-foreground"
+                            : "border-border hover:border-foreground/30",
+                          isCorrect ? "border-primary/60 bg-primary/10 text-primary" : "",
                         ].join(" ")}
                       >
                         {c.text}

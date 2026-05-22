@@ -22,7 +22,9 @@ export function CohortCard({ courseId }: { courseId: string }) {
   return (
     <Card className="surface">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="font-display text-2xl">{t("cohort.title")}</CardTitle>
+        <CardTitle className="font-display text-lg leading-tight tracking-tight">
+          {t("cohort.title")}
+        </CardTitle>
         {hasRows && (
           // Anchor link triggers a real download because the endpoint
           // sets Content-Disposition: attachment. Going through the
@@ -46,15 +48,11 @@ export function CohortCard({ courseId }: { courseId: string }) {
             {(q.error as Error).message ?? t("cohort.loadError")}
           </p>
         ) : !q.data?.length ? (
-          <div className="py-10 text-center">
-            <p className="font-display text-lg italic text-muted-foreground">
-              {t("cohort.empty")}
-            </p>
-          </div>
+          <p className="font-body text-sm text-muted-foreground">{t("cohort.empty")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-start text-[0.62rem] uppercase tracking-[0.28em] text-muted-foreground">
+              <thead className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="pb-2 text-start font-medium">{t("cohort.col.student")}</th>
                   <th className="pb-2 text-start font-medium">{t("cohort.col.enrolled")}</th>
@@ -66,11 +64,11 @@ export function CohortCard({ courseId }: { courseId: string }) {
                 {q.data.map((row) => (
                   <tr
                     key={row.user_id}
-                    className="border-t border-border/60 align-middle transition-colors hover:bg-muted/30"
+                    className="border-t border-border align-middle transition-colors duration-[160ms] hover:bg-muted/30"
                   >
                     <td className="py-2">
                       <div className="flex items-center gap-2">
-                        <Avatar className="h-7 w-7 border border-border/60">
+                        <Avatar className="h-7 w-7 border border-border">
                           <AvatarImage src={row.avatar_url ?? undefined} alt={row.full_name} />
                           <AvatarFallback>
                             {row.full_name.slice(0, 1).toUpperCase()}
@@ -81,22 +79,20 @@ export function CohortCard({ courseId }: { courseId: string }) {
                         </span>
                       </div>
                     </td>
-                    <td className="py-2 text-muted-foreground">
+                    <td className="py-2 font-mono text-xs text-muted-foreground">
                       {formatRelative(row.enrolled_at)}
                     </td>
                     <td className="w-48 py-2">
                       <div className="flex items-center gap-2">
                         <Progress value={row.progress_pct} className="flex-1" />
-                        <span className="tabular-nums text-xs text-primary">
+                        <span className="font-mono text-xs tabular-nums text-muted-foreground">
                           {row.progress_pct.toFixed(0)}%
                         </span>
                       </div>
                     </td>
                     <td className="py-2">
                       {row.completed_at ? (
-                        <Badge className="border border-primary/40 bg-primary/10 text-primary">
-                          {t("cohort.status.completed")}
-                        </Badge>
+                        <Badge>{t("cohort.status.completed")}</Badge>
                       ) : row.progress_pct > 0 ? (
                         <Badge variant="secondary">{t("cohort.status.inProgress")}</Badge>
                       ) : (

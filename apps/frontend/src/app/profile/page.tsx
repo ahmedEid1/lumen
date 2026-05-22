@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +15,17 @@ import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 
+/**
+ * Profile — Workbench repaint.
+ *
+ * Stacked sections separated by `border-t border-border` (profile,
+ * password, email, sessions, delete account). No nested card chrome
+ * around the forms — labels carry the structure. Destructive section
+ * gets `border-destructive/30 bg-destructive/5` and lives at the
+ * bottom; the destructive CTA is the only red affordance on the page.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
 export default function ProfilePage() {
   const { user, ready, refresh, logout } = useAuth();
   const router = useRouter();
@@ -117,35 +127,30 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="container mx-auto max-w-3xl space-y-10 px-6 py-20">
-      <header className="flex flex-col gap-4">
-        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+    <div className="container mx-auto max-w-3xl px-6 py-14">
+      {/* Identity header */}
+      <header className="mb-10 flex flex-col gap-4">
+        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
           {t("profile.cartouche")}
         </p>
         <div className="flex items-center gap-5">
-          <Avatar className="h-20 w-20 border border-border">
+          <Avatar className="h-16 w-16 border border-border">
             <AvatarImage src={user.avatar_url ?? undefined} alt={user.full_name} />
-            <AvatarFallback className="bg-muted text-2xl font-medium text-foreground">
+            <AvatarFallback className="bg-muted text-xl font-medium text-foreground">
               {user.full_name.slice(0, 1).toUpperCase() || "U"}
             </AvatarFallback>
           </Avatar>
           <div className="flex flex-col gap-1.5">
-            <h1 className="font-display text-4xl leading-tight tracking-tight">
+            <h1 className="font-display text-2xl leading-tight tracking-tight sm:text-3xl">
               {user.full_name || user.email}
             </h1>
-            <div className="flex flex-wrap items-center gap-2 font-body text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-muted-foreground">
               <span>{user.email}</span>
-              <Badge variant="muted" className="capitalize">
-                {user.role}
-              </Badge>
+              <Badge variant="muted">{user.role}</Badge>
               {user.email_verified_at ? (
-                <Badge className="border border-primary/40 bg-primary/10 text-primary">
-                  {t("profile.badge.verified")}
-                </Badge>
+                <Badge>{t("profile.badge.verified")}</Badge>
               ) : (
-                <Badge variant="outline" className="border-destructive/50 text-destructive">
-                  {t("profile.badge.unverified")}
-                </Badge>
+                <Badge variant="destructive">{t("profile.badge.unverified")}</Badge>
               )}
             </div>
           </div>
@@ -153,7 +158,7 @@ export default function ProfilePage() {
       </header>
 
       {!user.email_verified_at && (
-        <div className="flex flex-col items-start justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm sm:flex-row sm:items-center">
+        <div className="mb-10 flex flex-col items-start justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm sm:flex-row sm:items-center">
           <p className="flex items-center gap-2 font-body text-destructive">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {t("profile.banner.unverified")}
@@ -175,144 +180,128 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <Card className="surface">
-        <CardHeader>
-          <CardTitle className="font-display text-2xl leading-tight">
-            {t("profile.section.profile")}
-          </CardTitle>
-          <CardDescription className="font-body">
-            {t("profile.section.profileDesc")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={saveProfile}>
-            <div className="space-y-1.5">
-              <label htmlFor="full_name" className="font-body text-sm font-medium">
-                {t("auth.register.fullName")}
-              </label>
-              <Input
-                id="full_name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="bio" className="font-body text-sm font-medium">
-                {t("profile.field.bio")}
-              </label>
-              <Textarea
-                id="bio"
-                rows={4}
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-              />
-            </div>
-            <ImageUpload
-              kind="avatar"
-              shape="circle"
-              label={t("profile.field.avatar")}
-              value={avatarUrl || null}
-              onChange={(u) => setAvatarUrl(u ?? "")}
-            />
-            <Button type="submit" disabled={savingProfile}>
-              {savingProfile ? t("common.saving") : t("profile.save")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card className="surface">
-        <CardHeader>
-          <CardTitle className="font-display text-2xl leading-tight">
-            {t("profile.section.password")}
-          </CardTitle>
-          <CardDescription className="font-body">
-            {t("profile.section.passwordDesc")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={changePassword}>
+      {/* Profile section */}
+      <Section
+        title={t("profile.section.profile")}
+        description={t("profile.section.profileDesc")}
+      >
+        <form className="space-y-4" onSubmit={saveProfile}>
+          <div className="space-y-1.5">
+            <label htmlFor="full_name" className="font-body text-sm font-medium">
+              {t("auth.register.fullName")}
+            </label>
             <Input
-              type="password"
-              placeholder={t("profile.field.currentPassword")}
-              value={currentPwd}
-              onChange={(e) => setCurrentPwd(e.target.value)}
-              autoComplete="current-password"
+              id="full_name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="bio" className="font-body text-sm font-medium">
+              {t("profile.field.bio")}
+            </label>
+            <Textarea
+              id="bio"
+              rows={4}
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+            />
+          </div>
+          <ImageUpload
+            kind="avatar"
+            shape="circle"
+            label={t("profile.field.avatar")}
+            value={avatarUrl || null}
+            onChange={(u) => setAvatarUrl(u ?? "")}
+          />
+          <Button type="submit" disabled={savingProfile}>
+            {savingProfile ? t("common.saving") : t("profile.save")}
+          </Button>
+        </form>
+      </Section>
+
+      {/* Password section */}
+      <Section
+        title={t("profile.section.password")}
+        description={t("profile.section.passwordDesc")}
+      >
+        <form className="space-y-4" onSubmit={changePassword}>
+          <Input
+            type="password"
+            placeholder={t("profile.field.currentPassword")}
+            value={currentPwd}
+            onChange={(e) => setCurrentPwd(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+          <Input
+            type="password"
+            placeholder={t("profile.field.newPasswordPlaceholder")}
+            value={newPwd}
+            onChange={(e) => setNewPwd(e.target.value)}
+            autoComplete="new-password"
+            minLength={12}
+            required
+          />
+          <Button type="submit" disabled={savingPwd}>
+            {savingPwd ? t("profile.password.submitting") : t("profile.password.submit")}
+          </Button>
+        </form>
+      </Section>
+
+      {/* Email section */}
+      <Section
+        title={t("profile.section.email")}
+        description={t("profile.section.emailDesc")}
+      >
+        <form className="space-y-4" onSubmit={requestEmailChange}>
+          <div className="space-y-1.5">
+            <label className="font-body text-sm font-medium">
+              {t("profile.field.currentEmail")}
+            </label>
+            <Input value={user.email} disabled />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="new_email" className="font-body text-sm font-medium">
+              {t("profile.field.newEmail")}
+            </label>
+            <Input
+              id="new_email"
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              autoComplete="email"
               required
             />
-            <Input
-              type="password"
-              placeholder={t("profile.field.newPasswordPlaceholder")}
-              value={newPwd}
-              onChange={(e) => setNewPwd(e.target.value)}
-              autoComplete="new-password"
-              minLength={12}
-              required
-            />
-            <Button type="submit" disabled={savingPwd}>
-              {savingPwd ? t("profile.password.submitting") : t("profile.password.submit")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+          <Input
+            type="password"
+            placeholder={t("profile.field.currentPassword")}
+            value={emailPwd}
+            onChange={(e) => setEmailPwd(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+          <Button type="submit" disabled={requestingEmail || !newEmail || !emailPwd}>
+            {requestingEmail ? t("profile.email.submitting") : t("profile.email.submit")}
+          </Button>
+        </form>
+      </Section>
 
-      <Card className="surface">
-        <CardHeader>
-          <CardTitle className="font-display text-2xl leading-tight">
-            {t("profile.section.email")}
-          </CardTitle>
-          <CardDescription className="font-body">
-            {t("profile.section.emailDesc")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={requestEmailChange}>
-            <div className="space-y-1.5">
-              <label className="font-body text-sm font-medium">
-                {t("profile.field.currentEmail")}
-              </label>
-              <Input value={user.email} disabled />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="new_email" className="font-body text-sm font-medium">
-                {t("profile.field.newEmail")}
-              </label>
-              <Input
-                id="new_email"
-                type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                autoComplete="email"
-                required
-              />
-            </div>
-            <Input
-              type="password"
-              placeholder={t("profile.field.currentPassword")}
-              value={emailPwd}
-              onChange={(e) => setEmailPwd(e.target.value)}
-              autoComplete="current-password"
-              required
-            />
-            <Button type="submit" disabled={requestingEmail || !newEmail || !emailPwd}>
-              {requestingEmail ? t("profile.email.submitting") : t("profile.email.submit")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      {/* Sessions card — keeps its own surface */}
+      <section className="mb-10 border-t border-border pt-8">
+        <SessionsCard />
+      </section>
 
-      <SessionsCard />
-
-      <Card className="rounded-lg border border-destructive/40 bg-card">
-        <CardHeader>
-          <CardTitle className="font-display text-2xl leading-tight text-destructive">
-            {t("profile.section.delete")}
-          </CardTitle>
-          <CardDescription className="font-body">
-            {t("profile.section.deleteDesc")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      {/* Danger zone — bordered destructive surface */}
+      <section className="rounded-md border border-destructive/30 bg-destructive/5 p-5">
+        <h2 className="font-display text-lg leading-tight tracking-tight text-destructive">
+          {t("profile.section.delete")}
+        </h2>
+        <p className="mt-1 font-body text-sm text-muted-foreground">
+          {t("profile.section.deleteDesc")}
+        </p>
+        <div className="mt-4">
           {!confirmDelete ? (
             <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
               {t("profile.delete.button")}
@@ -335,8 +324,28 @@ export default function ProfilePage() {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
+  );
+}
+
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mb-10 border-t border-border pt-8">
+      <div className="mb-5">
+        <h2 className="font-display text-lg leading-tight tracking-tight">{title}</h2>
+        <p className="mt-1 font-body text-sm text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </section>
   );
 }

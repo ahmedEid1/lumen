@@ -54,8 +54,8 @@ export function MyReviewEditor({ courseId, myReview }: Props) {
   const display = hovered || rating;
 
   return (
-    <div className="surface rounded-md p-4">
-      <p className="mb-2 font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+    <div className="surface p-5">
+      <p className="mb-3 font-mono text-xs uppercase tracking-wider text-muted-foreground">
         {myReview ? t("review.yours") : t("review.leave")}
       </p>
       <div
@@ -73,12 +73,12 @@ export function MyReviewEditor({ courseId, myReview }: Props) {
             onMouseEnter={() => setHovered(n)}
             onMouseLeave={() => setHovered(0)}
             onClick={() => setRating(n)}
-            className="rounded p-0.5 transition-transform hover:scale-110"
+            className="rounded p-0.5 transition-colors duration-[160ms]"
           >
             <Star
               className={cn(
-                "h-6 w-6 transition-colors",
-                n <= display ? "fill-primary text-primary" : "text-muted-foreground/60",
+                "h-6 w-6 transition-colors duration-[160ms]",
+                n <= display ? "fill-primary text-primary" : "text-muted-foreground/50",
               )}
             />
           </button>

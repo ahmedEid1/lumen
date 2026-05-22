@@ -78,11 +78,11 @@ export function NotificationsBell() {
           unread ? t("notif.ariaWithCount", { n: unread }) : t("nav.notifications.aria")
         }
         onClick={() => setOpen((v) => !v)}
-        className="text-muted-foreground hover:text-primary"
+        className="text-muted-foreground hover:text-foreground"
       >
         <Bell className="h-5 w-5" />
         {unread > 0 && (
-          <span className="absolute end-1.5 top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+          <span className="absolute end-1.5 top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-semibold tabular-nums text-primary-foreground">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -91,9 +91,9 @@ export function NotificationsBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
-          <div className="surface absolute end-0 z-40 mt-2 w-80 overflow-hidden rounded-md shadow-lg">
-            <div className="flex items-center justify-between border-b border-border/60 px-3 py-2 text-sm">
-              <span className="font-display text-base font-medium">
+          <div className="surface absolute end-0 z-40 mt-2 w-80 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
+              <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                 {t("notif.title")}
               </span>
               {unread > 0 && (
@@ -104,7 +104,7 @@ export function NotificationsBell() {
                     markAllRead.mutate();
                   }}
                   disabled={markAllRead.isPending}
-                  className="font-body text-xs text-muted-foreground transition-colors hover:text-primary hover:underline disabled:opacity-50"
+                  className="font-body text-xs text-muted-foreground transition-colors duration-[160ms] hover:text-foreground disabled:opacity-50"
                 >
                   {markAllRead.isPending ? t("notif.marking") : t("notif.markAllRead")}
                 </button>
@@ -117,9 +117,9 @@ export function NotificationsBell() {
                   return (
                     <li
                       key={n.id}
-                      className={`flex flex-col gap-1 border-b border-border/60 px-3 py-2 text-sm last:border-0 ${
+                      className={`flex flex-col gap-1 border-b border-border px-3 py-2.5 text-sm last:border-0 transition-colors duration-[160ms] ${
                         href ? "cursor-pointer hover:bg-muted/40" : ""
-                      } ${!n.read_at ? "bg-primary/5" : ""}`}
+                      } ${!n.read_at ? "bg-muted/30" : ""}`}
                       onClick={() => {
                         if (!n.read_at) markRead.mutate(n.id);
                         if (href) {
@@ -129,17 +129,17 @@ export function NotificationsBell() {
                       }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <strong className="truncate text-foreground">{n.title}</strong>
-                        <span className="shrink-0 text-xs text-muted-foreground">
+                        <strong className="truncate font-medium text-foreground">{n.title}</strong>
+                        <span className="shrink-0 font-mono text-xs text-muted-foreground">
                           {formatRelative(n.created_at)}
                         </span>
                       </div>
-                      {n.body && <p className="text-muted-foreground">{n.body}</p>}
+                      {n.body && <p className="text-xs text-muted-foreground">{n.body}</p>}
                     </li>
                   );
                 })
               ) : (
-                <li className="px-3 py-8 text-center font-display text-base italic text-muted-foreground">
+                <li className="px-3 py-8 text-center font-body text-sm text-muted-foreground">
                   {t("notif.empty")}
                 </li>
               )}

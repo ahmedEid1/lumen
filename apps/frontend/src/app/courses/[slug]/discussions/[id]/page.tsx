@@ -8,12 +8,22 @@ import { toast } from "sonner";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { formatRelative } from "@/lib/utils";
 import { useT } from "@/lib/i18n/provider";
+
+/**
+ * Thread detail — Workbench repaint.
+ *
+ * Single column. The opening post leads, replies are stacked below
+ * separated by subtle border-t dividers rather than card frames. The
+ * reply composer is a flat textarea + primary CTA at the bottom — the
+ * single lime affordance on the page.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
 
 type Author = { id: string; full_name: string; avatar_url: string | null } | null;
 
@@ -86,14 +96,14 @@ export default function ThreadPage({
 
   if (threadQ.isLoading)
     return (
-      <div className="container mx-auto px-6 py-14 text-center font-body text-muted-foreground">
+      <div className="container mx-auto px-6 py-14 font-body text-sm text-muted-foreground">
         {t("common.loading")}
       </div>
     );
   if (!threadQ.data) {
     return (
-      <div className="container mx-auto flex flex-col items-center gap-3 px-6 py-20 text-center">
-        <p className="font-display text-2xl italic text-muted-foreground">
+      <div className="container mx-auto flex flex-col items-start gap-3 px-6 py-20">
+        <p className="font-display text-xl leading-tight tracking-tight text-muted-foreground">
           {t("thread.notFound")}
         </p>
       </div>
@@ -104,122 +114,119 @@ export default function ThreadPage({
   const replyCountKey = thread.replies.length === 1 ? "thread.replyCountOne" : "thread.replyCount";
 
   return (
-    <div className="container mx-auto max-w-3xl space-y-6 px-6 py-14">
+    <div className="container mx-auto max-w-3xl px-6 py-14">
       <Link
         href={`/courses/${slug}/discussions`}
-        className="inline-flex items-center font-body text-sm text-muted-foreground transition-colors hover:text-primary"
+        className="mb-4 inline-flex items-center font-body text-sm text-muted-foreground transition-colors duration-[160ms] hover:text-foreground"
       >
         <ArrowLeft className="me-1 h-4 w-4" /> {t("thread.allDiscussions")}
       </Link>
 
-      <Card className="surface">
-        <CardHeader className="space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <CardTitle className="font-display text-2xl">{thread.title}</CardTitle>
-            <div className="flex items-center gap-1">
-              {canEditThread && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={t("thread.deleteThread")}
-                  onClick={() => deleteThread.mutate()}
-                  disabled={deleteThread.isPending}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 font-body text-xs text-muted-foreground">
-            <Avatar className="h-5 w-5 border border-border/60">
-              <AvatarImage src={thread.author?.avatar_url ?? undefined} alt="" />
-              <AvatarFallback>
-                {(thread.author?.full_name ?? "?").slice(0, 1)}
-              </AvatarFallback>
-            </Avatar>
-            <span>{thread.author?.full_name ?? t("discussions.deletedUser")}</span>
-            <span>· {formatRelative(thread.created_at)}</span>
-          </div>
-        </CardHeader>
-        {thread.body && (
-          <CardContent>
-            <p className="whitespace-pre-wrap font-body text-sm text-foreground/90">
-              {thread.body}
-            </p>
-          </CardContent>
-        )}
-      </Card>
-
-      <h2 className="text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
-        {t(replyCountKey, { n: thread.replies.length })}
-      </h2>
-      <ul className="space-y-3">
-        {thread.replies.map((r) => {
-          const canDelete = !!user && (user.id === r.author?.id || user.role === "admin");
-          return (
-            <li key={r.id}>
-              <Card className="surface">
-                <CardContent className="space-y-2 pt-4">
-                  <div className="flex items-center justify-between font-body text-xs text-muted-foreground">
-                    <span className="flex items-center gap-2">
-                      <Avatar className="h-5 w-5 border border-border/60">
-                        <AvatarImage src={r.author?.avatar_url ?? undefined} alt="" />
-                        <AvatarFallback>
-                          {(r.author?.full_name ?? "?").slice(0, 1)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span>{r.author?.full_name ?? t("discussions.deletedUser")}</span>
-                      <span>· {formatRelative(r.created_at)}</span>
-                    </span>
-                    {canDelete && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={t("thread.deleteReply")}
-                        onClick={() => deleteReply.mutate(r.id)}
-                        disabled={deleteReply.isPending}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                  <p className="whitespace-pre-wrap font-body text-sm text-foreground/90">{r.body}</p>
-                </CardContent>
-              </Card>
-            </li>
-          );
-        })}
-      </ul>
-
-      {user && (
-        <Card className="surface">
-          <CardHeader>
-            <CardTitle className="font-display text-base">{t("thread.replyCard")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form
-              className="space-y-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!draft.trim()) return;
-                reply.mutate();
-              }}
+      {/* Opening post */}
+      <article className="mb-10">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <h1 className="font-display text-2xl leading-tight tracking-tight sm:text-3xl">
+            {thread.title}
+          </h1>
+          {canEditThread && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("thread.deleteThread")}
+              onClick={() => deleteThread.mutate()}
+              disabled={deleteThread.isPending}
+              className="text-muted-foreground hover:text-destructive"
             >
-              <Textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                rows={3}
-                maxLength={10000}
-                placeholder={t("thread.replyPlaceholder")}
-              />
-              <Button type="submit" disabled={reply.isPending || !draft.trim()}>
-                {reply.isPending ? t("discussions.posting") : t("thread.post")}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        <div className="mb-4 flex items-center gap-2 font-body text-xs text-muted-foreground">
+          <Avatar className="h-5 w-5 border border-border">
+            <AvatarImage src={thread.author?.avatar_url ?? undefined} alt="" />
+            <AvatarFallback>
+              {(thread.author?.full_name ?? "?").slice(0, 1)}
+            </AvatarFallback>
+          </Avatar>
+          <span>{thread.author?.full_name ?? t("discussions.deletedUser")}</span>
+          <span className="font-mono">· {formatRelative(thread.created_at)}</span>
+        </div>
+        {thread.body && (
+          <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-foreground/90">
+            {thread.body}
+          </p>
+        )}
+      </article>
+
+      {/* Replies */}
+      <section className="border-t border-border pt-8">
+        <h2 className="mb-5 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          {t(replyCountKey, { n: thread.replies.length })}
+        </h2>
+        <ul className="divide-y divide-border border-y border-border">
+          {thread.replies.map((r) => {
+            const canDelete = !!user && (user.id === r.author?.id || user.role === "admin");
+            return (
+              <li key={r.id} className="py-5">
+                <div className="mb-2 flex items-center justify-between font-body text-xs text-muted-foreground">
+                  <span className="flex items-center gap-2">
+                    <Avatar className="h-5 w-5 border border-border">
+                      <AvatarImage src={r.author?.avatar_url ?? undefined} alt="" />
+                      <AvatarFallback>
+                        {(r.author?.full_name ?? "?").slice(0, 1)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span>{r.author?.full_name ?? t("discussions.deletedUser")}</span>
+                    <span className="font-mono">· {formatRelative(r.created_at)}</span>
+                  </span>
+                  {canDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t("thread.deleteReply")}
+                      onClick={() => deleteReply.mutate(r.id)}
+                      disabled={deleteReply.isPending}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+                <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-foreground/90">
+                  {r.body}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      {/* Reply composer */}
+      {user && (
+        <section className="mt-10 border-t border-border pt-8">
+          <h2 className="mb-4 font-display text-base leading-tight tracking-tight">
+            {t("thread.replyCard")}
+          </h2>
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!draft.trim()) return;
+              reply.mutate();
+            }}
+          >
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={4}
+              maxLength={10000}
+              placeholder={t("thread.replyPlaceholder")}
+            />
+            <Button type="submit" disabled={reply.isPending || !draft.trim()}>
+              {reply.isPending ? t("discussions.posting") : t("thread.post")}
+            </Button>
+          </form>
+        </section>
       )}
     </div>
   );

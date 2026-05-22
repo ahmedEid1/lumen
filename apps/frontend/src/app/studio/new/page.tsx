@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageUpload } from "@/components/shared/image-upload";
@@ -14,6 +13,15 @@ import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 
+/**
+ * New course — Workbench repaint.
+ *
+ * Left-aligned label header, no centered marketing chrome. Form sits
+ * directly on the page (no nested card frame) so the inputs stay the
+ * focal point. Single lime primary CTA at the bottom.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
 export default function NewCoursePage() {
   const router = useRouter();
   const { user, ready } = useAuth();
@@ -57,92 +65,91 @@ export default function NewCoursePage() {
   }
 
   const selectClass =
-    "h-10 w-full rounded-md border border-border/60 bg-background px-3 font-body text-sm transition-colors focus-visible:border-primary/60 focus-visible:outline-none";
+    "flex h-9 w-full rounded-md border border-border bg-muted px-3 py-2 font-body text-sm text-foreground transition-colors duration-[160ms] focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none";
 
   return (
-    <div className="container mx-auto flex max-w-2xl flex-col px-6 py-14">
-      <header className="mb-6 flex flex-col gap-3 text-center">
-        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+    <div className="container mx-auto max-w-2xl px-6 py-14">
+      <header className="mb-8 flex flex-col gap-3">
+        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
           {t("studioNew.cartouche")}
         </p>
-        <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
+        <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
           {t("studioNew.title")}
         </h1>
       </header>
-      <Card className="surface w-full">
-        <CardContent className="pt-8">
-          <form className="space-y-4" onSubmit={submit}>
-            <div className="space-y-1.5">
-              <label className="font-body text-sm font-medium" htmlFor="title">
-                {t("studioNew.field.title")}
-              </label>
-              <Input
-                id="title"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="font-body text-sm font-medium" htmlFor="subject">
-                  {t("studioNew.field.subject")}
-                </label>
-                <select
-                  id="subject"
-                  className={selectClass}
-                  value={subjectId}
-                  onChange={(e) => setSubjectId(e.target.value)}
-                  required
-                >
-                  {subjectsQ.data?.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="font-body text-sm font-medium" htmlFor="difficulty">
-                  {t("studioNew.field.difficulty")}
-                </label>
-                <select
-                  id="difficulty"
-                  className={selectClass}
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value)}
-                >
-                  <option value="beginner">{t("studioNew.diff.beginner")}</option>
-                  <option value="intermediate">{t("studioNew.diff.intermediate")}</option>
-                  <option value="advanced">{t("studioNew.diff.advanced")}</option>
-                </select>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="font-body text-sm font-medium" htmlFor="overview">
-                {t("studioNew.field.overview")}
-              </label>
-              <Textarea
-                id="overview"
-                rows={6}
-                value={overview}
-                onChange={(e) => setOverview(e.target.value)}
-                placeholder={t("studioNew.placeholder.overview")}
-              />
-            </div>
-            <ImageUpload
-              kind="cover"
-              shape="rect"
-              label={t("studioNew.field.cover")}
-              value={coverUrl}
-              onChange={setCoverUrl}
-            />
-            <Button type="submit" className="w-full" disabled={submitting || !subjectId}>
-              {submitting ? t("studioNew.submitting") : t("studioNew.submit")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+
+      <form className="space-y-5" onSubmit={submit}>
+        <div className="space-y-1.5">
+          <label className="font-body text-sm font-medium" htmlFor="title">
+            {t("studioNew.field.title")}
+          </label>
+          <Input
+            id="title"
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className="font-body text-sm font-medium" htmlFor="subject">
+              {t("studioNew.field.subject")}
+            </label>
+            <select
+              id="subject"
+              className={selectClass}
+              value={subjectId}
+              onChange={(e) => setSubjectId(e.target.value)}
+              required
+            >
+              {subjectsQ.data?.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="font-body text-sm font-medium" htmlFor="difficulty">
+              {t("studioNew.field.difficulty")}
+            </label>
+            <select
+              id="difficulty"
+              className={selectClass}
+              value={difficulty}
+              onChange={(e) => setDifficulty(e.target.value)}
+            >
+              <option value="beginner">{t("studioNew.diff.beginner")}</option>
+              <option value="intermediate">{t("studioNew.diff.intermediate")}</option>
+              <option value="advanced">{t("studioNew.diff.advanced")}</option>
+            </select>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="font-body text-sm font-medium" htmlFor="overview">
+            {t("studioNew.field.overview")}
+          </label>
+          <Textarea
+            id="overview"
+            rows={6}
+            value={overview}
+            onChange={(e) => setOverview(e.target.value)}
+            placeholder={t("studioNew.placeholder.overview")}
+          />
+        </div>
+        <ImageUpload
+          kind="cover"
+          shape="rect"
+          label={t("studioNew.field.cover")}
+          value={coverUrl}
+          onChange={setCoverUrl}
+        />
+        <div className="pt-2">
+          <Button type="submit" disabled={submitting || !subjectId}>
+            {submitting ? t("studioNew.submitting") : t("studioNew.submit")}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

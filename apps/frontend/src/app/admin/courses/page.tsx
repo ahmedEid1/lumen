@@ -7,13 +7,21 @@ import { toast } from "sonner";
 import { Search, Star, StarOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
 import type { CourseListItem } from "@/lib/api/types";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
+/**
+ * Admin courses — Workbench repaint.
+ *
+ * Dense table on the page background, header in mono uppercase, rows
+ * separated by hairline borders. Owner names + subjects in body text,
+ * statuses + featured flag as bordered badges, no nested card chrome.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
 export default function AdminCourses() {
   const qc = useQueryClient();
   const t = useT();
@@ -45,16 +53,16 @@ export default function AdminCourses() {
   });
 
   return (
-    <div className="container mx-auto max-w-5xl px-6 py-14">
+    <div className="container mx-auto max-w-6xl px-6 py-14">
       <header className="mb-8 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-col gap-3">
-          <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
             {t("adminCourses.cartouche")}
           </p>
-          <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
+          <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
             {t("adminCourses.title")}
           </h1>
-          <p className="font-body text-muted-foreground">{t("adminCourses.subtitle")}</p>
+          <p className="font-body text-sm text-muted-foreground">{t("adminCourses.subtitle")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative w-72">
@@ -78,106 +86,100 @@ export default function AdminCourses() {
         </div>
       </header>
 
-      <Card className="surface">
-        <CardHeader>
-          <CardTitle className="font-display text-xl">{t("adminCourses.allCard")}</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border/60 bg-muted/30 text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 text-start font-medium">
-                    {t("adminCourses.col.course")}
-                  </th>
-                  <th className="px-4 py-3 text-start font-medium">
-                    {t("adminCourses.col.owner")}
-                  </th>
-                  <th className="px-4 py-3 text-start font-medium">
-                    {t("adminCourses.col.status")}
-                  </th>
-                  <th className="px-4 py-3 text-start font-medium">
-                    {t("adminCourses.col.featured")}
-                  </th>
-                  <th className="px-4 py-3 text-end font-medium">
-                    {t("adminCourses.col.action")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="font-body">
-                {coursesQ.data?.map((c) => (
-                  <tr
-                    key={c.id}
-                    className="border-t border-border/60 align-middle transition-colors hover:bg-muted/30"
-                  >
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/courses/${c.slug}`}
-                        className="font-display text-base font-medium transition-colors hover:text-primary"
-                        target="_blank"
-                      >
-                        {c.title}
-                      </Link>
-                      <div className="text-xs text-muted-foreground">{c.subject.title}</div>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{c.owner.full_name}</td>
-                    <td className="px-4 py-3">
-                      <Badge
-                        className={
-                          c.status === "published"
-                            ? "border border-primary/40 bg-primary/10 uppercase tracking-wider text-primary"
-                            : c.status === "archived"
-                              ? "bg-muted uppercase tracking-wider text-muted-foreground"
-                              : "bg-secondary uppercase tracking-wider text-secondary-foreground"
-                        }
-                      >
-                        {t(`studio.filter.${c.status}` as MessageKey)}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
+      <div className="surface overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border bg-muted/40 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 text-start font-medium">
+                  {t("adminCourses.col.course")}
+                </th>
+                <th className="px-4 py-3 text-start font-medium">
+                  {t("adminCourses.col.owner")}
+                </th>
+                <th className="px-4 py-3 text-start font-medium">
+                  {t("adminCourses.col.status")}
+                </th>
+                <th className="px-4 py-3 text-start font-medium">
+                  {t("adminCourses.col.featured")}
+                </th>
+                <th className="px-4 py-3 text-end font-medium">
+                  {t("adminCourses.col.action")}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="font-body">
+              {coursesQ.data?.map((c) => (
+                <tr
+                  key={c.id}
+                  className="border-t border-border align-middle transition-colors duration-[160ms] hover:bg-muted/30"
+                >
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/courses/${c.slug}`}
+                      className="font-body text-sm font-medium text-foreground transition-colors duration-[160ms] hover:text-muted-foreground"
+                      target="_blank"
+                    >
+                      {c.title}
+                    </Link>
+                    <div className="font-body text-xs text-muted-foreground">{c.subject.title}</div>
+                  </td>
+                  <td className="px-4 py-3 font-body text-sm text-muted-foreground">
+                    {c.owner.full_name}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge
+                      variant={
+                        c.status === "published"
+                          ? "default"
+                          : c.status === "archived"
+                            ? "muted"
+                            : "secondary"
+                      }
+                    >
+                      {t(`studio.filter.${c.status}` as MessageKey)}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    {c.is_featured ? (
+                      <Badge>{t("catalog.featuredBadge")}</Badge>
+                    ) : (
+                      <span className="font-mono text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggle.mutate({ id: c.id, next: !c.is_featured })}
+                      disabled={toggle.isPending}
+                    >
                       {c.is_featured ? (
-                        <Badge className="border border-primary/40 bg-primary/10 text-primary">
-                          {t("catalog.featuredBadge")}
-                        </Badge>
+                        <>
+                          <StarOff className="me-1 h-4 w-4" /> {t("adminCourses.unfeature")}
+                        </>
                       ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <>
+                          <Star className="me-1 h-4 w-4" /> {t("adminCourses.feature")}
+                        </>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggle.mutate({ id: c.id, next: !c.is_featured })}
-                        disabled={toggle.isPending}
-                        className="text-muted-foreground hover:text-primary"
-                      >
-                        {c.is_featured ? (
-                          <>
-                            <StarOff className="me-1 h-4 w-4" /> {t("adminCourses.unfeature")}
-                          </>
-                        ) : (
-                          <>
-                            <Star className="me-1 h-4 w-4" /> {t("adminCourses.feature")}
-                          </>
-                        )}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-                {!coursesQ.data?.length && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-14">
-                      <p className="text-center font-display text-xl italic text-muted-foreground">
-                        {t("adminCourses.empty")}
-                      </p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {!coursesQ.data?.length && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-12">
+                    <p className="text-center font-body text-sm text-muted-foreground">
+                      {t("adminCourses.empty")}
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

@@ -54,8 +54,10 @@ export function SessionsCard() {
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="font-display text-2xl">{t("sessions.title")}</CardTitle>
-            <CardDescription className="font-body">
+            <CardTitle className="font-display text-lg leading-tight tracking-tight">
+              {t("sessions.title")}
+            </CardTitle>
+            <CardDescription className="font-body text-sm">
               {t("sessions.description", { n: active.length })}
             </CardDescription>
           </div>
@@ -75,20 +77,20 @@ export function SessionsCard() {
         {q.isLoading ? (
           <p className="font-body text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : sessions.length === 0 ? (
-          <p className="font-display text-lg italic text-muted-foreground">{t("sessions.empty")}</p>
+          <p className="font-body text-sm text-muted-foreground">{t("sessions.empty")}</p>
         ) : (
-          <ul className="divide-y divide-border/60 font-body">
+          <ul className="divide-y divide-border font-body">
             {sessions.map((s) => (
               <li key={s.id} className="flex items-start justify-between gap-3 py-3 text-sm">
                 <div className="min-w-0">
                   <p className="truncate font-medium text-foreground">
                     {s.user_agent ?? t("sessions.unknownDevice")}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="font-mono text-xs text-muted-foreground">
                     {s.ip_address ?? "—"} ·{" "}
                     {t("sessions.signedIn", { when: formatRelative(s.issued_at) })}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="font-mono text-xs text-muted-foreground">
                     {s.revoked_at
                       ? t("sessions.revoked", { when: formatRelative(s.revoked_at) })
                       : t("sessions.expires", { when: formatRelative(s.expires_at) })}

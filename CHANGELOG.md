@@ -8,6 +8,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed (rebuild phase C)
+- **Workbench repaint of dashboard + learn + studio + admin + profile
+  + discussions (C2 wave 2).** Twenty file/view repaints onto the
+  C0+C1 token + primitive foundation, finishing the Workbench
+  conversion the wave-1 commit (`cc52641`) started. Each surface
+  follows the same rules: left-aligned label-like headlines on
+  `font-display` (~24-36px, not marketing-large), eyebrow labels in
+  `font-mono uppercase tracking-wider text-muted-foreground` (no
+  custom letter-spacing values), `border-t border-border` between
+  sections instead of nested card chrome, `transition-colors
+  duration-[160ms]` motion, and exactly one lime accent per screen
+  reserved for the primary CTA — every other affordance is a
+  bordered ghost.
+
+  Repainted surfaces, before → after:
+  - `dashboard/page.tsx`: marketing-sized `text-5xl/6xl` welcome and
+    `lift-3d` enrolment cards with shadow-hover → label-style header,
+    dense `surface` card grid for in-progress, bordered list rows for
+    completed (completed work occupies less weight than active work),
+    certificate links as lime text with arrow icon.
+  - `learn/[slug]/page.tsx`: card-in-card outline + card-in-card
+    player with `text-4xl` lesson title → two-column layout (sticky
+    `surface` outline left, flat player center), current lesson
+    highlighted with `bg-muted border-l-2 border-foreground/40` —
+    NOT lime, lime stays on the single Mark Complete CTA.
+  - `components/lesson/lesson-player.tsx`: residual `border-border/60`
+    + `bg-background/60` + `tracking-[0.28em]` quiz styling →
+    `border-border` + `bg-muted` + `font-mono` eyebrows; quiz history
+    chips and option pills use the Workbench palette directly.
+  - `studio/page.tsx`: 3D-tilt `lift-3d` card grid with pill filter
+    chips → bordered list rows for courses + `border-b-2
+    border-primary` active-tab marker (Linear/Vercel pattern).
+  - `studio/new/page.tsx`: centered marketing card wrapper → flat
+    left-aligned form on the page background.
+  - `studio/[id]/page.tsx`: stacked Cards for every section with
+    `text-5xl` title → toolbar header (status badge + title + small
+    action group), section-divider layout, mono+tabular-nums analytics
+    tiles, modules render as bordered rows with drag-handle on the
+    left and gear on the right.
+  - `studio/[id]/modules/[moduleId]/page.tsx`: per-card sidebar +
+    `bg-primary/10 text-primary` selected-lesson highlight (which
+    duplicated the lime affordance with the form's save CTA) →
+    surface-1 sticky sidebar with `border-l-2 border-foreground/40`
+    selection (lime saved for the Save button).
+  - `components/lesson/lesson-editor.tsx`: residual `bg-background/60`
+    + `tracking-[0.28em]` on the quiz editor → `bg-muted` +
+    `font-mono` eyebrows aligned to the page-level primitives.
+  - `admin/page.tsx`: `lift-3d` tile grid of admin tools + 3D-tilt
+    cards → dense bordered-row tool index with chevron affordance +
+    mono+tabular-nums stats tiles in a 7-up grid.
+  - `admin/users/page.tsx`: marketing-size header + `bg-muted/30`
+    table head → label-style header + mono uppercase table head; email
+    + last-login render in mono so admins can copy/scan cleanly.
+  - `admin/subjects/page.tsx`, `admin/tags/page.tsx`: nested cards →
+    flat add forms above hairline-divided lists; tag chips use the
+    bordered mono treatment.
+  - `admin/courses/page.tsx`: same pattern as users — mono table head,
+    body in body text, statuses + featured flag as Workbench Badges.
+  - `admin/audit/page.tsx`: timestamps + action codes + IDs + JSON
+    data now render entirely in `font-mono text-xs` so machine-emitted
+    values stay aligned; the action column drops its old lime tint
+    (audit data is reference, not interactive).
+  - `profile/page.tsx`: five stacked Cards → five flat sections
+    separated by `border-t border-border`; destructive "delete
+    account" lives in a `border-destructive/30 bg-destructive/5`
+    surface at the bottom.
+  - `courses/[slug]/discussions/page.tsx`: thread list rendered as
+    Cards → bordered list rows on `border-y border-border`; reply
+    counts in mono down the right edge.
+  - `courses/[slug]/discussions/[id]/page.tsx`: opening post in a
+    Card, replies in stacked Cards → single column with hairline
+    dividers; the lime affordance is the Post-reply CTA at the bottom.
+  - `components/course/course-card.tsx`: `hover:-translate-y-1` lift
+    + glow shadow + cover scale + radial gradient placeholder →
+    flat surface card whose only hover state is a border-colour
+    shift; meta row uses mono+tabular-nums.
+  - `components/course/my-review-editor.tsx`,
+    `components/course/cohort-card.tsx`,
+    `components/shared/sessions-card.tsx`,
+    `components/shared/notifications-bell.tsx`,
+    `components/shared/site-footer.tsx`: residual
+    `tracking-[0.18em]` / `tracking-[0.28em]` / `text-[0.62rem]` /
+    `border-border/60` patterns swept to `font-mono text-xs
+    uppercase tracking-wider` + `border-border` + 160ms transitions.
+
+  `mesh-bg`, `text-shine`, `lift-3d` references are now gone from the
+  app routes; only the C0 removal comment in `home-view.tsx` still
+  mentions them. Typecheck clean, vitest run green (89/89, including
+  the asserts on the course-card stat strings).
 - **Workbench repaint of every primary surface (C2 — partial wave 1).**
   Sixteen page/view files repainted onto the C0+C1 token + primitive
   foundation: home page (`home-view.tsx` — left-aligned hero, flat

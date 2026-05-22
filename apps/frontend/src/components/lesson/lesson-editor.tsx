@@ -328,9 +328,9 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
       </div>
       <ul className="space-y-3">
         {questions.map((q, idx) => (
-          <li key={idx} className="surface rounded-md p-3">
+          <li key={idx} className="surface p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="text-[0.62rem] uppercase tracking-[0.28em] text-muted-foreground">
+              <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                 {t("quizEdit.questionN", { n: idx + 1 })}
               </span>
               <Button
@@ -351,7 +351,7 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
             <div className="mb-2 flex items-center gap-2 font-body text-sm">
               <span>{t("quizEdit.type")}</span>
               <select
-                className="h-9 rounded-md border border-border/60 bg-background/60 px-2 transition-colors focus-visible:border-primary/60 focus-visible:outline-none"
+                className="h-9 rounded-md border border-border bg-muted px-2 text-foreground transition-colors duration-[160ms] focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none"
                 value={q.kind}
                 onChange={(e) =>
                   updateQ(idx, (cur) => ({
