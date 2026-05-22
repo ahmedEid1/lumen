@@ -78,7 +78,7 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
   });
 
   return (
-    <Card className="scroll-paper border-gold/20">
+    <Card className="surface">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="font-display text-2xl">
@@ -126,7 +126,7 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
             type="checkbox"
             checked={isPreview}
             onChange={(e) => setIsPreview(e.target.checked)}
-            className="h-4 w-4 rounded border-gold/40 accent-[hsl(var(--gold-leaf))]"
+            className="h-4 w-4 rounded border-border accent-[hsl(var(--primary))]"
           />
           <span>{t("lessonEdit.freePreview")}</span>
         </label>
@@ -328,9 +328,9 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
       </div>
       <ul className="space-y-3">
         {questions.map((q, idx) => (
-          <li key={idx} className="rounded-md border border-gold/20 bg-card/30 p-3">
+          <li key={idx} className="surface rounded-md p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="text-[0.62rem] uppercase tracking-[0.28em] text-gold/70">
+              <span className="text-[0.62rem] uppercase tracking-[0.28em] text-muted-foreground">
                 {t("quizEdit.questionN", { n: idx + 1 })}
               </span>
               <Button
@@ -351,7 +351,7 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
             <div className="mb-2 flex items-center gap-2 font-body text-sm">
               <span>{t("quizEdit.type")}</span>
               <select
-                className="h-9 rounded-md border border-gold/25 bg-background/60 px-2 focus-visible:border-gold/60 focus-visible:outline-none"
+                className="h-9 rounded-md border border-border/60 bg-background/60 px-2 transition-colors focus-visible:border-primary/60 focus-visible:outline-none"
                 value={q.kind}
                 onChange={(e) =>
                   updateQ(idx, (cur) => ({
@@ -393,7 +393,7 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
                             return { ...cur, answer_keys: Array.from(set) };
                           })
                         }
-                        className="accent-[hsl(var(--gold-leaf))]"
+                        className="accent-[hsl(var(--primary))]"
                       />
                       <Input
                         value={c.text}
