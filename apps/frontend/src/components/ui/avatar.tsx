@@ -31,11 +31,6 @@ export const AvatarImage = React.forwardRef<
 ));
 AvatarImage.displayName = AvatarPrimitive.Image.displayName;
 
-/**
- * AvatarFallback — gold-tinted initial on lapis-deep ground. The gold
- * text reads as a small inscribed mark rather than the default grey
- * letter; the card background blends with surrounding cards.
- */
 export const AvatarFallback = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Fallback>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
@@ -43,7 +38,7 @@ export const AvatarFallback = React.forwardRef<
   <AvatarPrimitive.Fallback
     ref={ref}
     className={cn(
-      "flex h-full w-full items-center justify-center bg-card font-display text-xs font-medium text-gold/85",
+      "flex h-full w-full items-center justify-center bg-muted font-body text-xs font-medium text-foreground/70",
       className,
     )}
     {...props}
