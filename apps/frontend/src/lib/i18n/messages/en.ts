@@ -95,6 +95,24 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Catalog page — the scroll room (public browse)
+  "catalogPage.cartouche": "The scroll room",
+  "catalogPage.h1_1": "Every discipline,",
+  "catalogPage.h1_2": "catalogued",
+  "catalogPage.subline": "Browse what scribes across the temple are teaching. Filter by subject, difficulty, or the mark of a tag.",
+  "catalogPage.searchPlaceholder": "Search the scroll room…",
+  "catalogPage.searchAria": "Search courses",
+  "catalogPage.anyDifficulty": "Any",
+  "catalogPage.diff.beginner": "Initiate",
+  "catalogPage.diff.intermediate": "Scribe",
+  "catalogPage.diff.advanced": "High Priest",
+  "catalogPage.reset": "Reset",
+  "catalogPage.allSubjects": "All",
+  "catalogPage.tagFilterAria": "Tag filter",
+  "catalogPage.clearTagAria": "Clear tag filter",
+  "catalogPage.noMatch": "No scrolls match those filters.",
+  "catalogPage.noMatchBody": "Try fewer constraints, or reset the search.",
+
   // Homepage — flagship marketing copy
   "home.cartouche": "Founded 2026 · A library that never closes",
   "home.heroTitle1": "The library of Thoth,",

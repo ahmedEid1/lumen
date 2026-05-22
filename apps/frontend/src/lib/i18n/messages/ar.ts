@@ -102,6 +102,24 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Catalog page — غرفة اللفائف (التصفّح العام)
+  "catalogPage.cartouche": "غرفة اللفائف",
+  "catalogPage.h1_1": "كل علم،",
+  "catalogPage.h1_2": "مفهرس",
+  "catalogPage.subline": "تصفّح ما يدرّسه الكَتَبة في كل أرجاء المعبد. صَفِّ حسب الموضوع أو المستوى أو ختم الوسم.",
+  "catalogPage.searchPlaceholder": "ابحث في غرفة اللفائف…",
+  "catalogPage.searchAria": "ابحث في الدورات",
+  "catalogPage.anyDifficulty": "الكل",
+  "catalogPage.diff.beginner": "مبتدئ",
+  "catalogPage.diff.intermediate": "كاتب",
+  "catalogPage.diff.advanced": "كاهن أعلى",
+  "catalogPage.reset": "إعادة تعيين",
+  "catalogPage.allSubjects": "الكل",
+  "catalogPage.tagFilterAria": "تصفية الوسوم",
+  "catalogPage.clearTagAria": "مسح تصفية الوسم",
+  "catalogPage.noMatch": "لا توجد لفائف تطابق هذه المرشحات.",
+  "catalogPage.noMatchBody": "قلّل القيود، أو أعد ضبط البحث.",
+
   // Homepage — نسخة عربية من نسخة التسويق
   "home.cartouche": "تأسّست 2026 · مكتبة لا تُغلق",
   "home.heroTitle1": "مكتبة تحوت،",

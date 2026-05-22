@@ -12,12 +12,14 @@ import { PapyrusBg } from "@/components/lumen/papyrus-bg";
 import { Catalog } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
-const DIFFICULTIES = [
-  { value: "beginner", label: "Initiate" },
-  { value: "intermediate", label: "Scribe" },
-  { value: "advanced", label: "High Priest" },
-] as const;
+const DIFFICULTIES: { value: string; labelKey: MessageKey }[] = [
+  { value: "beginner", labelKey: "catalogPage.diff.beginner" },
+  { value: "intermediate", labelKey: "catalogPage.diff.intermediate" },
+  { value: "advanced", labelKey: "catalogPage.diff.advanced" },
+];
 
 export default function CatalogPage() {
   return (
@@ -41,6 +43,7 @@ function CatalogFallback() {
 
 function CatalogInner() {
   const params = useSearchParams();
+  const t = useT();
   const [q, setQ] = useState(params.get("q") ?? "");
   const [subject, setSubject] = useState<string | undefined>(params.get("subject") ?? undefined);
   const [difficulty, setDifficulty] = useState<string | undefined>(
@@ -70,16 +73,16 @@ function CatalogInner() {
       <section className="relative overflow-hidden border-b border-gold/15">
         <PapyrusBg />
         <div className="container mx-auto flex flex-col items-center gap-5 px-4 py-20 text-center">
-          <Cartouche>The scroll room</Cartouche>
+          <Cartouche>{t("catalogPage.cartouche")}</Cartouche>
           <h1
             className="font-display text-5xl font-medium leading-tight tracking-tight sm:text-6xl"
             style={{ fontVariationSettings: '"opsz" 144, "SOFT" 25' }}
           >
-            Every discipline, <span className="italic text-gold-gradient">catalogued</span>.
+            {t("catalogPage.h1_1")}{" "}
+            <span className="italic text-gold-gradient">{t("catalogPage.h1_2")}</span>.
           </h1>
           <p className="max-w-2xl font-body text-lg text-muted-foreground">
-            Browse what scribes across the temple are teaching. Filter by subject, difficulty, or
-            the mark of a tag.
+            {t("catalogPage.subline")}
           </p>
         </div>
       </section>
@@ -93,11 +96,11 @@ function CatalogInner() {
               aria-hidden
             />
             <Input
-              placeholder="Search the scroll room…"
+              placeholder={t("catalogPage.searchPlaceholder")}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               className="border-gold/25 bg-card/60 ps-9 font-body text-base placeholder:italic placeholder:text-muted-foreground/70 focus-visible:border-gold/60"
-              aria-label="Search courses"
+              aria-label={t("catalogPage.searchAria")}
             />
           </div>
 
@@ -113,30 +116,33 @@ function CatalogInner() {
               )}
               aria-pressed={difficulty === undefined}
             >
-              Any
+              {t("catalogPage.anyDifficulty")}
             </button>
-            {DIFFICULTIES.map((d, i) => (
-              <button
-                key={d.value}
-                type="button"
-                onClick={() =>
-                  setDifficulty(difficulty === d.value ? undefined : d.value)
-                }
-                className={cn(
-                  "flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium uppercase tracking-wider transition-colors",
-                  difficulty === d.value
-                    ? "bg-gold/15 text-gold"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                aria-pressed={difficulty === d.value}
-                title={d.label}
-              >
-                {Array.from({ length: i + 1 }).map((_, k) => (
-                  <Glyph key={k} name="ankh" size={11} />
-                ))}
-                <span>{d.label}</span>
-              </button>
-            ))}
+            {DIFFICULTIES.map((d, i) => {
+              const label = t(d.labelKey);
+              return (
+                <button
+                  key={d.value}
+                  type="button"
+                  onClick={() =>
+                    setDifficulty(difficulty === d.value ? undefined : d.value)
+                  }
+                  className={cn(
+                    "flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium uppercase tracking-wider transition-colors",
+                    difficulty === d.value
+                      ? "bg-gold/15 text-gold"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  aria-pressed={difficulty === d.value}
+                  title={label}
+                >
+                  {Array.from({ length: i + 1 }).map((_, k) => (
+                    <Glyph key={k} name="ankh" size={11} />
+                  ))}
+                  <span>{label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {activeCount > 0 && (
@@ -150,7 +156,7 @@ function CatalogInner() {
               }}
               className="inline-flex items-center gap-1 rounded border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:border-gold/40 hover:text-gold"
             >
-              <X className="h-3 w-3" /> Reset
+              <X className="h-3 w-3" /> {t("catalogPage.reset")}
             </button>
           )}
         </div>
@@ -169,7 +175,7 @@ function CatalogInner() {
               )}
               aria-pressed={subject === undefined}
             >
-              All
+              {t("catalogPage.allSubjects")}
             </button>
             {subjects.data.map((s) => (
               <button
@@ -193,13 +199,17 @@ function CatalogInner() {
 
       {/* Tag seals */}
       {tags.data && tags.data.length > 0 && (
-        <div className="container mx-auto flex flex-wrap items-center gap-2 px-4 pt-6" role="group" aria-label="Tag filter">
+        <div
+          className="container mx-auto flex flex-wrap items-center gap-2 px-4 pt-6"
+          role="group"
+          aria-label={t("catalogPage.tagFilterAria")}
+        >
           {tag && (
             <button
               type="button"
               onClick={() => setTag(undefined)}
               className="inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs font-medium text-gold"
-              aria-label="Clear tag filter"
+              aria-label={t("catalogPage.clearTagAria")}
             >
               <X className="h-3 w-3" /> {tag}
             </button>
@@ -249,10 +259,10 @@ function CatalogInner() {
               className="mx-auto mb-4 text-gold/40"
             />
             <p className="font-display text-xl italic text-muted-foreground">
-              No scrolls match those filters.
+              {t("catalogPage.noMatch")}
             </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Try fewer constraints, or reset the search.
+            <p className="mt-2 font-body text-sm text-muted-foreground">
+              {t("catalogPage.noMatchBody")}
             </p>
           </div>
         )}
