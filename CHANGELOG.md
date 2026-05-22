@@ -53,6 +53,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `apps/backend/tests/test_courses_slug_partial_unique.py`.
 
 ### Security (rebuild phase B)
+- **Pinned the account-delete token-revocation invariants with two
+  new regression tests (Fix B5).** `DELETE /api/v1/users/me` already
+  flipped `is_active = False` (which `get_current_user_optional` then
+  treats as 401) AND called `revoke_all_refresh_tokens(user.id)`
+  inside the same transaction, so an attacker holding a stolen token
+  from before the delete could not actually re-authenticate — but
+  the backend audit flagged this as an unprotected window because
+  there was no test guarding the invariant. The fix adds two tests
+  in `apps/backend/tests/test_users.py`:
+  `test_delete_account_kills_outstanding_access_token` (use the
+  pre-delete access token on `/users/me` → assert 401) and
+  `test_delete_account_revokes_refresh_token` (use the pre-delete
+  refresh cookie at `/auth/refresh` → assert 401). Implementation
+  unchanged; the tests pin the behaviour so a future refactor that
+  drops either guard fails CI instead of silently widening the
+  post-delete auth window.
 - **Rate-limited the public `/certificates/verify/{id}` endpoint
   (`@limiter.limit("20/minute")`).** The route is intentionally
   unauthenticated so anyone with a certificate ID can confirm it
