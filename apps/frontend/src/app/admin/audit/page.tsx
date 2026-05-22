@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 
@@ -53,15 +51,17 @@ export default function AdminAudit() {
   const oldest = events.length ? events[events.length - 1].id : null;
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-14">
+    <div className="container mx-auto max-w-5xl px-6 py-14">
       <header className="mb-8 flex flex-col gap-3">
-        <Cartouche>{t("adminAudit.cartouche")}</Cartouche>
-        <h1 className="font-display text-3xl font-medium tracking-tight">
+        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          {t("adminAudit.cartouche")}
+        </p>
+        <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
           {t("adminAudit.title")}
         </h1>
       </header>
 
-      <Card className="scroll-paper border-gold/20">
+      <Card className="surface">
         <CardHeader>
           <CardTitle className="font-display text-xl">{t("adminAudit.recentCard")}</CardTitle>
         </CardHeader>
@@ -70,7 +70,7 @@ export default function AdminAudit() {
               instead of breaking the layout on small viewports. */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b border-gold/15 bg-muted/30 text-start text-[0.65rem] uppercase tracking-[0.28em] text-gold/70">
+              <thead className="border-b border-border/60 bg-muted/30 text-start text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 text-start font-medium">{t("adminAudit.col.when")}</th>
                   <th className="px-4 py-3 text-start font-medium">{t("adminAudit.col.action")}</th>
@@ -83,12 +83,12 @@ export default function AdminAudit() {
                 {events.map((e) => (
                   <tr
                     key={e.id}
-                    className="border-t border-border align-top transition-colors hover:bg-muted/20"
+                    className="border-t border-border/60 align-top transition-colors hover:bg-muted/30"
                   >
                     <td className="whitespace-nowrap px-4 py-2 text-xs text-muted-foreground">
                       {new Date(e.created_at).toLocaleString()}
                     </td>
-                    <td className="px-4 py-2 font-mono text-xs text-gold/90">{e.action}</td>
+                    <td className="px-4 py-2 font-mono text-xs text-primary">{e.action}</td>
                     <td className="px-4 py-2 font-mono text-xs">{e.actor_id ?? "—"}</td>
                     <td className="px-4 py-2 font-mono text-xs">
                       {e.target_type ? `${e.target_type}:${e.target_id ?? ""}` : "—"}
@@ -100,18 +100,10 @@ export default function AdminAudit() {
                 ))}
                 {!events.length && !pageQ.isLoading && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-12">
-                      <div className="flex flex-col items-center gap-3 text-center">
-                        <Glyph
-                          name="eye"
-                          size={40}
-                          mode="tint"
-                          className="text-gold/40"
-                        />
-                        <p className="font-body italic text-muted-foreground">
-                          {t("adminAudit.empty")}
-                        </p>
-                      </div>
+                    <td colSpan={5} className="px-4 py-14">
+                      <p className="text-center font-display text-xl italic text-muted-foreground">
+                        {t("adminAudit.empty")}
+                      </p>
                     </td>
                   </tr>
                 )}

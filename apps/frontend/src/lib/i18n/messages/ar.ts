@@ -376,7 +376,7 @@ export const ar: Record<MessageKey, string> = {
   "adminUsers.activeError": "تعذّر التحديث",
 
   // Admin / audit — عين المعبد
-  "adminAudit.cartouche": "عين المعبد",
+  "adminAudit.cartouche": "المراقبة",
   "adminAudit.title": "سجل المراقبة",
   "adminAudit.recentCard": "الأحداث الأخيرة",
   "adminAudit.col.when": "متى",

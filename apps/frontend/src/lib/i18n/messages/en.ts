@@ -369,7 +369,7 @@ export const en = {
   "adminUsers.activeError": "Could not update",
 
   // Admin / audit — eye of the temple
-  "adminAudit.cartouche": "Eye of the temple",
+  "adminAudit.cartouche": "Audit",
   "adminAudit.title": "Audit log",
   "adminAudit.recentCard": "Recent events",
   "adminAudit.col.when": "When",
