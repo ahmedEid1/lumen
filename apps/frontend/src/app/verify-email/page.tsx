@@ -5,12 +5,18 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { api, ApiError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 
 type Status = "checking" | "success" | "error";
 
+/**
+ * Email verification (post-register link target) — Workbench repaint.
+ *
+ * Same single-card pattern; status icon is a Lucide glyph at 20px in
+ * the semantic colour, not a hero badge. `aria-live="polite"` so the
+ * checking → success / error transition is announced.
+ */
 export default function VerifyEmailPage() {
   return (
     <Suspense fallback={<VerifyFallback />}>
@@ -21,8 +27,8 @@ export default function VerifyEmailPage() {
 
 function VerifyFallback() {
   return (
-    <div className="container mx-auto flex max-w-md flex-col px-6 py-24">
-      <div className="surface h-56 animate-pulse" aria-hidden />
+    <div className="mx-auto flex w-full max-w-[440px] flex-col px-6 py-24">
+      <div className="skeleton h-56 w-full" aria-hidden />
     </div>
   );
 }
@@ -62,43 +68,56 @@ function VerifyEmailInner() {
   }, [token, t]);
 
   return (
-    <div className="container mx-auto flex max-w-md flex-col items-center px-6 py-24">
-      <p className="mb-4 font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
-        {t("verifyEmail.cartouche")}
-      </p>
-      <Card className="surface w-full">
-        <CardContent className="space-y-6 pt-8 text-center">
-          {status === "success" && (
-            <CheckCircle2 className="mx-auto h-14 w-14 text-primary" aria-hidden />
-          )}
-          {status === "error" && (
-            <AlertCircle className="mx-auto h-14 w-14 text-destructive" aria-hidden />
-          )}
+    <div className="mx-auto flex w-full max-w-[440px] flex-col px-6 py-20">
+      <div className="rounded-md border border-border bg-card p-8">
+        <p className="mb-6 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          {t("verifyEmail.cartouche")}
+        </p>
+        <header className="mb-7 space-y-2">
+          <h1 className="font-display text-3xl leading-tight tracking-tight">
+            {t("verifyEmail.title")}
+          </h1>
+        </header>
 
-          <header className="flex flex-col items-center gap-2">
-            <h1 className="font-display text-3xl leading-tight tracking-tight">
-              {t("verifyEmail.title")}
-            </h1>
-            <p className="font-body text-sm text-muted-foreground">
+        <div className="space-y-4" aria-live="polite">
+          <div className="flex items-start gap-3">
+            {status === "success" && (
+              <CheckCircle2
+                className="mt-0.5 h-5 w-5 flex-none text-primary"
+                aria-hidden
+              />
+            )}
+            {status === "error" && (
+              <AlertCircle
+                className="mt-0.5 h-5 w-5 flex-none text-destructive"
+                aria-hidden
+              />
+            )}
+            <p
+              className={
+                status === "error"
+                  ? "font-body text-sm text-destructive"
+                  : "font-body text-sm text-muted-foreground"
+              }
+            >
               {status === "checking" ? t("verifyEmail.checking") : message}
             </p>
-          </header>
-
-          <div className="flex flex-col gap-2">
-            {status === "success" ? (
-              <Button onClick={() => router.push("/dashboard")}>
-                {t("verifyEmail.continue")}
-              </Button>
-            ) : status === "error" ? (
-              <Link href="/login">
-                <Button variant="outline" className="w-full">
-                  {t("verifyEmail.goSignIn")}
-                </Button>
-              </Link>
-            ) : null}
           </div>
-        </CardContent>
-      </Card>
+
+          {status === "success" && (
+            <Button className="w-full" onClick={() => router.push("/dashboard")}>
+              {t("verifyEmail.continue")}
+            </Button>
+          )}
+          {status === "error" && (
+            <Link href="/login">
+              <Button variant="outline" className="w-full">
+                {t("verifyEmail.goSignIn")}
+              </Button>
+            </Link>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

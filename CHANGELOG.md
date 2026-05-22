@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed (rebuild phase C)
+- **Workbench repaint of every primary surface (C2 — partial wave 1).**
+  Sixteen page/view files repainted onto the C0+C1 token + primitive
+  foundation: home page (`home-view.tsx` — left-aligned hero, flat
+  pillar cards with mono numeric eyebrows, no mesh / text-shine / 3D
+  tilt / scroll-reveal stagger), catalog page (`courses/page.tsx` —
+  left-aligned section header, density-leaning filter rail, the old
+  `mesh-bg` + `text-shine` hero chrome gone), course detail
+  (`course-detail-view.tsx` — sidebar enrollment card on
+  surface-2, syllabus with subtle dividers, no `lift-3d` on
+  enrollment / progress panels), course preview lesson, error.tsx
+  (bordered card with mono `digest` ID + retry primary + home ghost),
+  not-found.tsx (404 in mono, body + home CTA), loading.tsx
+  (skeleton utility, no shimmer), all seven auth flows (login,
+  register, forgot-password, reset-password, verify, verify-email,
+  confirm-email-change — centered single bordered card, mono
+  cartouche eyebrow, lime primary CTA at the bottom of each form).
+  i18n: 3 new strings each in en.ts + ar.ts to support the new
+  copy patterns. The dashboard + learn + studio + admin + profile
+  + discussions repaints land in C2 wave 2.
 - **Workbench visual foundation — tokens + fonts + primitives
   (C0 + C1).** Replaces the Skillpath cobalt + Instrument Serif +
   Geist stack with the Workbench palette: dark-first

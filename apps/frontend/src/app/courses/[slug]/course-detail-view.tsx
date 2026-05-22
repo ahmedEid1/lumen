@@ -23,6 +23,7 @@ import type { CourseDetail } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 import { qk } from "@/lib/query/keys";
+import { cn } from "@/lib/utils";
 
 export function CourseDetailView({ slug }: { slug: string }) {
   const { user } = useAuth();
@@ -51,15 +52,15 @@ export function CourseDetailView({ slug }: { slug: string }) {
 
   if (courseQ.isLoading) {
     return (
-      <div className="container mx-auto px-6 py-20 text-center font-body text-muted-foreground">
+      <div className="container mx-auto px-6 py-16 text-center font-body text-sm text-muted-foreground">
         {t("common.loading")}
       </div>
     );
   }
   if (courseQ.error || !courseQ.data) {
     return (
-      <div className="container mx-auto flex flex-col items-center gap-3 px-6 py-24 text-center">
-        <p className="font-display text-2xl italic text-muted-foreground">
+      <div className="container mx-auto flex flex-col items-center gap-3 px-6 py-16 text-center">
+        <p className="font-display text-2xl text-foreground">
           {t("courseDetail.notFound")}
         </p>
       </div>
@@ -70,23 +71,20 @@ export function CourseDetailView({ slug }: { slug: string }) {
   const totalLessons = course.modules.reduce((n, m) => n + m.lessons.length, 0);
 
   return (
-    <div className="container mx-auto px-6 py-20">
-      <div className="grid gap-12 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-10">
-          <header className="space-y-5">
-            <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+    <div className="container mx-auto px-6 py-10">
+      <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+        <div className="space-y-8">
+          <header className="space-y-4">
+            <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
               {t("courseDetail.cartouche")}
             </p>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               <Link
                 href={`/courses?subject=${encodeURIComponent(course.subject.slug)}`}
                 aria-label={t("courseDetail.moreFromSubject", { name: course.subject.title })}
               >
-                <Badge
-                  variant="secondary"
-                  className="cursor-pointer transition-colors hover:bg-secondary/80"
-                >
+                <Badge variant="secondary" className="cursor-pointer hover:bg-muted">
                   {course.subject.title}
                 </Badge>
               </Link>
@@ -104,31 +102,28 @@ export function CourseDetailView({ slug }: { slug: string }) {
                   href={`/courses?tag=${encodeURIComponent(tag.slug)}`}
                   aria-label={t("courseDetail.moreFromTag", { name: tag.name })}
                 >
-                  <Badge
-                    variant="outline"
-                    className="cursor-pointer hover:border-primary/40 hover:bg-muted"
-                  >
+                  <Badge variant="outline" className="cursor-pointer hover:bg-muted">
                     {tag.name}
                   </Badge>
                 </Link>
               ))}
             </div>
 
-            <h1 className="font-display text-5xl leading-[1.05] tracking-tight md:text-6xl">
+            <h1 className="font-display text-4xl leading-tight tracking-tight md:text-5xl">
               {course.title}
             </h1>
-            <p className="max-w-2xl font-body text-lg leading-relaxed text-muted-foreground">
+            <p className="max-w-2xl font-body text-base leading-relaxed text-muted-foreground">
               {course.overview}
             </p>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pt-1">
               <Avatar className="border border-border">
                 <AvatarImage src={course.owner.avatar_url ?? undefined} alt={course.owner.full_name} />
                 <AvatarFallback>{course.owner.full_name.slice(0, 1).toUpperCase()}</AvatarFallback>
               </Avatar>
               <div className="font-body text-sm">
-                <div className="font-medium">{course.owner.full_name}</div>
-                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <div className="font-medium text-foreground">{course.owner.full_name}</div>
+                <div className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                   {t("courseDetail.instructor")}
                 </div>
               </div>
@@ -138,7 +133,7 @@ export function CourseDetailView({ slug }: { slug: string }) {
           <div>
             <Link
               href={`/courses/${course.slug}/discussions`}
-              className="inline-flex items-center gap-2 font-body text-sm font-medium text-primary hover:underline"
+              className="inline-flex items-center gap-2 font-body text-sm text-foreground transition-colors duration-[160ms] hover:text-primary"
             >
               <MessageSquare className="h-4 w-4" />
               {t("course.discussionForum")}
@@ -146,14 +141,14 @@ export function CourseDetailView({ slug }: { slug: string }) {
           </div>
 
           {course.learning_outcomes && course.learning_outcomes.length > 0 && (
-            <Card className="surface">
+            <Card>
               <CardHeader>
-                <CardTitle className="font-display text-2xl leading-tight">
+                <CardTitle className="font-display text-xl leading-tight">
                   {t("course.whatYoullLearn")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="grid gap-3 sm:grid-cols-2">
+                <ul className="grid gap-2 sm:grid-cols-2">
                   {course.learning_outcomes.map((outcome, idx) => (
                     <li key={idx} className="flex items-start gap-2 font-body text-sm">
                       <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -165,66 +160,79 @@ export function CourseDetailView({ slug }: { slug: string }) {
             </Card>
           )}
 
-          <Card className="surface">
+          <Card>
             <CardHeader>
-              <CardTitle className="font-display text-2xl leading-tight">
+              <CardTitle className="font-display text-xl leading-tight">
                 {t("course.syllabus")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {course.modules.length === 0 ? (
-                <p className="font-body text-muted-foreground">{t("courseDetail.noModules")}</p>
+                <p className="font-body text-sm text-muted-foreground">
+                  {t("courseDetail.noModules")}
+                </p>
               ) : (
-                <ol className="space-y-4">
+                <ol className="divide-y divide-border">
                   {course.modules.map((m) => (
-                    <li
-                      key={m.id}
-                      className="rounded-md border border-border/60 bg-muted/30 p-4 transition-colors hover:border-primary/30"
-                    >
+                    <li key={m.id} className="py-4 first:pt-0 last:pb-0">
                       <div className="mb-2">
-                        <div className="font-body text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                        <div className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                           {t("courseDetail.module", { n: m.order + 1 })}
                         </div>
-                        <h3 className="font-display text-lg leading-tight">{m.title}</h3>
+                        <h3 className="font-display text-base leading-tight">{m.title}</h3>
                         {m.description && (
-                          <p className="font-body text-sm text-muted-foreground">{m.description}</p>
+                          <p className="mt-1 font-body text-sm text-muted-foreground">
+                            {m.description}
+                          </p>
                         )}
                       </div>
-                      <ul className="space-y-1 text-sm">
+                      <ul className="divide-y divide-border/60 text-sm">
                         {m.lessons.map((lesson) => (
                           <li
                             key={lesson.id}
-                            className="flex items-center justify-between rounded px-2 py-1 hover:bg-background"
+                            className="flex items-center justify-between gap-3 py-2"
                           >
-                            <span className="flex items-center gap-2 font-body">
-                              <Badge variant="muted">{lesson.type}</Badge>
+                            <span className="flex min-w-0 items-center gap-2 font-body">
+                              {lesson.completed ? (
+                                <Check
+                                  aria-label={t("player.completed")}
+                                  className="h-4 w-4 shrink-0 text-primary"
+                                />
+                              ) : (
+                                <span
+                                  aria-hidden
+                                  className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-border"
+                                />
+                              )}
+                              <Badge variant="muted" className="font-mono">
+                                {lesson.type}
+                              </Badge>
                               {lesson.is_preview && (
-                                <Badge variant="secondary">{t("player.freePreview")}</Badge>
+                                <Badge variant="default" className="font-mono">
+                                  {t("player.freePreview")}
+                                </Badge>
                               )}
                               <span
-                                className={lesson.completed ? "text-muted-foreground line-through" : ""}
+                                className={cn(
+                                  "truncate font-body",
+                                  lesson.completed && "text-muted-foreground",
+                                )}
                               >
                                 {lesson.title}
                               </span>
-                              {lesson.completed && (
-                                <Check
-                                  aria-label={t("player.completed")}
-                                  className="h-3.5 w-3.5 text-primary"
-                                />
-                              )}
                             </span>
-                            <span className="flex items-center gap-3">
+                            <span className="flex shrink-0 items-center gap-3">
                               {lesson.is_preview && course.status === "published" && (
                                 <Link
                                   href={`/courses/${course.slug}/preview/${lesson.id}`}
-                                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                  className="inline-flex items-center gap-1 font-body text-xs font-medium text-primary hover:underline"
                                 >
                                   {t("courseDetail.sample")}{" "}
                                   <ArrowRight className="h-3 w-3" />
                                 </Link>
                               )}
                               {lesson.duration_seconds ? (
-                                <span className="text-xs text-muted-foreground">
+                                <span className="font-mono text-xs text-muted-foreground">
                                   {t("courseDetail.minutes", {
                                     n: Math.round(lesson.duration_seconds / 60),
                                   })}
@@ -241,9 +249,9 @@ export function CourseDetailView({ slug }: { slug: string }) {
             </CardContent>
           </Card>
 
-          <Card className="surface">
+          <Card>
             <CardHeader>
-              <CardTitle className="font-display text-2xl leading-tight">
+              <CardTitle className="font-display text-xl leading-tight">
                 {t("course.reviews")}
               </CardTitle>
             </CardHeader>
@@ -255,12 +263,9 @@ export function CourseDetailView({ slug }: { slug: string }) {
                 />
               )}
               {reviewsQ.data && reviewsQ.data.length > 0 ? (
-                <ul className="space-y-4">
+                <ul className="divide-y divide-border">
                   {reviewsQ.data.map((r) => (
-                    <li
-                      key={r.id}
-                      className="rounded-md border border-border/60 bg-muted/30 p-3"
-                    >
+                    <li key={r.id} className="py-3 first:pt-0 last:pb-0">
                       <div className="flex items-center gap-2 text-sm">
                         <Avatar className="h-6 w-6 border border-border">
                           <AvatarImage
@@ -269,10 +274,20 @@ export function CourseDetailView({ slug }: { slug: string }) {
                           />
                           <AvatarFallback>{r.author.full_name.slice(0, 1)}</AvatarFallback>
                         </Avatar>
-                        <span className="font-body font-medium">{r.author.full_name}</span>
+                        <span className="font-body font-medium text-foreground">
+                          {r.author.full_name}
+                        </span>
                         <span className="ms-auto inline-flex items-center gap-0.5">
-                          {Array.from({ length: r.rating }).map((_, i) => (
-                            <Star key={i} className="h-3.5 w-3.5 fill-primary text-primary" />
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={cn(
+                                "h-3.5 w-3.5",
+                                i < r.rating
+                                  ? "fill-primary text-primary"
+                                  : "fill-none text-muted-foreground/40",
+                              )}
+                            />
                           ))}
                         </span>
                       </div>
@@ -283,36 +298,42 @@ export function CourseDetailView({ slug }: { slug: string }) {
                   ))}
                 </ul>
               ) : (
-                <p className="font-body text-muted-foreground">{t("courseDetail.beFirst")}</p>
+                <p className="font-body text-sm text-muted-foreground">
+                  {t("courseDetail.beFirst")}
+                </p>
               )}
             </CardContent>
           </Card>
         </div>
 
         <aside className="space-y-4">
-          <Card className="surface lg:sticky lg:top-20">
+          <Card className="bg-surface-2 lg:sticky lg:top-20">
             <CardContent className="space-y-4 pt-6">
               <div className="grid grid-cols-3 gap-2 text-center text-sm">
                 <div>
-                  <Layers className="mx-auto h-5 w-5 text-muted-foreground" />
-                  <div className="mt-1 font-display text-xl">{course.modules.length}</div>
-                  <div className="font-body text-xs uppercase tracking-wider text-muted-foreground">
+                  <Layers className="mx-auto h-4 w-4 text-muted-foreground" aria-hidden />
+                  <div className="mt-1 font-mono text-base text-foreground">
+                    {course.modules.length}
+                  </div>
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                     {t("course.modules")}
                   </div>
                 </div>
                 <div>
-                  <Users className="mx-auto h-5 w-5 text-muted-foreground" />
-                  <div className="mt-1 font-display text-xl">{course.enrollments_count}</div>
-                  <div className="font-body text-xs uppercase tracking-wider text-muted-foreground">
+                  <Users className="mx-auto h-4 w-4 text-muted-foreground" aria-hidden />
+                  <div className="mt-1 font-mono text-base text-foreground">
+                    {course.enrollments_count}
+                  </div>
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                     {t("course.students")}
                   </div>
                 </div>
                 <div>
-                  <Star className="mx-auto h-5 w-5 text-muted-foreground" />
-                  <div className="mt-1 font-display text-xl">
+                  <Star className="mx-auto h-4 w-4 text-muted-foreground" aria-hidden />
+                  <div className="mt-1 font-mono text-base text-foreground">
                     {course.avg_rating != null ? course.avg_rating.toFixed(1) : "—"}
                   </div>
-                  <div className="font-body text-xs uppercase tracking-wider text-muted-foreground">
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                     {t("course.rating")}
                   </div>
                 </div>
@@ -322,7 +343,7 @@ export function CourseDetailView({ slug }: { slug: string }) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between font-body text-sm">
                     <span className="text-muted-foreground">{t("course.progress")}</span>
-                    <span className="font-medium text-primary">
+                    <span className="font-mono font-medium text-primary">
                       {course.progress_pct.toFixed(0)}%
                     </span>
                   </div>
@@ -356,14 +377,14 @@ export function CourseDetailView({ slug }: { slug: string }) {
               {course.progress_pct === 100 && (
                 <a
                   href={`/api/v1/certificates/${course.id}.pdf`}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 font-body text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 font-body text-sm font-medium text-foreground transition-colors duration-[160ms] hover:bg-muted"
                 >
-                  <Award className="h-4 w-4" />
+                  <Award className="h-4 w-4 text-primary" />
                   {t("courseDetail.downloadCert")}
                 </a>
               )}
 
-              <p className="text-center font-body text-xs text-muted-foreground">
+              <p className="text-center font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                 {t("course.lessonsCount", { count: totalLessons })} ·{" "}
                 {t("course.lastUpdated", {
                   date: new Date(course.published_at ?? course.created_at).toLocaleDateString(),

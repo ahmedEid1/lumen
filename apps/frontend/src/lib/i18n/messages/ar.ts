@@ -86,6 +86,8 @@ export const ar: Record<MessageKey, string> = {
   "auth.forgot.submit": "أرسل رابط الاستعادة",
   "auth.forgot.submitting": "جارٍ الإرسال…",
   "auth.forgot.sent": "إن كان لديك حساب بالبريد {email}، فالرابط في طريقه إليك.",
+  "auth.forgot.sendAgain": "إرسال مرة أخرى",
+  "auth.forgot.resentToast": "تم إرسال رابط الاستعادة مرة أخرى",
   "auth.forgot.backToLogin": "العودة لتسجيل الدخول",
   "auth.forgot.error": "تعذّر إرسال رسالة الاستعادة",
   "auth.reset.cartouche": "كلمة المرور",
@@ -117,6 +119,7 @@ export const ar: Record<MessageKey, string> = {
   "catalogPage.clearTagAria": "مسح تصفية الوسم",
   "catalogPage.noMatch": "لا توجد دورات تطابق هذه المرشحات.",
   "catalogPage.noMatchBody": "قلّل القيود، أو أعد ضبط البحث.",
+  "catalogPage.resultCount": "{count} نتيجة",
 
   // Homepage — نسخة عربية من نسخة التسويق
   "home.cartouche": "افتُتح الآن",

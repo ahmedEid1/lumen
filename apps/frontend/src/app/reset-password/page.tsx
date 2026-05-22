@@ -5,11 +5,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 
+/**
+ * Reset password — Workbench repaint.
+ *
+ * Token comes from the email link as `?token=…`. We keep the
+ * single-card pattern and route errors / missing-token states inline
+ * rather than into a separate surface.
+ */
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={<ResetFallback />}>
@@ -20,8 +26,8 @@ export default function ResetPasswordPage() {
 
 function ResetFallback() {
   return (
-    <div className="container mx-auto flex max-w-md flex-col px-6 py-24">
-      <div className="surface h-64 animate-pulse" aria-hidden />
+    <div className="mx-auto flex w-full max-w-[440px] flex-col px-6 py-24">
+      <div className="skeleton h-64 w-full" aria-hidden />
     </div>
   );
 }
@@ -33,14 +39,17 @@ function ResetForm() {
   const token = params.get("token") ?? "";
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!token) {
+      setError(t("auth.reset.tokenError"));
       toast.error(t("auth.reset.tokenError"));
       return;
     }
     setSubmitting(true);
+    setError(null);
     try {
       await api("/api/v1/auth/password-reset/confirm", {
         method: "POST",
@@ -49,40 +58,48 @@ function ResetForm() {
       toast.success(t("auth.reset.successToast"));
       router.push("/login");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("auth.reset.error"));
+      const msg = e instanceof Error ? e.message : t("auth.reset.error");
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="container mx-auto flex max-w-md flex-col items-center px-6 py-24">
-      <p className="mb-4 font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
-        {t("auth.reset.cartouche")}
-      </p>
-      <Card className="surface w-full">
-        <CardContent className="space-y-7 pt-8">
-          <header className="flex flex-col items-center gap-2 text-center">
-            <h1 className="font-display text-4xl leading-tight tracking-tight">
-              {t("auth.reset.heading")}
-            </h1>
-            <p className="font-body text-sm text-muted-foreground">{t("auth.reset.subtitle")}</p>
-          </header>
+    <div className="mx-auto flex w-full max-w-[440px] flex-col px-6 py-20">
+      <div className="rounded-md border border-border bg-card p-8">
+        <p className="mb-6 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          {t("auth.reset.cartouche")}
+        </p>
+        <header className="mb-7 space-y-2">
+          <h1 className="font-display text-3xl leading-tight tracking-tight">
+            {t("auth.reset.heading")}
+          </h1>
+          <p className="font-body text-sm text-muted-foreground">
+            {t("auth.reset.subtitle")}
+          </p>
+        </header>
 
-          {!token ? (
-            <p className="font-body text-sm text-muted-foreground">
-              {t("auth.reset.missingToken")}{" "}
-              <Link
-                href="/forgot-password"
-                className="font-medium text-primary underline-offset-4 hover:underline"
-              >
-                {t("auth.reset.requestNew")}
-              </Link>
-              .
+        {!token ? (
+          <div className="space-y-4">
+            <p className="font-body text-sm text-destructive" aria-live="polite">
+              {t("auth.reset.missingToken")}
             </p>
-          ) : (
-            <form className="space-y-4" onSubmit={onSubmit}>
+            <Link href="/forgot-password">
+              <Button variant="outline" className="w-full">
+                {t("auth.reset.requestNew")}
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <form className="space-y-4" onSubmit={onSubmit} noValidate>
+            <div className="space-y-1.5">
+              <label htmlFor="password" className="font-body text-sm font-medium">
+                {t("auth.login.password")}
+              </label>
               <Input
+                id="password"
                 type="password"
                 placeholder={t("auth.reset.passwordPlaceholder")}
                 value={password}
@@ -91,13 +108,20 @@ function ResetForm() {
                 autoComplete="new-password"
                 required
               />
-              <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting ? t("auth.reset.submitting") : t("auth.reset.submit")}
-              </Button>
-            </form>
-          )}
-        </CardContent>
-      </Card>
+            </div>
+
+            <div className="min-h-[1.25rem]" aria-live="polite">
+              {error ? (
+                <p className="font-body text-sm text-destructive">{error}</p>
+              ) : null}
+            </div>
+
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? t("auth.reset.submitting") : t("auth.reset.submit")}
+            </Button>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

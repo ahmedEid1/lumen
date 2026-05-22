@@ -4,83 +4,131 @@ import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 
+/**
+ * Forgot password — Workbench repaint.
+ *
+ * After a successful "send", we leave the email input filled and
+ * offer a "send again" button instead of resetting the form. This
+ * removes the friction case where the user mistyped a character, the
+ * link never arrived, and they were forced to re-enter the whole
+ * address.
+ */
 export default function ForgotPasswordPage() {
   const t = useT();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submitRequest() {
     setSubmitting(true);
+    setError(null);
     try {
-      await api("/api/v1/auth/password-reset/request", { method: "POST", body: { email } });
+      await api("/api/v1/auth/password-reset/request", {
+        method: "POST",
+        body: { email },
+      });
       setSent(true);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("auth.forgot.error"));
+      const msg = e instanceof Error ? e.message : t("auth.forgot.error");
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
   }
 
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await submitRequest();
+  }
+
+  async function onSendAgain() {
+    await submitRequest();
+    toast.success(t("auth.forgot.resentToast"));
+  }
+
+  const sentParts = t("auth.forgot.sent", { email: "{EMAIL}" }).split("{EMAIL}");
+
   return (
-    <div className="container mx-auto flex max-w-md flex-col items-center px-6 py-24">
-      <p className="mb-4 font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
-        {t("auth.forgot.cartouche")}
-      </p>
-      <Card className="surface w-full">
-        <CardContent className="space-y-7 pt-8">
-          <header className="flex flex-col items-center gap-2 text-center">
-            <h1 className="font-display text-4xl leading-tight tracking-tight">
-              {t("auth.forgot.heading")}
-            </h1>
-            <p className="font-body text-sm text-muted-foreground">
-              {t("auth.forgot.subtitle")}
-            </p>
-          </header>
+    <div className="mx-auto flex w-full max-w-[440px] flex-col px-6 py-20">
+      <div className="rounded-md border border-border bg-card p-8">
+        <p className="mb-6 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          {t("auth.forgot.cartouche")}
+        </p>
+        <header className="mb-7 space-y-2">
+          <h1 className="font-display text-3xl leading-tight tracking-tight">
+            {t("auth.forgot.heading")}
+          </h1>
+          <p className="font-body text-sm text-muted-foreground">
+            {t("auth.forgot.subtitle")}
+          </p>
+        </header>
+
+        <form className="space-y-4" onSubmit={onSubmit} noValidate>
+          <div className="space-y-1.5">
+            <label htmlFor="email" className="font-body text-sm font-medium">
+              {t("auth.login.email")}
+            </label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              placeholder={t("auth.forgot.emailPlaceholder")}
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                // If the user edits the email after sending, drop the
+                // confirmation banner — they're describing a new
+                // request.
+                if (sent) setSent(false);
+              }}
+              required
+            />
+          </div>
+
+          <div className="min-h-[1.25rem]" aria-live="polite">
+            {error ? (
+              <p className="font-body text-sm text-destructive">{error}</p>
+            ) : sent ? (
+              <p className="font-body text-sm text-muted-foreground">
+                {sentParts[0]}
+                <strong className="text-foreground">{email}</strong>
+                {sentParts[1]}
+              </p>
+            ) : null}
+          </div>
 
           {sent ? (
-            <p className="font-body text-sm text-muted-foreground">
-              {(() => {
-                const parts = t("auth.forgot.sent", { email: "{EMAIL}" }).split("{EMAIL}");
-                return (
-                  <>
-                    {parts[0]}
-                    <strong className="text-foreground">{email}</strong>
-                    {parts[1]}
-                  </>
-                );
-              })()}
-              <br />
-              <Link
-                href="/login"
-                className="font-medium text-primary underline-offset-4 hover:underline"
-              >
-                {t("auth.forgot.backToLogin")}
-              </Link>
-            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={onSendAgain}
+              disabled={submitting}
+            >
+              {submitting ? t("auth.forgot.submitting") : t("auth.forgot.sendAgain")}
+            </Button>
           ) : (
-            <form className="space-y-4" onSubmit={onSubmit}>
-              <Input
-                type="email"
-                autoComplete="email"
-                placeholder={t("auth.forgot.emailPlaceholder")}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting ? t("auth.forgot.submitting") : t("auth.forgot.submit")}
-              </Button>
-            </form>
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? t("auth.forgot.submitting") : t("auth.forgot.submit")}
+            </Button>
           )}
-        </CardContent>
-      </Card>
+
+          <div className="pt-2 text-center font-body text-sm">
+            <Link
+              href="/login"
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {t("auth.forgot.backToLogin")}
+            </Link>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

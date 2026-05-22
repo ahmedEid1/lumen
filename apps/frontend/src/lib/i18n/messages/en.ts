@@ -79,6 +79,8 @@ export const en = {
   "auth.forgot.submit": "Send reset link",
   "auth.forgot.submitting": "Sending…",
   "auth.forgot.sent": "If an account exists for {email}, a reset link is on its way.",
+  "auth.forgot.sendAgain": "Send again",
+  "auth.forgot.resentToast": "Reset link sent again",
   "auth.forgot.backToLogin": "Back to sign in",
   "auth.forgot.error": "Could not send reset email",
   "auth.reset.cartouche": "Password",
@@ -110,6 +112,7 @@ export const en = {
   "catalogPage.clearTagAria": "Clear tag filter",
   "catalogPage.noMatch": "No courses match those filters.",
   "catalogPage.noMatchBody": "Try fewer constraints, or reset the search.",
+  "catalogPage.resultCount": "{count} results",
 
   // Homepage — flagship marketing copy
   "home.cartouche": "Now open",
