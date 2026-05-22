@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0-agentic] - 2026-05-22
+
+Phase H (production-grade hardening) + Phase I (agentic-AI signature
+features) shipped on top of `1.0.0-rebuild`. 627/627 backend tests
+pass, frontend typecheck clean, coverage 73.7% (gate at 70%).
+
+### Added (v2 phase I — agentic features)
+- **I1: Lumen MCP server.** New `apps/backend/app/mcp/` package
+  exposes Lumen's surface as 9 MCP tools (`list_courses`,
+  `get_course`, `search_lesson_content`, `ask_tutor`,
+  `list_my_due_reviews`, `grade_review_card`, `create_course_draft`,
+  `ingest_url_to_draft`, `list_my_progress`) over stdio (Claude
+  Desktop) and streamable-HTTP (`claude mcp add lumen`) transports.
+  OAuth 2.0 client-credentials flow with argon2-hashed secrets, RFC
+  8414 metadata at `/.well-known/oauth-authorization-server`,
+  15-minute JWT access tokens. Admin CRUD at
+  `/api/v1/admin/mcp-clients`. CLI: `make mcp-token` mints a fresh
+  client. `docs/mcp.md` is the operator guide; README install
+  snippet replaces the `MCP_INSTALL_TBD` placeholder from H5.
+- **I5: Personalized learning-path agent.** `/dashboard/path` —
+  learner states a goal in plain English; a single LLM call
+  consumes mastery + FSRS load + 20-course catalog digest and emits
+  a structured plan (`milestones[]` + `next_action_today` +
+  `rationale`). Validated against existing course slugs with
+  one-shot retry on hallucinations. Monthly Celery beat job
+  re-plans every active path whose `replanned_at` is older than 30
+  days. Tables: `learning_paths` (partial-unique on
+  `status='active'`) + `learning_path_steps`. Frontend: server
+  component overview + client `TodayWidget` + `MilestoneTable`.
+- **I2: Multi-agent tutor.** The Phase E1 single-shot RAG tutor is
+  now a planner-orchestrator loop. Planner picks among 5 sub-agents
+  per turn: `retriever` (wraps the E0 RAG with `audit=True`),
+  `web_searcher` (Tavily free tier; gracefully no-ops when
+  `TAVILY_API_KEY` is unset), `code_runner` (RestrictedPython 8.x
+  sandbox, stdlib `math`/`statistics` only, 5 s hard timeout),
+  `quiz_generator`, `concept_explainer`. Hard caps: 5 tool-call
+  rounds + 3 orchestrator LLM round-trips per turn. Every step
+  writes an `agent_traces` row via H7. Tutor API response gained
+  `agent_trace[]` + `confidence` fields (backwards compatible).
+  Frontend `AgentReasoningPanel` shows the per-turn plan + tool
+  calls inline; first turn auto-expanded so the demo reads the
+  agent thinking immediately.
+- **I3: Self-critique authoring agent.** The Phase E2 outline
+  generator is now a researcher → outliner → critic ↺ reviser →
+  lesson-drafter → final-critic loop. Researcher pulls Tavily
+  snippets + catalog neighbours into a 200-token research bundle.
+  Critic scores `coverage`/`learning_arc`/`scope` on 0-5; reviser
+  fires when mean < 4, max 3 revisions. Lesson-drafter reuses the
+  existing `generate_lesson_body` + `generate_quiz` per accepted
+  lesson. Final-critic rates the full course before the instructor
+  publishes. Every step persists a `course_draft_traces` row.
+  Frontend `/studio/draft/[courseId]` renders the timeline + final
+  score badge + "Publish anyway" escape hatch. New endpoint
+  `POST /api/v1/studio/ai/draft-course`.
+- **I4: Learner-facing agent-trace surface.** Two read-only
+  drill-down routes built on top of the H7 tables:
+  `/dashboard/tutor/{conversation_id}/turn/{message_id}` (Surface
+  A — learner sees the full per-turn agent thinking, owner-only)
+  and `/studio/draft/{course_id}/replay` (Surface B — instructor
+  steps through the draft's reasoning with play/pause/scrub,
+  owner-or-admin). Shared `TraceTimeline` / `TraceStepCard` /
+  `RetrievalChunkList` / `CostBadge` components carry the
+  Workbench tokens through. Wires a "See the full trace →" link
+  from I2's inline `AgentReasoningPanel`. `docs/agent-traces.md`
+  documents the privacy model + retention policy.
+
 ### Added (v2 phase H — wave 2)
 - **H4: Free-tier live demo deployment (Vercel + Fly + Supabase + Upstash + R2).**
   `infra/fly/{fly.api.toml, fly.worker.toml, Dockerfile.fly}` configure

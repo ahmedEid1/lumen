@@ -1,12 +1,13 @@
 [project]
 name = "lumen-backend"
-# PEP 440 doesn't accept ``1.0.0-rebuild`` as a version string —
-# the hyphenated suffix is neither a pre-release, post-release, nor
-# dev tag. We keep the human-readable "rebuild" label using the
-# local-version segment (``+rebuild``), which preserves the
-# semantics ("this is the 1.0.0 rebuild") and lets ``uv lock`` /
-# ``uv pip install`` parse the project without a TOML error.
-version = "1.0.0+rebuild"
+# PEP 440 local-version segment (``+agentic``) keeps the human-
+# readable label without breaking ``uv lock`` / ``uv pip install``.
+# The 1.1.0 bump reflects Phase H (production hardening: cost
+# meter + eval harness + e2e + security pass + free-tier deploy +
+# observability) plus Phase I (agentic features: Lumen MCP server
+# + multi-agent tutor + self-critique authoring + learning-path
+# agent + learner-facing trace surface).
+version = "1.1.0+agentic"
 description = "Lumen — FastAPI backend for the e-learning platform"
 requires-python = ">=3.13"
 license = { text = "MIT" }

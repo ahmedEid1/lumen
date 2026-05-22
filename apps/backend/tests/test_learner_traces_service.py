@@ -33,12 +33,49 @@ from app.models.course_draft_trace import (
 )
 from app.models.llm_call import STATUS_OK, LLMCall
 from app.models.retrieval_audit import RetrievalAudit
+from app.models.course import (
+    Course,
+    CourseStatus,
+    Difficulty,
+    Subject,
+)
 from app.models.tutor_conversation import (
     TutorConversation,
     TutorMessage,
     TutorMessageRole,
 )
 from app.models.user import Role
+
+
+async def _ensure_course(db: AsyncSession, *, course_id: str, owner_id: str) -> None:
+    """Idempotently seed a minimal published course for the FK target.
+
+    ``tutor_conversations.course_id`` has a NOT NULL FK into
+    ``courses``. Tests that hardcode a course id need an actual row
+    behind it. Reuse a single subject keyed on the id so calls within
+    a single test don't double-insert.
+    """
+    existing = await db.get(Course, course_id)
+    if existing is not None:
+        return
+    subj = Subject(
+        title=f"Subject {course_id}", slug=f"subj-{course_id.replace('_', '-')}"
+    )
+    db.add(subj)
+    await db.flush()
+    db.add(
+        Course(
+            id=course_id,
+            owner_id=owner_id,
+            subject_id=subj.id,
+            title=f"Course {course_id}",
+            slug=f"course-{course_id.replace('_', '-')}",
+            overview="seed",
+            difficulty=Difficulty.beginner,
+            status=CourseStatus.published,
+        )
+    )
+    await db.flush()
 from app.services.learner_traces import (
     fetch_draft_replay,
     fetch_tutor_turn_trace,
@@ -57,6 +94,7 @@ async def _make_conv_with_turn(
     Returns the assistant message so the caller can use its
     ``created_at`` as the trace window anchor.
     """
+    await _ensure_course(db, course_id=course_id, owner_id=user_id)
     conv = TutorConversation(user_id=user_id, course_id=course_id)
     db.add(conv)
     await db.flush()
@@ -298,6 +336,7 @@ async def test_user_turn_id_raises_not_found(
 ) -> None:
     """A trace can only be requested for an assistant turn."""
     user = await make_user(role=Role.student)
+    await _ensure_course(db_session, course_id="crs_x", owner_id=user.id)
     conv = TutorConversation(user_id=user.id, course_id="crs_x")
     db_session.add(conv)
     await db_session.flush()
@@ -430,6 +469,7 @@ async def test_draft_replay_returns_steps_and_totals(
 ) -> None:
     user = await make_user(role=Role.instructor)
     course_id = "crs_draft_replay_001"
+    await _ensure_course(db_session, course_id=course_id, owner_id=user.id)
     draft_id = uuid.uuid4().hex[:16]
 
     row1 = CourseDraftTrace(

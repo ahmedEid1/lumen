@@ -19,6 +19,7 @@ from app.api.v1 import (
     discussions,
     enrollments,
     health,
+    learner_traces,
     learning_path,
     mastery,
     notifications,
@@ -82,6 +83,13 @@ api_router.include_router(
 # /api/v1/me/learning-path{,/today,/steps/{id}/complete,/replan}.
 api_router.include_router(
     learning_path.router, prefix="/me", tags=["learning-path"]
+)
+# Phase I4 — Learner-facing agent-trace surface. Two read-only
+# routes the learner / instructor uses to drill into a tutor turn
+# or replay a course draft. Paths in the module already carry
+# /me/, so no extra prefix here.
+api_router.include_router(
+    learner_traces.router, tags=["learner-traces"]
 )
 # Content ingest (Phase E3) — paste a URL, get a draft course.
 api_router.include_router(

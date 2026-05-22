@@ -109,9 +109,34 @@ async def _make_course(
     return c
 
 
+async def _ensure_course_row(db: AsyncSession, *, course_id: str, owner_id: str) -> None:
+    """Idempotently seed a Course at a hardcoded id (FK target for the conv)."""
+    existing = await db.get(Course, course_id)
+    if existing is not None:
+        return
+    subj = Subject(
+        title=f"Subj {course_id}", slug=f"subj-{course_id.replace('_', '-')}"
+    )
+    db.add(subj)
+    await db.flush()
+    db.add(
+        Course(
+            id=course_id,
+            owner_id=owner_id,
+            subject_id=subj.id,
+            title=f"Course {course_id}",
+            slug=f"course-{course_id.replace('_', '-')}",
+            status="draft",
+            difficulty="beginner",
+        )
+    )
+    await db.commit()
+
+
 async def _seed_conv_with_turn(
     db: AsyncSession, *, user_id: str, course_id: str = "crs_t01"
 ) -> tuple[TutorConversation, TutorMessage]:
+    await _ensure_course_row(db, course_id=course_id, owner_id=user_id)
     conv = TutorConversation(user_id=user_id, course_id=course_id)
     db.add(conv)
     await db.flush()
