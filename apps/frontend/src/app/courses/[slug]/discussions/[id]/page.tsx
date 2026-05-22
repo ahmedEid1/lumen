@@ -10,7 +10,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { formatRelative } from "@/lib/utils";
@@ -98,15 +97,14 @@ export default function ThreadPage({
 
   if (threadQ.isLoading)
     return (
-      <div className="container mx-auto px-4 py-14 text-center font-body text-muted-foreground">
+      <div className="container mx-auto px-6 py-14 text-center font-body text-muted-foreground">
         {t("common.loading")}
       </div>
     );
   if (!threadQ.data) {
     return (
-      <div className="container mx-auto flex flex-col items-center gap-3 px-4 py-20 text-center">
-        <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
-        <p className="font-display text-xl italic text-muted-foreground">
+      <div className="container mx-auto flex flex-col items-center gap-3 px-6 py-20 text-center">
+        <p className="font-display text-2xl italic text-muted-foreground">
           {t("thread.notFound")}
         </p>
       </div>
@@ -117,15 +115,15 @@ export default function ThreadPage({
   const replyCountKey = thread.replies.length === 1 ? "thread.replyCountOne" : "thread.replyCount";
 
   return (
-    <div className="container mx-auto max-w-3xl space-y-6 px-4 py-14">
+    <div className="container mx-auto max-w-3xl space-y-6 px-6 py-14">
       <Link
         href={`/courses/${slug}/discussions`}
-        className="inline-flex items-center font-body text-sm text-muted-foreground transition-colors hover:text-gold"
+        className="inline-flex items-center font-body text-sm text-muted-foreground transition-colors hover:text-primary"
       >
         <ArrowLeft className="me-1 h-4 w-4" /> {t("thread.allDiscussions")}
       </Link>
 
-      <Card className="scroll-paper border-gold/20">
+      <Card className="surface">
         <CardHeader className="space-y-3">
           <div className="flex items-start justify-between gap-3">
             <CardTitle className="font-display text-2xl">{thread.title}</CardTitle>
@@ -168,7 +166,7 @@ export default function ThreadPage({
             </div>
           </div>
           <div className="flex items-center gap-2 font-body text-xs text-muted-foreground">
-            <Avatar className="h-5 w-5 border border-gold/25">
+            <Avatar className="h-5 w-5 border border-border/60">
               <AvatarImage src={thread.author?.avatar_url ?? undefined} alt="" />
               <AvatarFallback>
                 {(thread.author?.full_name ?? "?").slice(0, 1)}
@@ -187,7 +185,7 @@ export default function ThreadPage({
         )}
       </Card>
 
-      <h2 className="text-[0.65rem] uppercase tracking-[0.28em] text-gold/70">
+      <h2 className="text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
         {t(replyCountKey, { n: thread.replies.length })}
       </h2>
       <ul className="space-y-3">
@@ -195,11 +193,11 @@ export default function ThreadPage({
           const canDelete = !!user && (user.id === r.author?.id || user.role === "admin");
           return (
             <li key={r.id}>
-              <Card className="scroll-paper border-gold/15">
+              <Card className="surface">
                 <CardContent className="space-y-2 pt-4">
                   <div className="flex items-center justify-between font-body text-xs text-muted-foreground">
                     <span className="flex items-center gap-2">
-                      <Avatar className="h-5 w-5 border border-gold/25">
+                      <Avatar className="h-5 w-5 border border-border/60">
                         <AvatarImage src={r.author?.avatar_url ?? undefined} alt="" />
                         <AvatarFallback>
                           {(r.author?.full_name ?? "?").slice(0, 1)}
@@ -230,7 +228,7 @@ export default function ThreadPage({
       </ul>
 
       {user && (
-        <Card className="scroll-paper border-gold/20">
+        <Card className="surface">
           <CardHeader>
             <CardTitle className="font-display text-base">{t("thread.replyCard")}</CardTitle>
           </CardHeader>
