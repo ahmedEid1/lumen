@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import type { LessonOut } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Glyph } from "@/components/lumen/glyph";
+import { Download } from "lucide-react";
 import { api, ApiError } from "@/lib/api/client";
 import { type QuizQuestion } from "@/lib/quiz";
 import { useT } from "@/lib/i18n/provider";
@@ -17,13 +17,13 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
   switch (lesson.type) {
     case "text":
       return (
-        <article className="prose prose-neutral max-w-none font-body dark:prose-invert prose-headings:font-display prose-headings:text-gold/90">
+        <article className="prose prose-neutral max-w-none font-body dark:prose-invert prose-headings:font-display">
           <Markdown body={String(data.body_markdown ?? "")} />
         </article>
       );
     case "video":
       return (
-        <div className="aspect-video w-full overflow-hidden rounded-md border border-gold/25 bg-black">
+        <div className="aspect-video w-full overflow-hidden rounded-md border border-border/60 bg-black">
           <video
             controls
             crossOrigin={data.captions_url ? "anonymous" : undefined}
@@ -51,7 +51,7 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
         <img
           alt={String(data.alt ?? "")}
           src={String(data.public_url ?? data.asset_key ?? "")}
-          className="max-h-[600px] w-full rounded-md border border-gold/20 object-contain"
+          className="max-h-[600px] w-full rounded-md border border-border/60 object-contain"
         />
       );
     case "file":
@@ -59,9 +59,9 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
         <a
           href={String(data.public_url ?? "#")}
           download={String(data.filename ?? "")}
-          className="inline-flex items-center gap-2 rounded-md border border-gold/40 bg-gold/5 px-4 py-2 font-body text-sm text-gold transition-colors hover:bg-gold/10"
+          className="inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-4 py-2 font-body text-sm text-primary transition-colors hover:bg-primary/10"
         >
-          <Glyph name="scroll" size={16} mode="tint" />
+          <Download className="h-4 w-4" />
           {t("player.download", { name: String(data.filename ?? "") })}
         </a>
       );
@@ -198,8 +198,8 @@ function Quiz({
   return (
     <div className="space-y-6">
       {history.length > 0 && (
-        <div className="rounded-md border border-gold/15 bg-card/40 p-3 font-body text-xs">
-          <div className="mb-2 text-[0.62rem] uppercase tracking-[0.28em] text-gold/70">
+        <div className="surface rounded-md p-3 font-body text-xs">
+          <div className="mb-2 text-[0.62rem] uppercase tracking-[0.28em] text-muted-foreground">
             {t("quiz.pastAttempts", { n: history.length })}
           </div>
           <ol className="flex flex-wrap gap-2">
@@ -209,7 +209,7 @@ function Quiz({
                 className={[
                   "inline-flex items-center gap-1 rounded border px-2 py-0.5 tabular-nums",
                   a.passed
-                    ? "border-gold/45 bg-gold/10 text-gold"
+                    ? "border-primary/40 bg-primary/10 text-primary"
                     : "border-muted-foreground/30 text-muted-foreground",
                 ].join(" ")}
                 title={new Date(a.submitted_at).toLocaleString()}
@@ -226,11 +226,11 @@ function Quiz({
         return (
           <div
             key={q.id}
-            className="rounded-md border border-gold/20 bg-card/30 p-4 scroll-paper"
+            className="surface rounded-md p-4"
           >
             <div className="mb-3 flex items-start justify-between gap-2">
               <p className="font-display text-base font-medium">
-                <span className="text-gold/80">{t("quiz.questionNumber", { n: idx + 1 })}</span>{" "}
+                <span className="text-primary">{t("quiz.questionNumber", { n: idx + 1 })}</span>{" "}
                 {q.prompt}
               </p>
               <div className="flex items-center gap-2">
@@ -238,7 +238,7 @@ function Quiz({
                   <Badge
                     className={
                       questionCorrect
-                        ? "border border-gold/40 bg-gold/10 text-gold"
+                        ? "border border-primary/40 bg-primary/10 text-primary"
                         : "border border-destructive/40 bg-destructive/10 text-destructive"
                     }
                   >
@@ -254,7 +254,7 @@ function Quiz({
                 value={typeof given === "string" ? given : ""}
                 onChange={(e) => setAnswers((p) => ({ ...p, [q.id]: e.target.value }))}
                 disabled={submitted}
-                className="h-10 w-full rounded-md border border-gold/25 bg-background/60 px-3 font-body text-sm focus-visible:border-gold/60 focus-visible:outline-none disabled:opacity-70"
+                className="h-10 w-full rounded-md border border-border/60 bg-background/60 px-3 font-body text-sm transition-colors focus-visible:border-primary/60 focus-visible:outline-none disabled:opacity-70"
                 placeholder={t("quiz.shortPlaceholder")}
               />
             ) : (
@@ -270,9 +270,9 @@ function Quiz({
                         className={[
                           "w-full rounded-md border px-3 py-2 text-start font-body text-sm transition-colors",
                           selected
-                            ? "border-gold/60 bg-gold/10 text-gold"
-                            : "border-border hover:border-gold/30",
-                          isCorrect ? "border-gold bg-gold/15 text-gold" : "",
+                            ? "border-primary/60 bg-primary/10 text-primary"
+                            : "border-border/60 hover:border-primary/30",
+                          isCorrect ? "border-primary bg-primary/15 text-primary" : "",
                         ].join(" ")}
                       >
                         {c.text}
@@ -292,7 +292,7 @@ function Quiz({
           </Button>
         ) : (
           <p
-            className={`font-body text-sm ${result.passed ? "text-gold" : "text-destructive"}`}
+            className={`font-body text-sm ${result.passed ? "text-primary" : "text-destructive"}`}
             role="status"
           >
             {t("quiz.scoreLine", {
