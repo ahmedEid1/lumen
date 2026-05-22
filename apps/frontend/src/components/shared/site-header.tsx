@@ -17,11 +17,12 @@ import type { MessageKey } from "@/lib/i18n/messages/en";
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const t = useT();
   return (
     <Button
       variant="ghost"
       size="icon"
-      aria-label="Toggle theme"
+      aria-label={t("header.themeToggle")}
       className="text-gold/80 hover:text-gold"
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
     >
@@ -82,7 +83,7 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <nav className="hidden gap-6 text-sm md:flex" aria-label="Primary">
+        <nav className="hidden gap-6 text-sm md:flex" aria-label={t("header.primaryNav")}>
           {links.map((l) => {
             const active = pathname?.startsWith(l.href);
             return (
@@ -109,7 +110,7 @@ export function SiteHeader() {
           ) : user ? (
             <>
               <NotificationsBell />
-              <Link href="/profile" className="hidden md:inline-flex" aria-label="Profile">
+              <Link href="/profile" className="hidden md:inline-flex" aria-label={t("nav.profile")}>
                 <Avatar>
                   <AvatarImage src={user.avatar_url ?? undefined} alt={user.full_name} />
                   <AvatarFallback>{initials(user.full_name)}</AvatarFallback>
@@ -137,7 +138,7 @@ export function SiteHeader() {
             variant="ghost"
             size="icon"
             className="md:hidden"
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-label={menuOpen ? t("header.closeMenu") : t("header.openMenu")}
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
             onClick={() => setMenuOpen((v) => !v)}
@@ -148,8 +149,8 @@ export function SiteHeader() {
       </div>
 
       {menuOpen && (
-        <div id="mobile-nav" className="border-t bg-background md:hidden" role="dialog" aria-label="Mobile menu">
-          <nav className="container mx-auto flex flex-col gap-1 px-4 py-3" aria-label="Mobile primary">
+        <div id="mobile-nav" className="border-t bg-background md:hidden" role="dialog" aria-label={t("header.mobileMenu")}>
+          <nav className="container mx-auto flex flex-col gap-1 px-4 py-3" aria-label={t("header.mobilePrimaryNav")}>
             {links.map((l) => {
               const active = pathname?.startsWith(l.href);
               return (

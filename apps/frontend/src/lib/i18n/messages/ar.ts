@@ -102,6 +102,14 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Header chrome aria-labels
+  "header.themeToggle": "تبديل السمة",
+  "header.primaryNav": "التنقّل الرئيسي",
+  "header.mobileMenu": "قائمة الجوّال",
+  "header.mobilePrimaryNav": "تنقّل الجوّال الرئيسي",
+  "header.openMenu": "فتح القائمة",
+  "header.closeMenu": "إغلاق القائمة",
+
   // Review editor — اكتب أو حدّث مراجعتك
   "review.yours": "مراجعتك",
   "review.leave": "اكتب مراجعة",

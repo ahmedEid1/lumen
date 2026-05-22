@@ -95,6 +95,14 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Header chrome aria-labels
+  "header.themeToggle": "Toggle theme",
+  "header.primaryNav": "Primary",
+  "header.mobileMenu": "Mobile menu",
+  "header.mobilePrimaryNav": "Mobile primary",
+  "header.openMenu": "Open menu",
+  "header.closeMenu": "Close menu",
+
   // Review editor — leave / update your own review
   "review.yours": "Your review",
   "review.leave": "Leave a review",
