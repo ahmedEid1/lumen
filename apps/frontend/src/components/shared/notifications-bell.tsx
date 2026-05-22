@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
 import { qk } from "@/lib/query/keys";
 import { formatRelative } from "@/lib/utils";
+import { useT } from "@/lib/i18n/provider";
 
 type Notification = {
   id: string;
@@ -45,6 +46,7 @@ export function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const router = useRouter();
+  const t = useT();
   const q = useQuery({
     queryKey: qk.notifications,
     queryFn: () => api<Notification[]>("/api/v1/me/notifications"),
@@ -72,8 +74,11 @@ export function NotificationsBell() {
       <Button
         variant="ghost"
         size="icon"
-        aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+        aria-label={
+          unread ? t("notif.ariaWithCount", { n: unread }) : t("nav.notifications.aria")
+        }
         onClick={() => setOpen((v) => !v)}
+        className="text-gold/80 hover:text-gold"
       >
         <Bell className="h-5 w-5" />
         {unread > 0 && (
@@ -86,9 +91,11 @@ export function NotificationsBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute end-0 z-40 mt-2 w-80 overflow-hidden rounded-md border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b px-3 py-2 text-sm">
-              <span className="font-semibold">Notifications</span>
+          <div className="absolute end-0 z-40 mt-2 w-80 overflow-hidden rounded-md border border-gold/20 bg-card shadow-lg scroll-paper">
+            <div className="flex items-center justify-between border-b border-gold/15 px-3 py-2 text-sm">
+              <span className="font-display text-base font-medium text-gold/90">
+                {t("notif.title")}
+              </span>
               {unread > 0 && (
                 <button
                   type="button"
@@ -97,22 +104,22 @@ export function NotificationsBell() {
                     markAllRead.mutate();
                   }}
                   disabled={markAllRead.isPending}
-                  className="text-xs text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50"
+                  className="font-body text-xs text-muted-foreground transition-colors hover:text-gold hover:underline disabled:opacity-50"
                 >
-                  {markAllRead.isPending ? "Marking…" : "Mark all read"}
+                  {markAllRead.isPending ? t("notif.marking") : t("notif.markAllRead")}
                 </button>
               )}
             </div>
-            <ul className="max-h-96 overflow-y-auto">
+            <ul className="max-h-96 overflow-y-auto font-body">
               {q.data?.length ? (
                 q.data.map((n) => {
                   const href = targetHref(n);
                   return (
                     <li
                       key={n.id}
-                      className={`flex flex-col gap-1 border-b px-3 py-2 text-sm last:border-0 ${
-                        href ? "cursor-pointer hover:bg-muted/50" : ""
-                      } ${!n.read_at ? "bg-primary/5" : ""}`}
+                      className={`flex flex-col gap-1 border-b border-gold/10 px-3 py-2 text-sm last:border-0 ${
+                        href ? "cursor-pointer hover:bg-muted/40" : ""
+                      } ${!n.read_at ? "bg-gold/5" : ""}`}
                       onClick={() => {
                         if (!n.read_at) markRead.mutate(n.id);
                         if (href) {
@@ -122,7 +129,7 @@ export function NotificationsBell() {
                       }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <strong className="truncate">{n.title}</strong>
+                        <strong className="truncate text-foreground">{n.title}</strong>
                         <span className="shrink-0 text-xs text-muted-foreground">
                           {formatRelative(n.created_at)}
                         </span>
@@ -132,8 +139,8 @@ export function NotificationsBell() {
                   );
                 })
               ) : (
-                <li className="px-3 py-6 text-center text-sm text-muted-foreground">
-                  Nothing here yet.
+                <li className="px-3 py-6 text-center text-sm italic text-muted-foreground">
+                  {t("notif.empty")}
                 </li>
               )}
             </ul>

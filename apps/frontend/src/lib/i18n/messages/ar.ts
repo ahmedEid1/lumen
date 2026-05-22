@@ -102,6 +102,13 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Notifications dropdown
+  "notif.title": "الإشعارات",
+  "notif.ariaWithCount": "الإشعارات ({n} غير مقروءة)",
+  "notif.markAllRead": "تعليم الكل مقروءًا",
+  "notif.marking": "جارٍ التعليم…",
+  "notif.empty": "لا شيء هنا بعد.",
+
   // Preview lesson — لفافة مفتوحة لغير المسجّلين
   "preview.cartouche": "لفافة مفتوحة",
   "preview.lessonFallback": "درس",

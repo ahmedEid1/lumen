@@ -95,6 +95,13 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Notifications dropdown
+  "notif.title": "Notifications",
+  "notif.ariaWithCount": "Notifications ({n} unread)",
+  "notif.markAllRead": "Mark all read",
+  "notif.marking": "Marking…",
+  "notif.empty": "Nothing here yet.",
+
   // Preview lesson — open scroll for non-enrolled visitors
   "preview.cartouche": "Open scroll",
   "preview.lessonFallback": "Lesson",
