@@ -19,8 +19,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { CohortCard } from "@/components/course/cohort-card";
 import { ApiError } from "@/lib/api/client";
 import { Courses } from "@/lib/api/endpoints";
@@ -34,8 +32,6 @@ const PUBLISH_REJECTION_KEYS: Record<string, MessageKey> = {
   "course.missing_fields": "studioEdit.publish.missingFields",
   "course.invalid_transition": "studioEdit.publish.invalidTransition",
 };
-
-const inputClass = "border-gold/25 bg-background/60 focus-visible:border-gold/60";
 
 export default function StudioCoursePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -94,15 +90,14 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
 
   if (courseQ.isLoading)
     return (
-      <div className="container mx-auto px-4 py-14 text-center font-body text-muted-foreground">
+      <div className="container mx-auto px-6 py-14 text-center font-body text-muted-foreground">
         {t("common.loading")}
       </div>
     );
   if (!courseQ.data)
     return (
-      <div className="container mx-auto flex flex-col items-center gap-3 px-4 py-20 text-center">
-        <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
-        <p className="font-display text-xl italic text-muted-foreground">
+      <div className="container mx-auto flex flex-col items-center gap-3 px-6 py-20 text-center">
+        <p className="font-display text-2xl italic text-muted-foreground">
           {t("courseDetail.notFound")}
         </p>
       </div>
@@ -121,15 +116,17 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
   }
 
   return (
-    <div className="container mx-auto px-4 py-14">
+    <div className="container mx-auto px-6 py-14">
       <header className="mb-8 flex flex-col gap-3">
-        <Cartouche>{t("studioEdit.cartouche")}</Cartouche>
+        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          {t("studioEdit.cartouche")}
+        </p>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="space-y-1.5">
             <Badge
               className={
                 course.status === "published"
-                  ? "border border-gold/40 bg-gold/10 uppercase tracking-wider text-gold"
+                  ? "border border-primary/40 bg-primary/10 uppercase tracking-wider text-primary"
                   : course.status === "archived"
                     ? "bg-muted uppercase tracking-wider text-muted-foreground"
                     : "bg-secondary uppercase tracking-wider text-secondary-foreground"
@@ -137,7 +134,9 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
             >
               {t(`studio.filter.${course.status}` as MessageKey)}
             </Badge>
-            <h1 className="font-display text-4xl font-medium tracking-tight">{course.title}</h1>
+            <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
+              {course.title}
+            </h1>
             <p className="font-body text-muted-foreground">{t("studioEdit.subtitle")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -164,7 +163,7 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
       </header>
 
       {analyticsQ.data && (
-        <Card className="mb-6 scroll-paper border-gold/20">
+        <Card className="surface mb-6">
           <CardHeader>
             <CardTitle className="font-display text-2xl">{t("studioEdit.analytics")}</CardTitle>
           </CardHeader>
@@ -206,7 +205,7 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
         <CohortCard courseId={id} />
       </div>
 
-      <Card className="mb-6 scroll-paper border-gold/20">
+      <Card className="surface mb-6">
         <CardHeader>
           <CardTitle className="font-display text-2xl">{t("studioEdit.detailsCard")}</CardTitle>
         </CardHeader>
@@ -223,7 +222,7 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
         </CardContent>
       </Card>
 
-      <Card className="mb-6 scroll-paper border-gold/20">
+      <Card className="surface mb-6">
         <CardHeader>
           <CardTitle className="font-display text-2xl">{t("course.whatYoullLearn")}</CardTitle>
         </CardHeader>
@@ -235,7 +234,7 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
         </CardContent>
       </Card>
 
-      <Card className="scroll-paper border-gold/20">
+      <Card className="surface">
         <CardHeader>
           <CardTitle className="font-display text-2xl">{t("studioEdit.modulesCard")}</CardTitle>
         </CardHeader>
@@ -245,7 +244,6 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
               placeholder={t("studioEdit.newModulePlaceholder")}
               value={newModuleTitle}
               onChange={(e) => setNewModuleTitle(e.target.value)}
-              className={inputClass}
             />
             <Button
               onClick={() => createModule.mutate()}
@@ -286,19 +284,19 @@ function SortableModule({ module: m, courseId }: { module: ModuleOut; courseId: 
     <li
       ref={setNodeRef}
       style={style}
-      className="flex items-center justify-between rounded-md border border-border bg-background/60 p-3 transition-colors hover:border-gold/30"
+      className="flex items-center justify-between rounded-md border border-border/60 bg-background/60 p-3 transition-colors hover:border-primary/30"
     >
       <div className="flex items-center gap-3">
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab text-muted-foreground hover:text-gold"
+          className="cursor-grab text-muted-foreground hover:text-primary"
           aria-label={t("studioEdit.dragHandle")}
         >
           <GripVertical className="h-4 w-4" />
         </button>
         <div>
-          <div className="text-[0.62rem] uppercase tracking-[0.28em] text-gold/70">
+          <div className="text-[0.62rem] uppercase tracking-[0.28em] text-muted-foreground">
             {t("courseDetail.module", { n: m.order + 1 })}
           </div>
           <div className="font-display text-base font-medium">{m.title}</div>
@@ -308,7 +306,7 @@ function SortableModule({ module: m, courseId }: { module: ModuleOut; courseId: 
         <Badge variant="muted">{t("studioEdit.lessonCount", { n: m.lessons.length })}</Badge>
         <Link
           href={`/studio/${courseId}/modules/${m.id}`}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-gold"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
           aria-label={t("studioEdit.editLessons")}
         >
           <Settings2 className="h-4 w-4" />
@@ -320,8 +318,8 @@ function SortableModule({ module: m, courseId }: { module: ModuleOut; courseId: 
 
 function StatTile({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-md border border-border bg-background/40 p-3">
-      <div className="text-[0.62rem] uppercase tracking-[0.28em] text-gold/70">{label}</div>
+    <div className="rounded-md border border-border/60 bg-background/40 p-3">
+      <div className="text-[0.62rem] uppercase tracking-[0.28em] text-muted-foreground">{label}</div>
       <div className="mt-1 font-display text-2xl tabular-nums">{value}</div>
     </div>
   );
@@ -376,7 +374,6 @@ function CourseDetailsEditor({
           value={draft.title}
           maxLength={200}
           onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-          className={inputClass}
         />
         <p className="font-body text-xs text-muted-foreground">{t("studioEdit.renameNotice")}</p>
       </div>
@@ -390,7 +387,7 @@ function CourseDetailsEditor({
           maxLength={10000}
           rows={4}
           onChange={(e) => setDraft({ ...draft, overview: e.target.value })}
-          className={`${inputClass} w-full rounded-md border px-3 py-2 font-body text-sm`}
+          className="w-full rounded-md border border-border/60 bg-background px-3 py-2 font-body text-sm transition-colors focus-visible:border-primary/60 focus-visible:outline-none"
         />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -402,7 +399,7 @@ function CourseDetailsEditor({
             id="course-difficulty-edit"
             value={draft.difficulty}
             onChange={(e) => setDraft({ ...draft, difficulty: e.target.value })}
-            className={`${inputClass} h-10 w-full rounded-md border px-3 font-body text-sm`}
+            className="h-10 w-full rounded-md border border-border/60 bg-background px-3 font-body text-sm transition-colors focus-visible:border-primary/60 focus-visible:outline-none"
           >
             <option value="beginner">{t("studioNew.diff.beginner")}</option>
             <option value="intermediate">{t("studioNew.diff.intermediate")}</option>
@@ -419,7 +416,6 @@ function CourseDetailsEditor({
             maxLength={500}
             onChange={(e) => setDraft({ ...draft, cover_url: e.target.value || null })}
             placeholder="https://…"
-            className={inputClass}
           />
         </div>
       </div>
@@ -467,7 +463,6 @@ function LearningOutcomesEditor({
                 setItems((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
               }
               placeholder={t("studioEdit.outcomePlaceholder", { n: i + 1 })}
-              className={inputClass}
             />
             <Button
               variant="ghost"
