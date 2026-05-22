@@ -6,9 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Search, X } from "lucide-react";
 import { CourseCard } from "@/components/course/course-card";
 import { Input } from "@/components/ui/input";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
-import { PapyrusBg } from "@/components/lumen/papyrus-bg";
 import { Catalog } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { cn } from "@/lib/utils";
@@ -31,10 +28,10 @@ export default function CatalogPage() {
 
 function CatalogFallback() {
   return (
-    <div className="container mx-auto px-4 py-16">
+    <div className="container mx-auto px-6 py-16">
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-[22rem] animate-pulse rounded-md border border-border bg-card/40" />
+          <div key={i} className="h-[22rem] animate-pulse rounded-md border border-border/60 bg-card/40" />
         ))}
       </div>
     </div>
@@ -70,16 +67,14 @@ function CatalogInner() {
   return (
     <div className="relative">
       {/* Page header strip */}
-      <section className="relative overflow-hidden border-b border-gold/15">
-        <PapyrusBg />
-        <div className="container mx-auto flex flex-col items-center gap-5 px-4 py-20 text-center">
-          <Cartouche>{t("catalogPage.cartouche")}</Cartouche>
-          <h1
-            className="font-display text-5xl font-medium leading-tight tracking-tight sm:text-6xl"
-            style={{ fontVariationSettings: '"opsz" 144, "SOFT" 25' }}
-          >
+      <section className="relative overflow-hidden border-b border-border/60 mesh-bg">
+        <div className="container mx-auto flex flex-col items-center gap-5 px-6 py-24 text-center sm:py-28">
+          <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+            {t("catalogPage.cartouche")}
+          </p>
+          <h1 className="font-display text-5xl font-medium leading-[1.05] tracking-tight sm:text-6xl">
             {t("catalogPage.h1_1")}{" "}
-            <span className="italic text-gold-gradient">{t("catalogPage.h1_2")}</span>.
+            <span className="italic text-shine">{t("catalogPage.h1_2")}</span>.
           </h1>
           <p className="max-w-2xl font-body text-lg text-muted-foreground">
             {t("catalogPage.subline")}
@@ -88,37 +83,37 @@ function CatalogInner() {
       </section>
 
       {/* Filter rail */}
-      <section className="sticky top-16 z-30 border-b border-gold/15 bg-background/85 backdrop-blur">
-        <div className="container mx-auto flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center">
+      <section className="sticky top-16 z-30 border-b border-border/60 bg-background/85 backdrop-blur">
+        <div className="container mx-auto flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search
-              className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gold/60"
+              className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden
             />
             <Input
               placeholder={t("catalogPage.searchPlaceholder")}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="border-gold/25 bg-card/60 ps-9 font-body text-base placeholder:italic placeholder:text-muted-foreground/70 focus-visible:border-gold/60"
+              className="ps-9 font-body text-base placeholder:text-muted-foreground/70"
               aria-label={t("catalogPage.searchAria")}
             />
           </div>
 
-          <div className="flex items-center gap-1 rounded-md border border-gold/20 bg-card/40 p-1">
+          <div className="flex items-center gap-1 rounded-md border border-border/60 bg-card/40 p-1">
             <button
               type="button"
               onClick={() => setDifficulty(undefined)}
               className={cn(
                 "rounded px-3 py-1.5 text-xs font-medium uppercase tracking-wider transition-colors",
                 difficulty === undefined
-                  ? "bg-gold/15 text-gold"
+                  ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:text-foreground",
               )}
               aria-pressed={difficulty === undefined}
             >
               {t("catalogPage.anyDifficulty")}
             </button>
-            {DIFFICULTIES.map((d, i) => {
+            {DIFFICULTIES.map((d) => {
               const label = t(d.labelKey);
               return (
                 <button
@@ -128,18 +123,15 @@ function CatalogInner() {
                     setDifficulty(difficulty === d.value ? undefined : d.value)
                   }
                   className={cn(
-                    "flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium uppercase tracking-wider transition-colors",
+                    "rounded px-3 py-1.5 text-xs font-medium uppercase tracking-wider transition-colors",
                     difficulty === d.value
-                      ? "bg-gold/15 text-gold"
+                      ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                   aria-pressed={difficulty === d.value}
                   title={label}
                 >
-                  {Array.from({ length: i + 1 }).map((_, k) => (
-                    <Glyph key={k} name="ankh" size={11} />
-                  ))}
-                  <span>{label}</span>
+                  {label}
                 </button>
               );
             })}
@@ -154,23 +146,23 @@ function CatalogInner() {
                 setDifficulty(undefined);
                 setTag(undefined);
               }}
-              className="inline-flex items-center gap-1 rounded border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:border-gold/40 hover:text-gold"
+              className="inline-flex items-center gap-1 rounded border border-border/60 px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
             >
               <X className="h-3 w-3" /> {t("catalogPage.reset")}
             </button>
           )}
         </div>
 
-        {/* Subjects as papyrus tabs */}
+        {/* Subject tabs */}
         {subjects.data && subjects.data.length > 0 && (
-          <div className="container mx-auto flex gap-1 overflow-x-auto px-4 pb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <div className="container mx-auto flex gap-1 overflow-x-auto px-6 pb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <button
               type="button"
               onClick={() => setSubject(undefined)}
               className={cn(
                 "shrink-0 border-b-2 px-3 pb-2 text-sm font-medium transition-colors",
                 subject === undefined
-                  ? "border-gold text-gold"
+                  ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
               aria-pressed={subject === undefined}
@@ -185,7 +177,7 @@ function CatalogInner() {
                 className={cn(
                   "shrink-0 border-b-2 px-3 pb-2 text-sm font-medium transition-colors",
                   subject === s.slug
-                    ? "border-gold text-gold"
+                    ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
                 aria-pressed={subject === s.slug}
@@ -197,10 +189,10 @@ function CatalogInner() {
         )}
       </section>
 
-      {/* Tag seals */}
+      {/* Tag chips */}
       {tags.data && tags.data.length > 0 && (
         <div
-          className="container mx-auto flex flex-wrap items-center gap-2 px-4 pt-6"
+          className="container mx-auto flex flex-wrap items-center gap-2 px-6 pt-6"
           role="group"
           aria-label={t("catalogPage.tagFilterAria")}
         >
@@ -208,7 +200,7 @@ function CatalogInner() {
             <button
               type="button"
               onClick={() => setTag(undefined)}
-              className="inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs font-medium text-gold"
+              className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
               aria-label={t("catalogPage.clearTagAria")}
             >
               <X className="h-3 w-3" /> {tag}
@@ -222,7 +214,7 @@ function CatalogInner() {
                 key={t.id}
                 type="button"
                 onClick={() => setTag(t.slug)}
-                className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-gold/40 hover:text-gold"
+                className="rounded-full border border-border/60 px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
                 aria-pressed={tag === t.slug}
               >
                 {t.name}
@@ -232,13 +224,13 @@ function CatalogInner() {
       )}
 
       {/* Grid */}
-      <section className="container mx-auto px-4 py-10">
+      <section className="container mx-auto px-6 py-12">
         {courses.isLoading ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className="h-[22rem] animate-pulse rounded-md border border-border bg-card/40"
+                className="h-[22rem] animate-pulse rounded-md border border-border/60 bg-card/40"
               />
             ))}
           </div>
@@ -251,14 +243,8 @@ function CatalogInner() {
             ))}
           </div>
         ) : (
-          <div className="rounded-md border border-dashed border-gold/30 bg-card/40 p-16 text-center scroll-paper">
-            <Glyph
-              name="feather"
-              size={56}
-              mode="tint"
-              className="mx-auto mb-4 text-gold/40"
-            />
-            <p className="font-display text-xl italic text-muted-foreground">
+          <div className="surface rounded-lg p-16 text-center">
+            <p className="font-display text-2xl italic text-muted-foreground">
               {t("catalogPage.noMatch")}
             </p>
             <p className="mt-2 font-body text-sm text-muted-foreground">

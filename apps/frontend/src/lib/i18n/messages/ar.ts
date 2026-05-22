@@ -103,21 +103,21 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
   // Catalog page — غرفة اللفائف (التصفّح العام)
-  "catalogPage.cartouche": "غرفة اللفائف",
+  "catalogPage.cartouche": "الكتالوج",
   "catalogPage.h1_1": "كل علم،",
   "catalogPage.h1_2": "مفهرس",
-  "catalogPage.subline": "تصفّح ما يدرّسه الكَتَبة في كل أرجاء المعبد. صَفِّ حسب الموضوع أو المستوى أو ختم الوسم.",
-  "catalogPage.searchPlaceholder": "ابحث في غرفة اللفائف…",
+  "catalogPage.subline": "تصفّح ما يدرّسه المدرّسون عبر Skillpath. صَفِّ حسب الموضوع أو المستوى أو الوسم.",
+  "catalogPage.searchPlaceholder": "ابحث في الكتالوج…",
   "catalogPage.searchAria": "ابحث في الدورات",
   "catalogPage.anyDifficulty": "الكل",
   "catalogPage.diff.beginner": "مبتدئ",
-  "catalogPage.diff.intermediate": "كاتب",
-  "catalogPage.diff.advanced": "كاهن أعلى",
+  "catalogPage.diff.intermediate": "متوسّط",
+  "catalogPage.diff.advanced": "متقدّم",
   "catalogPage.reset": "إعادة تعيين",
   "catalogPage.allSubjects": "الكل",
   "catalogPage.tagFilterAria": "تصفية الوسوم",
   "catalogPage.clearTagAria": "مسح تصفية الوسم",
-  "catalogPage.noMatch": "لا توجد لفائف تطابق هذه المرشحات.",
+  "catalogPage.noMatch": "لا توجد دورات تطابق هذه المرشحات.",
   "catalogPage.noMatchBody": "قلّل القيود، أو أعد ضبط البحث.",
 
   // Homepage — نسخة عربية من نسخة التسويق
