@@ -493,7 +493,7 @@ export const ar: Record<MessageKey, string> = {
   "studioEdit.outcomesToast": "تم حفظ النتائج",
 
   // Studio / new — انقش دورة جديدة
-  "studioNew.cartouche": "انقش دورة",
+  "studioNew.cartouche": "دورة جديدة",
   "studioNew.title": "دورة جديدة",
   "studioNew.field.title": "العنوان",
   "studioNew.field.subject": "الموضوع",

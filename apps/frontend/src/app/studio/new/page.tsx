@@ -9,8 +9,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageUpload } from "@/components/shared/image-upload";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { Catalog, Courses } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
@@ -58,26 +56,21 @@ export default function NewCoursePage() {
     }
   }
 
-  const inputClass = "border-gold/25 bg-background/60 focus-visible:border-gold/60";
-  const selectClass = `${inputClass} h-10 w-full rounded-md border px-3 font-body text-sm`;
+  const selectClass =
+    "h-10 w-full rounded-md border border-border/60 bg-background px-3 font-body text-sm transition-colors focus-visible:border-primary/60 focus-visible:outline-none";
 
   return (
-    <div className="container mx-auto flex max-w-2xl flex-col items-center px-4 py-14">
-      <Cartouche className="mb-5">{t("studioNew.cartouche")}</Cartouche>
-      <Card className="w-full scroll-paper border-gold/20">
-        <CardContent className="space-y-6 pt-8">
-          <header className="flex flex-col items-center gap-3 text-center">
-            <Glyph
-              name="feather"
-              size={42}
-              mode="tint"
-              className="text-gold/85 drop-shadow-[0_0_10px_hsl(var(--gold-leaf)/0.4)]"
-            />
-            <h1 className="font-display text-3xl font-medium tracking-tight">
-              {t("studioNew.title")}
-            </h1>
-          </header>
-
+    <div className="container mx-auto flex max-w-2xl flex-col px-6 py-14">
+      <header className="mb-6 flex flex-col gap-3 text-center">
+        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          {t("studioNew.cartouche")}
+        </p>
+        <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
+          {t("studioNew.title")}
+        </h1>
+      </header>
+      <Card className="surface w-full">
+        <CardContent className="pt-8">
           <form className="space-y-4" onSubmit={submit}>
             <div className="space-y-1.5">
               <label className="font-body text-sm font-medium" htmlFor="title">
@@ -88,7 +81,6 @@ export default function NewCoursePage() {
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className={inputClass}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -136,7 +128,6 @@ export default function NewCoursePage() {
                 value={overview}
                 onChange={(e) => setOverview(e.target.value)}
                 placeholder={t("studioNew.placeholder.overview")}
-                className={inputClass}
               />
             </div>
             <ImageUpload

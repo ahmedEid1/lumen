@@ -486,7 +486,7 @@ export const en = {
   "studioEdit.outcomesToast": "Outcomes saved",
 
   // Studio / new — inscribe a course
-  "studioNew.cartouche": "Inscribe a course",
+  "studioNew.cartouche": "New course",
   "studioNew.title": "New course",
   "studioNew.field.title": "Title",
   "studioNew.field.subject": "Subject",
