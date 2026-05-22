@@ -14,6 +14,7 @@ from app.api.v1 import (
     discussions,
     enrollments,
     health,
+    mastery,
     notifications,
     reviews,
     reviews_queue,
@@ -36,6 +37,9 @@ api_router.include_router(reviews.router, prefix="/courses", tags=["reviews"])
 api_router.include_router(uploads.router, prefix="/uploads", tags=["uploads"])
 api_router.include_router(notifications.router, prefix="/me/notifications", tags=["notifications"])
 api_router.include_router(reviews_queue.router, prefix="/me/reviews", tags=["reviews-queue"])
+# Mastery (Phase E7) — per-learner weak-spot + per-course rollup
+# bundle, mounted directly under /me so the path is /me/mastery.
+api_router.include_router(mastery.router, prefix="/me", tags=["mastery"])
 api_router.include_router(certificates.router, prefix="/certificates", tags=["certificates"])
 api_router.include_router(badges.router, prefix="/credentials", tags=["badges"])
 api_router.include_router(discussions.router, tags=["discussions"])

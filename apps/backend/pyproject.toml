@@ -1,6 +1,6 @@
 [project]
 name = "lumen-backend"
-version = "1.0.0"
+version = "1.0.0-rebuild"
 description = "Lumen — FastAPI backend for the e-learning platform"
 requires-python = ">=3.13"
 license = { text = "MIT" }

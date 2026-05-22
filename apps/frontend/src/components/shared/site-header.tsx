@@ -77,6 +77,10 @@ function navLinksFor(role: "student" | "instructor" | "admin" | undefined): NavL
   // can have learner cards too if they've taken any quizzes (and the
   // empty-state copy handles the "no cards yet" case cleanly).
   links.push({ href: "/dashboard/reviews", labelKey: "nav.reviews" });
+  // Mastery (Phase E7) sits next to Reviews — it's the
+  // "what should I revisit next" surface that combines E4's FSRS
+  // queue with E1's tutor signals and quiz history. Same audience.
+  links.push({ href: "/dashboard/mastery", labelKey: "nav.mastery" });
   if (role === "instructor" || role === "admin")
     links.push({ href: "/studio", labelKey: "nav.studio" });
   if (role === "admin") links.push({ href: "/admin", labelKey: "nav.admin" });

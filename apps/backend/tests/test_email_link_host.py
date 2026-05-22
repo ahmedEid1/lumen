@@ -33,6 +33,8 @@ def _patched_settings(**overrides):
         "s3_secret_access_key": "real-s3-secret",
         "cors_origins": ["https://lumen.example"],
         "web_base_url": "https://lumen.example",
+        # Phase E5 added a localhost guard for the OB3 issuer URL.
+        "badges_issuer_url": "https://lumen.example",
     }
     base.update(overrides)
     return Settings(**base)

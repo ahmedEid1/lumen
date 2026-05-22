@@ -135,6 +135,16 @@ export default function ReviewsPage() {
         <p className="font-body text-sm text-muted-foreground">
           {t("reviews.subtitle")}
         </p>
+        {/* Cross-link to the per-learner mastery dashboard (Phase E7).
+            FSRS is one half of "what should I revisit"; the mastery
+            surface joins it with quiz history and tutor signals. */}
+        <Link
+          href="/dashboard/mastery"
+          className="inline-flex items-center gap-1 self-start font-body text-sm text-primary transition-colors duration-[160ms] hover:text-primary/80"
+        >
+          {t("reviews.seeMastery")}
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </header>
 
       <ReviewStats stats={stats} />

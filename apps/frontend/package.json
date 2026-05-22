@@ -1,6 +1,6 @@
 {
   "name": "lumen-web",
-  "version": "1.0.0",
+  "version": "1.0.0-rebuild",
   "private": true,
   "type": "module",
   "engines": {

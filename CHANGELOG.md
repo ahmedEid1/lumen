@@ -8,6 +8,116 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added (rebuild phase E)
+- **Per-learner mastery dashboard (E7).** A new "what to revisit next"
+  surface at `/dashboard/mastery` that combines the three independent
+  signal streams the platform has been quietly accumulating across
+  earlier E phases into one actionable view.
+
+  **Signal sources.** The "weak spots" list joins three signals per
+  (course, lesson):
+  - **E4's FSRS-6 review queue.** A card whose `due_at` is more than
+    `CARD_OVERDUE_DAYS=2` in the past contributes the `card_overdue`
+    signal with the day count attached. The weak-spot row exposes
+    the card's id so the "Review now" CTA deep-links into
+    `/dashboard/reviews` rather than the lesson player.
+  - **Quiz attempts.** The service takes the *latest* attempt per
+    lesson (not the minimum — a learner who failed then passed has
+    resolved the weak spot). Failing attempts emit `quiz_failed`
+    (weight 3); passing attempts below `QUIZ_WEAK_SCORE=70` emit
+    `quiz_low` (weight 2).
+  - **E1's tutor citations.** Tutor messages already store citations
+    as JSONB. The service tallies citation counts across all of the
+    learner's assistant messages and emits `tutor_repeat` for any
+    lesson cited `>= TUTOR_REPEAT_THRESHOLD=3` times.
+
+  Signals deduplicate per (course, lesson) so a lesson hit by all
+  three sources renders as one row with three pills, ordered
+  strongest-first (failed quiz > overdue card > low quiz > tutor
+  repeat). The default surface shows the top 10 weak spots by
+  accumulated weight.
+
+  **Bundled endpoint.** `GET /api/v1/me/mastery` returns
+  `{weak_spots: [...], courses: [{course_id, slug, title,
+  mastery_pct, completion_pct}]}` in one round-trip. Splitting into
+  two endpoints would either flash between two loading states or
+  force the surface to await both spinners before painting. Rate-
+  limited at 60/minute per identity — the underlying queries fan
+  out into a handful of SELECTs (latest-quiz-per-lesson with a
+  window function, overdue cards, tutor-citation aggregation, per-
+  course rollups), and 60/min is well above any plausible
+  interactive use.
+
+  **Mastery per course.** Each enrolled course gets two thin progress
+  bars (completion + mastery). `completion_pct` is fraction of live
+  lessons marked complete (mirrors the dashboard's own number).
+  `mastery_pct` is the average of latest-quiz-attempt scores across
+  every quiz the learner has attempted in that course — 0.0 if no
+  attempts (the UI disambiguates "never tried" from "tried and
+  failed" via the two bars together).
+
+  **Cross-links.** The mastery surface and the FSRS reviews surface
+  point at each other:
+  - `/dashboard/reviews` (Phase E4) gains a small "See full mastery →"
+    link in its header so a learner who landed on reviews from the
+    dashboard tile can pivot to the broader weak-spot view.
+  - A `Mastery` nav link sits next to `Reviews` in the site header,
+    visible to every authenticated role.
+
+  **Files.** New service `app/services/mastery.py` (signal collectors,
+  ranking weight, per-course rollup). New API `app/api/v1/mastery.py`
+  (one endpoint, Pydantic response models, rate limiter). New page
+  `apps/frontend/src/app/dashboard/mastery/page.tsx` (Workbench
+  density — bordered rows, signal pills using existing Badge
+  variants, two thin Progress bars per course row). API client gets
+  `Me.mastery()` + `MasteryResponse` / `MasterySignal` types.
+
+  **Backend tests** (`tests/test_mastery.py`, 11 cases): each signal
+  source surfaces independently; a passing retake retires an older
+  failure; tutor citations below the threshold are ignored; a lesson
+  hit by all three signals deduplicates and orders signals
+  strongest-first; one learner's weak spots never leak into
+  another's view; per-course rollups compute mastery_pct as the
+  latest-quiz-attempt average and completion_pct against live
+  lessons only; courses with no quizzes report mastery_pct=0 +
+  real completion_pct; the `GET /me/mastery` endpoint bundles both
+  pieces and returns `{weak_spots: [], courses: []}` for a new
+  learner; auth is required.
+
+  **Frontend tests** (`tests/mastery-page.test.tsx`): stub
+  `Me.mastery()` returning one weak spot (failed quiz + overdue
+  card) and one course (mixed completion + mastery percentages),
+  assert the weak-spot row renders the signal pills with quantified
+  labels and the "Review now" CTA targets the FSRS surface (because
+  the spot carries a `review_card_id`), and the per-course row
+  exposes both progress bars with the percentages alongside.
+
+## [1.0.0-rebuild] - 2026-05-22
+
+The Lumen rebuild. Six phases (A: cuts, B: stop-the-bleed, C: Workbench
+visual pivot, D: PRD-promised quick wins, E: AI-native differentiators,
+F: ship) landed across 25+ commits on the `Rewrite` branch since the
+spec at `docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md`.
+
+Headline user-facing changes: the platform pivoted from a Coursera-style
+OSS LMS to an AI-first OSS learning platform with a light async-cohort
+surface. The Skillpath cobalt palette and the prior Egyptian-deity
+branding are gone, replaced by the Workbench visual identity (electric
+lime on `#0A0B0D`, Inter / JetBrains Mono, border-driven elevation,
+dark-mode-default). Meilisearch was ripped — full-text search runs on
+Postgres `tsvector` + GIN; semantic retrieval ships on pgvector with a
+provider-agnostic embedding service. Per-course WebSocket chat was
+removed; the AI tutor plus per-lesson async comments cover that ground.
+PDF certificates are now a fallback only — the primary credential is an
+Open Badges 3.0 / W3C VC signed with Ed25519. New AI-native surfaces:
+course-scoped RAG tutor with citations (E1), AI-assisted authoring (E2),
+multi-modal ingest from YouTube / Notion / Google Docs (E3), FSRS-6
+spaced-repetition review queue (E4), Tiptap block editor (E6), mastery
+dashboard (E7). Smart digest notifications with per-kind email
+preferences (D4), first-login onboarding tour (D3), instructor
+analytics (D2), "Preview as student" (D1), and a **WCAG 2.2 AA
+axe-core CI gate** (D5) blocking on every PR.
+
+### Added (rebuild phase E)
 - **AI-assisted course authoring (E2).** Instructors can paste a
   one-paragraph brief and get back a proposed course structure
   (3-6 modules, each with 3-5 lessons), then drill into individual

@@ -22,20 +22,31 @@
                   │     │        │
         async SQL │     │ pubsub │ presigned PUT/GET
                   ▼     ▼        ▼
-            ┌─────────┐┌─────┐┌────────┐
-            │ Postgres││Redis││ MinIO  │
-            │   17    ││  7  ││   S3   │
-            └─────────┘└─────┘└────────┘
-                  ▲
-        FT search │
-                  ▼
-              ┌───────────┐
-              │ Meili 1.x │
-              └───────────┘
+            ┌─────────────────────┐ ┌─────┐ ┌────────┐
+            │ Postgres 17 +        │ │Redis│ │ MinIO  │
+            │ pgvector             │ │  7  │ │   S3   │
+            │ • tsvector + GIN FTS │ └─────┘ └────────┘
+            │ • vector(384) HNSW   │
+            │   (lesson chunks)    │
+            └─────────────────────┘
+
+LLM providers (provider-agnostic Protocol; configured via env):
+  Anthropic / OpenAI / local sentence-transformers / noop (tests)
+  – consumed by RAG tutor (E1), AI authoring (E2), multi-modal ingest (E3),
+    embeddings pipeline (E0), mastery dashboard (E7)
+
+Credentials:
+  OB3 / W3C Verifiable Credentials (Ed25519 over JCS) — primary
+  PDF (ReportLab) — fallback download
 
 Background:                           Email:
   Celery worker ───►  Redis  ◄───►   Mailpit (dev) / SMTP (prod)
-  Celery beat
+  Celery beat (daily digest, asset sweep)
+
+Note: Meilisearch was removed in rebuild Cut A9 — full-text search now
+runs on Postgres ``tsvector`` + GIN; semantic retrieval uses pgvector.
+Per-course WebSocket chat was removed in Cut A8 — replaced by per-lesson
+async comments plus the course-scoped AI tutor.
 ```
 
 ## 2. Services

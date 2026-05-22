@@ -144,6 +144,11 @@ export const Me = {
       token,
     }),
   notifications: (token?: string) => api("/api/v1/me/notifications", { token }),
+  /** Phase E7 — bundled mastery dashboard (weak spots + per-course
+   *  rollups). Fetched as a single round-trip so the surface paints
+   *  both sections on one loading state. */
+  mastery: (token?: string) =>
+    api<MasteryResponse>("/api/v1/me/mastery", { token }),
   markNotificationRead: (id: string, token?: string) =>
     api<{ ok: true }>(`/api/v1/me/notifications/${id}/read`, { method: "POST", token }),
   markAllNotificationsRead: (token?: string) =>
@@ -163,6 +168,52 @@ export const Me = {
       }),
   },
 };
+
+// ---------- Mastery dashboard (Phase E7) ----------
+
+/** Stable signal codes attached to a weak-spot row. The frontend
+ * localises each code and picks a Badge variant from it. */
+export type MasterySignal =
+  | "quiz_failed"
+  | "card_overdue"
+  | "quiz_low"
+  | "tutor_repeat";
+
+/** Slimmed lesson + course context attached to a weak-spot row. */
+export interface MasteryWeakSpotLesson {
+  id: string;
+  title: string;
+  course_id: string;
+  course_slug: string;
+  course_title: string;
+}
+
+/** One actionable row on the mastery dashboard. */
+export interface MasteryWeakSpot {
+  lesson: MasteryWeakSpotLesson;
+  signals: MasterySignal[];
+  /** Open-ended details map: ``quiz_score``, ``overdue_days``,
+   * ``tutor_count``. Always strings so JSON shape stays uniform. */
+  signal_details: Record<string, string>;
+  /** When the lesson has an FSRS card currently due, the
+   *  "Review now" CTA deep-links into the spaced-repetition queue. */
+  review_card_id: string | null;
+}
+
+/** Per-enrolled-course rollup row. */
+export interface MasteryCourse {
+  course_id: string;
+  slug: string;
+  title: string;
+  mastery_pct: number;
+  completion_pct: number;
+}
+
+/** Bundled mastery dashboard payload. */
+export interface MasteryResponse {
+  weak_spots: MasteryWeakSpot[];
+  courses: MasteryCourse[];
+}
 
 // Phase D4 — keep this in sync with backend NotificationKind /
 // NotificationDispatch enums.

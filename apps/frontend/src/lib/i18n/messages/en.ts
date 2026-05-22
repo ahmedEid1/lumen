@@ -709,6 +709,29 @@ export const en = {
   "reviews.lastReviewed": "last reviewed {when}",
   "reviews.neverReviewed": "never reviewed",
   "reviews.openCourse": "Open course",
+  "reviews.seeMastery": "See full mastery",
+
+  // Mastery dashboard (Phase E7 — weak spots + per-course rollup)
+  "nav.mastery": "Mastery",
+  "mastery.cartouche": "Mastery",
+  "mastery.title": "What to revisit next",
+  "mastery.subtitle":
+    "Lessons we flagged from your quiz attempts, your review queue, and the questions you asked the tutor.",
+  "mastery.weakSpots.heading": "Weak spots — start here",
+  "mastery.weakSpots.empty.title": "Nothing to flag",
+  "mastery.weakSpots.empty.body":
+    "Take a quiz or ask the tutor a question and lessons that need a second look will appear here.",
+  "mastery.courses.heading": "Mastery per course",
+  "mastery.courses.completion": "Completion",
+  "mastery.courses.mastery": "Mastery",
+  "mastery.courses.empty": "You're not enrolled in anything yet.",
+  "mastery.courses.browse": "Browse the catalog",
+  "mastery.signal.quizFailed": "quiz: {score}% (failed)",
+  "mastery.signal.quizLow": "quiz: {score}%",
+  "mastery.signal.cardOverdue": "due {days} days",
+  "mastery.signal.tutorRepeat": "asked {count} times",
+  "mastery.reviewNow": "Review now",
+  "mastery.openLesson": "Open lesson",
 
   // Tutor (Phase E1 — course-scoped RAG)
   "tutor.cartouche": "AI · Tutor",

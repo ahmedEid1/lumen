@@ -716,6 +716,29 @@ export const ar: Record<MessageKey, string> = {
   "reviews.lastReviewed": "آخر مراجعة {when}",
   "reviews.neverReviewed": "لم تُراجع بعد",
   "reviews.openCourse": "فتح الدورة",
+  "reviews.seeMastery": "عرض الإتقان الكامل",
+
+  // Mastery dashboard (Phase E7 — weak spots + per-course rollup)
+  "nav.mastery": "الإتقان",
+  "mastery.cartouche": "إتقان",
+  "mastery.title": "ماذا تراجع تاليًا",
+  "mastery.subtitle":
+    "دروس رصدناها من اختباراتك، وقائمة المراجعة، وأسئلتك للمرشد.",
+  "mastery.weakSpots.heading": "نقاط الضعف — ابدأ من هنا",
+  "mastery.weakSpots.empty.title": "لا شيء للإشارة إليه",
+  "mastery.weakSpots.empty.body":
+    "أدِّ اختبارًا أو اسأل المرشد، وستظهر هنا الدروس التي تحتاج إلى نظرة ثانية.",
+  "mastery.courses.heading": "الإتقان حسب الدورة",
+  "mastery.courses.completion": "الإنجاز",
+  "mastery.courses.mastery": "الإتقان",
+  "mastery.courses.empty": "لم تسجّل في أيّ دورة بعد.",
+  "mastery.courses.browse": "تصفّح الكتالوج",
+  "mastery.signal.quizFailed": "اختبار: {score}% (رسوب)",
+  "mastery.signal.quizLow": "اختبار: {score}%",
+  "mastery.signal.cardOverdue": "متأخّر {days} أيام",
+  "mastery.signal.tutorRepeat": "سألتَ {count} مرات",
+  "mastery.reviewNow": "راجع الآن",
+  "mastery.openLesson": "فتح الدرس",
 
   // Tutor (Phase E1 — course-scoped RAG)
   "tutor.cartouche": "ذكاء · مرشد",

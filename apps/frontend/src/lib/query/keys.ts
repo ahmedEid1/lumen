@@ -10,4 +10,5 @@ export const qk = {
   notifications: ["me", "notifications"] as const,
   reviewsQueue: ["me", "reviews", "queue"] as const,
   reviewsStats: ["me", "reviews", "stats"] as const,
+  mastery: ["me", "mastery"] as const,
 };
