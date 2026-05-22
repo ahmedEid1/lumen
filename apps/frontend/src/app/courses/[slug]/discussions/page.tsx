@@ -4,14 +4,18 @@ import { use, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ArrowLeft } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Cartouche } from "@/components/lumen/cartouche";
+import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { formatRelative } from "@/lib/utils";
+import { useT } from "@/lib/i18n/provider";
 
 type Thread = {
   id: string;
@@ -35,6 +39,7 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
   const { slug } = use(params);
   const qc = useQueryClient();
   const { user } = useAuth();
+  const t = useT();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
 
@@ -58,40 +63,52 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
     onSuccess: () => {
       setTitle("");
       setBody("");
-      toast.success("Thread posted");
+      toast.success(t("discussions.postedToast"));
       qc.invalidateQueries({ queryKey: ["course", courseQ.data?.id, "discussions"] });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not post"),
+    onError: (e: Error) => toast.error(e?.message ?? t("discussions.error")),
   });
 
   if (courseQ.isLoading) {
-    return <div className="container mx-auto px-4 py-10">Loading…</div>;
+    return (
+      <div className="container mx-auto px-4 py-14 text-center font-body text-muted-foreground">
+        {t("common.loading")}
+      </div>
+    );
   }
   if (!courseQ.data) {
     return (
-      <div className="container mx-auto px-4 py-10 text-muted-foreground">
-        Course not found.
+      <div className="container mx-auto flex flex-col items-center gap-3 px-4 py-20 text-center">
+        <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
+        <p className="font-display text-xl italic text-muted-foreground">
+          {t("courseDetail.notFound")}
+        </p>
       </div>
     );
   }
   const course = courseQ.data;
 
   return (
-    <div className="container mx-auto max-w-3xl space-y-6 px-4 py-10">
-      <header className="space-y-1">
-        <Link
-          href={`/courses/${course.slug}`}
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          ← {course.title}
-        </Link>
-        <h1 className="text-2xl font-bold tracking-tight">Discussions</h1>
+    <div className="container mx-auto max-w-3xl space-y-6 px-4 py-14">
+      <Link
+        href={`/courses/${course.slug}`}
+        className="inline-flex items-center font-body text-sm text-muted-foreground transition-colors hover:text-gold"
+      >
+        <ArrowLeft className="me-1 h-4 w-4" /> {course.title}
+      </Link>
+      <header className="flex flex-col gap-2">
+        <Cartouche>{t("discussions.cartouche")}</Cartouche>
+        <h1 className="font-display text-3xl font-medium tracking-tight">
+          {t("discussions.title")}
+        </h1>
       </header>
 
       {user && (
-        <Card>
+        <Card className="scroll-paper border-gold/20">
           <CardHeader>
-            <CardTitle>Start a thread</CardTitle>
+            <CardTitle className="font-display text-xl">
+              {t("discussions.startCard")}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <form
@@ -103,7 +120,7 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
               }}
             >
               <Input
-                placeholder="Title"
+                placeholder={t("studioNew.field.title")}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 minLength={3}
@@ -111,59 +128,68 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
                 required
               />
               <Textarea
-                placeholder="Optional context — what have you tried?"
+                placeholder={t("discussions.bodyPlaceholder")}
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 rows={3}
                 maxLength={10000}
               />
               <Button type="submit" disabled={create.isPending || title.trim().length < 3}>
-                {create.isPending ? "Posting…" : "Post thread"}
+                {create.isPending ? t("discussions.posting") : t("discussions.post")}
               </Button>
             </form>
           </CardContent>
         </Card>
       )}
 
-      <Card>
+      <Card className="scroll-paper border-gold/20">
         <CardHeader>
-          <CardTitle>{threadsQ.data?.total ?? 0} threads</CardTitle>
+          <CardTitle className="font-display text-xl">
+            {t("discussions.threadCount", { n: threadsQ.data?.total ?? 0 })}
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {threadsQ.isLoading ? (
-            <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>
-          ) : !threadsQ.data?.items.length ? (
-            <p className="px-4 py-6 text-sm text-muted-foreground">
-              No threads yet. Start the conversation above.
+            <p className="px-4 py-6 font-body text-sm text-muted-foreground">
+              {t("common.loading")}
             </p>
+          ) : !threadsQ.data?.items.length ? (
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <Glyph name="ankh" size={40} mode="tint" className="text-gold/35" />
+              <p className="font-body text-sm italic text-muted-foreground">
+                {t("discussions.empty")}
+              </p>
+            </div>
           ) : (
-            <ul className="divide-y">
-              {threadsQ.data.items.map((t) => (
-                <li key={t.id}>
+            <ul className="divide-y divide-gold/15">
+              {threadsQ.data.items.map((thread) => (
+                <li key={thread.id}>
                   <Link
-                    href={`/courses/${course.slug}/discussions/${t.id}`}
-                    className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/40"
+                    href={`/courses/${course.slug}/discussions/${thread.id}`}
+                    className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/30"
                   >
                     <div className="flex items-start gap-3">
-                      <Avatar className="h-8 w-8">
+                      <Avatar className="h-8 w-8 border border-gold/30">
                         <AvatarImage
-                          src={t.author?.avatar_url ?? undefined}
-                          alt={t.author?.full_name ?? ""}
+                          src={thread.author?.avatar_url ?? undefined}
+                          alt={thread.author?.full_name ?? ""}
                         />
                         <AvatarFallback>
-                          {(t.author?.full_name ?? "?").slice(0, 1).toUpperCase()}
+                          {(thread.author?.full_name ?? "?").slice(0, 1).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium">{t.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {t.author?.full_name ?? "Deleted user"} ·{" "}
-                          {formatRelative(t.last_activity_at)}
+                        <p className="font-display text-base font-medium transition-colors group-hover:text-gold">
+                          {thread.title}
+                        </p>
+                        <p className="font-body text-xs text-muted-foreground">
+                          {thread.author?.full_name ?? t("discussions.deletedUser")} ·{" "}
+                          {formatRelative(thread.last_activity_at)}
                         </p>
                       </div>
                     </div>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
-                      {t.reply_count}
+                    <span className="rounded-full border border-gold/25 bg-gold/5 px-2.5 py-0.5 text-xs tabular-nums text-gold">
+                      {thread.reply_count}
                     </span>
                   </Link>
                 </li>

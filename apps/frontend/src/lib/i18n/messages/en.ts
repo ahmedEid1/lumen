@@ -95,6 +95,19 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Discussions list — around the fire
+  "discussions.cartouche": "Around the fire",
+  "discussions.title": "Discussions",
+  "discussions.startCard": "Start a thread",
+  "discussions.bodyPlaceholder": "Optional context — what have you tried?",
+  "discussions.post": "Post thread",
+  "discussions.posting": "Posting…",
+  "discussions.postedToast": "Thread posted",
+  "discussions.error": "Could not post",
+  "discussions.threadCount": "{n} threads",
+  "discussions.empty": "No threads yet. Start the conversation above.",
+  "discussions.deletedUser": "Deleted user",
+
   // Error / Not-found pages
   "errorPage.cartouche": "Something is amiss",
   "errorPage.title": "Something went sideways",

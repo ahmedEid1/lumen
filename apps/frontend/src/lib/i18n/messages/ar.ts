@@ -102,6 +102,19 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Discussions list — حول النار
+  "discussions.cartouche": "حول النار",
+  "discussions.title": "النقاشات",
+  "discussions.startCard": "ابدأ موضوعًا",
+  "discussions.bodyPlaceholder": "سياق اختياري — ماذا جرّبت حتى الآن؟",
+  "discussions.post": "نشر الموضوع",
+  "discussions.posting": "جارٍ النشر…",
+  "discussions.postedToast": "تم نشر الموضوع",
+  "discussions.error": "تعذّر النشر",
+  "discussions.threadCount": "{n} موضوع",
+  "discussions.empty": "لا مواضيع بعد. ابدأ النقاش من الأعلى.",
+  "discussions.deletedUser": "مستخدم محذوف",
+
   // Error / Not-found pages
   "errorPage.cartouche": "خطأ ما",
   "errorPage.title": "حدث خطأ غير متوقّع",
