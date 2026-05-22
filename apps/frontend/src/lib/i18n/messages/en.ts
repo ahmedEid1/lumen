@@ -518,7 +518,7 @@ export const en = {
   "studio.studentCount": "{n} students",
 
   // Learn — the lesson player / scribe's desk
-  "learn.cartouche": "Now learning",
+  "learn.cartouche": "Learning",
   "learn.signInPrompt": "Sign in to open this course.",
   "learn.signInButton": "Sign in",
   "learn.enrollToast": "Enroll to start learning",

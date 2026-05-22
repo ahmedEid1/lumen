@@ -525,7 +525,7 @@ export const ar: Record<MessageKey, string> = {
   "studio.studentCount": "{n} طالب",
 
   // Learn — مكتب الكاتب
-  "learn.cartouche": "الآن تتعلم",
+  "learn.cartouche": "التعلّم",
   "learn.signInPrompt": "سجّل الدخول لفتح هذه الدورة.",
   "learn.signInButton": "تسجيل الدخول",
   "learn.enrollToast": "سجّل في الدورة لتبدأ التعلم",

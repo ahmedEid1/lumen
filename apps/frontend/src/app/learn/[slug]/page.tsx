@@ -9,8 +9,6 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Circle, MessagesSquare } from "luc
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { Courses, Me } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { LessonPlayer } from "@/components/lesson/lesson-player";
@@ -59,14 +57,10 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
   if (!ready) return null;
   if (!user)
     return (
-      <div className="container mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-20 text-center">
-        <Cartouche>{t("learn.cartouche")}</Cartouche>
-        <Glyph
-          name="eye"
-          size={40}
-          mode="tint"
-          className="text-gold/85 drop-shadow-[0_0_10px_hsl(var(--gold-leaf)/0.4)]"
-        />
+      <div className="container mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-24 text-center">
+        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          {t("learn.cartouche")}
+        </p>
         <p className="font-body text-lg text-muted-foreground">{t("learn.signInPrompt")}</p>
         <Link href={`/login?next=/learn/${slug}`}>
           <Button>{t("learn.signInButton")}</Button>
@@ -75,15 +69,14 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
     );
   if (courseQ.isLoading)
     return (
-      <div className="container mx-auto px-4 py-14 text-center font-body text-muted-foreground">
+      <div className="container mx-auto px-6 py-20 text-center font-body text-muted-foreground">
         {t("common.loading")}
       </div>
     );
   if (!courseQ.data)
     return (
-      <div className="container mx-auto flex flex-col items-center gap-3 px-4 py-20 text-center">
-        <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
-        <p className="font-display text-xl italic text-muted-foreground">
+      <div className="container mx-auto flex flex-col items-center gap-3 px-6 py-24 text-center">
+        <p className="font-display text-2xl italic text-muted-foreground">
           {t("courseDetail.notFound")}
         </p>
       </div>
@@ -108,17 +101,15 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
   }
 
   return (
-    <div className="container mx-auto grid gap-6 px-4 py-8 lg:grid-cols-[280px_1fr_320px]">
-      {/* Outline — on mobile (single-column) the player appears first;
-          outline is order-2, player order-1. On lg the explicit grid-
-          template owns order. */}
+    <div className="container mx-auto grid gap-6 px-6 py-10 lg:grid-cols-[280px_1fr_320px]">
+      {/* Outline */}
       <aside className="order-2 lg:order-none">
-        <Card className="scroll-paper border-gold/20">
+        <Card className="surface">
           <CardHeader>
-            <div className="text-[0.65rem] uppercase tracking-[0.28em] text-gold/70">
+            <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
               {t("learn.cartouche")}
-            </div>
-            <CardTitle className="font-display text-lg leading-tight">{course.title}</CardTitle>
+            </p>
+            <CardTitle className="font-display text-xl leading-tight">{course.title}</CardTitle>
             <Progress value={course.progress_pct} />
             <p className="font-body text-xs text-muted-foreground">
               {t("dashboard.percentComplete", { pct: course.progress_pct.toFixed(0) })}
@@ -127,22 +118,22 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
           <CardContent className="space-y-4">
             {course.modules.map((m) => (
               <div key={m.id}>
-                <div className="text-[0.62rem] uppercase tracking-[0.28em] text-gold/70">
+                <div className="font-body text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                   {t("courseDetail.module", { n: m.order + 1 })}
                 </div>
-                <div className="mb-2 font-display text-base font-medium">{m.title}</div>
+                <div className="mb-2 font-display text-base">{m.title}</div>
                 <ul className="space-y-0.5 text-sm">
                   {m.lessons.map((lesson) => (
                     <li key={lesson.id}>
                       <button
                         onClick={() => setSelectedId(lesson.id)}
                         className={`flex w-full items-center gap-2 rounded px-2 py-1 text-start font-body transition-colors hover:bg-muted ${
-                          selectedId === lesson.id ? "bg-muted text-gold" : ""
+                          selectedId === lesson.id ? "bg-primary/10 text-primary" : ""
                         }`}
                       >
                         {lesson.completed ? (
                           <CheckCircle2
-                            className="h-3.5 w-3.5 text-gold"
+                            className="h-3.5 w-3.5 text-primary"
                             aria-label={t("player.completed")}
                           />
                         ) : (
@@ -168,9 +159,9 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
       {/* Player */}
       <section className="order-1 lg:order-none">
         {selected ? (
-          <Card className="scroll-paper border-gold/25">
+          <Card className="surface">
             <CardHeader>
-              <CardTitle className="font-display text-3xl font-medium leading-tight tracking-tight">
+              <CardTitle className="font-display text-4xl leading-tight tracking-tight">
                 {selected.title}
               </CardTitle>
             </CardHeader>
@@ -214,10 +205,11 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
             </CardContent>
           </Card>
         ) : (
-          <Card className="scroll-paper border-gold/20">
-            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-              <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
-              <p className="font-body italic text-muted-foreground">{t("learn.noLessons")}</p>
+          <Card className="surface">
+            <CardContent className="py-16 text-center">
+              <p className="font-display text-2xl italic text-muted-foreground">
+                {t("learn.noLessons")}
+              </p>
             </CardContent>
           </Card>
         )}
@@ -225,12 +217,11 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
 
       {/* Chat */}
       <aside className="order-3 lg:order-none">
-        {/* Mobile: shorter so it doesn't eat the whole viewport stacked
-            below the player. Desktop: full 600px panel. */}
-        <Card className="flex h-[400px] flex-col scroll-paper border-gold/20 lg:h-[600px]">
-          <CardHeader className="border-b border-gold/15">
+        <Card className="surface flex h-[400px] flex-col lg:h-[600px]">
+          <CardHeader className="border-b border-border/60">
             <CardTitle className="inline-flex items-center gap-2 font-display text-base">
-              <MessagesSquare className="h-4 w-4 text-gold/80" /> {t("learn.courseChat")}
+              <MessagesSquare className="h-4 w-4 text-muted-foreground" />{" "}
+              {t("learn.courseChat")}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden p-0">
