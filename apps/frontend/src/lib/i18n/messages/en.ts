@@ -404,7 +404,7 @@ export const en = {
   "adminTags.error": "Could not add",
 
   // Admin root — hall of the high priest
-  "admin.cartouche": "Hall of the high priest",
+  "admin.cartouche": "Admin",
   "admin.title": "Admin",
   "admin.subtitle": "Operate the platform.",
   "admin.stats.title": "Platform at a glance",

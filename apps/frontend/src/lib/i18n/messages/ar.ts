@@ -411,7 +411,7 @@ export const ar: Record<MessageKey, string> = {
   "adminTags.error": "تعذّرت الإضافة",
 
   // Admin root — قاعة الكاهن الأعظم
-  "admin.cartouche": "قاعة الكاهن الأعظم",
+  "admin.cartouche": "الإدارة",
   "admin.title": "الإدارة",
   "admin.subtitle": "أدر المنصّة.",
   "admin.stats.title": "المنصّة في لمحة",

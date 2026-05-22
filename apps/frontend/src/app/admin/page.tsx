@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Cartouche } from "@/components/lumen/cartouche";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
@@ -57,15 +56,19 @@ export default function AdminHome() {
   ];
 
   return (
-    <div className="container mx-auto px-4 py-14">
+    <div className="container mx-auto px-6 py-14">
       <header className="mb-10 flex flex-col gap-3">
-        <Cartouche>{t("admin.cartouche")}</Cartouche>
-        <h1 className="font-display text-4xl font-medium tracking-tight">{t("admin.title")}</h1>
+        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          {t("admin.cartouche")}
+        </p>
+        <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
+          {t("admin.title")}
+        </h1>
         <p className="font-body text-lg text-muted-foreground">{t("admin.subtitle")}</p>
       </header>
 
       {stats.data && (
-        <Card className="mb-8 scroll-paper border-gold/20">
+        <Card className="surface mb-8">
           <CardHeader>
             <CardTitle className="font-display text-2xl">{t("admin.stats.title")}</CardTitle>
           </CardHeader>
@@ -86,9 +89,9 @@ export default function AdminHome() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((tile) => (
           <Link key={tile.href} href={tile.href}>
-            <Card className="h-full scroll-paper border-border transition-colors hover:border-gold/40">
+            <Card className="surface lift-3d h-full transition-colors hover:border-primary/30">
               <CardHeader>
-                <CardTitle className="font-display text-xl transition-colors hover:text-gold">
+                <CardTitle className="font-display text-xl transition-colors hover:text-primary">
                   {t(tile.titleKey)}
                 </CardTitle>
                 <CardDescription className="font-body">{t(tile.bodyKey)}</CardDescription>
@@ -98,7 +101,7 @@ export default function AdminHome() {
         ))}
       </div>
 
-      <Card className="mt-8 scroll-paper border-gold/20">
+      <Card className="surface mt-8">
         <CardHeader>
           <CardTitle className="font-display text-2xl">{t("admin.searchIndex.title")}</CardTitle>
           <CardDescription className="font-body">{t("admin.searchIndex.body")}</CardDescription>
@@ -116,8 +119,8 @@ export default function AdminHome() {
 
 function StatTile({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border border-border bg-background/40 p-3">
-      <dt className="text-[0.62rem] uppercase tracking-[0.28em] text-gold/70">{label}</dt>
+    <div className="rounded-md border border-border/60 bg-background/40 p-3">
+      <dt className="text-[0.62rem] uppercase tracking-[0.28em] text-muted-foreground">{label}</dt>
       <dd className="mt-1 font-display text-2xl tabular-nums">{value.toLocaleString()}</dd>
     </div>
   );
