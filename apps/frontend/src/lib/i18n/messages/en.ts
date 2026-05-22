@@ -223,11 +223,6 @@ export const en = {
   // Single thread + replies
   "thread.notFound": "Thread not found.",
   "thread.allDiscussions": "All discussions",
-  "thread.subscribe": "Subscribe",
-  "thread.subscribed": "Subscribed",
-  "thread.subscribeTip": "Get notified when someone replies",
-  "thread.unsubscribeTip": "Stop getting notified about new replies",
-  "thread.subscribeError": "Could not update subscription",
   "thread.deleteThread": "Delete thread",
   "thread.deleteReply": "Delete reply",
   "thread.deletedToast": "Thread deleted",

@@ -62,6 +62,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Regression covered by `apps/frontend/tests/login.test.tsx`.
 
 ### Removed (rebuild phase A)
+- **`DiscussionSubscription` model + subscribe/unsubscribe endpoints
+  (Cut A4).** The model and its table tracked which users wanted bell
+  notifications for a thread, but no delivery mechanism ever shipped —
+  there was no Celery digest, no email trigger, and the only consumer
+  of the data was a UI bell-icon toggle on the thread detail page. The
+  fanout that wrote to `notifications` on every reply now simply
+  notifies the thread *author* (skip self-notifications), which covers
+  the original "did anyone answer my question?" UX without the
+  subscription table. Removed: the model, the two API routes, the
+  `is_subscribed` field on `DiscussionDetail`, the four service
+  helpers, the entire frontend subscribe button + state, and the five
+  i18n keys (`thread.subscribe*`, `thread.unsubscribeTip`,
+  `thread.subscribeError`). Alembic migration `0011` drops the table
+  with a reversible downgrade that re-creates the original schema.
 - **`LessonProgress.payload` JSONB column (Cut A3).** The column
   mirrored the latest quiz submission (answers + score + passed),
   but since iteration 47 the append-only `quiz_attempts` table

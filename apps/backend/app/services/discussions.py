@@ -15,13 +15,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ForbiddenError, NotFoundError
 from app.models.course import Course
 from app.models.discussion import Discussion, DiscussionReply
-from app.models.discussion_subscription import DiscussionSubscription
 from app.models.notification import NotificationKind
 from app.models.user import User
 from app.repositories import courses as courses_repo
@@ -60,10 +58,6 @@ async def create_discussion(
     )
     db.add(d)
     await db.flush()
-    # Auto-subscribe the author so they get the same notification path
-    # as any other subscriber — the fanout treats every subscriber
-    # uniformly rather than special-casing the author.
-    await _ensure_subscribed(db, user_id=user.id, discussion_id=d.id)
     return d
 
 
@@ -113,14 +107,23 @@ async def reply(
     # sort surfaces the bumped thread.
     d.updated_at = datetime.now(UTC)
     await db.flush()
-    # subscription fanout. Auto-subscribe the replier
-    # (they've shown interest — same shape as GitHub's auto-
-    # subscribe on comment) then notify every subscriber except
-    # the replier themselves. Caps at 200 fanout rows per reply
-    # so a wildly-popular thread doesn't hammer the notifications
-    # table on every comment.
-    await _ensure_subscribed(db, user_id=user.id, discussion_id=d.id)
-    await _fanout_reply_notifications(db, discussion=d, reply=r, actor=user)
+    # Notify the thread author of the reply (skip self-notifications).
+    # Subscription fanout was removed with the DiscussionSubscription
+    # model — author notification covers the only "did anyone answer
+    # my question?" case the original fanout was built for.
+    if d.author_id != user.id:
+        await notifications_repo.create(
+            db,
+            user_id=d.author_id,
+            kind=NotificationKind.discussion_reply,
+            title=f"New reply on “{d.title}”",
+            body=f"{user.full_name or 'A learner'} replied.",
+            data={
+                "discussion_id": d.id,
+                "reply_id": r.id,
+                "course_id": d.course_id,
+            },
+        )
     return r
 
 
@@ -137,102 +140,6 @@ async def delete_reply(
     if not _can_edit(r, user, course_owner_id=course.owner_id if course else None):
         raise ForbiddenError("Cannot delete this reply", code="reply.forbidden")
     r.deleted_at = datetime.now(UTC)
-
-
-_FANOUT_CAP = 200
-
-
-async def _ensure_subscribed(
-    db: AsyncSession, *, user_id: str, discussion_id: str
-) -> bool:
-    """Idempotent subscribe — returns True if a new row was created."""
-    existing = (
-        await db.execute(
-            select(DiscussionSubscription.id).where(
-                DiscussionSubscription.user_id == user_id,
-                DiscussionSubscription.discussion_id == discussion_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if existing is not None:
-        return False
-    db.add(
-        DiscussionSubscription(user_id=user_id, discussion_id=discussion_id)
-    )
-    await db.flush()
-    return True
-
-
-async def _fanout_reply_notifications(
-    db: AsyncSession,
-    *,
-    discussion: Discussion,
-    reply: DiscussionReply,
-    actor: User,
-) -> None:
-    """Notify every subscriber except the replier themselves."""
-    rows = (
-        await db.execute(
-            select(DiscussionSubscription.user_id)
-            .where(
-                DiscussionSubscription.discussion_id == discussion.id,
-                DiscussionSubscription.user_id != actor.id,
-            )
-            .limit(_FANOUT_CAP)
-        )
-    ).all()
-    body = f"{actor.full_name or 'A learner'} replied."
-    for (user_id,) in rows:
-        await notifications_repo.create(
-            db,
-            user_id=user_id,
-            kind=NotificationKind.discussion_reply,
-            title=f"New reply on “{discussion.title}”",
-            body=body,
-            data={
-                "discussion_id": discussion.id,
-                "reply_id": reply.id,
-                "course_id": discussion.course_id,
-            },
-        )
-
-
-async def subscribe(
-    db: AsyncSession, *, discussion_id: str, user: User
-) -> None:
-    d = await discussions_repo.get(db, discussion_id)
-    if not d:
-        raise NotFoundError("Discussion not found", code="discussion.not_found")
-    await _course_for_write(db, d.course_id, user)
-    await _ensure_subscribed(db, user_id=user.id, discussion_id=d.id)
-
-
-async def unsubscribe(
-    db: AsyncSession, *, discussion_id: str, user: User
-) -> None:
-    res = await db.execute(
-        select(DiscussionSubscription).where(
-            DiscussionSubscription.user_id == user.id,
-            DiscussionSubscription.discussion_id == discussion_id,
-        )
-    )
-    row = res.scalar_one_or_none()
-    if row is not None:
-        await db.delete(row)
-
-
-async def is_subscribed(
-    db: AsyncSession, *, discussion_id: str, user: User | None
-) -> bool:
-    if user is None:
-        return False
-    res = await db.execute(
-        select(DiscussionSubscription.id).where(
-            DiscussionSubscription.user_id == user.id,
-            DiscussionSubscription.discussion_id == discussion_id,
-        )
-    )
-    return res.scalar_one_or_none() is not None
 
 
 def _can_edit(

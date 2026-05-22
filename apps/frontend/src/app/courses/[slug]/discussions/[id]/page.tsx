@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Bell, BellOff, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,7 +34,6 @@ type ThreadDetail = {
   updated_at: string;
   author: Author;
   replies: Reply[];
-  is_subscribed: boolean;
 };
 
 export default function ThreadPage({
@@ -65,16 +64,6 @@ export default function ThreadPage({
       qc.invalidateQueries({ queryKey: ["discussion", id] });
     },
     onError: (e: Error) => toast.error(e?.message ?? t("thread.postError")),
-  });
-
-  const toggleSubscribe = useMutation({
-    mutationFn: () =>
-      api<{ ok: true }>(
-        `/api/v1/discussions/${id}/subscribe`,
-        { method: threadQ.data?.is_subscribed ? "DELETE" : "POST" },
-      ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["discussion", id] }),
-    onError: (e: Error) => toast.error(e?.message ?? t("thread.subscribeError")),
   });
 
   const deleteThread = useMutation({
@@ -128,29 +117,6 @@ export default function ThreadPage({
           <div className="flex items-start justify-between gap-3">
             <CardTitle className="font-display text-2xl">{thread.title}</CardTitle>
             <div className="flex items-center gap-1">
-              {user && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => toggleSubscribe.mutate()}
-                  disabled={toggleSubscribe.isPending}
-                  title={
-                    thread.is_subscribed
-                      ? t("thread.unsubscribeTip")
-                      : t("thread.subscribeTip")
-                  }
-                >
-                  {thread.is_subscribed ? (
-                    <>
-                      <BellOff className="me-1 h-3.5 w-3.5" /> {t("thread.subscribed")}
-                    </>
-                  ) : (
-                    <>
-                      <Bell className="me-1 h-3.5 w-3.5" /> {t("thread.subscribe")}
-                    </>
-                  )}
-                </Button>
-              )}
               {canEditThread && (
                 <Button
                   variant="ghost"

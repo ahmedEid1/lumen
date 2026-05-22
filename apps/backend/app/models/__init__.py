@@ -19,7 +19,6 @@ from app.models.course import (
     course_tags,
 )
 from app.models.discussion import Discussion, DiscussionReply
-from app.models.discussion_subscription import DiscussionSubscription
 from app.models.notification import Notification, NotificationKind
 from app.models.quiz_attempt import QuizAttempt
 from app.models.user import RefreshToken, Role, User
@@ -34,7 +33,6 @@ __all__ = [
     "Difficulty",
     "Discussion",
     "DiscussionReply",
-    "DiscussionSubscription",
     "Enrollment",
     "Lesson",
     "LessonProgress",

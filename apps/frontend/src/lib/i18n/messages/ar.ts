@@ -230,11 +230,6 @@ export const ar: Record<MessageKey, string> = {
   // Single thread + replies
   "thread.notFound": "الموضوع غير موجود.",
   "thread.allDiscussions": "كل النقاشات",
-  "thread.subscribe": "اشترك",
-  "thread.subscribed": "مشترك",
-  "thread.subscribeTip": "اشترك لتُخطَر عند الردود الجديدة",
-  "thread.unsubscribeTip": "أوقف الإشعارات عن الردود الجديدة",
-  "thread.subscribeError": "تعذّر تحديث الاشتراك",
   "thread.deleteThread": "حذف الموضوع",
   "thread.deleteReply": "حذف الردّ",
   "thread.deletedToast": "تم حذف الموضوع",
