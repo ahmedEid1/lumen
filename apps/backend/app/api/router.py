@@ -6,6 +6,7 @@ from app.api.v1 import (
     admin,
     admin_evals,
     admin_llm_calls,
+    admin_observability,
     admin_rate_limit_stats,
     ai_authoring,
     auth,
@@ -62,6 +63,12 @@ api_router.include_router(
 # 429 ring buffer in app.core.rate_limit_metrics.
 api_router.include_router(
     admin_rate_limit_stats.router, prefix="/admin", tags=["admin-rate-limit"]
+)
+# Phase H7 — AI-trace observability under /api/v1/admin/observability/*.
+# Three surfaces: per-call agent-trace + retrieval audit drill-down,
+# recent retrieval-quality list, and Celery queue/health snapshot.
+api_router.include_router(
+    admin_observability.router, prefix="/admin", tags=["admin-observability"]
 )
 # Content ingest (Phase E3) — paste a URL, get a draft course.
 api_router.include_router(

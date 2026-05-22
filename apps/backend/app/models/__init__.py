@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models — imported here so Alembic sees them all."""
 
+from app.models.agent_trace import AgentTrace
 from app.models.asset import Asset
 from app.models.audit import AuditEvent
 from app.models.course import (
@@ -21,6 +22,7 @@ from app.models.lesson_chunk import EMBEDDING_DIM, LessonChunk
 from app.models.llm_call import LLMCall
 from app.models.notification import Notification, NotificationKind
 from app.models.quiz_attempt import QuizAttempt
+from app.models.retrieval_audit import RetrievalAudit
 from app.models.review_card import ReviewCard, ReviewCardState
 from app.models.tutor_conversation import (
     TutorConversation,
@@ -30,6 +32,7 @@ from app.models.tutor_conversation import (
 from app.models.user import RefreshToken, Role, User
 
 __all__ = [
+    "AgentTrace",
     "Asset",
     "AuditEvent",
     "Course",
@@ -49,6 +52,7 @@ __all__ = [
     "NotificationKind",
     "QuizAttempt",
     "RefreshToken",
+    "RetrievalAudit",
     "Review",
     "ReviewCard",
     "ReviewCardState",

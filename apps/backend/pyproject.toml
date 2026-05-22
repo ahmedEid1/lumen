@@ -1,6 +1,12 @@
 [project]
 name = "lumen-backend"
-version = "1.0.0-rebuild"
+# PEP 440 doesn't accept ``1.0.0-rebuild`` as a version string —
+# the hyphenated suffix is neither a pre-release, post-release, nor
+# dev tag. We keep the human-readable "rebuild" label using the
+# local-version segment (``+rebuild``), which preserves the
+# semantics ("this is the 1.0.0 rebuild") and lets ``uv lock`` /
+# ``uv pip install`` parse the project without a TOML error.
+version = "1.0.0+rebuild"
 description = "Lumen — FastAPI backend for the e-learning platform"
 requires-python = ">=3.13"
 license = { text = "MIT" }

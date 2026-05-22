@@ -31,6 +31,7 @@ at the same time so Alembic autogenerate and the test conftest's
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -355,12 +356,37 @@ async def get_celery_health(_: RequireAdmin) -> CeleryHealthOut:
         # warning rather than an import-time crash.
         from app.workers.celery_app import celery as celery_app
 
-        inspect = celery_app.control.inspect(timeout=0.5)
-        if inspect.ping() is None:
-            note = "no celery worker reachable"
-        else:
-            active = inspect.active() or {}
-            scheduled = inspect.scheduled() or {}
+        # The Celery ``control.inspect()`` API is *synchronous* and
+        # uses Kombu under the hood, which opens its own AMQP/Redis
+        # connection pool. The ``timeout`` kwarg only bounds how
+        # long inspect waits for replies AFTER the broker round-trip
+        # — it doesn't bound the connection-pool open / handshake /
+        # reply-channel-drain phases, which under contention can sit
+        # for tens of seconds. Calling it directly from this async
+        # handler blocks the FastAPI event loop and (under pytest's
+        # session-scoped asyncio loop, with a real worker
+        # responding) deadlocks the entire suite.
+        #
+        # Wrap the sync work in ``asyncio.to_thread`` so the event
+        # loop stays free, and hard-cap the whole probe with
+        # ``asyncio.wait_for`` so a wedged broker or busy worker
+        # surfaces as a "no worker reachable" note within 2 s
+        # instead of holding the admin page render forever.
+        def _probe_inspect() -> tuple[
+            dict[str, list[dict[str, Any]]] | None,
+            dict[str, list[dict[str, Any]]] | None,
+            str | None,
+        ]:
+            inspect = celery_app.control.inspect(timeout=0.5)
+            if inspect.ping() is None:
+                return None, None, "no celery worker reachable"
+            return (inspect.active() or {}), (inspect.scheduled() or {}), None
+
+        active, scheduled, note = await asyncio.wait_for(
+            asyncio.to_thread(_probe_inspect), timeout=2.0
+        )
+    except TimeoutError:
+        note = "celery inspect probe timed out"
     except Exception as exc:
         log.warning("celery_inspect_failed", error=str(exc))
         note = f"inspect unavailable: {exc.__class__.__name__}"

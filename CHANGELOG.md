@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (v2 phase H — wave 2)
+- **H4: Free-tier live demo deployment (Vercel + Fly + Supabase + Upstash + R2).**
+  `infra/fly/{fly.api.toml, fly.worker.toml, Dockerfile.fly}` configure
+  the API + Celery worker as two scale-to-zero Fly Machines (`min_machines_running = 0`,
+  `auto_stop = "stop"`, region `fra`, 256 MB VMs). `infra/vercel/vercel.json`
+  wires the Next.js frontend as a monorepo pnpm build with an
+  `ignoreCommand` that skips rebuilds on backend-only diffs. `infra/supabase/`
+  documents the pgvector bootstrap SQL and the **session-pooler-only**
+  rule (port 5432 — asyncpg's prepared statements break against the
+  transaction pooler at 6543). New workflows: `deploy.yml` (deploys
+  api + worker via `flyctl deploy --remote-only` after CI green) and
+  `daily-digest.yml` (07:00 UTC cron that fires the digest task via
+  `flyctl ssh console -C "celery ... call ..."` — no new HTTP endpoint
+  needed since Fly idles the beat process). `apps/backend/app/seeds/demo.py`
+  + `make demo-seed` + `python -m app.cli demo-seed` add an idempotent
+  demo bundle (3 published courses + `demo@lumen.test`). Full first-deploy
+  runbook + day-2 ops + per-tier cost-watch tables in
+  `docs/deployment/free-tier.md`. Cost target: **$0/mo idle**.
+- **H5: README rewrite for agentic-AI positioning.** Replaced the
+  Django-prototype README with an 11-section file: hero band (live
+  demo link, build + eval + MCP + license badges, 90-second Loom
+  placeholder), what-this-is framing, Mermaid architecture diagram
+  (client → Vercel → Fly → Supabase pgvector → Upstash → R2, agent
+  layer + MCP + eval loop), the agentic-patterns resume bullets
+  (I1/I2/I3/I5 marked `planned — Phase I`, H2 shipped, H1+H7
+  observability mixed), "what's running today" status table with
+  ✅/🚧/⏳ marks, eval-scores block, local-run instructions with
+  Groq env-var override, free-tier deploy summary linking to
+  `docs/deployment/free-tier.md`, MCP install snippet placeholder,
+  "Built by" with LinkedIn + GitHub + "open to senior agentic-AI
+  engineering roles" line. Honest framing throughout — `swappable
+  LLM layer; demo runs Groq for $0, prod-ready for Anthropic/OpenAI`
+  rather than `powered by Claude`.
+- **H7: AI-trace observability surface.** New tables `agent_traces`
+  (tree-shaped via `parent_trace_id`, FK to `llm_calls.id`) and
+  `retrieval_audits` (top-K chunks + similarity scores as JSONB) in
+  migration `0023`. `app.services.agent_tracer` exposes
+  `record_step` / `list_traces_for_call` / `list_recent` with
+  SAVEPOINT-isolated writes (mirroring H1's pattern — trace failures
+  don't poison the agent flow). `find_relevant_chunks` grew an
+  opt-in `audit=True` hook (default off) that I2's planner-orchestrator
+  will flip on at its call site. `app.core.otel` now also boots
+  Traceloop's OpenLLMetry SDK when `OBSERVABILITY_ENABLED=true`,
+  auto-instrumenting the Anthropic + OpenAI clients with prompt /
+  response / tokens / model attributes — gated so test runs without
+  an OTLP collector skip the init. Admin API
+  `GET /api/v1/admin/observability/{llm-calls/{id}/trace, retrieval, celery}`
+  + three-tab frontend dashboard at `/admin/observability` (Celery
+  queue depths, LLM trace drill-downs with collapsible tree,
+  retrieval-quality list with chunk scores). Built as the substrate
+  I2 (multi-agent tutor) and I3 (self-critique authoring) will
+  write into.
+
 ### Added (v2 phase H — wave 1)
 - **H1: LLM cost meter + per-user budget guard.** Every LLM call now
   routes through `app.services.llm_call_log.call_logged`, which times
