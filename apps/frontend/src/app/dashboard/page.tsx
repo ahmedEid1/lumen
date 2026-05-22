@@ -8,8 +8,6 @@ import { Award, BookOpen, BookmarkCheck, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { CourseCard } from "@/components/course/course-card";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { Me } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
@@ -34,29 +32,30 @@ export default function DashboardPage() {
   const firstName = user.full_name.split(" ")[0] || user.full_name;
 
   return (
-    <div className="container mx-auto px-4 py-14">
-      <header className="mb-12 flex flex-col gap-3">
-        <Cartouche>{t("dashboard.cartouche")}</Cartouche>
-        <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
+    <div className="container mx-auto px-6 py-20 sm:py-24">
+      <header className="mb-16 flex flex-col gap-3">
+        <p className="font-body text-sm font-medium uppercase tracking-[0.18em] text-primary">
+          {t("dashboard.cartouche")}
+        </p>
+        <h1 className="font-display text-5xl leading-[1.05] tracking-tight sm:text-6xl">
           {t("dashboard.welcome", { name: firstName })}
         </h1>
         <p className="font-body text-lg text-muted-foreground">{t("dashboard.subtitle")}</p>
       </header>
 
-      <section className="mb-14">
-        <h2 className="mb-5 inline-flex items-center gap-2.5 font-display text-2xl font-medium tracking-tight">
-          <BookOpen className="h-5 w-5 text-gold/80" />
+      <section className="mb-16">
+        <h2 className="mb-6 inline-flex items-center gap-2.5 font-display text-3xl leading-tight tracking-tight">
+          <BookOpen className="h-5 w-5 text-primary" />
           {t("dashboard.inProgress")}
         </h2>
         {inProgress.length === 0 ? (
-          <Card className="scroll-paper border-gold/20">
-            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-              <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
+          <Card className="surface">
+            <CardContent className="py-14 text-center">
               <p className="font-body text-muted-foreground">
                 {t("dashboard.empty.enrollments")}{" "}
                 <Link
                   href="/courses"
-                  className="text-gold underline-offset-4 hover:underline"
+                  className="font-medium text-primary underline-offset-4 hover:underline"
                 >
                   {t("dashboard.empty.browse")}
                 </Link>
@@ -65,17 +64,17 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-2">
             {inProgress.map((e) => (
               <Card
                 key={e.id}
-                className="scroll-paper border-border transition-colors hover:border-gold/40"
+                className="surface transition-shadow duration-500 hover:shadow-[0_12px_32px_-12px_hsl(0_0%_0%/0.12)]"
               >
                 <CardHeader>
-                  <CardTitle className="font-display text-xl">
+                  <CardTitle className="font-display text-2xl leading-tight">
                     <Link
                       href={`/courses/${e.course.slug}`}
-                      className="hover:text-gold"
+                      className="transition-colors hover:text-primary"
                     >
                       {e.course.title}
                     </Link>
@@ -88,7 +87,7 @@ export default function DashboardPage() {
                   </p>
                   <Link
                     href={`/learn/${e.course.slug}`}
-                    className="inline-flex items-center gap-1 text-sm text-gold underline-offset-4 hover:underline"
+                    className="inline-flex items-center gap-1 font-body text-sm font-medium text-primary hover:underline"
                   >
                     {t("dashboard.continue")} <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
@@ -100,9 +99,9 @@ export default function DashboardPage() {
       </section>
 
       {bookmarksQ.data && bookmarksQ.data.length > 0 && (
-        <section className="mb-14">
-          <h2 className="mb-5 inline-flex items-center gap-2.5 font-display text-2xl font-medium tracking-tight">
-            <BookmarkCheck className="h-5 w-5 text-gold/80" />
+        <section className="mb-16">
+          <h2 className="mb-6 inline-flex items-center gap-2.5 font-display text-3xl leading-tight tracking-tight">
+            <BookmarkCheck className="h-5 w-5 text-primary" />
             {t("dashboard.bookmarks")}
           </h2>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -114,13 +113,12 @@ export default function DashboardPage() {
       )}
 
       <section>
-        <h2 className="mb-5 inline-flex items-center gap-2.5 font-display text-2xl font-medium tracking-tight">
-          <Award className="h-5 w-5 text-gold/80" />
+        <h2 className="mb-6 inline-flex items-center gap-2.5 font-display text-3xl leading-tight tracking-tight">
+          <Award className="h-5 w-5 text-primary" />
           {t("dashboard.completed")}
         </h2>
         {done.length === 0 ? (
-          <div className="rounded-md border border-dashed border-gold/20 bg-card/40 px-6 py-10 text-center scroll-paper">
-            <Glyph name="ankh" size={40} mode="tint" className="mx-auto mb-3 text-gold/40" />
+          <div className="surface px-6 py-12 text-center">
             <p className="font-body italic text-muted-foreground">
               {t("dashboard.empty.completed")}
             </p>
@@ -130,16 +128,16 @@ export default function DashboardPage() {
             {done.map((e) => (
               <li
                 key={e.id}
-                className="flex items-center justify-between rounded-md border border-border bg-card/40 p-4 transition-colors hover:border-gold/40"
+                className="flex items-center justify-between rounded-md border border-border/60 bg-card p-4 transition-colors hover:border-primary/40"
               >
                 <span className="font-body">{e.course.title}</span>
                 {e.certificate_id && (
                   <a
                     href={`/api/v1/certificates/${e.course.id}.pdf`}
-                    className="inline-flex items-center gap-1 text-gold underline-offset-4 hover:underline"
+                    className="inline-flex items-center gap-1 font-body text-sm font-medium text-primary underline-offset-4 hover:underline"
                   >
-                    <Glyph name="feather" size={14} mode="tint" />
                     {t("dashboard.certificate")}
+                    <ArrowRight className="h-3.5 w-3.5" />
                   </a>
                 )}
               </li>

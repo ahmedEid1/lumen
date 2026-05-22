@@ -616,7 +616,7 @@ export const en = {
   "profile.toast.verifyError": "Could not send verification email",
 
   // Dashboard — scribe's hall of records
-  "dashboard.cartouche": "Your hall of records",
+  "dashboard.cartouche": "Your activity",
   "dashboard.welcome": "Welcome back, {name}",
   "dashboard.subtitle": "Pick up where you left your stylus.",
   "dashboard.inProgress": "In progress",

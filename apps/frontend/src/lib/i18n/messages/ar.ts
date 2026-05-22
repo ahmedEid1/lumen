@@ -623,7 +623,7 @@ export const ar: Record<MessageKey, string> = {
   "profile.toast.verifyError": "تعذّر إرسال رسالة التوثيق",
 
   // Dashboard — قاعة سجلات الكاتب
-  "dashboard.cartouche": "قاعة سجلاتك",
+  "dashboard.cartouche": "نشاطك",
   "dashboard.welcome": "أهلًا بعودتك يا {name}",
   "dashboard.subtitle": "تابع من حيث تركت قلمك.",
   "dashboard.inProgress": "قيد التقدّم",
