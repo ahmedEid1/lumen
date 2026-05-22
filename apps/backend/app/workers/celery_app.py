@@ -19,6 +19,10 @@ celery = Celery(
         "app.workers.tasks.certificates",
         "app.workers.tasks.digest",
         "app.workers.tasks.embeddings",
+        # Phase I5 — monthly learning-path re-planner. Registered
+        # here so the worker boots with the task module imported;
+        # the actual schedule entry lives below in ``beat_schedule``.
+        "app.workers.tasks.learning_path",
     ],
 )
 
@@ -49,5 +53,14 @@ celery.conf.beat_schedule = {
     "send-daily-digests": {
         "task": "app.workers.tasks.digest.send_daily_digests",
         "schedule": crontab(hour="7", minute="0"),
+    },
+    # Phase I5 — monthly learning-path re-planner. Runs at 04:00 UTC
+    # on the first of every month so the spike in metered LLM
+    # traffic lands well before any working-hours user load. The
+    # task swallows per-user errors so a single failed learner
+    # can't block the rest of the cohort.
+    "replan-learning-paths": {
+        "task": "app.workers.tasks.learning_path.replan_paths_monthly",
+        "schedule": crontab(hour="4", minute="0", day_of_month="1"),
     },
 }
