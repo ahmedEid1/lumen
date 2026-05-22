@@ -178,3 +178,15 @@ deploy.demo-seed: ## Run the demo seed on the deployed api (via flyctl ssh).
 	flyctl ssh console --app lumen-api --command "python -m app.cli seed"
 	flyctl ssh console --app lumen-api --command "python -m app.cli demo-seed"
 	flyctl ssh console --app lumen-api --command "python -m app.cli reindex"
+
+# ----- MCP (I1) -----
+# Mint a new MCP OAuth client + print its secret once. Pass the
+# owner email via OWNER (defaults to the seeded instructor).
+#
+#     make mcp-token OWNER=teacher@lumen.test
+#
+# Save the `client_secret` line — Lumen only stores an argon2 hash;
+# if you lose the plaintext you mint a new one.
+.PHONY: mcp-token
+mcp-token: ## Mint a new MCP OAuth client + print its secret once.
+	$(COMPOSE) exec api python -m app.cli mcp-token --owner-email "$(or $(OWNER),teacher@lumen.test)" --name "$(or $(NAME),Local MCP client)" --scopes "$(or $(SCOPES),*)"

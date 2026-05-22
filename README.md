@@ -206,7 +206,7 @@ Cost callout: steady-state **$0/mo idle**. Pay only on sustained traffic; the pe
 
 ## Use Lumen from Claude Desktop
 
-Once the MCP server lands (Phase I, item I1), add Lumen as an MCP tool source in Claude Desktop:
+Lumen ships an MCP server (Phase I, item I1) that exposes its catalog, RAG tutor, FSRS review queue, AI authoring pipeline, and multi-modal ingest as nine tools. Add it as an MCP source in Claude Desktop:
 
 ```json
 // ~/Library/Application Support/Claude/claude_desktop_config.json (macOS)
@@ -214,21 +214,20 @@ Once the MCP server lands (Phase I, item I1), add Lumen as an MCP tool source in
 {
   "mcpServers": {
     "lumen": {
-      "command": "npx",
-      "args": ["-y", "@lumen/mcp-server@latest"],
+      "command": "uvx",
+      "args": ["--from", "lumen-backend", "python", "-m", "app.mcp", "--transport", "stdio"],
       "env": {
-        "LUMEN_API_BASE": "https://lumen-demo.fly.dev",
-        "LUMEN_OAUTH_CLIENT_ID": "<your-client-id>",
-        "LUMEN_OAUTH_CLIENT_SECRET": "<your-client-secret>"
+        "LUMEN_MCP_AUTH_TOKEN": "<your-token>",
+        "DATABASE_URL": "<postgres-url>"
       }
     }
   }
 }
 ```
 
-<!-- MCP_INSTALL_TBD: filled in when I1 lands. The package name, the args list, and the env keys are placeholders matching the spec. -->
+Generate the `LUMEN_MCP_AUTH_TOKEN` value with `make mcp-token` against your running Lumen instance — that prints a fresh OAuth `client_id` + `client_secret` pair; paste the secret as the env value. For Claude Code, the equivalent one-liner is `claude mcp add lumen -- python -m app.mcp --transport stdio` (set `LUMEN_MCP_AUTH_TOKEN` in your shell first). Full operator guide: [docs/mcp.md](docs/mcp.md).
 
-Once installed, ask Claude `'list my Lumen courses'` and watch the MCP tool calls fire in the desktop sidebar — the planner picks among `list_courses`, `get_course`, `ask_tutor`, `list_my_due_reviews`, `grade_review_card`, `create_course_draft`, `ingest_url_to_draft`, and `list_my_progress`.
+Once installed, ask Claude `'list my Lumen courses'` and watch the MCP tool calls fire in the desktop sidebar — the planner picks among `list_courses`, `get_course`, `ask_tutor`, `list_my_due_reviews`, `grade_review_card`, `create_course_draft`, `ingest_url_to_draft`, `list_my_progress`, and `search_lesson_content`.
 
 ---
 

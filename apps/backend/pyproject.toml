@@ -91,6 +91,13 @@ dependencies = [
   # no extra dep.
   "youtube-transcript-api>=0.6",
   "notion-client>=2.2",
+  # MCP — Lumen v2 Phase I1. Lumen exposes its surface as MCP tools
+  # over stdio (Claude Desktop) and streamable-HTTP (Claude Code's
+  # ``claude mcp add`` flow). The ``mcp`` Python SDK ships both
+  # transports + the JSON-schema introspection for tool registration.
+  # Pinned to >=1.5 — earlier releases renamed the FastMCP module
+  # path more than once during 2025.
+  "mcp>=1.5",
   "typer>=0.15",
   "rich>=13.9",
 ]

@@ -211,6 +211,96 @@ def demo_seed() -> None:
     asyncio.run(_demo_run())
 
 
+@cli.command(name="mcp-token")
+def mcp_token(
+    owner_email: str = typer.Option(
+        ...,
+        "--owner-email",
+        "-o",
+        help="Email of the Lumen user the MCP token will act as.",
+    ),
+    name: str = typer.Option(
+        "Local MCP client",
+        "--name",
+        "-n",
+        help="Human-readable label for the registration (shown in /admin/mcp-clients).",
+    ),
+    scopes: str = typer.Option(
+        "*",
+        "--scopes",
+        "-s",
+        help=(
+            "Comma-separated list of MCP tool names the token may invoke,"
+            " or '*' for unrestricted. Default: '*'."
+        ),
+    ),
+) -> None:
+    """Mint a new MCP OAuth client + print its secret once.
+
+    The secret is shown **only** on this CLI run — once you close
+    the terminal, you can't recover it (we store only an argon2
+    hash). If you lose it, mint a new one and revoke the old via
+    ``DELETE /api/v1/admin/mcp-clients/{id}``.
+
+    Example
+    -------
+
+    .. code-block:: shell
+
+       $ python -m app.cli mcp-token --owner-email teacher@lumen.test
+       client_id=abc123…
+       client_secret=def456…   # paste into Claude Desktop's LUMEN_MCP_AUTH_TOKEN
+       scopes=*
+    """
+    asyncio.run(_mcp_token(owner_email=owner_email, name=name, scopes=scopes))
+
+
+async def _mcp_token(*, owner_email: str, name: str, scopes: str) -> None:
+    from app.core.ids import new_id
+    from app.core.security import hash_password
+    from app.models.mcp_client import WILDCARD_SCOPE, MCPClient
+
+    scope_list = [s.strip() for s in scopes.split(",") if s.strip()]
+    if not scope_list:
+        scope_list = [WILDCARD_SCOPE]
+
+    Session = get_sessionmaker()
+    async with Session() as db:
+        res = await db.execute(select(User).where(User.email == owner_email))
+        owner = res.scalar_one_or_none()
+        if owner is None or not owner.is_active:
+            console.print(
+                f"[red]Owner not found or inactive: {owner_email}[/red]"
+            )
+            raise typer.Exit(code=1)
+
+        plaintext_secret = new_id()
+        row = MCPClient(
+            client_secret_hash=hash_password(plaintext_secret),
+            owner_user_id=owner.id,
+            name=name,
+            scopes=scope_list,
+        )
+        db.add(row)
+        await db.commit()
+        await db.refresh(row)
+
+        # Plain ``print`` (not ``console.print``) so the values land
+        # on stdout without ANSI escape codes — the typical usage is
+        # ``eval $(python -m app.cli mcp-token ...)`` or piping into
+        # a secrets manager. ``app/cli.py`` already has the T20
+        # (no-print) rule disabled in pyproject.toml's per-file-ignores
+        # so no per-line noqa is needed.
+        print(f"client_id={row.id}")
+        print(f"client_secret={plaintext_secret}")
+        print(f"owner_user_id={row.owner_user_id}")
+        print(f"name={row.name}")
+        print(f"scopes={','.join(row.scopes)}")
+        console.print(
+            "\n[yellow]Save the client_secret now — it will not be shown again.[/yellow]"
+        )
+
+
 @cli.command()
 def info() -> None:
     """Print configuration summary."""

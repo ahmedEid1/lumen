@@ -1,0 +1,100 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schemas/registry/v1/server.json",
+  "name": "io.lumen/lumen",
+  "display_name": "Lumen",
+  "version": "1.0.0",
+  "description": "Self-hostable, agentic-AI LMS — expose Lumen's catalog, RAG tutor, FSRS review queue, AI authoring pipeline, and multi-modal ingest as MCP tools so Claude can plan, teach, and create courses on a real product.",
+  "homepage": "https://github.com/ahmedEid1/E-Learning-Platform",
+  "source_code": "https://github.com/ahmedEid1/E-Learning-Platform/tree/Rewrite/apps/backend/app/mcp",
+  "documentation": "https://github.com/ahmedEid1/E-Learning-Platform/blob/Rewrite/docs/mcp.md",
+  "license": "MIT",
+  "maintainer": {
+    "name": "Ahmed Hobeishy",
+    "url": "https://www.linkedin.com/in/ahmedhobeishy/"
+  },
+  "categories": ["learning", "education", "agents", "rag", "spaced-repetition"],
+  "transports": ["stdio", "streamable-http"],
+  "authentication": {
+    "stdio": {
+      "type": "bearer",
+      "env_var": "LUMEN_MCP_AUTH_TOKEN",
+      "description": "Mint a token with `make mcp-token` on the Lumen instance; paste the printed secret into the Claude Desktop config's env block."
+    },
+    "http": {
+      "type": "oauth2",
+      "grant_types": ["client_credentials"],
+      "token_endpoint": "/oauth/token",
+      "metadata_endpoint": "/.well-known/oauth-authorization-server"
+    }
+  },
+  "install": {
+    "claude_code": "claude mcp add lumen -- python -m app.mcp --transport stdio",
+    "claude_desktop": {
+      "mcpServers": {
+        "lumen": {
+          "command": "uvx",
+          "args": [
+            "--from",
+            "lumen-backend",
+            "python",
+            "-m",
+            "app.mcp",
+            "--transport",
+            "stdio"
+          ],
+          "env": {
+            "LUMEN_MCP_AUTH_TOKEN": "<your-token>",
+            "DATABASE_URL": "<postgres-url>"
+          }
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "list_courses",
+      "description": "List Lumen courses in the public catalog. Optional `filter` does free-text search over title + overview.",
+      "auth": "public"
+    },
+    {
+      "name": "get_course",
+      "description": "Fetch one course by slug. Returns the full syllabus tree (modules + lessons) plus the course overview.",
+      "auth": "public"
+    },
+    {
+      "name": "search_lesson_content",
+      "description": "Semantic search across a course's lesson chunks. Returns the top-K most similar passages with their lesson titles and pgvector cosine-distance scores (lower = better).",
+      "auth": "user"
+    },
+    {
+      "name": "ask_tutor",
+      "description": "Ask the Lumen course tutor a question. Returns a cited answer or a refusal if the course content doesn't cover the topic. Requires enrollment in the course.",
+      "auth": "user"
+    },
+    {
+      "name": "list_my_due_reviews",
+      "description": "Spaced-repetition queue for the calling user: cards whose FSRS-6 due-at has passed. Returns at most `limit` rows (default 20), oldest-due first.",
+      "auth": "user"
+    },
+    {
+      "name": "grade_review_card",
+      "description": "Submit one FSRS-6 rating against a review card. `rating` is 1=again, 2=hard, 3=good, 4=easy. Updates the card's stability + difficulty + next due-at.",
+      "auth": "user"
+    },
+    {
+      "name": "create_course_draft",
+      "description": "Generate a course outline from a one-paragraph brief and persist it as a draft course owned by the calling instructor. Lesson bodies are placeholders the instructor fills in via the studio.",
+      "auth": "instructor"
+    },
+    {
+      "name": "ingest_url_to_draft",
+      "description": "Import a YouTube / Notion / Google Docs URL into a draft course. Creates a fresh course when `course_id` is omitted, otherwise appends the ingest payload's modules + lessons to the existing course.",
+      "auth": "instructor"
+    },
+    {
+      "name": "list_my_progress",
+      "description": "Per-enrolled-course completion + mastery rollup for the calling user. Returns one row per active enrollment, newest enrolment first.",
+      "auth": "user"
+    }
+  ]
+}
