@@ -151,7 +151,39 @@ export const Me = {
       method: "POST",
       token,
     }),
+  // Phase D4 — per-kind notification dispatch prefs.
+  notificationPrefs: {
+    get: (token?: string) =>
+      api<NotificationPrefsResponse>("/api/v1/me/notifications/prefs", { token }),
+    update: (prefs: Record<string, NotificationDispatch>, token?: string) =>
+      api<NotificationPrefsResponse>("/api/v1/me/notifications/prefs", {
+        method: "PUT",
+        body: { prefs },
+        token,
+      }),
+  },
 };
+
+// Phase D4 — keep this in sync with backend NotificationKind /
+// NotificationDispatch enums.
+export type NotificationKind =
+  | "enrolled"
+  | "lesson_available"
+  | "certificate_ready"
+  | "review_received"
+  | "chat_mention"
+  | "security"
+  | "discussion_reply";
+
+export type NotificationDispatch =
+  | "off"
+  | "in_app"
+  | "email_immediate"
+  | "digest_daily";
+
+export interface NotificationPrefsResponse {
+  prefs: Record<NotificationKind, NotificationDispatch>;
+}
 
 // ---------- Reviews ----------
 export const Reviews = {

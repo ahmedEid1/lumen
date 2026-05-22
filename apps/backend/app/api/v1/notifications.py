@@ -9,8 +9,34 @@ from app.core.errors import NotFoundError
 from app.repositories import notifications as notifications_repo
 from app.schemas.common import OkResponse
 from app.schemas.notification import NotificationOut
+from app.schemas.notification_prefs import (
+    NotificationPrefs,
+    NotificationPrefsUpdate,
+)
+from app.services import notification_prefs as prefs_service
 
 router = APIRouter()
+
+
+@router.get("/prefs", response_model=NotificationPrefs)
+async def get_my_prefs(user: CurrentUser, db: DBSession) -> NotificationPrefs:
+    """Materialised dispatch map for the current user (Phase D4).
+
+    Every :class:`NotificationKind` key is present in the response —
+    kinds the user has never adjusted come back as the default
+    (``in_app``) so the prefs UI can render a complete form from a
+    single round-trip.
+    """
+    return NotificationPrefs(prefs=prefs_service.get_prefs(user))
+
+
+@router.put("/prefs", response_model=NotificationPrefs)
+async def update_my_prefs(
+    payload: NotificationPrefsUpdate, user: CurrentUser, db: DBSession
+) -> NotificationPrefs:
+    """Partial update — only kinds in the payload are touched."""
+    merged = await prefs_service.update_prefs(db, user=user, prefs=payload.prefs)
+    return NotificationPrefs(prefs=merged)
 
 
 @router.get("", response_model=list[NotificationOut])

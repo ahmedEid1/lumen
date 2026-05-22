@@ -17,6 +17,7 @@ celery = Celery(
         "app.workers.tasks.email",
         "app.workers.tasks.media",
         "app.workers.tasks.certificates",
+        "app.workers.tasks.digest",
     ],
 )
 
@@ -37,5 +38,15 @@ celery.conf.beat_schedule = {
     "sweep-unclaimed-assets": {
         "task": "app.workers.tasks.media.sweep_unclaimed_assets",
         "schedule": crontab(hour="3", minute="0"),
+    },
+    # Phase D4 — bundle yesterday's ``digest_daily`` notifications into
+    # one summary email per user. 07:00 UTC is early enough to land in
+    # most inboxes before the working day in EU/India and late enough
+    # to capture overnight activity from the Americas. The task itself
+    # is idempotent (``digested_at`` stamp gates re-delivery), so the
+    # exact tick is a soft target.
+    "send-daily-digests": {
+        "task": "app.workers.tasks.digest.send_daily_digests",
+        "schedule": crontab(hour="7", minute="0"),
     },
 }

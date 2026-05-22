@@ -12,8 +12,30 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageUpload } from "@/components/shared/image-upload";
 import { SessionsCard } from "@/components/shared/sessions-card";
 import { api } from "@/lib/api/client";
+import {
+  Me,
+  type NotificationDispatch,
+  type NotificationKind,
+} from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
+
+const NOTIFICATION_KINDS: NotificationKind[] = [
+  "enrolled",
+  "lesson_available",
+  "certificate_ready",
+  "review_received",
+  "chat_mention",
+  "security",
+  "discussion_reply",
+];
+
+const DISPATCH_OPTIONS: NotificationDispatch[] = [
+  "off",
+  "in_app",
+  "email_immediate",
+  "digest_daily",
+];
 
 /**
  * Profile — Workbench repaint.
@@ -46,6 +68,17 @@ export default function ProfilePage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deletePwd, setDeletePwd] = useState("");
 
+  // Notification preferences (Phase D4). Loaded once on mount and kept
+  // in local state; saved as a whole-form PUT — the backend treats the
+  // payload as a partial merge, but the UI presents every kind at
+  // once so submitting all of them is simpler and avoids a confused
+  // "only some toggles saved" state if the user picks several.
+  const [notifPrefs, setNotifPrefs] = useState<Record<
+    NotificationKind,
+    NotificationDispatch
+  > | null>(null);
+  const [savingPrefs, setSavingPrefs] = useState(false);
+
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/profile");
   }, [ready, user, router]);
@@ -56,6 +89,33 @@ export default function ProfilePage() {
       setBio(user.bio ?? "");
       setAvatarUrl(user.avatar_url ?? "");
     }
+  }, [user]);
+
+  // Fetch current notification dispatch prefs once the user is loaded.
+  // Defaults to ``in_app`` server-side, so a fresh account renders the
+  // form with every kind preselected to "Bell only".
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await Me.notificationPrefs.get();
+        if (!cancelled) setNotifPrefs(res.prefs);
+      } catch {
+        if (!cancelled) {
+          // Fall back to local defaults so the form is still usable
+          // if the GET fails — the PUT will create stored state.
+          const fallback = NOTIFICATION_KINDS.reduce(
+            (acc, k) => ({ ...acc, [k]: "in_app" as NotificationDispatch }),
+            {} as Record<NotificationKind, NotificationDispatch>,
+          );
+          setNotifPrefs(fallback);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   if (!ready || !user) return null;
@@ -112,6 +172,23 @@ export default function ProfilePage() {
       toast.error(e instanceof Error ? e.message : t("profile.toast.emailError"));
     } finally {
       setRequestingEmail(false);
+    }
+  }
+
+  async function saveNotifPrefs(e: React.FormEvent) {
+    e.preventDefault();
+    if (!notifPrefs) return;
+    setSavingPrefs(true);
+    try {
+      const res = await Me.notificationPrefs.update(notifPrefs);
+      setNotifPrefs(res.prefs);
+      toast.success(t("prefs.notifications.savedToast"));
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : t("prefs.notifications.errorToast"),
+      );
+    } finally {
+      setSavingPrefs(false);
     }
   }
 
@@ -285,6 +362,64 @@ export default function ProfilePage() {
           <Button type="submit" disabled={requestingEmail || !newEmail || !emailPwd}>
             {requestingEmail ? t("profile.email.submitting") : t("profile.email.submit")}
           </Button>
+        </form>
+      </Section>
+
+      {/* Notification preferences (Phase D4) */}
+      <Section
+        title={t("prefs.notifications.title")}
+        description={t("prefs.notifications.description")}
+      >
+        <form className="space-y-4" onSubmit={saveNotifPrefs}>
+          {notifPrefs == null ? (
+            <p className="font-body text-sm text-muted-foreground">
+              {t("common.loading")}
+            </p>
+          ) : (
+            <>
+              <div className="divide-y divide-border rounded-md border border-border">
+                {NOTIFICATION_KINDS.map((kind) => (
+                  <div
+                    key={kind}
+                    className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <label
+                      htmlFor={`pref-${kind}`}
+                      className="font-body text-sm font-medium"
+                    >
+                      {t(`prefs.notifications.kind.${kind}`)}
+                    </label>
+                    <select
+                      id={`pref-${kind}`}
+                      value={notifPrefs[kind] ?? "in_app"}
+                      onChange={(e) =>
+                        setNotifPrefs((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                [kind]: e.target.value as NotificationDispatch,
+                              }
+                            : prev,
+                        )
+                      }
+                      className="h-9 rounded-md border border-border bg-background px-3 text-sm transition-colors duration-[160ms] focus:border-foreground focus:outline-none"
+                    >
+                      {DISPATCH_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {t(`prefs.notifications.dispatch.${opt}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <Button type="submit" disabled={savingPrefs}>
+                {savingPrefs
+                  ? t("prefs.notifications.saving")
+                  : t("prefs.notifications.save")}
+              </Button>
+            </>
+          )}
         </form>
       </Section>
 

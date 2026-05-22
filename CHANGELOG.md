@@ -8,6 +8,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added (rebuild phase D)
+- **Per-kind email notification preferences + daily digest worker
+  (D4).** Notifications used to be bell-only; this phase makes them
+  routable per `NotificationKind` across four dispatch modes — `off`
+  (drop entirely), `in_app` (default, bell row only — preserves pre-D4
+  behaviour), `email_immediate` (bell row + one-shot email send via
+  the existing email worker), `digest_daily` (bell row + the new
+  daily-digest worker bundles unread rows into one summary email per
+  user). Storage: new `users.notification_prefs` JSONB column
+  (`server_default '{}'`, migration `0015`) shaped
+  `{ "<kind>": "off|in_app|email_immediate|digest_daily" }` — sparse
+  so missing keys resolve to `in_app` at read time, no data backfill
+  needed for existing accounts. Idempotency stamp: new
+  `notifications.digested_at` column (migration `0016`, separate from
+  the prefs migration so each is independently revertable) — the
+  digest worker sets it on every row it includes in a send so
+  subsequent runs skip them. Schedule: Celery Beat fires
+  `app.workers.tasks.digest.send_daily_digests` at 07:00 UTC, picked
+  to land before the EU/India work day and after Americas overnight
+  activity; the task itself is idempotent so the exact tick is a soft
+  target. Best-effort by design — if the broker or SMTP is down in
+  dev the rows simply stay un-stamped and get picked up next run, and
+  the in-app bell remains the source of truth (which the loop comment
+  in `digest.py` and CLAUDE.md's existing "Celery is best-effort in
+  dev" gotcha both call out). Frontend: new "Notifications" section
+  on `apps/frontend/src/app/profile/page.tsx` — one row per
+  `NotificationKind` with a native `<select>` of the four dispatch
+  modes, loaded from `GET /me/notifications/prefs` on mount, saved as
+  a whole-form PUT. New endpoints `GET/PUT /me/notifications/prefs`,
+  schema `NotificationPrefs` + `NotificationPrefsUpdate`, service
+  `app/services/notification_prefs.py` (the only place defaults are
+  resolved). Eighteen i18n keys × 2 locales (en + ar) added; parity
+  test passes.
 - **First-login onboarding tour for learners + instructors (D3).** A
   three-step interactive walkthrough shown to brand-new users on their
   first dashboard visit (learners) and first studio visit (instructors
