@@ -17,6 +17,7 @@ from app.models.course import (
     Tag,
     course_tags,
 )
+from app.models.course_draft_trace import CourseDraftTrace
 from app.models.discussion import Discussion, DiscussionReply
 from app.models.learning_path import LearningPath, LearningPathStep
 from app.models.lesson_chunk import EMBEDDING_DIM, LessonChunk
@@ -38,6 +39,7 @@ __all__ = [
     "Asset",
     "AuditEvent",
     "Course",
+    "CourseDraftTrace",
     "CourseStatus",
     "Difficulty",
     "Discussion",
