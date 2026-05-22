@@ -102,6 +102,16 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Image / file upload
+  "upload.choose": "اختر ملفًا",
+  "upload.uploading": "جارٍ الرفع…",
+  "upload.successToast": "تم الرفع",
+  "upload.tooLarge": "الملف كبير جدًا (الحدّ الأقصى {n} م.ب)",
+  "upload.exceedsLimit": "الملف يتجاوز حدّ {n} م.ب لرفع {kind}",
+  "upload.failedWithStatus": "فشل الرفع ({status})",
+  "upload.failed": "فشل الرفع",
+  "upload.none": "لا شيء",
+
   // Sessions card — الجلسات النشطة
   "sessions.title": "الجلسات النشطة",
   "sessions.description": "{n} نشطة · آخر 50 جلسة دخول أدناه",

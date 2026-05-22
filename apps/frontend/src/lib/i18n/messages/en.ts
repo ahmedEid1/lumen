@@ -95,6 +95,16 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Image / file upload
+  "upload.choose": "Choose file",
+  "upload.uploading": "Uploading…",
+  "upload.successToast": "Uploaded",
+  "upload.tooLarge": "File is too large (max {n} MB)",
+  "upload.exceedsLimit": "File exceeds the {n} MB limit for {kind} uploads",
+  "upload.failedWithStatus": "Upload failed ({status})",
+  "upload.failed": "Upload failed",
+  "upload.none": "none",
+
   // Sessions card — active sign-ins
   "sessions.title": "Active sessions",
   "sessions.description": "{n} active · last 50 sign-ins listed below",
