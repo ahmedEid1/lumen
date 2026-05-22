@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Cpu, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ChevronDown, ChevronRight, Cpu, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
@@ -40,12 +41,23 @@ export interface AgentReasoningPanelProps {
   confidence: number;
   /** Pre-expand the entire panel. Used for the first turn on page load. */
   defaultExpanded?: boolean;
+  /**
+   * When both ``conversationId`` and ``messageId`` are supplied, a
+   * "See the full trace" footer link drops the learner into the
+   * I4 drill-down at /dashboard/tutor/{cid}/turn/{mid}. Optional so
+   * existing call sites (which render the inline panel without a
+   * deep-link target) keep working.
+   */
+  conversationId?: string;
+  messageId?: string;
 }
 
 export function AgentReasoningPanel({
   toolCalls,
   confidence,
   defaultExpanded = false,
+  conversationId,
+  messageId,
 }: AgentReasoningPanelProps) {
   const t = useT();
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -122,6 +134,29 @@ export function AgentReasoningPanel({
           </table>
         </div>
       )}
+      {/*
+        I4 — "See the full trace" deep-link footer. Only rendered
+        when both ids are supplied (the panel ships with optional
+        props so existing call sites that don't have ids yet keep
+        working). The link targets the learner-facing drill-down
+        page that lays out the planner / sub-agents / retrieval
+        chunks / synthesiser in one full-page view.
+      */}
+      {conversationId && messageId ? (
+        <div
+          className="mt-3 flex justify-end border-t border-border/40 pt-2"
+          data-testid="agent-trace-full-link-wrap"
+        >
+          <Link
+            href={`/dashboard/tutor/${conversationId}/turn/${messageId}`}
+            className="inline-flex items-center gap-1 font-mono text-[11px] text-primary hover:underline"
+            data-testid="agent-trace-full-link"
+          >
+            See the full trace
+            <ArrowRight className="h-3 w-3" aria-hidden />
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }

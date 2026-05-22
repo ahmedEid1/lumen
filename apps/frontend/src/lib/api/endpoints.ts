@@ -426,6 +426,102 @@ export const AI = {
     ),
 };
 
+// ---------- Learner + instructor agent traces (Phase I4) ----------
+//
+// Two surfaces consume these endpoints: the per-turn tutor
+// drill-down at /dashboard/tutor/{cid}/turn/{mid} and the
+// instructor replay at /studio/draft/{cid}/replay.
+
+export interface TraceLLMCallSummary {
+  call_id: string;
+  feature: string;
+  provider: string;
+  model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cost_usd: string;
+  latency_ms: number;
+  status: string;
+  created_at: string;
+}
+
+export interface TraceStep {
+  trace_id: string;
+  parent_trace_id: string | null;
+  parent_call_id: string | null;
+  step: string;
+  step_index: number;
+  payload: Record<string, unknown>;
+  duration_ms: number;
+  status: string;
+  created_at: string;
+}
+
+export interface TraceRetrievalAudit {
+  audit_id: string;
+  feature: string;
+  query: string;
+  course_id: string | null;
+  chunks: Array<Record<string, unknown>>;
+  top_score: number | null;
+  created_at: string;
+}
+
+export interface TutorTurnTraceResponse {
+  message_id: string;
+  conversation_id: string;
+  course_id: string;
+  feature: string;
+  llm_call: TraceLLMCallSummary | null;
+  agent_traces: TraceStep[];
+  retrieval_audits: TraceRetrievalAudit[];
+  total_cost_usd: string;
+  total_latency_ms: number;
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  confidence: number;
+  created_at: string;
+}
+
+export interface DraftReplayStep {
+  id: string;
+  draft_id: string;
+  course_id: string | null;
+  step: string;
+  step_index: number;
+  status: string;
+  duration_ms: number;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface DraftReplayResponse {
+  course_id: string;
+  draft_id: string | null;
+  steps: DraftReplayStep[];
+  step_count: number;
+  total_duration_ms: number;
+}
+
+export const Traces = {
+  tutorTurn: (
+    conversationId: string,
+    messageId: string,
+    token?: string,
+  ) =>
+    api<TutorTurnTraceResponse>(
+      `/api/v1/me/tutor/conversations/${encodeURIComponent(
+        conversationId,
+      )}/turns/${encodeURIComponent(messageId)}/trace`,
+      { token },
+    ),
+  draftReplay: (courseId: string, token?: string) =>
+    api<DraftReplayResponse>(
+      `/api/v1/me/studio/drafts/${encodeURIComponent(courseId)}/replay`,
+      { token },
+    ),
+};
+
 // ---------- Reviews ----------
 export const Reviews = {
   list: (courseId: string) => api<ReviewOut[]>(`/api/v1/courses/${courseId}/reviews`),
