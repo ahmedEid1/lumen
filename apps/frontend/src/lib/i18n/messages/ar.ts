@@ -280,6 +280,7 @@ export const ar: Record<MessageKey, string> = {
   "lessonEdit.captionsUrl": "رابط الترجمة (WebVTT، اختياري)",
   "lessonEdit.captionsHelp": "أضف ترجمة WebVTT لتبقى الدرس متاحًا للمتعلمين الصمّ وضعاف السمع. افتراضيًا: مفعّلة.",
   "lessonEdit.captionsLabel": "اسم مسار الترجمة",
+  "lessonEdit.captionsLabelPlaceholder": "العربية",
   "lessonEdit.captionsLang": "رمز اللغة (BCP-47)",
   "lessonEdit.assetKey": "مفتاح الملف",
   "lessonEdit.altText": "نص بديل",

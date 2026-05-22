@@ -180,9 +180,16 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
                 </label>
                 <Input
                   id="captions-label"
+                  // Persisted data fallback intentionally stays as the
+                  // literal "English" — it's what the <track label="">
+                  // attribute shows to learners on the video player if
+                  // the instructor doesn't override it. The placeholder
+                  // is the only locale-aware part: an Arabic instructor
+                  // sees "العربية" as the hint, suggesting they should
+                  // type the language they're actually using.
                   value={data.captions_label ?? "English"}
                   onChange={(e) => setData({ ...data, captions_label: e.target.value })}
-                  placeholder="English"
+                  placeholder={t("lessonEdit.captionsLabelPlaceholder")}
                 />
               </div>
               <div className="space-y-1.5">

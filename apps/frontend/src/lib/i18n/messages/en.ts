@@ -273,6 +273,7 @@ export const en = {
   "lessonEdit.captionsUrl": "Captions URL (WebVTT, optional)",
   "lessonEdit.captionsHelp": "Add WebVTT captions so the lesson stays accessible to deaf / hard-of-hearing learners. Default: on.",
   "lessonEdit.captionsLabel": "Caption track label",
+  "lessonEdit.captionsLabelPlaceholder": "English",
   "lessonEdit.captionsLang": "Language code (BCP-47)",
   "lessonEdit.assetKey": "Asset key",
   "lessonEdit.altText": "Alt text",
