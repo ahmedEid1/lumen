@@ -56,12 +56,23 @@ and bounce.
 ## When the search service was removed (rebuild Cut A9)
 
 After upgrading past Cut A9 (which deleted the `meilisearch`
-service from `docker-compose.yml`), run
+service block from `docker-compose.yml`), run
 `docker compose down --remove-orphans` once to clear the orphan
-Meilisearch container left over from the old search service.
-`docker compose up` will warn about the orphan but won't remove
-it on its own; left running, it'll keep the named volume hot and
-fail subsequent `docker volume prune` runs.
+Meilisearch container — typically named `lumen-search-1` on a
+stack that was up before the cut — left over from the old search
+service. `docker compose up` will warn about the orphan but won't
+remove it on its own; left running, it'll keep the named volume
+hot and fail subsequent `docker volume prune` runs.
+
+Verify the orphan is gone:
+
+```bash
+docker compose ps -a | grep -i search   # should print nothing
+```
+
+Search now runs entirely on Postgres `tsvector` + GIN for
+keyword search and pgvector for semantic retrieval — there's no
+external search service to bring back up.
 
 ## When the database schema changes
 
