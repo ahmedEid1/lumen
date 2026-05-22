@@ -8,8 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
@@ -52,34 +50,36 @@ export default function AdminUsers() {
   });
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-14">
+    <div className="container mx-auto max-w-5xl px-6 py-14">
       <header className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-3">
-          <Cartouche>{t("adminUsers.cartouche")}</Cartouche>
-          <h1 className="font-display text-3xl font-medium tracking-tight">
+          <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+            {t("adminUsers.cartouche")}
+          </p>
+          <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
             {t("adminUsers.title")}
           </h1>
           <p className="font-body text-muted-foreground">{t("adminUsers.subtitle")}</p>
         </div>
         <div className="relative sm:w-72">
-          <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gold/60" />
+          <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("adminUsers.searchPlaceholder")}
-            className="border-gold/25 bg-background/60 ps-9 focus-visible:border-gold/60"
+            className="ps-9"
           />
         </div>
       </header>
 
-      <Card className="scroll-paper border-gold/20">
+      <Card className="surface">
         <CardHeader>
           <CardTitle className="font-display text-xl">{t("adminUsers.recentCard")}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b border-gold/15 bg-muted/30 text-[0.65rem] uppercase tracking-[0.28em] text-gold/70">
+              <thead className="border-b border-border/60 bg-muted/30 text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 text-start font-medium">{t("adminUsers.col.user")}</th>
                   <th className="px-4 py-3 text-start font-medium">{t("adminUsers.col.role")}</th>
@@ -92,7 +92,7 @@ export default function AdminUsers() {
                 {usersQ.data?.map((u) => (
                   <tr
                     key={u.id}
-                    className="border-t border-border transition-colors hover:bg-muted/20"
+                    className="border-t border-border/60 transition-colors hover:bg-muted/30"
                   >
                     <td className="px-4 py-3">
                       <div className="font-display text-base font-medium">{u.full_name || "—"}</div>
@@ -105,7 +105,7 @@ export default function AdminUsers() {
                     </td>
                     <td className="px-4 py-3">
                       {u.is_active ? (
-                        <Badge className="border border-gold/40 bg-gold/10 text-gold">
+                        <Badge className="border border-primary/40 bg-primary/10 text-primary">
                           {t("adminUsers.status.active")}
                         </Badge>
                       ) : (
@@ -118,7 +118,7 @@ export default function AdminUsers() {
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
                         <select
-                          className="h-8 rounded-md border border-gold/25 bg-background/60 px-2 font-body text-xs focus-visible:border-gold/60"
+                          className="h-8 rounded-md border border-border/60 bg-background/60 px-2 font-body text-xs transition-colors focus-visible:border-primary/60 focus-visible:outline-none"
                           value={u.role}
                           disabled={u.id === me?.id}
                           onChange={(e) => setRole.mutate({ id: u.id, role: e.target.value })}
@@ -144,18 +144,10 @@ export default function AdminUsers() {
                 ))}
                 {!usersQ.data?.length && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-12">
-                      <div className="flex flex-col items-center gap-3 text-center">
-                        <Glyph
-                          name="ankh"
-                          size={40}
-                          mode="tint"
-                          className="text-gold/40"
-                        />
-                        <p className="font-body italic text-muted-foreground">
-                          {t("adminUsers.empty")}
-                        </p>
-                      </div>
+                    <td colSpan={5} className="px-4 py-14">
+                      <p className="text-center font-display text-xl italic text-muted-foreground">
+                        {t("adminUsers.empty")}
+                      </p>
                     </td>
                   </tr>
                 )}

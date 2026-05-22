@@ -354,7 +354,7 @@ export const ar: Record<MessageKey, string> = {
   "adminCourses.error": "تعذّر التحديث",
 
   // Admin / users — أسماء في السجل
-  "adminUsers.cartouche": "أسماء في السجل",
+  "adminUsers.cartouche": "المستخدمون",
   "adminUsers.title": "المستخدمون",
   "adminUsers.subtitle": "رقّ المدرّسين، عطّل الحسابات.",
   "adminUsers.searchPlaceholder": "ابحث بالبريد أو الاسم…",

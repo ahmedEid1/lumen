@@ -347,7 +347,7 @@ export const en = {
   "adminCourses.error": "Could not update",
 
   // Admin / users — names in the ledger
-  "adminUsers.cartouche": "Names in the ledger",
+  "adminUsers.cartouche": "Users",
   "adminUsers.title": "Users",
   "adminUsers.subtitle": "Promote instructors, deactivate accounts.",
   "adminUsers.searchPlaceholder": "Search email or name…",
