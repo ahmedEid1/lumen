@@ -77,7 +77,7 @@ export default function StudioPage() {
       <div
         className="mb-8 flex flex-wrap gap-2"
         role="tablist"
-        aria-label="Filter courses by status"
+        aria-label={t("studio.filterAria")}
       >
         {FILTERS.map((f) => {
           const active = filter === f.value;

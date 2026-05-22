@@ -503,6 +503,7 @@ export const en = {
 
   // Studio root — instructor atelier
   "studio.cartouche": "The atelier",
+  "studio.filterAria": "Filter courses by status",
   "studio.title": "Instructor studio",
   "studio.subtitle": "Manage your courses and content.",
   "studio.newCourse": "New course",

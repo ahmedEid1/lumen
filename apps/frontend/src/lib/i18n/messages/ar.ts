@@ -510,6 +510,7 @@ export const ar: Record<MessageKey, string> = {
 
   // Studio root — ورشة المدرّس
   "studio.cartouche": "ورشة الكاتب",
+  "studio.filterAria": "تصفية الدورات حسب الحالة",
   "studio.title": "ورشة المدرّس",
   "studio.subtitle": "أدر دوراتك ومحتواها.",
   "studio.newCourse": "دورة جديدة",
