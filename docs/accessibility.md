@@ -102,6 +102,33 @@ When CI fails, the workflow uploads `playwright-report/` and
 `test-results/` as an artifact (`playwright-axe-report`) — screenshots
 and traces are in there.
 
+## Light-mode primary token (Phase G1)
+
+The light-mode `--primary` token in
+`apps/frontend/src/styles/globals.css` is **`hsl(75 80% 25%)`** =
+`#59730D` — a deeper sibling of the dark-mode electric lime
+(`hsl(72 100% 50%)` / `#C8FF00`). The deeper shade is forced by
+WCAG 2.2 AA: the dark-mode lime against the light-mode surfaces
+(`#FAFAF9`, `#FFFFFF`, `#F4F4F2`) yields only 2.44 / 2.54 / 2.33
+contrast, well below the 4.5:1 floor for body text. The new value
+clears the bar with margin:
+
+| Surface              | Hex       | Contrast | Verdict |
+|----------------------|-----------|----------|---------|
+| Background           | `#FAFAF9` | 5.21:1   | AA pass |
+| Card                 | `#FFFFFF` | 5.42:1   | AA pass |
+| Muted                | `#F4F4F2` | 4.98:1   | AA pass |
+
+`--primary-foreground` flips to `hsl(60 9% 98%)` in light mode so
+`bg-primary text-primary-foreground` buttons still pass AA
+(5.21:1 white-on-green). `--ring` follows `--primary`.
+
+**Do not touch the dark-mode `--primary`** — `hsl(72 100% 50%)` is
+the Lumen signature lime and reads correctly against the
+near-black dark surfaces. The two values are intentionally
+different shades of the same green family; they are not derived
+from each other and should not be unified.
+
 ## When you find a violation
 
 **Default: fix it.** That's why the gate exists. Most violations

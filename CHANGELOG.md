@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (rebuild phase G)
+- **Light-mode primary contrast (G1).** The Workbench rebuild's
+  light-mode `--primary` was `hsl(72 80% 38%)` (`#8FAE13`), which
+  only managed 2.44:1 against `#FAFAF9`, 2.54:1 against `#FFFFFF`,
+  and 2.33:1 against `#F4F4F2` — well below the WCAG 2.2 AA 4.5:1
+  body-text floor. The Phase D5 axe-core gate flagged nine of the
+  ten audited routes on `color-contrast` whenever Chromium honoured
+  `prefers-color-scheme: light` (which it does by default on the CI
+  runners), making the gate effectively unfightable in light mode.
+
+  Light-mode `--primary` now resolves to `hsl(75 80% 25%)` =
+  `#59730D` — a deeper sibling of the same lime family, sitting at
+  5.21 / 5.42 / 4.98:1 against the three light surfaces (background,
+  card, muted respectively). `--primary-foreground` flips from the
+  near-black `hsl(220 14% 4%)` to the light foreground
+  `hsl(60 9% 98%)` so `bg-primary text-primary-foreground` buttons
+  still pass AA at 5.21:1 (white-on-green), and `--ring` tracks
+  `--primary` so the focus outline stays consistent.
+
+  **Dark mode is untouched.** `--primary` there remains
+  `hsl(72 100% 50%)` (`#C8FF00` electric lime) — the dark-mode
+  signature accent reads correctly against the `#0A0B0D` surface,
+  and the rebuild's brand identity hinges on it. The two values are
+  intentionally separate shades of the same green family; light mode
+  needs a contrast-correct sibling, not a unified token.
+
+  Verified locally with `make a11y` against the dev compose stack:
+  the seven routes whose only failure was `text-primary` /
+  `border-primary` / `bg-primary/10` consumers (`/`, `/courses`,
+  `/login`, `/register`, `/forgot-password`, `/courses/{slug}`,
+  `/studio`, `/admin`) now go green. The two remaining failing
+  routes (`/dashboard`, `/profile`) carry violations on unrelated
+  tokens / primitives (a destructive-variant button, an unlabeled
+  disabled form input, a test-side selector that matches both the
+  page heading and the onboarding-tour heading); those are tracked
+  separately and are out of scope for G1, which is bounded to the
+  light-mode primary token swap.
+
+  Files: `apps/frontend/src/styles/globals.css` (`--primary`,
+  `--primary-foreground`, `--ring` in the `.light` block, plus an
+  inline comment documenting the contrast ratios),
+  `docs/accessibility.md` (new "Light-mode primary token" section
+  with the surface × ratio table and the rationale for keeping the
+  dark-mode lime untouched).
+
 ## [1.0.0-rebuild] - 2026-05-22
 
 The Lumen rebuild. Six phases (A: cuts, B: stop-the-bleed, C: Workbench

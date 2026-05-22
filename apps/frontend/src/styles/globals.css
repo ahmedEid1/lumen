@@ -52,8 +52,15 @@
     --card-foreground: 220 14% 4%;
     --muted: 60 5% 96%;                  /* #F4F4F2 */
     --muted-foreground: 213 7% 40%;      /* #5E646C */
-    --primary: 72 80% 38%;               /* darker lime for light bg contrast */
-    --primary-foreground: 220 14% 4%;
+    /* AA-contrast lime sibling. Dark mode keeps hsl(72 100% 50%) as the
+       signature electric lime; light mode needs a much deeper green so
+       text-primary clears WCAG 2.2 AA 4.5:1 against #FAFAF9, #FFFFFF,
+       and #F4F4F2 (the three light surfaces). hsl(75 80% 25%) = #59730D
+       gives 5.21 / 5.42 / 4.98 against those surfaces respectively, and
+       still reads as the Lumen lime family — just deeper. The old
+       hsl(72 80% 38%) hit 2.44 / 2.54 / 2.33 and failed every route. */
+    --primary: 75 80% 25%;               /* #59730D — deeper lime for AA contrast */
+    --primary-foreground: 60 9% 98%;     /* white-on-green: 5.21:1 (near-black flips to white) */
     --secondary: 60 5% 96%;
     --secondary-foreground: 220 14% 4%;
     --accent: 215 17% 47%;
@@ -64,7 +71,7 @@
     --warning: 38 91% 45%;
     --border: 60 5% 90%;
     --input: 60 5% 90%;
-    --ring: 72 80% 38%;
+    --ring: 75 80% 25%;                  /* matches --primary */
 
     --surface-1: 0 0% 100%;
     --surface-2: 60 5% 96%;
