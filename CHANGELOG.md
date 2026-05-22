@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (v2 phase H — wave 1)
+- **H1: LLM cost meter + per-user budget guard.** Every LLM call now
+  routes through `app.services.llm_call_log.call_logged`, which times
+  the call, records prompt/completion tokens + USD cost into a new
+  `llm_calls` table (migration `0022`), and trips a `BudgetExceededError`
+  (HTTP 429, `code="llm.budget_exceeded"`) once a user's rolling 24-hour
+  spend crosses `settings.llm_user_budget_24h_usd` (default `$1.00`).
+  Pricing for the demo's default model (`llama-3.3-70b-versatile` via
+  Groq's OpenAI-compatible endpoint) and the paid Anthropic / OpenAI
+  paths is in `app.services.llm_pricing`. Admin API:
+  `GET /api/v1/admin/llm-calls` (paginated + filtered) and
+  `GET /api/v1/admin/llm-calls/summary` (14-day rollup).
+- **H2: Eval harness with LLM-as-judge + golden datasets.** Three
+  hand-curated suites under `apps/backend/evals/`: `tutor/` (30 items
+  across 3 seed courses), `authoring/` (10 briefs + ideal outlines),
+  `ingest/` (5 YouTube + 5 Notion URLs). Run with
+  `python -m app.evals run --suite tutor --limit N`. Judge is the
+  configured LLM provider (Groq Llama 3.3 70B by default) scoring each
+  item on suite-specific axes (faithfulness / citation_correctness /
+  helpfulness for tutor; coverage / learning_arc / scope / fidelity
+  for authoring; chapter_count / key_phrases / structure for ingest).
+  Reports land as JSONL under `apps/backend/evals/reports/` with mean
+  + regression-vs-previous-run. Admin dashboard at `/admin/evals`
+  surfaces per-suite history with drill-down + expandable rationales.
+  CI workflow `pnpm-eval-smoke.yml` runs a 3-item smoke on every PR,
+  failing only when the judge ran against a real LLM and mean dropped
+  below 3.5.
+- **H3: Playwright e2e against the live stack.** Five new spec files
+  under `apps/frontend/tests/e2e/` covering register→verify→reset,
+  enrol→quiz→certificate+badge, instructor draft→AI-outline→publish→
+  analytics, tutor citations cross-checked against the catalog API,
+  and multi-modal ingest→commit→drafts. Helpers under `tests/e2e/helpers/`
+  for seeded login, Mailpit token polling, and unauthenticated catalog
+  reads. New `e2e.yml` workflow brings up the full docker stack,
+  migrates, seeds, pre-indexes lesson embeddings, and uploads
+  Playwright traces + screenshots + videos + compose logs on failure.
+- **H6: Production-exposure security pass.** Refresh-token reuse now
+  also fans out a `security.refresh_reuse` admin notification (chain
+  revocation behaviour is unchanged). New `app.core.prod_guards.assert_production_safe()`
+  runs at lifespan startup in production and refuses to boot if
+  `LLM_PROVIDER=noop`, `SECRET_KEY` is short, or `DATABASE_URL` points
+  at `localhost` — and warns when `LLM_PROVIDER=openai` is selected
+  without `OPENAI_API_BASE` (operator probably meant Groq). CORS
+  middleware filters loopback origins out in prod and fails-boot if
+  the resulting list is empty. 429 events flow into an in-memory ring
+  buffer surfaced via `GET /api/v1/admin/rate-limit-stats`. `.env.example`
+  re-grouped with section banners and missing fields added. New
+  `docs/security.md` documents auth transport, the refresh-reuse
+  alarm, the prod guard list, secret rotation, CORS policy, and a
+  one-page threat model.
+
 ### Fixed (rebuild phase G)
 - **Worker image now picks up new backend deps on rebuild (G5).**
   At session start the worker container was missing the seven

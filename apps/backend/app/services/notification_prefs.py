@@ -40,9 +40,20 @@ def _coerce_dispatch(value: Any) -> NotificationDispatch:
         return DEFAULT_DISPATCH
 
 
-def resolve_dispatch(user: User, kind: NotificationKind) -> NotificationDispatch:
-    """Return the dispatch mode for ``user`` × ``kind`` with defaults applied."""
-    stored = (user.notification_prefs or {}).get(kind.value)
+def resolve_dispatch(
+    user: User, kind: NotificationKind | str
+) -> NotificationDispatch:
+    """Return the dispatch mode for ``user`` × ``kind`` with defaults applied.
+
+    Accepts both the :class:`NotificationKind` enum (the original
+    contract) and a raw string. The string form supports H6's
+    ``security.refresh_reuse`` sub-kind, which isn't in the enum yet
+    but persists fine because the column is a plain ``String(40)``.
+    For any string that doesn't have an explicit user pref, the
+    default dispatch kicks in (in-app, no email).
+    """
+    key = kind.value if isinstance(kind, NotificationKind) else str(kind)
+    stored = (user.notification_prefs or {}).get(key)
     if stored is None:
         return DEFAULT_DISPATCH
     return _coerce_dispatch(stored)

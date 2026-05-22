@@ -65,21 +65,34 @@ def test_zero_tokens_zero_cost() -> None:
 
 
 def test_unknown_model_returns_zero_and_warns(
-    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An unpriced model must not blow up — log a warning and return $0.
 
     The meter still wants to write a row; we just don't know what to
     multiply by, so the safe default is zero. The structlog warning
     is the operator's signal to add the model to ``MODEL_PRICING``.
+
+    We assert on the warning via a monkeypatch over the module's
+    bound logger rather than via :func:`caplog` because the project's
+    structlog config uses :class:`structlog.PrintLoggerFactory` —
+    output goes straight to stdout and never enters the stdlib
+    logging tree that pytest's caplog hooks into. Capturing the call
+    on the module attribute is more direct and survives any future
+    log-renderer swap.
     """
-    caplog.set_level(logging.WARNING)
+    from app.services import llm_pricing as pricing_mod
+
+    events: list[tuple[str, dict[str, object]]] = []
+
+    class _Recorder:
+        def warning(self, event: str, **kwargs: object) -> None:
+            events.append((event, kwargs))
+
+    monkeypatch.setattr(pricing_mod, "log", _Recorder())
     cost = compute_cost_usd("some-future-model", 1000, 1000)
     assert cost == Decimal("0.000000")
-    # The structlog binding emits the event name in the message; we
-    # don't pin on the exact format because structlog rendering can
-    # vary across handlers, but the event name must appear.
-    assert any("llm_pricing_unknown_model" in r.getMessage() for r in caplog.records)
+    assert any(name == "llm_pricing_unknown_model" for name, _ in events)
 
 
 def test_pricing_table_includes_all_required_models() -> None:

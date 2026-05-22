@@ -18,6 +18,7 @@ from app.models.course import (
 )
 from app.models.discussion import Discussion, DiscussionReply
 from app.models.lesson_chunk import EMBEDDING_DIM, LessonChunk
+from app.models.llm_call import LLMCall
 from app.models.notification import Notification, NotificationKind
 from app.models.quiz_attempt import QuizAttempt
 from app.models.review_card import ReviewCard, ReviewCardState
@@ -39,6 +40,7 @@ __all__ = [
     "EMBEDDING_DIM",
     "Enrollment",
     "Lesson",
+    "LLMCall",
     "LessonChunk",
     "LessonProgress",
     "LessonType",

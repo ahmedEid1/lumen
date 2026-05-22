@@ -141,8 +141,14 @@ async def test_dashboard_progress_is_batched(
 
     # Pre-fix this would be 2 per enrollment = 10 (or 5 with the lesson
     # total cached, but the original code didn't cache). The batched
-    # fix issues 2 aggregates regardless of N.
-    assert len(progress_queries) <= 2, (
-        f"Expected <=2 batched progress queries, got {len(progress_queries)}:\n"
+    # fix issues a fixed number of aggregates regardless of N. The
+    # third aggregate is `count(modules)` per course from
+    # ``courses.stats_for_courses`` — also batched, still O(1) in the
+    # number of enrollments, which is what this perf gate guards
+    # against. The threshold caps batched queries at 3 to lock in the
+    # O(1) behaviour without churning every time a new rollup gets
+    # batched in.
+    assert len(progress_queries) <= 3, (
+        f"Expected <=3 batched progress queries, got {len(progress_queries)}:\n"
         + "\n".join(progress_queries)
     )

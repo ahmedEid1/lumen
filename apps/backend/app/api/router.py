@@ -4,6 +4,9 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     admin,
+    admin_evals,
+    admin_llm_calls,
+    admin_rate_limit_stats,
     ai_authoring,
     auth,
     badges,
@@ -44,6 +47,22 @@ api_router.include_router(certificates.router, prefix="/certificates", tags=["ce
 api_router.include_router(badges.router, prefix="/credentials", tags=["badges"])
 api_router.include_router(discussions.router, tags=["discussions"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
+# Phase H1 — LLM cost meter: paginated calls + 14-day rollup
+# under /api/v1/admin/llm-calls{,/summary}.
+api_router.include_router(
+    admin_llm_calls.router, prefix="/admin", tags=["admin-llm-calls"]
+)
+# Phase H2 — Eval harness: suites + reports + run-trigger
+# under /api/v1/admin/evals/*.
+api_router.include_router(
+    admin_evals.router, prefix="/admin", tags=["admin-evals"]
+)
+# Phase H6 — Rate-limit metrics (read-only) under
+# /api/v1/admin/rate-limit-stats, sourced from the in-memory
+# 429 ring buffer in app.core.rate_limit_metrics.
+api_router.include_router(
+    admin_rate_limit_stats.router, prefix="/admin", tags=["admin-rate-limit"]
+)
 # Content ingest (Phase E3) — paste a URL, get a draft course.
 api_router.include_router(
     content_ingest.router, prefix="/studio/ingest", tags=["studio-ingest"]

@@ -144,6 +144,20 @@ async def rotate_refresh(
             )
         except Exception as exc:  # pragma: no cover — defense in depth
             log.warning("refresh_reuse_alarm_failed", error=str(exc), user_id=stored.user_id)
+        # H6 — the chain revocation, audit row, and admin notifications
+        # above all live in the request's SQLAlchemy session. Without
+        # this commit, the UnauthorizedError raise below propagates to
+        # the FastAPI exception handler which then unwinds through
+        # ``get_db``'s ``except: await session.rollback()`` clause —
+        # reverting every effect of the reuse branch. Commit explicitly
+        # so the security state changes (token revocation, alarm row)
+        # persist even though we're returning an error response. A
+        # second commit in ``get_db`` would be a no-op (no active
+        # transaction), and the rollback path turns into a no-op too.
+        try:
+            await db.commit()
+        except Exception as exc:  # pragma: no cover — extremely rare
+            log.warning("refresh_reuse_commit_failed", error=str(exc), user_id=stored.user_id)
         raise UnauthorizedError("Refresh token reuse detected", code="auth.refresh_reuse")
     if stored.expires_at < now:
         raise UnauthorizedError("Refresh token expired", code="auth.refresh_expired")
