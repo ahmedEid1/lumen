@@ -54,8 +54,8 @@ export function MyReviewEditor({ courseId, myReview }: Props) {
   const display = hovered || rating;
 
   return (
-    <div className="rounded-md border border-gold/20 bg-card/40 p-4 scroll-paper">
-      <p className="mb-2 font-display text-sm font-medium text-gold/90">
+    <div className="surface rounded-md p-4">
+      <p className="mb-2 font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
         {myReview ? t("review.yours") : t("review.leave")}
       </p>
       <div
@@ -78,7 +78,7 @@ export function MyReviewEditor({ courseId, myReview }: Props) {
             <Star
               className={cn(
                 "h-6 w-6 transition-colors",
-                n <= display ? "fill-gold text-gold" : "text-muted-foreground/60",
+                n <= display ? "fill-primary text-primary" : "text-muted-foreground/60",
               )}
             />
           </button>
