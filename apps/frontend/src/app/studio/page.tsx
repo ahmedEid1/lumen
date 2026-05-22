@@ -7,11 +7,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 import { Courses } from "@/lib/api/endpoints";
 import type { CourseListItem, CourseStatus } from "@/lib/api/types";
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
+import { instructorSteps } from "@/lib/onboarding/steps";
 import { cn } from "@/lib/utils";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
@@ -67,6 +69,12 @@ export default function StudioPage() {
 
   return (
     <div className="container mx-auto px-6 py-14">
+      {(user.role === "instructor" || user.role === "admin") && (
+        <OnboardingTour
+          steps={instructorSteps(t)}
+          storageKey="lumen.onboarding.instructor.dismissed"
+        />
+      )}
       <header className="mb-10 flex flex-col gap-3">
         <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
           {t("studio.cartouche")}

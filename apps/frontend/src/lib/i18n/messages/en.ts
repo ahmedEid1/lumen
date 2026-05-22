@@ -594,6 +594,25 @@ export const en = {
   "profile.toast.verifyResent": "Verification email sent",
   "profile.toast.verifyError": "Could not send verification email",
 
+  // Notification preferences (Phase D4)
+  "prefs.notifications.title": "Notifications",
+  "prefs.notifications.description": "Choose how each kind of notification reaches you. Defaults to the bell only.",
+  "prefs.notifications.save": "Save preferences",
+  "prefs.notifications.saving": "Saving…",
+  "prefs.notifications.savedToast": "Notification preferences updated",
+  "prefs.notifications.errorToast": "Could not update preferences",
+  "prefs.notifications.dispatch.off": "Off",
+  "prefs.notifications.dispatch.in_app": "Bell only",
+  "prefs.notifications.dispatch.email_immediate": "Email immediately",
+  "prefs.notifications.dispatch.digest_daily": "Daily digest",
+  "prefs.notifications.kind.enrolled": "Course enrollment",
+  "prefs.notifications.kind.lesson_available": "New lesson available",
+  "prefs.notifications.kind.certificate_ready": "Certificate ready",
+  "prefs.notifications.kind.review_received": "Review on your course",
+  "prefs.notifications.kind.chat_mention": "Chat mention",
+  "prefs.notifications.kind.security": "Security alerts",
+  "prefs.notifications.kind.discussion_reply": "Discussion reply",
+
   // Dashboard — your activity
   "dashboard.cartouche": "Your activity",
   "dashboard.welcome": "Welcome back, {name}",
@@ -606,6 +625,32 @@ export const en = {
   "dashboard.percentComplete": "{pct}% complete",
   "dashboard.continue": "Continue",
   "dashboard.certificate": "Certificate",
+
+  // Onboarding — first-login tour (Phase D3)
+  "onboarding.welcome": "Welcome to Lumen",
+  "onboarding.step": "Step {n} of {total}",
+  "onboarding.next": "Next",
+  "onboarding.done": "Got it",
+  "onboarding.skip": "Skip",
+  "onboarding.dismiss": "Dismiss the tour",
+  "onboarding.learner.s1.title": "Welcome to Lumen",
+  "onboarding.learner.s1.body":
+    "This is your learning dashboard. Anything you enroll in shows up here with progress tracking.",
+  "onboarding.learner.s2.title": "Ask the tutor",
+  "onboarding.learner.s2.body":
+    "On every lesson page you can open the AI tutor — it answers from the course content itself, not the general web.",
+  "onboarding.learner.s3.title": "Build a streak",
+  "onboarding.learner.s3.body":
+    "Complete one lesson a day to keep your streak alive. Spaced repetition surfaces what's worth revisiting.",
+  "onboarding.instructor.s1.title": "Welcome to the studio",
+  "onboarding.instructor.s1.body":
+    "This is where you author courses. Drag to reorder modules and lessons; quizzes auto-grade on submission.",
+  "onboarding.instructor.s2.title": "AI-assisted authoring",
+  "onboarding.instructor.s2.body":
+    "Paste a YouTube URL or a Notion page into a new lesson — Lumen extracts a transcript, chapters, and draft quiz items.",
+  "onboarding.instructor.s3.title": "Publish when you're ready",
+  "onboarding.instructor.s3.body":
+    "Use 'Preview as student' to verify the flow, then hit Publish. The catalog updates immediately.",
 
   // Generic
   "common.loading": "Loading…",

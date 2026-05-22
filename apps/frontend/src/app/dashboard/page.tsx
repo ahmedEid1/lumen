@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { ArrowRight } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 import { Me } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
+import { learnerSteps } from "@/lib/onboarding/steps";
 
 /**
  * Dashboard — Workbench repaint.
@@ -42,6 +44,12 @@ export default function DashboardPage() {
 
   return (
     <div className="container mx-auto px-6 py-14 sm:py-20">
+      {user.role === "student" && (
+        <OnboardingTour
+          steps={learnerSteps(t)}
+          storageKey="lumen.onboarding.learner.dismissed"
+        />
+      )}
       <header className="mb-12 flex flex-col gap-3">
         <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
           {t("dashboard.cartouche")}

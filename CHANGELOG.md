@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (rebuild phase D)
+- **First-login onboarding tour for learners + instructors (D3).** A
+  three-step interactive walkthrough shown to brand-new users on their
+  first dashboard visit (learners) and first studio visit (instructors
+  and admins). Steps are role-specific: learners see dashboard +
+  AI-tutor + streak copy, instructors see studio + AI-assisted
+  authoring + publish copy. Persistence is localStorage-only — flag is
+  `lumen.onboarding.${role}.dismissed = "1"`, set on either Skip or
+  Done. No backend column, no migration; resyncing across devices was
+  intentionally deferred because the tour is informational and a
+  re-show on a fresh device is acceptable UX. Keyboard support: Esc to
+  dismiss, ArrowRight to advance. Visual: single bordered Workbench
+  card on a dimmed overlay, one lime accent (Next/Done CTA), Skip is a
+  ghost. New surfaces: `components/onboarding/onboarding-tour.tsx`,
+  `lib/onboarding/steps.ts`, `lib/onboarding/use-onboarding.ts`. Eight
+  i18n chrome + step keys × 2 locales (en + ar) added; parity test
+  green. Five vitest cases cover initial render, advance-on-Next,
+  Done-dismisses-and-persists, no-render-when-flag-set, and
+  Skip-dismisses-and-persists.
+
 ### Changed (rebuild phase C)
 - **Workbench repaint of dashboard + learn + studio + admin + profile
   + discussions (C2 wave 2).** Twenty file/view repaints onto the

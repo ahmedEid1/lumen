@@ -601,6 +601,25 @@ export const ar: Record<MessageKey, string> = {
   "profile.toast.verifyResent": "تم إرسال رسالة التوثيق",
   "profile.toast.verifyError": "تعذّر إرسال رسالة التوثيق",
 
+  // تفضيلات الإشعارات (المرحلة D4)
+  "prefs.notifications.title": "الإشعارات",
+  "prefs.notifications.description": "اختر طريقة وصول كل نوع من الإشعارات. الإعداد الافتراضي هو الجرس فقط.",
+  "prefs.notifications.save": "حفظ التفضيلات",
+  "prefs.notifications.saving": "جارٍ الحفظ…",
+  "prefs.notifications.savedToast": "تم تحديث تفضيلات الإشعارات",
+  "prefs.notifications.errorToast": "تعذّر تحديث التفضيلات",
+  "prefs.notifications.dispatch.off": "إيقاف",
+  "prefs.notifications.dispatch.in_app": "الجرس فقط",
+  "prefs.notifications.dispatch.email_immediate": "بريد فوري",
+  "prefs.notifications.dispatch.digest_daily": "ملخّص يومي",
+  "prefs.notifications.kind.enrolled": "التسجيل في الدورات",
+  "prefs.notifications.kind.lesson_available": "درس جديد متاح",
+  "prefs.notifications.kind.certificate_ready": "الشهادة جاهزة",
+  "prefs.notifications.kind.review_received": "تقييم على دورتك",
+  "prefs.notifications.kind.chat_mention": "إشارة في الدردشة",
+  "prefs.notifications.kind.security": "تنبيهات الأمان",
+  "prefs.notifications.kind.discussion_reply": "ردّ على نقاش",
+
   // Dashboard — your activity
   "dashboard.cartouche": "نشاطك",
   "dashboard.welcome": "أهلًا بعودتك يا {name}",
@@ -613,6 +632,32 @@ export const ar: Record<MessageKey, string> = {
   "dashboard.percentComplete": "{pct}٪ مكتمل",
   "dashboard.continue": "متابعة",
   "dashboard.certificate": "الشهادة",
+
+  // Onboarding — first-login tour (Phase D3)
+  "onboarding.welcome": "مرحبًا بك في لومن",
+  "onboarding.step": "الخطوة {n} من {total}",
+  "onboarding.next": "التالي",
+  "onboarding.done": "تمام",
+  "onboarding.skip": "تخطّي",
+  "onboarding.dismiss": "إغلاق الجولة",
+  "onboarding.learner.s1.title": "مرحبًا بك في لومن",
+  "onboarding.learner.s1.body":
+    "هذه لوحتك التعليمية. كل دورة تسجّل فيها ستظهر هنا مع تتبّع التقدّم.",
+  "onboarding.learner.s2.title": "اسأل المعلّم الذكي",
+  "onboarding.learner.s2.body":
+    "في كل صفحة درس يمكنك فتح المعلّم الذكي — يُجيبك من محتوى الدورة نفسها، لا من الإنترنت العام.",
+  "onboarding.learner.s3.title": "ابنِ سلسلتك اليومية",
+  "onboarding.learner.s3.body":
+    "أكمل درسًا واحدًا كل يوم للحفاظ على سلسلتك. التكرار المتباعد يُذكّرك بما يستحق المراجعة.",
+  "onboarding.instructor.s1.title": "مرحبًا بك في الاستوديو",
+  "onboarding.instructor.s1.body":
+    "من هنا تُؤلّف دوراتك. اسحب لإعادة ترتيب الوحدات والدروس؛ والاختبارات تُصحَّح تلقائيًا عند الإرسال.",
+  "onboarding.instructor.s2.title": "تأليف بمساعدة الذكاء الاصطناعي",
+  "onboarding.instructor.s2.body":
+    "ألصق رابط يوتيوب أو صفحة Notion داخل درس جديد — يستخرج لومن النص والفصول ومسوّدة أسئلة الاختبار.",
+  "onboarding.instructor.s3.title": "انشر عندما تكون جاهزًا",
+  "onboarding.instructor.s3.body":
+    "استخدم «معاينة كطالب» للتحقق من التجربة، ثم اضغط «نشر». ستتحدّث القائمة فورًا.",
 
   // Generic
   "common.loading": "جارٍ التحميل…",
