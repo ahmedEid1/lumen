@@ -183,6 +183,18 @@ class _CapturingPrintCollector:
             return ""
         return "".join(self._captured)
 
+    # RestrictedPython 8.x compiles ``print(x)`` into a
+    # ``_print._call_print(*args, **kwargs)`` against this object
+    # rather than the bare ``_print(x)`` that the 7.x docs describe.
+    # The exact call signature varies across micro-releases (8.0
+    # passes positional values, 8.1+ passes the tuple), so accept
+    # *args/**kwargs and dispatch in a single place.
+    def _call_print(self, *args: Any, **kwargs: Any) -> None:
+        self.__call__(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return "".join(self._captured)
+
 
 class _CapturingPrintCollectorFactory:
     """Wraps :class:`_CapturingPrintCollector` so calling it (no-arg)
