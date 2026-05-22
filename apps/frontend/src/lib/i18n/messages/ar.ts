@@ -584,7 +584,7 @@ export const ar: Record<MessageKey, string> = {
   "verifyCert.issuedOn": "أُصدرت في {date}",
 
   // Profile — نقشك
-  "profile.cartouche": "نقشك الشخصي",
+  "profile.cartouche": "الإعدادات",
   "profile.badge.verified": "موثَّق",
   "profile.badge.unverified": "غير موثَّق",
   "profile.banner.unverified": "بريدك لم يُوثَّق بعد — تفقّد صندوق الوارد أو أعد إرسال الرابط.",

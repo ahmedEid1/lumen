@@ -577,7 +577,7 @@ export const en = {
   "verifyCert.issuedOn": "Issued {date}",
 
   // Profile — your inscription
-  "profile.cartouche": "Your inscription",
+  "profile.cartouche": "Settings",
   "profile.badge.verified": "verified",
   "profile.badge.unverified": "unverified",
   "profile.banner.unverified": "Your email isn't verified yet — check your inbox or resend the link.",

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ImageUpload } from "@/components/shared/image-upload";
 import { SessionsCard } from "@/components/shared/sessions-card";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
@@ -117,22 +116,21 @@ export default function ProfilePage() {
     }
   }
 
-  const inputClass =
-    "border-gold/25 bg-background/60 focus-visible:border-gold/60";
-
   return (
-    <div className="container mx-auto max-w-3xl space-y-8 px-4 py-14">
-      <header className="flex flex-col gap-3">
-        <Cartouche>{t("profile.cartouche")}</Cartouche>
+    <div className="container mx-auto max-w-3xl space-y-10 px-6 py-20">
+      <header className="flex flex-col gap-4">
+        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          {t("profile.cartouche")}
+        </p>
         <div className="flex items-center gap-5">
-          <Avatar className="h-20 w-20 border-2 border-gold/30">
+          <Avatar className="h-20 w-20 border border-border">
             <AvatarImage src={user.avatar_url ?? undefined} alt={user.full_name} />
-            <AvatarFallback className="bg-card text-2xl font-medium text-gold">
+            <AvatarFallback className="bg-muted text-2xl font-medium text-foreground">
               {user.full_name.slice(0, 1).toUpperCase() || "U"}
             </AvatarFallback>
           </Avatar>
           <div className="flex flex-col gap-1.5">
-            <h1 className="font-display text-3xl font-medium tracking-tight">
+            <h1 className="font-display text-4xl leading-tight tracking-tight">
               {user.full_name || user.email}
             </h1>
             <div className="flex flex-wrap items-center gap-2 font-body text-sm text-muted-foreground">
@@ -141,7 +139,7 @@ export default function ProfilePage() {
                 {user.role}
               </Badge>
               {user.email_verified_at ? (
-                <Badge className="border border-gold/40 bg-gold/10 text-gold">
+                <Badge className="border border-primary/40 bg-primary/10 text-primary">
                   {t("profile.badge.verified")}
                 </Badge>
               ) : (
@@ -156,8 +154,8 @@ export default function ProfilePage() {
 
       {!user.email_verified_at && (
         <div className="flex flex-col items-start justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm sm:flex-row sm:items-center">
-          <p className="flex items-center gap-2 font-body text-destructive-foreground">
-            <Glyph name="feather" size={18} mode="tint" className="text-destructive" />
+          <p className="flex items-center gap-2 font-body text-destructive">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
             {t("profile.banner.unverified")}
           </p>
           <Button
@@ -177,9 +175,11 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <Card className="scroll-paper border-gold/20">
+      <Card className="surface">
         <CardHeader>
-          <CardTitle className="font-display text-2xl">{t("profile.section.profile")}</CardTitle>
+          <CardTitle className="font-display text-2xl leading-tight">
+            {t("profile.section.profile")}
+          </CardTitle>
           <CardDescription className="font-body">
             {t("profile.section.profileDesc")}
           </CardDescription>
@@ -194,7 +194,6 @@ export default function ProfilePage() {
                 id="full_name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className={inputClass}
               />
             </div>
             <div className="space-y-1.5">
@@ -206,7 +205,6 @@ export default function ProfilePage() {
                 rows={4}
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
-                className={inputClass}
               />
             </div>
             <ImageUpload
@@ -223,9 +221,11 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      <Card className="scroll-paper border-gold/20">
+      <Card className="surface">
         <CardHeader>
-          <CardTitle className="font-display text-2xl">{t("profile.section.password")}</CardTitle>
+          <CardTitle className="font-display text-2xl leading-tight">
+            {t("profile.section.password")}
+          </CardTitle>
           <CardDescription className="font-body">
             {t("profile.section.passwordDesc")}
           </CardDescription>
@@ -239,7 +239,6 @@ export default function ProfilePage() {
               onChange={(e) => setCurrentPwd(e.target.value)}
               autoComplete="current-password"
               required
-              className={inputClass}
             />
             <Input
               type="password"
@@ -249,7 +248,6 @@ export default function ProfilePage() {
               autoComplete="new-password"
               minLength={12}
               required
-              className={inputClass}
             />
             <Button type="submit" disabled={savingPwd}>
               {savingPwd ? t("profile.password.submitting") : t("profile.password.submit")}
@@ -258,9 +256,11 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      <Card className="scroll-paper border-gold/20">
+      <Card className="surface">
         <CardHeader>
-          <CardTitle className="font-display text-2xl">{t("profile.section.email")}</CardTitle>
+          <CardTitle className="font-display text-2xl leading-tight">
+            {t("profile.section.email")}
+          </CardTitle>
           <CardDescription className="font-body">
             {t("profile.section.emailDesc")}
           </CardDescription>
@@ -271,7 +271,7 @@ export default function ProfilePage() {
               <label className="font-body text-sm font-medium">
                 {t("profile.field.currentEmail")}
               </label>
-              <Input value={user.email} disabled className={inputClass} />
+              <Input value={user.email} disabled />
             </div>
             <div className="space-y-1.5">
               <label htmlFor="new_email" className="font-body text-sm font-medium">
@@ -284,7 +284,6 @@ export default function ProfilePage() {
                 onChange={(e) => setNewEmail(e.target.value)}
                 autoComplete="email"
                 required
-                className={inputClass}
               />
             </div>
             <Input
@@ -294,7 +293,6 @@ export default function ProfilePage() {
               onChange={(e) => setEmailPwd(e.target.value)}
               autoComplete="current-password"
               required
-              className={inputClass}
             />
             <Button type="submit" disabled={requestingEmail || !newEmail || !emailPwd}>
               {requestingEmail ? t("profile.email.submitting") : t("profile.email.submit")}
@@ -305,9 +303,9 @@ export default function ProfilePage() {
 
       <SessionsCard />
 
-      <Card className="scroll-paper border-destructive/40">
+      <Card className="rounded-lg border border-destructive/40 bg-card">
         <CardHeader>
-          <CardTitle className="font-display text-2xl text-destructive">
+          <CardTitle className="font-display text-2xl leading-tight text-destructive">
             {t("profile.section.delete")}
           </CardTitle>
           <CardDescription className="font-body">
@@ -326,7 +324,6 @@ export default function ProfilePage() {
                 placeholder={t("profile.delete.confirmPlaceholder")}
                 value={deletePwd}
                 onChange={(e) => setDeletePwd(e.target.value)}
-                className={inputClass}
               />
               <div className="flex gap-2">
                 <Button variant="destructive" onClick={deleteAccount} disabled={!deletePwd}>
