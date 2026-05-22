@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (rebuild phase B)
+- **Removed hard-coded demo credentials from the login form.**
+  `apps/frontend/src/app/login/page.tsx` previously initialised the
+  email + password `useState` hooks with `student@lumen.test` /
+  `Learn!2026` for dev convenience. That convenience ships to prod
+  as a real footgun: any visitor opening `/login` sees a valid seed
+  account pre-typed into the form, and a one-click submit lands
+  them inside the dashboard against any environment whose database
+  still has the seed. Both fields now start as empty strings.
+  Regression covered by `apps/frontend/tests/login.test.tsx`.
+
 ### Removed (rebuild phase A)
 - Idempotency middleware (`app/core/idempotency.py` + middleware
   registration in `app/main.py`) and its test suite. The middleware

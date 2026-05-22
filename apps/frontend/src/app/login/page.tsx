@@ -33,8 +33,8 @@ function LoginForm() {
   const next = params.get("next") || "/dashboard";
   const { login } = useAuth();
   const t = useT();
-  const [email, setEmail] = useState("student@lumen.test");
-  const [password, setPassword] = useState("Learn!2026");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
