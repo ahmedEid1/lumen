@@ -98,9 +98,9 @@ async def db_session(_engine) -> AsyncIterator[AsyncSession]:
         # Clean tables between tests (fast for our small set).
         await session.execute(text(
             "TRUNCATE assets, audit_events, notifications, reviews, quiz_attempts, "
-            "discussion_replies, discussions, lesson_chunks, lesson_progress, "
-            "enrollments, lessons, modules, course_tags, courses, tags, subjects, "
-            "auth_refresh_tokens, users RESTART IDENTITY CASCADE"
+            "review_cards, discussion_replies, discussions, lesson_chunks, "
+            "lesson_progress, enrollments, lessons, modules, course_tags, courses, "
+            "tags, subjects, auth_refresh_tokens, users RESTART IDENTITY CASCADE"
         ))
         await session.commit()
         yield session

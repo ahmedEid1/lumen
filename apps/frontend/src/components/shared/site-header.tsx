@@ -73,6 +73,10 @@ function navLinksFor(role: "student" | "instructor" | "admin" | undefined): NavL
   const links: NavLink[] = [{ href: "/courses", labelKey: "nav.catalog" }];
   if (!role) return links;
   links.push({ href: "/dashboard", labelKey: "nav.dashboard" });
+  // Reviews is shown to everyone authenticated — instructors and admins
+  // can have learner cards too if they've taken any quizzes (and the
+  // empty-state copy handles the "no cards yet" case cleanly).
+  links.push({ href: "/dashboard/reviews", labelKey: "nav.reviews" });
   if (role === "instructor" || role === "admin")
     links.push({ href: "/studio", labelKey: "nav.studio" });
   if (role === "admin") links.push({ href: "/admin", labelKey: "nav.admin" });

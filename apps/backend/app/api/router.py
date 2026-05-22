@@ -14,6 +14,7 @@ from app.api.v1 import (
     health,
     notifications,
     reviews,
+    reviews_queue,
     search,
     uploads,
     users,
@@ -31,6 +32,7 @@ api_router.include_router(enrollments.router, prefix="/me", tags=["enrollments"]
 api_router.include_router(reviews.router, prefix="/courses", tags=["reviews"])
 api_router.include_router(uploads.router, prefix="/uploads", tags=["uploads"])
 api_router.include_router(notifications.router, prefix="/me/notifications", tags=["notifications"])
+api_router.include_router(reviews_queue.router, prefix="/me/reviews", tags=["reviews-queue"])
 api_router.include_router(certificates.router, prefix="/certificates", tags=["certificates"])
 api_router.include_router(badges.router, prefix="/credentials", tags=["badges"])
 api_router.include_router(discussions.router, tags=["discussions"])

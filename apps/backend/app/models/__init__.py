@@ -20,6 +20,7 @@ from app.models.discussion import Discussion, DiscussionReply
 from app.models.lesson_chunk import EMBEDDING_DIM, LessonChunk
 from app.models.notification import Notification, NotificationKind
 from app.models.quiz_attempt import QuizAttempt
+from app.models.review_card import ReviewCard, ReviewCardState
 from app.models.user import RefreshToken, Role, User
 
 __all__ = [
@@ -42,6 +43,8 @@ __all__ = [
     "QuizAttempt",
     "RefreshToken",
     "Review",
+    "ReviewCard",
+    "ReviewCardState",
     "Role",
     "Subject",
     "Tag",

@@ -198,3 +198,52 @@ export const Reviews = {
     api<{ ok: true }>(`/api/v1/courses/${courseId}/reviews`, { method: "DELETE", token }),
 };
 
+// ---------- Reviews queue (FSRS-6, Phase E4) ----------
+
+export type ReviewCardState = "new" | "learning" | "review" | "relearning";
+
+export interface ReviewCardLesson {
+  id: string;
+  title: string;
+  course_id: string;
+  course_title: string;
+  course_slug: string;
+}
+
+export interface ReviewCardOut {
+  id: string;
+  state: ReviewCardState;
+  stability: number;
+  difficulty: number;
+  due_at: string;
+  last_reviewed_at: string | null;
+  total_reviews: number;
+  lesson: ReviewCardLesson;
+}
+
+export interface ReviewQueueResponse {
+  items: ReviewCardOut[];
+}
+
+export interface ReviewStatsResponse {
+  due: number;
+  learning: number;
+  review: number;
+  next_7_days: number;
+}
+
+export type ReviewRating = "again" | "hard" | "good" | "easy";
+
+export const ReviewsQueue = {
+  queue: (token?: string, limit = 20) =>
+    api<ReviewQueueResponse>(`/api/v1/me/reviews/queue?limit=${limit}`, { token }),
+  stats: (token?: string) =>
+    api<ReviewStatsResponse>("/api/v1/me/reviews/stats", { token }),
+  grade: (cardId: string, rating: ReviewRating, token?: string) =>
+    api<ReviewCardOut>(`/api/v1/me/reviews/${cardId}/grade`, {
+      method: "POST",
+      body: { rating },
+      token,
+    }),
+};
+

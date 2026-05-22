@@ -8,4 +8,6 @@ export const qk = {
   enrollments: ["me", "enrollments"] as const,
   myCourses: ["me", "my-courses"] as const,
   notifications: ["me", "notifications"] as const,
+  reviewsQueue: ["me", "reviews", "queue"] as const,
+  reviewsStats: ["me", "reviews", "stats"] as const,
 };

@@ -17,6 +17,7 @@ from app.models.user import User
 from app.repositories import courses as courses_repo
 from app.repositories import notifications as notifications_repo
 from app.services import badges as badges_service
+from app.services import fsrs as fsrs_service
 
 log = get_logger(__name__)
 
@@ -165,6 +166,16 @@ async def record_quiz_attempt(
     )
     db.add(attempt)
     await db.flush()
+
+    # Phase E4 — every completed quiz (pass *or* fail) joins the
+    # learner's FSRS-6 review queue. ``ensure_card`` is idempotent so
+    # repeat submissions don't churn the schedule; the card's state +
+    # due-at only change when the learner actually grades themselves
+    # via :func:`app.services.fsrs.record_review`. We deliberately
+    # add cards on fail too — a failed quiz is exactly the material a
+    # learner needs to revisit, and the alternative ("only enroll on
+    # pass") punishes the case the queue exists to help with.
+    await fsrs_service.ensure_card(db, user_id=user.id, lesson_id=lesson.id)
 
     total = await courses_repo.count_lessons_in_course(db, course.id)
     done = await courses_repo.count_completed_lessons(db, enrollment.id)
