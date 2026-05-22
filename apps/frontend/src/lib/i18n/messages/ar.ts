@@ -102,6 +102,21 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Sessions card — الجلسات النشطة
+  "sessions.title": "الجلسات النشطة",
+  "sessions.description": "{n} نشطة · آخر 50 جلسة دخول أدناه",
+  "sessions.signOutAll": "تسجيل الخروج من كل الأجهزة",
+  "sessions.empty": "لا جلسات مسجّلة.",
+  "sessions.unknownDevice": "جهاز غير معروف",
+  "sessions.signedIn": "دخلت {when}",
+  "sessions.revoked": "أُلغيت {when}",
+  "sessions.expires": "تنتهي {when}",
+  "sessions.revoke": "إلغاء الجلسة",
+  "sessions.revokedToast": "تم إلغاء الجلسة",
+  "sessions.revokeError": "تعذّر إلغاء الجلسة",
+  "sessions.allRevokedToast": "تم تسجيل الخروج من كل الجلسات — سجّل الدخول من جديد للمتابعة",
+  "sessions.revokeAllError": "تعذّر إلغاء الجلسات",
+
   // Notifications dropdown
   "notif.title": "الإشعارات",
   "notif.ariaWithCount": "الإشعارات ({n} غير مقروءة)",

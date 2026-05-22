@@ -95,6 +95,21 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Sessions card — active sign-ins
+  "sessions.title": "Active sessions",
+  "sessions.description": "{n} active · last 50 sign-ins listed below",
+  "sessions.signOutAll": "Sign out everywhere",
+  "sessions.empty": "No sessions on record.",
+  "sessions.unknownDevice": "Unknown device",
+  "sessions.signedIn": "signed in {when}",
+  "sessions.revoked": "revoked {when}",
+  "sessions.expires": "expires {when}",
+  "sessions.revoke": "Revoke session",
+  "sessions.revokedToast": "Session revoked",
+  "sessions.revokeError": "Could not revoke session",
+  "sessions.allRevokedToast": "Signed out of all sessions — sign in again to continue",
+  "sessions.revokeAllError": "Could not revoke sessions",
+
   // Notifications dropdown
   "notif.title": "Notifications",
   "notif.ariaWithCount": "Notifications ({n} unread)",

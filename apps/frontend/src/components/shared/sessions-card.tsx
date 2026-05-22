@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api/client";
 import { formatRelative } from "@/lib/utils";
+import { useT } from "@/lib/i18n/provider";
 
 type Session = {
   id: string;
@@ -21,6 +22,7 @@ const KEY = ["me", "sessions"] as const;
 
 export function SessionsCard() {
   const qc = useQueryClient();
+  const t = useT();
   const q = useQuery({
     queryKey: KEY,
     queryFn: () => api<Session[]>("/api/v1/users/me/sessions"),
@@ -29,32 +31,32 @@ export function SessionsCard() {
   const revokeOne = useMutation({
     mutationFn: (id: string) => api(`/api/v1/users/me/sessions/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      toast.success("Session revoked");
+      toast.success(t("sessions.revokedToast"));
       qc.invalidateQueries({ queryKey: KEY });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not revoke session"),
+    onError: (e: Error) => toast.error(e?.message ?? t("sessions.revokeError")),
   });
 
   const revokeAll = useMutation({
     mutationFn: () => api("/api/v1/users/me/sessions", { method: "DELETE" }),
     onSuccess: () => {
-      toast.success("Signed out of all sessions — sign in again to continue");
+      toast.success(t("sessions.allRevokedToast"));
       qc.invalidateQueries({ queryKey: KEY });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not revoke sessions"),
+    onError: (e: Error) => toast.error(e?.message ?? t("sessions.revokeAllError")),
   });
 
   const sessions = q.data ?? [];
   const active = sessions.filter((s) => !s.revoked_at);
 
   return (
-    <Card>
+    <Card className="scroll-paper border-gold/20">
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle>Active sessions</CardTitle>
-            <CardDescription>
-              {active.length} active · last 50 sign-ins listed below
+            <CardTitle className="font-display text-2xl">{t("sessions.title")}</CardTitle>
+            <CardDescription className="font-body">
+              {t("sessions.description", { n: active.length })}
             </CardDescription>
           </div>
           {active.length > 0 && (
@@ -64,42 +66,42 @@ export function SessionsCard() {
               onClick={() => revokeAll.mutate()}
               disabled={revokeAll.isPending}
             >
-              <LogOut className="me-1 h-4 w-4" /> Sign out everywhere
+              <LogOut className="me-1 h-4 w-4" /> {t("sessions.signOutAll")}
             </Button>
           )}
         </div>
       </CardHeader>
       <CardContent>
         {q.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="font-body text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : sessions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No sessions on record.</p>
+          <p className="font-body text-sm italic text-muted-foreground">{t("sessions.empty")}</p>
         ) : (
-          <ul className="divide-y">
+          <ul className="divide-y divide-gold/15 font-body">
             {sessions.map((s) => (
               <li key={s.id} className="flex items-start justify-between gap-3 py-3 text-sm">
                 <div className="min-w-0">
-                  <p className="truncate font-medium">
-                    {s.user_agent ?? "Unknown device"}
+                  <p className="truncate font-medium text-foreground">
+                    {s.user_agent ?? t("sessions.unknownDevice")}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {s.ip_address ?? "—"} · signed in {formatRelative(s.issued_at)}
+                    {s.ip_address ?? "—"} ·{" "}
+                    {t("sessions.signedIn", { when: formatRelative(s.issued_at) })}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {s.revoked_at ? (
-                      <span>revoked {formatRelative(s.revoked_at)}</span>
-                    ) : (
-                      <span>expires {formatRelative(s.expires_at)}</span>
-                    )}
+                    {s.revoked_at
+                      ? t("sessions.revoked", { when: formatRelative(s.revoked_at) })
+                      : t("sessions.expires", { when: formatRelative(s.expires_at) })}
                   </p>
                 </div>
                 {!s.revoked_at && (
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Revoke session"
+                    aria-label={t("sessions.revoke")}
                     onClick={() => revokeOne.mutate(s.id)}
                     disabled={revokeOne.isPending}
+                    className="text-muted-foreground hover:text-destructive"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
