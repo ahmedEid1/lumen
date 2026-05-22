@@ -336,7 +336,7 @@ export const ar: Record<MessageKey, string> = {
   "footer.docs": "الوثائق",
 
   // Admin / courses — رفّ القيّم
-  "adminCourses.cartouche": "رفّ القيّم",
+  "adminCourses.cartouche": "الكتالوج",
   "adminCourses.title": "الدورات",
   "adminCourses.subtitle": "أدر اختيار الدورات المميّزة وأشرف على الكتالوج.",
   "adminCourses.searchPlaceholder": "ابحث بالعنوان أو النبذة…",

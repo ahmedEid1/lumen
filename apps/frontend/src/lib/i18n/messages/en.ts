@@ -329,7 +329,7 @@ export const en = {
   "footer.docs": "Docs",
 
   // Admin / courses — curator's shelf
-  "adminCourses.cartouche": "Curator's shelf",
+  "adminCourses.cartouche": "Catalogue",
   "adminCourses.title": "Courses",
   "adminCourses.subtitle": "Manage featured selection and oversee the catalog.",
   "adminCourses.searchPlaceholder": "Search title or overview…",
