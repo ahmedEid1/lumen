@@ -717,6 +717,23 @@ export const ar: Record<MessageKey, string> = {
   "reviews.neverReviewed": "لم تُراجع بعد",
   "reviews.openCourse": "فتح الدورة",
 
+  // Tutor (Phase E1 — course-scoped RAG)
+  "tutor.cartouche": "ذكاء · مرشد",
+  "tutor.heading": "اسأل المرشد",
+  "tutor.askButton": "اسأل المرشد",
+  "tutor.closeButton": "إغلاق المرشد",
+  "tutor.new": "جديدة",
+  "tutor.newConversation": "ابدأ محادثة جديدة",
+  "tutor.emptyPrompt":
+    "اسأل أيّ سؤال عن هذه الدورة — سيُجيب المرشد من دروسها ويستشهد بها.",
+  "tutor.thinking": "يفكّر…",
+  "tutor.composerPlaceholder": "اكتب سؤالك…",
+  "tutor.send": "إرسال",
+  "tutor.you": "أنت",
+  "tutor.assistant": "المرشد",
+  "tutor.startError": "تعذّر بدء المرشد. حاول مرة أخرى.",
+  "tutor.sendError": "تعذّر الإرسال. حاول مرة أخرى.",
+
   // Generic
   "common.loading": "جارٍ التحميل…",
   "common.save": "حفظ",

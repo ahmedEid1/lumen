@@ -710,6 +710,23 @@ export const en = {
   "reviews.neverReviewed": "never reviewed",
   "reviews.openCourse": "Open course",
 
+  // Tutor (Phase E1 — course-scoped RAG)
+  "tutor.cartouche": "AI · Tutor",
+  "tutor.heading": "Ask the tutor",
+  "tutor.askButton": "Ask the tutor",
+  "tutor.closeButton": "Close tutor",
+  "tutor.new": "New",
+  "tutor.newConversation": "Start a new conversation",
+  "tutor.emptyPrompt":
+    "Ask anything about this course — the tutor will answer using the lessons here and cite them.",
+  "tutor.thinking": "Thinking…",
+  "tutor.composerPlaceholder": "Type your question…",
+  "tutor.send": "Send",
+  "tutor.you": "You",
+  "tutor.assistant": "Tutor",
+  "tutor.startError": "Couldn't start the tutor. Try again.",
+  "tutor.sendError": "Couldn't send that. Try again.",
+
   // Generic
   "common.loading": "Loading…",
   "common.save": "Save",
