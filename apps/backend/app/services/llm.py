@@ -13,6 +13,11 @@ single env var. Today's concrete providers:
 * :class:`OpenAIProvider` — :mod:`openai` SDK, defaults to
   ``gpt-4o-mini``. The Chat Completions endpoint *does* accept a
   ``system`` role, so the message list passes through unchanged.
+  Per the v2 execution decisions, this provider doubles as the
+  Groq client when ``OPENAI_API_BASE`` is pointed at
+  ``https://api.groq.com/openai/v1`` and ``LLM_MODEL`` is a Groq
+  model (e.g. ``llama-3.3-70b-versatile``) — no separate provider
+  class needed.
 * :class:`NoopProvider` — returns a deterministic canned response
   built from the system prompt's context block. It never imports a
   vendor SDK and is what the test suite exercises so every CI run
@@ -33,11 +38,22 @@ synchronous client calls via :func:`asyncio.to_thread` — this keeps
 the dependency surface small (no separate async client to keep in
 lockstep) and the latency hit of the off-loop hop is negligible
 next to the multi-second LLM call itself.
+
+**Phase H1 — cost-meter hook.** Every provider also implements
+:meth:`chat_with_usage` which returns a :class:`ChatResponse`
+carrying the model's reply *plus* token counts. The
+``app.services.llm_call_log.call_logged`` wrapper consumes that
+shape to persist an ``llm_calls`` row with cost + latency. The
+older :meth:`chat` method is preserved as a thin wrapper that
+discards the usage data — existing callers (and the tests that pin
+them) keep working unchanged while new call sites can opt in to the
+metered path.
 """
 
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel
@@ -54,6 +70,12 @@ log = get_logger(__name__)
 # override via ``LLM_MODEL``.
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+# Synthetic model name reported by the noop provider on the
+# ``ChatResponse``. Kept distinct from any real vendor model so a
+# test that asserts on the persisted ``llm_calls.model`` column can
+# pick up a meter row from a test run without confusing it for a
+# real call.
+NOOP_MODEL_NAME = "noop"
 # Prefix on every NoopProvider reply. Tests assert on this token so
 # they can prove the tutor pipeline (and the persisted assistant
 # message) actually round-tripped through the provider rather than
@@ -84,6 +106,30 @@ class ChatMessage(BaseModel):
     content: str
 
 
+@dataclass(frozen=True)
+class ChatResponse:
+    """Provider reply + the bits the cost meter needs.
+
+    Returned by :meth:`LLMProvider.chat_with_usage`. The Phase H1
+    cost-tracking wrapper (``app.services.llm_call_log``) reads
+    ``prompt_tokens`` + ``completion_tokens`` to compute USD cost
+    via :func:`app.services.llm_pricing.compute_cost_usd`, and
+    persists ``model`` verbatim so historical rows survive a
+    provider-default change.
+
+    Token counts come from the vendor's own usage object whenever
+    possible (``response.usage.input_tokens`` on Anthropic;
+    ``completion.usage.prompt_tokens`` on OpenAI / Groq). The Noop
+    provider estimates them as ``len(text)//4`` so the meter still
+    behaves end-to-end in CI without a network call.
+    """
+
+    text: str
+    prompt_tokens: int
+    completion_tokens: int
+    model: str
+
+
 @runtime_checkable
 class LLMProvider(Protocol):
     """Provider-agnostic chat interface.
@@ -96,6 +142,11 @@ class LLMProvider(Protocol):
     win) or write incremental rows (a footgun the v1 product
     doesn't need). We can layer a stream variant on top later
     without breaking existing callers.
+
+    Phase H1: also expose :meth:`chat_with_usage` returning a
+    :class:`ChatResponse` with token counts attached. ``chat()``
+    is preserved as a thin wrapper that drops the usage payload so
+    existing callers don't have to change in lockstep.
     """
 
     name: str
@@ -105,6 +156,23 @@ class LLMProvider(Protocol):
         messages: list[ChatMessage],
         temperature: float = 0.2,
     ) -> str: ...
+
+    async def chat_with_usage(
+        self,
+        messages: list[ChatMessage],
+        temperature: float = 0.2,
+    ) -> ChatResponse: ...
+
+
+def _approx_tokens(text: str) -> int:
+    """Rough token estimate for the Noop provider.
+
+    A real tokenizer would be overkill in tests — the cost meter only
+    needs a deterministic positive integer per (input, output) pair
+    so the budget guard logic is exercisable. The standard
+    "one token ≈ four chars of English" rule of thumb is good enough.
+    """
+    return max(1, len(text) // 4)
 
 
 # ---------- Anthropic provider ----------
@@ -146,11 +214,11 @@ class AnthropicProvider:
             self._client = Anthropic(**kwargs)
         return self._client
 
-    async def chat(
+    async def chat_with_usage(
         self,
         messages: list[ChatMessage],
         temperature: float = 0.2,
-    ) -> str:
+    ) -> ChatResponse:
         if not self._api_key:
             raise RuntimeError(
                 "Anthropic provider selected but ANTHROPIC_API_KEY is unset"
@@ -174,7 +242,7 @@ class AnthropicProvider:
         max_tokens = self._max_tokens
         model = self._model
 
-        def _call() -> str:
+        def _call() -> ChatResponse:
             kwargs: dict[str, object] = {
                 "model": model,
                 "max_tokens": max_tokens,
@@ -194,9 +262,28 @@ class AnthropicProvider:
                 text = getattr(block, "text", None)
                 if text:
                     parts.append(text)
-            return "".join(parts)
+            usage = getattr(response, "usage", None)
+            prompt_tokens = int(getattr(usage, "input_tokens", 0) or 0)
+            completion_tokens = int(getattr(usage, "output_tokens", 0) or 0)
+            return ChatResponse(
+                text="".join(parts),
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                model=model,
+            )
 
         return await asyncio.to_thread(_call)
+
+    async def chat(
+        self,
+        messages: list[ChatMessage],
+        temperature: float = 0.2,
+    ) -> str:
+        # Thin wrapper preserved for callers that don't care about
+        # usage — they keep working unchanged while the metered path
+        # opts in via ``chat_with_usage``.
+        response = await self.chat_with_usage(messages, temperature)
+        return response.text
 
 
 # ---------- OpenAI provider ----------
@@ -209,6 +296,14 @@ class OpenAIProvider:
     synchronous client run on a worker thread so the FastAPI event
     loop stays free. The Chat Completions endpoint takes the system
     role inline, so we pass the message list through unchanged.
+
+    This same class doubles as the Groq client. Groq exposes an
+    OpenAI-compatible endpoint at ``https://api.groq.com/openai/v1``;
+    pointing ``api_base`` at it and setting ``model`` to e.g.
+    ``llama-3.3-70b-versatile`` is the whole adapter. The vendor
+    fills in ``completion.usage`` with the same field names
+    (``prompt_tokens`` / ``completion_tokens``) so the cost-meter
+    extraction below works for both upstreams without branching.
     """
 
     name: str = "openai"
@@ -237,11 +332,11 @@ class OpenAIProvider:
             self._client = OpenAI(**kwargs)
         return self._client
 
-    async def chat(
+    async def chat_with_usage(
         self,
         messages: list[ChatMessage],
         temperature: float = 0.2,
-    ) -> str:
+    ) -> ChatResponse:
         if not self._api_key:
             raise RuntimeError(
                 "OpenAI provider selected but OPENAI_API_KEY is unset"
@@ -252,7 +347,7 @@ class OpenAIProvider:
         model = self._model
         max_tokens = self._max_tokens
 
-        def _call() -> str:
+        def _call() -> ChatResponse:
             completion = client.chat.completions.create(  # type: ignore[attr-defined]
                 model=model,
                 messages=payload,
@@ -261,9 +356,25 @@ class OpenAIProvider:
             )
             choice = completion.choices[0]
             content = getattr(choice.message, "content", "") or ""
-            return content
+            usage = getattr(completion, "usage", None)
+            prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+            completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+            return ChatResponse(
+                text=content,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                model=model,
+            )
 
         return await asyncio.to_thread(_call)
+
+    async def chat(
+        self,
+        messages: list[ChatMessage],
+        temperature: float = 0.2,
+    ) -> str:
+        response = await self.chat_with_usage(messages, temperature)
+        return response.text
 
 
 # ---------- Noop provider (tests) ----------
@@ -291,9 +402,28 @@ class NoopProvider:
     retrieval returned nothing), emits :data:`NOOP_REFUSAL` so the
     tutor service's refusal path is exercisable without
     monkeypatching the retrieval helper.
+
+    Phase H1: also reports estimated token counts via
+    :meth:`chat_with_usage` (``len(text)//4`` — see
+    :func:`_approx_tokens`). The estimate is good enough to drive
+    the budget-guard tests without a real tokenizer dependency.
     """
 
     name: str = "noop"
+
+    async def chat_with_usage(
+        self,
+        messages: list[ChatMessage],
+        temperature: float = 0.2,
+    ) -> ChatResponse:
+        text = await self.chat(messages, temperature)
+        prompt_text = "\n".join(m.content for m in messages)
+        return ChatResponse(
+            text=text,
+            prompt_tokens=_approx_tokens(prompt_text),
+            completion_tokens=_approx_tokens(text),
+            model=NOOP_MODEL_NAME,
+        )
 
     async def chat(
         self,
@@ -367,9 +497,11 @@ def get_provider() -> LLMProvider:
 __all__ = [
     "AnthropicProvider",
     "ChatMessage",
+    "ChatResponse",
     "DEFAULT_ANTHROPIC_MODEL",
     "DEFAULT_OPENAI_MODEL",
     "LLMProvider",
+    "NOOP_MODEL_NAME",
     "NOOP_REFUSAL",
     "NOOP_RESPONSE_PREFIX",
     "NoopProvider",

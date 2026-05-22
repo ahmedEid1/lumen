@@ -103,18 +103,22 @@ class CommitOutlineResponse(BaseModel):
 async def generate_outline(
     payload: OutlineRequest,
     user: RequireInstructor,
+    db: DBSession,
     request: Request,
     response: Response,
 ) -> ai_authoring.CourseOutline:
     """Return a proposed course outline for the instructor to review.
 
-    Does not touch the database. The instructor edits the returned
-    structure in the studio preview pane before posting it back to
-    ``/ai/commit-outline``.
+    Does not touch the database (modulo the cost-meter row Phase H1
+    writes through ``call_logged``). The instructor edits the
+    returned structure in the studio preview pane before posting it
+    back to ``/ai/commit-outline``.
     """
-    del user  # only here for the RequireInstructor gate
     return await ai_authoring.generate_outline(
-        brief=payload.brief, target_modules=payload.target_modules
+        brief=payload.brief,
+        target_modules=payload.target_modules,
+        session=db,
+        user_id=user.id,
     )
 
 
@@ -123,19 +127,22 @@ async def generate_outline(
 async def generate_lesson_body(
     payload: LessonBodyRequest,
     user: RequireInstructor,
+    db: DBSession,
     request: Request,
     response: Response,
 ) -> LessonBodyResponse:
     """Return a Tiptap block document to pre-fill the lesson editor.
 
-    Does not touch the database. The studio lesson editor seeds the
-    block editor with the returned doc; the instructor saves the
+    Does not touch the database (modulo the cost-meter row Phase H1
+    writes through ``call_logged``). The studio lesson editor seeds
+    the block editor with the returned doc; the instructor saves the
     lesson explicitly via ``PATCH /lessons/{id}`` from the editor.
     """
-    del user
     doc = await ai_authoring.generate_lesson_body(
         lesson_title=payload.lesson_title,
         course_context=payload.course_context,
+        session=db,
+        user_id=user.id,
     )
     return LessonBodyResponse(blocks=doc)
 
@@ -145,20 +152,23 @@ async def generate_lesson_body(
 async def generate_quiz(
     payload: QuizRequest,
     user: RequireInstructor,
+    db: DBSession,
     request: Request,
     response: Response,
 ) -> QuizResponse:
     """Return a list of MCQ questions to pre-fill a quiz lesson.
 
-    Does not touch the database. The studio quiz editor seeds the
+    Does not touch the database (modulo the cost-meter row Phase H1
+    writes through ``call_logged``). The studio quiz editor seeds the
     question form with the returned items; the instructor saves the
     lesson explicitly via ``PATCH /lessons/{id}`` from the editor.
     """
-    del user
     questions = await ai_authoring.generate_quiz(
         lesson_title=payload.lesson_title,
         course_context=payload.course_context,
         n=payload.n,
+        session=db,
+        user_id=user.id,
     )
     return QuizResponse(questions=questions)
 

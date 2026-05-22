@@ -391,11 +391,16 @@ async def post_message(
     await db.flush()
 
     # 2) Call the tutor service — retrieval + LLM + citation parse.
+    # Pass through ``user.id`` so the Phase H1 cost meter attributes
+    # this call to the learner (and so the per-user 24h budget guard
+    # has a key to sum on).
     result = await tutor_service.ask(
         db,
         course=course,
         user_message=content,
         conversation_history=history,
+        user_id=user.id,
+        feature="tutor",
     )
 
     # 3) Persist the assistant turn with its citations.

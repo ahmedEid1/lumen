@@ -60,6 +60,27 @@ class RateLimitedError(AppError):
     code = "rate_limited"
 
 
+class BudgetExceededError(AppError):
+    """Raised when a user has burned through their 24h LLM budget.
+
+    Lumen v2 Phase H1. The cost-meter wrapper
+    (``app.services.llm_call_log.call_logged``) sums ``cost_usd``
+    over the rolling 24h window for the caller; if that sum is
+    already above ``settings.llm_user_budget_24h_usd``, the next
+    call short-circuits with this error (and an ``llm_calls`` row
+    is still persisted with ``status="budget_exceeded"`` so the
+    admin observability surface sees the spike).
+
+    We surface a 429 rather than a 402 because the limit is a
+    rate-shaped guard against runaway loops, not a paywall — the
+    same handler that emits ``Retry-After`` for rate-limit
+    responses can treat budget exhaustion as "come back later".
+    """
+
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "llm.budget_exceeded"
+
+
 def _payload(code: str, message: str, *, details: dict[str, Any] | None, request_id: str | None) -> dict[str, Any]:
     return {
         "error": {

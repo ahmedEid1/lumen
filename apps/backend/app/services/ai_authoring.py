@@ -45,11 +45,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ValidationAppError
 from app.core.logging import get_logger
 from app.models.course import Course, Lesson, LessonType, Module
+from app.models.llm_call import SYSTEM_USER_ID
 from app.models.user import User
 from app.repositories import courses as courses_repo
 from app.schemas.course import QuizQuestion
 from app.services import llm as llm_service
 from app.services.courses import _owned_course
+from app.services.llm_call_log import call_logged
 
 log = get_logger(__name__)
 
@@ -233,12 +235,24 @@ understanding, not pattern-matching the obviously-wrong option.
 # ---------- Public generate API ----------
 
 
-async def generate_outline(brief: str, target_modules: int = 4) -> CourseOutline:
+async def generate_outline(
+    brief: str,
+    target_modules: int = 4,
+    *,
+    session: AsyncSession | None = None,
+    user_id: str | None = None,
+) -> CourseOutline:
     """Call the LLM and return a parsed :class:`CourseOutline`.
 
     Pure function — no DB writes, no implicit state. The caller (API
     handler) decides whether to surface the result to the instructor
     for review or feed it straight into :func:`commit_outline`.
+
+    ``session`` + ``user_id`` are optional — when supplied, the
+    LLM call is routed through ``call_logged`` so Phase H1's cost
+    meter records the round-trip. Existing tests that call this
+    helper without the kwargs keep working (they hit the legacy
+    no-meter path).
     """
     brief = brief.strip()
     if not brief:
@@ -253,11 +267,18 @@ async def generate_outline(brief: str, target_modules: int = 4) -> CourseOutline
         user=user_msg,
         model=CourseOutline,
         temperature=0.7,
+        session=session,
+        user_id=user_id,
+        feature="authoring.outline",
     )
 
 
 async def generate_lesson_body(
-    lesson_title: str, course_context: str
+    lesson_title: str,
+    course_context: str,
+    *,
+    session: AsyncSession | None = None,
+    user_id: str | None = None,
 ) -> dict[str, Any]:
     """Return a Tiptap block document as a plain dict.
 
@@ -280,6 +301,9 @@ async def generate_lesson_body(
         user=user_msg,
         model=TiptapDoc,
         temperature=0.7,
+        session=session,
+        user_id=user_id,
+        feature="authoring.lesson",
     )
     return doc.model_dump()
 
@@ -292,7 +316,12 @@ class _QuizPayload(BaseModel):
 
 
 async def generate_quiz(
-    lesson_title: str, course_context: str, n: int = 4
+    lesson_title: str,
+    course_context: str,
+    n: int = 4,
+    *,
+    session: AsyncSession | None = None,
+    user_id: str | None = None,
 ) -> list[QuizQuestion]:
     """Return ``n`` MCQ questions for a quiz lesson."""
     lesson_title = lesson_title.strip()
@@ -311,6 +340,9 @@ async def generate_quiz(
         user=user_msg,
         model=_QuizPayload,
         temperature=0.6,
+        session=session,
+        user_id=user_id,
+        feature="authoring.quiz",
     )
     return list(payload.questions)
 
@@ -414,6 +446,37 @@ def _default_lesson_data(spec: OutlineLesson) -> dict[str, Any]:
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 
 
+async def _chat_one(
+    provider: llm_service.LLMProvider,
+    messages: list[llm_service.ChatMessage],
+    *,
+    temperature: float,
+    session: AsyncSession | None,
+    user_id: str | None,
+    feature: str,
+) -> str:
+    """Run one provider turn — metered when a session is available.
+
+    Centralised here so both the initial outline / lesson / quiz call
+    and the retry path share the same metering decision: if a
+    session was threaded down from the API edge, every turn lands
+    in ``llm_calls``; otherwise we keep the legacy unmetered call
+    so backfill scripts and test fixtures don't need to plumb a DB
+    handle through.
+    """
+    if session is not None:
+        response = await call_logged(
+            provider,
+            messages,
+            user_id=user_id or SYSTEM_USER_ID,
+            feature=feature,
+            session=session,
+            temperature=temperature,
+        )
+        return response.text
+    return await provider.chat(messages, temperature=temperature)
+
+
 def _extract_json(raw: str) -> str:
     """Best-effort: strip markdown code fences from the LLM reply.
 
@@ -434,6 +497,9 @@ async def _chat_with_retry[M: BaseModel](
     user: str,
     model: type[M],
     temperature: float,
+    session: AsyncSession | None = None,
+    user_id: str | None = None,
+    feature: str = "authoring",
 ) -> M:
     """Send one chat turn, validate as ``model``, retry once on failure.
 
@@ -442,13 +508,23 @@ async def _chat_with_retry[M: BaseModel](
     failures is enough signal that the prompt or the model is wrong;
     looping further would burn tokens with diminishing returns and
     block the request handler.
+
+    When ``session`` is provided, each provider call is routed through
+    the Phase H1 cost meter (``app.services.llm_call_log.call_logged``)
+    — both turns of a retry pay separately, which is the right shape:
+    the second call really is extra spend the operator should see.
+    Without ``session``, falls back to the unmetered ``provider.chat``
+    path so existing tests keep working.
     """
     provider = llm_service.get_provider()
     messages = [
         llm_service.ChatMessage(role="system", content=system),
         llm_service.ChatMessage(role="user", content=user),
     ]
-    raw = await provider.chat(messages, temperature=temperature)
+    raw = await _chat_one(
+        provider, messages, temperature=temperature,
+        session=session, user_id=user_id, feature=feature,
+    )
     parsed, err = _try_parse(raw, model)
     if parsed is not None:
         return parsed
@@ -468,8 +544,9 @@ async def _chat_with_retry[M: BaseModel](
             ),
         ]
     )
-    raw2 = await provider.chat(
-        messages, temperature=max(0.2, temperature - 0.3)
+    raw2 = await _chat_one(
+        provider, messages, temperature=max(0.2, temperature - 0.3),
+        session=session, user_id=user_id, feature=feature,
     )
     parsed, err = _try_parse(raw2, model)
     if parsed is not None:

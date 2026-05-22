@@ -46,6 +46,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.models.course import Course
 from app.models.lesson_chunk import LessonChunk
+from app.models.llm_call import SYSTEM_USER_ID
 from app.services.embeddings_retrieval import find_relevant_chunks
 from app.services.llm import (
     ChatMessage,
@@ -53,6 +54,7 @@ from app.services.llm import (
     NOOP_REFUSAL,
     get_provider,
 )
+from app.services.llm_call_log import call_logged
 
 log = get_logger(__name__)
 
@@ -250,6 +252,8 @@ async def ask(
     conversation_history: list[dict[str, Any]] | None = None,
     provider: LLMProvider | None = None,
     top_k: int = DEFAULT_TOP_K,
+    user_id: str | None = None,
+    feature: str = "tutor",
 ) -> TutorAnswer:
     """Answer ``user_message`` against ``course``'s content with citations.
 
@@ -288,7 +292,22 @@ async def ask(
         user_message=user_message,
         history=conversation_history,
     )
-    answer_text = await llm.chat(messages, temperature=0.2)
+    # Phase H1 — route through the metered wrapper so every tutor
+    # call lands in ``llm_calls`` with tokens + cost + latency. Tests
+    # that don't pass ``user_id`` get the ``__system__`` sentinel,
+    # which is exempt from the per-user 24h budget guard — the
+    # legacy ``test_tutor.py`` cases don't need to know about the
+    # cost meter to keep working.
+    metered_user_id = user_id or SYSTEM_USER_ID
+    response = await call_logged(
+        llm,
+        messages,
+        user_id=metered_user_id,
+        feature=feature,
+        session=db,
+        temperature=0.2,
+    )
+    answer_text = response.text
 
     if _is_refusal(answer_text):
         return TutorAnswer(answer=REFUSAL_TEXT, citations=[], refused=True)

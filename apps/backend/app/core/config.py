@@ -5,6 +5,7 @@ Read once at startup. Use the cached `get_settings()` everywhere.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
 from typing import Literal
@@ -137,6 +138,24 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr | None = None
     anthropic_api_base: str | None = None
     llm_max_tokens: int = 1024
+
+    # ---------- LLM cost tracking + budget guard (Phase H1) ----------
+    # Every LLM round-trip through ``app.services.llm_call_log`` is
+    # recorded in the ``llm_calls`` table when this flag is on. The
+    # meter is essentially free (one INSERT per call, ~µs), so it's
+    # ON by default — the flag exists so operators can disable it for
+    # synthetic-load benchmarks or while debugging a migration.
+    llm_cost_tracking_enabled: bool = True
+    # Per-user rolling-24h spend cap in USD. The wrapper sums
+    # ``cost_usd`` for the caller over the last day; once the sum
+    # exceeds this threshold the next call short-circuits with
+    # ``BudgetExceededError`` (still persisted as a row with
+    # ``status="budget_exceeded"`` so the admin surface sees the
+    # spike). Default ``$1.00`` is deliberately tiny — Lumen runs on
+    # Groq's free tier in the public demo, where token cost is
+    # nominal; the guard is really a runaway-loop trip-wire, not a
+    # billing meter. Bump in ``.env`` for power users / production.
+    llm_user_budget_24h_usd: Decimal = Decimal("1.00")
 
     # ---------- Content ingest (Phase E3) ----------
     # Optional Notion integration token. When unset, the Notion
