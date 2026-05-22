@@ -5,8 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { api, ApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
@@ -63,18 +61,14 @@ export default function ConfirmEmailChangePage() {
   );
 
   return (
-    <div className="container mx-auto flex max-w-md flex-col items-center px-4 py-20">
-      <Cartouche className="mb-5">{t("confirmEmail.cartouche")}</Cartouche>
-      <Card className="w-full scroll-paper border-gold/20">
+    <div className="container mx-auto flex max-w-md flex-col items-center px-6 py-24">
+      <p className="mb-4 font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+        {t("confirmEmail.cartouche")}
+      </p>
+      <Card className="surface w-full">
         <CardContent className="space-y-6 pt-8 text-center">
-          <header className="flex flex-col items-center gap-3">
-            <Glyph
-              name="feather"
-              size={40}
-              mode="tint"
-              className="text-gold/85 drop-shadow-[0_0_10px_hsl(var(--gold-leaf)/0.4)]"
-            />
-            <h1 className="font-display text-2xl font-medium tracking-tight">
+          <header className="flex flex-col items-center gap-2">
+            <h1 className="font-display text-3xl leading-tight tracking-tight">
               {t("confirmEmail.title")}
             </h1>
           </header>

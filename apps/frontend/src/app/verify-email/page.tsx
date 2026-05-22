@@ -6,8 +6,6 @@ import Link from "next/link";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { api, ApiError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 
@@ -23,8 +21,8 @@ export default function VerifyEmailPage() {
 
 function VerifyFallback() {
   return (
-    <div className="container mx-auto flex max-w-md flex-col px-4 py-20">
-      <div className="h-56 animate-pulse rounded-md border border-border bg-card/40" aria-hidden />
+    <div className="container mx-auto flex max-w-md flex-col px-6 py-24">
+      <div className="surface h-56 animate-pulse" aria-hidden />
     </div>
   );
 }
@@ -64,18 +62,21 @@ function VerifyEmailInner() {
   }, [token, t]);
 
   return (
-    <div className="container mx-auto flex max-w-md flex-col items-center px-4 py-20">
-      <Cartouche className="mb-5">{t("verifyEmail.cartouche")}</Cartouche>
-      <Card className="w-full scroll-paper border-gold/20">
+    <div className="container mx-auto flex max-w-md flex-col items-center px-6 py-24">
+      <p className="mb-4 font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+        {t("verifyEmail.cartouche")}
+      </p>
+      <Card className="surface w-full">
         <CardContent className="space-y-6 pt-8 text-center">
-          <header className="flex flex-col items-center gap-3">
-            <Glyph
-              name="eye"
-              size={40}
-              mode="tint"
-              className="text-gold/85 drop-shadow-[0_0_10px_hsl(var(--gold-leaf)/0.4)]"
-            />
-            <h1 className="font-display text-2xl font-medium tracking-tight">
+          {status === "success" && (
+            <CheckCircle2 className="mx-auto h-14 w-14 text-primary" aria-hidden />
+          )}
+          {status === "error" && (
+            <AlertCircle className="mx-auto h-14 w-14 text-destructive" aria-hidden />
+          )}
+
+          <header className="flex flex-col items-center gap-2">
+            <h1 className="font-display text-3xl leading-tight tracking-tight">
               {t("verifyEmail.title")}
             </h1>
             <p className="font-body text-sm text-muted-foreground">
@@ -83,15 +84,6 @@ function VerifyEmailInner() {
             </p>
           </header>
 
-          {status === "success" && (
-            <CheckCircle2
-              className="mx-auto h-10 w-10 text-gold"
-              aria-hidden
-            />
-          )}
-          {status === "error" && (
-            <AlertCircle className="mx-auto h-10 w-10 text-destructive" aria-hidden />
-          )}
           <div className="flex flex-col gap-2">
             {status === "success" ? (
               <Button onClick={() => router.push("/dashboard")}>

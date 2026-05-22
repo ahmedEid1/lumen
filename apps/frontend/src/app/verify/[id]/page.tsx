@@ -3,11 +3,9 @@
 import { use } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, ShieldX } from "lucide-react";
+import { Award, CheckCircle2, ShieldX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { api, ApiError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 
@@ -34,12 +32,14 @@ export default function VerifyCertificatePage({
   });
 
   return (
-    <div className="container mx-auto flex max-w-xl flex-col items-center px-4 py-20">
-      <Cartouche className="mb-5">{t("verifyCert.cartouche")}</Cartouche>
-      <Card className="w-full scroll-paper border-gold/20">
-        <CardContent className="space-y-5 pt-8">
+    <div className="container mx-auto flex max-w-xl flex-col items-center px-6 py-24">
+      <p className="mb-4 font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+        {t("verifyCert.cartouche")}
+      </p>
+      <Card className="surface w-full">
+        <CardContent className="space-y-6 pt-8">
           <header className="flex flex-col items-center gap-2 text-center">
-            <h1 className="font-display text-2xl font-medium tracking-tight">
+            <h1 className="font-display text-3xl leading-tight tracking-tight">
               {t("verifyCert.title")}
             </h1>
             <p className="font-body text-sm text-muted-foreground">
@@ -55,13 +55,13 @@ export default function VerifyCertificatePage({
 
           {q.error && (
             <div className="space-y-3 text-center">
-              <ShieldX className="mx-auto h-10 w-10 text-destructive" aria-hidden />
+              <ShieldX className="mx-auto h-12 w-12 text-destructive" aria-hidden />
               <p className="font-body">
                 {q.error instanceof ApiError && q.error.status === 404
                   ? t("verifyCert.notFound")
                   : (q.error as Error).message}
               </p>
-              <code className="block rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <code className="block rounded-md border border-border/60 bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
                 {id}
               </code>
               <Link href="/">
@@ -71,37 +71,36 @@ export default function VerifyCertificatePage({
           )}
 
           {q.data && (
-            <div className="space-y-5 text-center">
-              <Glyph
-                name="aten"
-                size={80}
-                mode="art"
-                className="mx-auto drop-shadow-[0_0_24px_hsl(var(--gold-leaf)/0.5)]"
-              />
-              <div className="space-y-1">
-                <p className="text-[0.65rem] uppercase tracking-[0.32em] text-gold/70">
-                  {t("verifyCert.issuedTo")}
-                </p>
-                <p className="font-display text-2xl font-medium">{q.data.learner_name}</p>
+            <div className="space-y-6 text-center">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+                <Award className="h-10 w-10 text-primary" aria-hidden />
               </div>
               <div className="space-y-1">
-                <p className="text-[0.65rem] uppercase tracking-[0.32em] text-gold/70">
+                <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("verifyCert.issuedTo")}
+                </p>
+                <p className="font-display text-3xl leading-tight tracking-tight">
+                  {q.data.learner_name}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                   {t("verifyCert.forCompleting")}
                 </p>
                 <Link
                   href={`/courses/${q.data.course_slug}`}
-                  className="font-display text-lg italic text-gold underline-offset-4 hover:underline"
+                  className="font-display text-xl italic text-primary underline-offset-4 hover:underline"
                 >
                   {q.data.course_title}
                 </Link>
               </div>
               <p className="inline-flex items-center gap-2 font-body text-sm text-muted-foreground">
-                <CheckCircle2 className="h-4 w-4 text-gold" />
+                <CheckCircle2 className="h-4 w-4 text-primary" />
                 {t("verifyCert.issuedOn", {
                   date: new Date(q.data.issued_at).toLocaleDateString(),
                 })}
               </p>
-              <code className="block break-all rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <code className="block break-all rounded-md border border-border/60 bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
                 {q.data.certificate_id}
               </code>
             </div>

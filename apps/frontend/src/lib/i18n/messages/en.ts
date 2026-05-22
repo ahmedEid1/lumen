@@ -546,7 +546,7 @@ export const en = {
   "courseDetail.moreFromTag": "More {name} courses",
 
   // Verify email + confirm email change + cert verification
-  "verifyEmail.cartouche": "Mark of the watcher",
+  "verifyEmail.cartouche": "Email",
   "verifyEmail.title": "Verify your email",
   "verifyEmail.checking": "Confirming…",
   "verifyEmail.success": "Your email is verified.",
@@ -555,7 +555,7 @@ export const en = {
   "verifyEmail.continue": "Continue to dashboard",
   "verifyEmail.goSignIn": "Go to sign in",
 
-  "confirmEmail.cartouche": "Seal the new address",
+  "confirmEmail.cartouche": "Email change",
   "confirmEmail.title": "Confirm email change",
   "confirmEmail.success": "Your email is now {email}. Use that address next time you sign in.",
   "confirmEmail.successToast": "Email updated. Sign in with the new address.",
@@ -566,7 +566,7 @@ export const en = {
   "confirmEmail.missingToken": "Missing token",
   "confirmEmail.backToProfile": "Back to profile",
 
-  "verifyCert.cartouche": "Hall of records",
+  "verifyCert.cartouche": "Certificate",
   "verifyCert.title": "Certificate verification",
   "verifyCert.subtitle": "Look up a Skillpath certificate by its ID.",
   "verifyCert.checking": "Checking…",

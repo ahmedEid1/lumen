@@ -553,7 +553,7 @@ export const ar: Record<MessageKey, string> = {
   "courseDetail.moreFromTag": "المزيد من دورات {name}",
 
   // Verify email + confirm email change + cert verification
-  "verifyEmail.cartouche": "ختم الحارس",
+  "verifyEmail.cartouche": "البريد الإلكتروني",
   "verifyEmail.title": "وثّق بريدك الإلكتروني",
   "verifyEmail.checking": "جارٍ التأكيد…",
   "verifyEmail.success": "تم توثيق بريدك.",
@@ -562,7 +562,7 @@ export const ar: Record<MessageKey, string> = {
   "verifyEmail.continue": "إلى لوحة التحكم",
   "verifyEmail.goSignIn": "إلى تسجيل الدخول",
 
-  "confirmEmail.cartouche": "اختم العنوان الجديد",
+  "confirmEmail.cartouche": "تغيير البريد",
   "confirmEmail.title": "تأكيد تغيير البريد",
   "confirmEmail.success": "بريدك الآن {email}. استخدمه عند تسجيل الدخول القادم.",
   "confirmEmail.successToast": "تم تحديث البريد. سجّل الدخول بالعنوان الجديد.",
@@ -573,7 +573,7 @@ export const ar: Record<MessageKey, string> = {
   "confirmEmail.missingToken": "الرمز مفقود",
   "confirmEmail.backToProfile": "العودة للملف الشخصي",
 
-  "verifyCert.cartouche": "قاعة السجلات",
+  "verifyCert.cartouche": "الشهادة",
   "verifyCert.title": "التحقق من الشهادة",
   "verifyCert.subtitle": "ابحث عن شهادة سكِلپاث بواسطة رقمها التعريفي.",
   "verifyCert.checking": "جارٍ التحقق…",
