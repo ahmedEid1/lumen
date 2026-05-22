@@ -5,21 +5,25 @@ import { toast } from "sonner";
 import type { LessonOut } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Glyph } from "@/components/lumen/glyph";
 import { api, ApiError } from "@/lib/api/client";
 import { type QuizQuestion } from "@/lib/quiz";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
+  const t = useT();
   const data = lesson.data as Record<string, any>;
   switch (lesson.type) {
     case "text":
       return (
-        <article className="prose prose-neutral dark:prose-invert max-w-none">
+        <article className="prose prose-neutral max-w-none font-body dark:prose-invert prose-headings:font-display prose-headings:text-gold/90">
           <Markdown body={String(data.body_markdown ?? "")} />
         </article>
       );
     case "video":
       return (
-        <div className="aspect-video w-full overflow-hidden rounded-lg border bg-black">
+        <div className="aspect-video w-full overflow-hidden rounded-md border border-gold/25 bg-black">
           <video
             controls
             crossOrigin={data.captions_url ? "anonymous" : undefined}
@@ -43,10 +47,11 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
       );
     case "image":
       return (
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           alt={String(data.alt ?? "")}
           src={String(data.public_url ?? data.asset_key ?? "")}
-          className="max-h-[600px] w-full rounded-lg border object-contain"
+          className="max-h-[600px] w-full rounded-md border border-gold/20 object-contain"
         />
       );
     case "file":
@@ -54,9 +59,10 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
         <a
           href={String(data.public_url ?? "#")}
           download={String(data.filename ?? "")}
-          className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm hover:bg-muted"
+          className="inline-flex items-center gap-2 rounded-md border border-gold/40 bg-gold/5 px-4 py-2 font-body text-sm text-gold transition-colors hover:bg-gold/10"
         >
-          Download {data.filename ?? "file"}
+          <Glyph name="scroll" size={16} mode="tint" />
+          {t("player.download", { name: String(data.filename ?? "") })}
         </a>
       );
     case "quiz":
@@ -68,7 +74,11 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
         />
       );
     default:
-      return <p className="text-muted-foreground">Unsupported lesson type: {lesson.type}</p>;
+      return (
+        <p className="font-body italic text-muted-foreground">
+          {t("player.unsupported", { type: lesson.type })}
+        </p>
+      );
   }
 }
 
@@ -122,6 +132,7 @@ function Quiz({
   questions: QuizQuestion[];
   pass: number;
 }) {
+  const t = useT();
   const [answers, setAnswers] = useState<Record<string, string[] | string>>({});
   const [result, setResult] = useState<QuizResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -167,22 +178,29 @@ function Quiz({
         body: { answers },
       });
       setResult(out);
-      // The new attempt should appear in the history strip below.
       await loadHistory();
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : "Could not submit quiz";
+      const msg = e instanceof ApiError ? e.message : t("quiz.submitError");
       toast.error(msg);
     } finally {
       setSubmitting(false);
     }
   }
 
+  // Maps the API's `q.kind` enum to the right localised label.
+  const kindKeyOf = (kind: string): MessageKey =>
+    kind === "single"
+      ? "quiz.kind.single"
+      : kind === "short"
+        ? "quiz.kind.short"
+        : "quiz.kind.multi";
+
   return (
     <div className="space-y-6">
       {history.length > 0 && (
-        <div className="rounded-lg border bg-muted/30 p-3 text-xs">
-          <div className="mb-2 font-medium text-muted-foreground">
-            Past attempts ({history.length})
+        <div className="rounded-md border border-gold/15 bg-card/40 p-3 font-body text-xs">
+          <div className="mb-2 text-[0.62rem] uppercase tracking-[0.28em] text-gold/70">
+            {t("quiz.pastAttempts", { n: history.length })}
           </div>
           <ol className="flex flex-wrap gap-2">
             {history.map((a) => (
@@ -191,7 +209,7 @@ function Quiz({
                 className={[
                   "inline-flex items-center gap-1 rounded border px-2 py-0.5 tabular-nums",
                   a.passed
-                    ? "border-emerald-600/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                    ? "border-gold/45 bg-gold/10 text-gold"
                     : "border-muted-foreground/30 text-muted-foreground",
                 ].join(" ")}
                 title={new Date(a.submitted_at).toLocaleString()}
@@ -206,18 +224,28 @@ function Quiz({
         const given = answers[q.id];
         const questionCorrect = correctByQuestion.get(q.id);
         return (
-          <div key={q.id} className="rounded-lg border p-4">
+          <div
+            key={q.id}
+            className="rounded-md border border-gold/20 bg-card/30 p-4 scroll-paper"
+          >
             <div className="mb-3 flex items-start justify-between gap-2">
-              <p className="font-medium">
-                Q{idx + 1}. {q.prompt}
+              <p className="font-display text-base font-medium">
+                <span className="text-gold/80">{t("quiz.questionNumber", { n: idx + 1 })}</span>{" "}
+                {q.prompt}
               </p>
               <div className="flex items-center gap-2">
                 {submitted && (
-                  <Badge variant={questionCorrect ? "default" : "outline"}>
-                    {questionCorrect ? "correct" : "incorrect"}
+                  <Badge
+                    className={
+                      questionCorrect
+                        ? "border border-gold/40 bg-gold/10 text-gold"
+                        : "border border-destructive/40 bg-destructive/10 text-destructive"
+                    }
+                  >
+                    {questionCorrect ? t("quiz.correct") : t("quiz.incorrect")}
                   </Badge>
                 )}
-                <Badge variant="muted">{q.kind}</Badge>
+                <Badge variant="muted">{t(kindKeyOf(q.kind))}</Badge>
               </div>
             </div>
             {q.kind === "short" ? (
@@ -226,8 +254,8 @@ function Quiz({
                 value={typeof given === "string" ? given : ""}
                 onChange={(e) => setAnswers((p) => ({ ...p, [q.id]: e.target.value }))}
                 disabled={submitted}
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm disabled:opacity-70"
-                placeholder="Your answer"
+                className="h-10 w-full rounded-md border border-gold/25 bg-background/60 px-3 font-body text-sm focus-visible:border-gold/60 focus-visible:outline-none disabled:opacity-70"
+                placeholder={t("quiz.shortPlaceholder")}
               />
             ) : (
               <ul className="space-y-2">
@@ -240,9 +268,11 @@ function Quiz({
                         onClick={() => toggle(q, c.id)}
                         disabled={submitted}
                         className={[
-                          "w-full rounded border px-3 py-2 text-start text-sm",
-                          selected ? "border-primary bg-primary/5" : "",
-                          isCorrect ? "border-emerald-500 bg-emerald-500/10" : "",
+                          "w-full rounded-md border px-3 py-2 text-start font-body text-sm transition-colors",
+                          selected
+                            ? "border-gold/60 bg-gold/10 text-gold"
+                            : "border-border hover:border-gold/30",
+                          isCorrect ? "border-gold bg-gold/15 text-gold" : "",
                         ].join(" ")}
                       >
                         {c.text}
@@ -255,18 +285,22 @@ function Quiz({
           </div>
         );
       })}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         {!submitted ? (
           <Button onClick={submit} disabled={submitting}>
-            {submitting ? "Submitting…" : "Submit quiz"}
+            {submitting ? t("quiz.submitting") : t("quiz.submit")}
           </Button>
         ) : (
           <p
-            className={`text-sm ${result.passed ? "text-emerald-600" : "text-destructive"}`}
+            className={`font-body text-sm ${result.passed ? "text-gold" : "text-destructive"}`}
             role="status"
           >
-            You scored {result.score}% ({result.correct_count} of {result.total}).{" "}
-            {result.passed ? "Nice work — lesson marked complete!" : `Pass mark is ${pass}%. Try again.`}
+            {t("quiz.scoreLine", {
+              pct: result.score,
+              correct: result.correct_count,
+              total: result.total,
+            })}{" "}
+            {result.passed ? t("quiz.passLine") : t("quiz.failLine", { pct: pass })}
           </p>
         )}
         {submitted && (
@@ -277,7 +311,7 @@ function Quiz({
               setResult(null);
             }}
           >
-            Retake
+            {t("quiz.retake")}
           </Button>
         )}
       </div>

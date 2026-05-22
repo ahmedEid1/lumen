@@ -102,6 +102,25 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Lesson player — text/video/image/file/quiz
+  "player.unsupported": "نوع درس غير مدعوم: {type}",
+  "player.download": "تحميل {name}",
+  "quiz.pastAttempts": "محاولات سابقة ({n})",
+  "quiz.questionNumber": "س{n}.",
+  "quiz.correct": "صحيح",
+  "quiz.incorrect": "خطأ",
+  "quiz.kind.single": "اختيار واحد",
+  "quiz.kind.multi": "اختيار متعدّد",
+  "quiz.kind.short": "إجابة قصيرة",
+  "quiz.shortPlaceholder": "إجابتك",
+  "quiz.submit": "إرسال الاختبار",
+  "quiz.submitting": "جارٍ الإرسال…",
+  "quiz.submitError": "تعذّر إرسال الاختبار",
+  "quiz.scoreLine": "نتيجتك {pct}٪ ({correct} من {total}).",
+  "quiz.passLine": "أحسنت — تم وضع علامة إنجاز الدرس!",
+  "quiz.failLine": "علامة النجاح {pct}٪. حاول مجدّدًا.",
+  "quiz.retake": "إعادة المحاولة",
+
   // Chat — قاعة المتعلمين بضوء المشاعل
   "chat.connected": "متّصل · {n} حاضر",
   "chat.reconnecting": "جارٍ إعادة الاتصال…",

@@ -95,6 +95,25 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Lesson player — text/video/image/file/quiz
+  "player.unsupported": "Unsupported lesson type: {type}",
+  "player.download": "Download {name}",
+  "quiz.pastAttempts": "Past attempts ({n})",
+  "quiz.questionNumber": "Q{n}.",
+  "quiz.correct": "correct",
+  "quiz.incorrect": "incorrect",
+  "quiz.kind.single": "single",
+  "quiz.kind.multi": "multi",
+  "quiz.kind.short": "short",
+  "quiz.shortPlaceholder": "Your answer",
+  "quiz.submit": "Submit quiz",
+  "quiz.submitting": "Submitting…",
+  "quiz.submitError": "Could not submit quiz",
+  "quiz.scoreLine": "You scored {pct}% ({correct} of {total}).",
+  "quiz.passLine": "Nice work — lesson marked complete!",
+  "quiz.failLine": "Pass mark is {pct}%. Try again.",
+  "quiz.retake": "Retake",
+
   // Chat — torchlit cohort room
   "chat.connected": "Connected · {n} online",
   "chat.reconnecting": "Reconnecting…",
