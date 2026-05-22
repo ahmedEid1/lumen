@@ -757,6 +757,16 @@ export const ar: Record<MessageKey, string> = {
   "tutor.startError": "تعذّر بدء المرشد. حاول مرة أخرى.",
   "tutor.sendError": "تعذّر الإرسال. حاول مرة أخرى.",
 
+  // مرشد متعدد الوكلاء (المرحلة I2)
+  "tutor.agentTrace.title": "تفكير الوكيل",
+  "tutor.agentTrace.show": "أرني كيف توصّلت إلى هذا",
+  "tutor.agentTrace.hide": "إخفاء التحليل",
+  "tutor.agentTrace.colTool": "الأداة",
+  "tutor.agentTrace.colWhy": "السبب",
+  "tutor.agentTrace.colResult": "النتيجة",
+  "tutor.agentTrace.noRationale": "(بدون سبب)",
+  "tutor.agentTrace.confidenceLabel": "الثقة {n} من 5",
+
   // AI-assisted authoring (Phase E2)
   "studio.aiOutline.button": "إنشاء بالذكاء الاصطناعي",
   "ai.outline.title": "إنشاء دورة بالذكاء الاصطناعي",

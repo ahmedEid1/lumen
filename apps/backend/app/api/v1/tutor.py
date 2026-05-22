@@ -33,6 +33,7 @@ Access model:
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -118,6 +119,29 @@ class PostMessageRequest(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
 
 
+class ToolCallTraceOut(BaseModel):
+    """One sub-agent dispatch as rendered in the agent-reasoning panel.
+
+    Lumen v2 Phase I2 — the moat surface. Each tool call lands here
+    with its name, the planner's rationale for picking it, a short
+    summary of the result, and the structured details (chunks,
+    snippets, stdout, ...) the frontend renders when the row is
+    expanded.
+
+    The schema is open at the ``result_details`` field (``dict``)
+    because the five sub-agents produce different result shapes; the
+    frontend dispatches on ``tool_name`` to know which keys to expect.
+    Keeping it generic here avoids a per-tool union model that would
+    drift every time we add a sub-agent.
+    """
+
+    tool_name: str
+    args: dict[str, Any] = Field(default_factory=dict)
+    rationale: str = ""
+    result_summary: str = ""
+    result_details: dict[str, Any] = Field(default_factory=dict)
+
+
 class PostMessageResponse(BaseModel):
     """Echoes back both turns from a single POST.
 
@@ -125,11 +149,21 @@ class PostMessageResponse(BaseModel):
     client reconcile its optimistic UI without a second GET — the
     user message it just optimistically rendered will be replaced
     with the canonical persisted row.
+
+    Phase I2 also surfaces:
+
+    * ``confidence`` — 0-5 self-reported by the planner / re-planner.
+      Rendered as a "Confidence: N/5" badge above the agent-reasoning
+      panel.
+    * ``agent_trace`` — the per-turn tool-call log. Empty list on a
+      refused / empty-retrieval response (no plan ran).
     """
 
     user_message: TutorMessageOut
     assistant_message: TutorMessageOut
     refused: bool = False
+    confidence: int = 0
+    agent_trace: list[ToolCallTraceOut] = Field(default_factory=list)
 
 
 # ---------- Helpers ----------
@@ -390,17 +424,19 @@ async def post_message(
     db.add(user_msg)
     await db.flush()
 
-    # 2) Call the tutor service — retrieval + LLM + citation parse.
-    # Pass through ``user.id`` so the Phase H1 cost meter attributes
-    # this call to the learner (and so the per-user 24h budget guard
-    # has a key to sum on).
-    result = await tutor_service.ask(
+    # 2) Call the multi-agent orchestrator via the trace-aware
+    # surface. Phase I2 — the chat API gets the full
+    # ``OrchestratorResult`` (tool calls + confidence) alongside the
+    # legacy ``TutorAnswer`` so the response carries the agent's
+    # per-turn reasoning. The H1 cost meter is wired internally; we
+    # pass ``user.id`` so calls attribute to the learner.
+    result, orch = await tutor_service.ask_with_trace(
         db,
         course=course,
         user_message=content,
         conversation_history=history,
         user_id=user.id,
-        feature="tutor",
+        feature="tutor.multi_agent",
     )
 
     # 3) Persist the assistant turn with its citations.
@@ -423,8 +459,25 @@ async def post_message(
     conv.last_message_at = assistant_msg.created_at or datetime.now(UTC)
     await db.flush()
 
+    # 5) Project the orchestrator's tool-call log into the API
+    # surface. Refused / empty-retrieval responses surface an empty
+    # ``agent_trace`` and ``confidence=0`` — the frontend renders
+    # "no plan ran" on those rather than blowing up.
+    trace_out = [
+        ToolCallTraceOut(
+            tool_name=tc.tool_name,
+            args=tc.args,
+            rationale=tc.rationale,
+            result_summary=tc.result_summary,
+            result_details=tc.result_details,
+        )
+        for tc in orch.tool_calls_made
+    ]
+
     return PostMessageResponse(
         user_message=_message_to_out(user_msg),
         assistant_message=_message_to_out(assistant_msg),
         refused=result.refused,
+        confidence=orch.confidence,
+        agent_trace=trace_out,
     )

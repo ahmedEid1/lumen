@@ -7,6 +7,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AgentReasoningPanel,
+  type ToolCallTrace,
+} from "@/components/tutor/agent-reasoning-panel";
+import {
   Tutor,
   type TutorConversationDetail,
   type TutorMessageOut,
@@ -14,6 +18,19 @@ import {
 } from "@/lib/api/endpoints";
 import { useT } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
+
+/**
+ * Phase I2 — per-assistant-turn metadata produced by the multi-agent
+ * orchestrator. Keyed by the assistant message id so the
+ * ``AgentReasoningPanel`` can render under each assistant bubble
+ * without re-fetching the conversation. The map lives in component
+ * state because the persisted ``tutor_messages`` row doesn't carry
+ * the trace — it lands only in the POST response.
+ */
+export type TraceMeta = {
+  toolCalls: ToolCallTrace[];
+  confidence: number;
+};
 
 /**
  * Tutor panel — course-scoped RAG chat surface (Phase E1).
@@ -54,6 +71,15 @@ export function TutorPanel({ courseId, heading }: TutorPanelProps) {
   // canonical persisted rows come back from the POST response and
   // we replace optimistic-then with server-rows.
   const [localMessages, setLocalMessages] = useState<TutorMessageOut[]>([]);
+  // Phase I2 — per-assistant-message trace metadata. Keyed by the
+  // server's message id; the first assistant turn after page load
+  // auto-expands so a recruiter sees the agent thinking immediately.
+  const [traceByMsgId, setTraceByMsgId] = useState<Record<string, TraceMeta>>(
+    {},
+  );
+  const [firstAutoExpandedMsgId, setFirstAutoExpandedMsgId] = useState<
+    string | null
+  >(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Open a conversation when the panel mounts. We persist the
@@ -100,6 +126,23 @@ export function TutorPanel({ courseId, heading }: TutorPanelProps) {
         const withoutOptimistic = prev.filter((m) => !m.id.startsWith("opt_"));
         return [...withoutOptimistic, resp.user_message, resp.assistant_message];
       });
+      // Phase I2 — stash the trace + confidence keyed by the
+      // assistant message id so the reasoning panel can render
+      // under that bubble. The first assistant turn after the panel
+      // mounts auto-expands; later turns stay collapsed for a
+      // quieter UX.
+      if (resp.agent_trace && resp.agent_trace.length > 0) {
+        setTraceByMsgId((prev) => ({
+          ...prev,
+          [resp.assistant_message.id]: {
+            toolCalls: resp.agent_trace ?? [],
+            confidence: resp.confidence ?? 0,
+          },
+        }));
+        setFirstAutoExpandedMsgId((prev) =>
+          prev ?? resp.assistant_message.id,
+        );
+      }
       qc.invalidateQueries({
         queryKey: ["tutor", "conversation", conversationId],
       });
@@ -147,6 +190,8 @@ export function TutorPanel({ courseId, heading }: TutorPanelProps) {
           onClick={() => {
             setConversationId(null);
             setLocalMessages([]);
+            setTraceByMsgId({});
+            setFirstAutoExpandedMsgId(null);
             startMut.mutate();
           }}
           disabled={startMut.isPending || sendMut.isPending}
@@ -168,9 +213,19 @@ export function TutorPanel({ courseId, heading }: TutorPanelProps) {
             <p>{t("tutor.emptyPrompt")}</p>
           </div>
         )}
-        {localMessages.map((msg) => (
-          <TutorMessage key={msg.id} message={msg} />
-        ))}
+        {localMessages.map((msg) => {
+          const trace = traceByMsgId[msg.id];
+          return (
+            <TutorMessage
+              key={msg.id}
+              message={msg}
+              trace={trace}
+              autoExpandTrace={
+                trace !== undefined && msg.id === firstAutoExpandedMsgId
+              }
+            />
+          );
+        })}
         {sendMut.isPending && (
           <div
             className="flex items-center gap-2 font-mono text-xs text-muted-foreground"
@@ -225,8 +280,21 @@ export function TutorPanel({ courseId, heading }: TutorPanelProps) {
  * lose context. The pill's title attribute carries the chunk excerpt
  * for hover, but we don't render the excerpt by default to keep the
  * row compact.
+ *
+ * Phase I2 — assistant turns also render the
+ * :class:`AgentReasoningPanel` under the bubble when the orchestrator
+ * supplied a trace. The first assistant turn after the panel mounts
+ * auto-expands the trace; later turns stay collapsed.
  */
-function TutorMessage({ message }: { message: TutorMessageOut }) {
+function TutorMessage({
+  message,
+  trace,
+  autoExpandTrace,
+}: {
+  message: TutorMessageOut;
+  trace?: TraceMeta;
+  autoExpandTrace?: boolean;
+}) {
   const t = useT();
   const isUser = message.role === "user";
   return (
@@ -264,6 +332,15 @@ function TutorMessage({ message }: { message: TutorMessageOut }) {
               {c.lesson_title}
             </a>
           ))}
+        </div>
+      )}
+      {!isUser && trace && trace.toolCalls.length > 0 && (
+        <div className="w-full max-w-[85%]">
+          <AgentReasoningPanel
+            toolCalls={trace.toolCalls}
+            confidence={trace.confidence}
+            defaultExpanded={autoExpandTrace}
+          />
         </div>
       )}
       <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">

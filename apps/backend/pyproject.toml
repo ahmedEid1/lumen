@@ -100,6 +100,22 @@ dependencies = [
   "mcp>=1.5",
   "typer>=0.15",
   "rich>=13.9",
+  # Multi-agent tutor sub-agents (Phase I2):
+  # * ``tavily-python`` drives the ``web_searcher`` sub-agent. The
+  #   free tier (1000 searches/month) is the right cost shape for a
+  #   tutor surface; operators set ``TAVILY_API_KEY`` to enable it.
+  #   Missing key → graceful no-op (the sub-agent returns an empty
+  #   ``WebSearchResult`` with a clear note). See
+  #   ``docs/agentic-tutor.md``.
+  # * ``RestrictedPython`` drives the ``code_runner`` sub-agent. Zope's
+  #   long-standing AST-rewriting sandbox; we strip ``__import__``,
+  #   ``open``, ``exec``, ``eval``, and gate module access to ``math``
+  #   + ``statistics``. Phase J will replace this with Pyodide-in-WASM
+  #   for full learner-code execution; today's scope is "let the
+  #   tutor demonstrate stdlib behaviour safely". See the docstring
+  #   in ``app/services/tutor_subagents/code_runner.py``.
+  "tavily-python>=0.3",
+  "RestrictedPython>=7.0",
 ]
 
 [dependency-groups]

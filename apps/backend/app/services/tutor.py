@@ -1,7 +1,8 @@
 """Course-scoped RAG tutor service.
 
-Rebuild Phase E1. This is the engine behind "Ask the tutor" on every
-course surface. The headline UX promise:
+Rebuild Phase E1 / Lumen v2 Phase I2 multi-agent.
+
+The headline UX promise is unchanged from E1:
 
 1. Every answer is grounded in *this course's* content. Not the
    model's training data, not other courses on Lumen — strictly the
@@ -13,21 +14,21 @@ course surface. The headline UX promise:
    rather than hallucinating from the model's prior. This is the
    guardrail that distinguishes "course tutor" from "chatbot".
 
-The plumbing in five steps:
+**Phase I2 — the orchestrator wrapper.** The single-shot RAG pipeline
+that lived here through Phase H now lives split across the
+:mod:`tutor_subagents` package (the ``retriever`` is the lifted-out
+RAG step) and :mod:`tutor_orchestrator` (the planner + tool dispatch
+loop + synthesiser). :func:`ask` is preserved as a thin compatibility
+wrapper so the chat API and the MCP ``ask_tutor`` tool keep their
+existing signature: they call ``ask(db, course=..., user_message=...,
+user_id=..., feature=...)`` and get back a :class:`TutorAnswer`.
 
-1. :func:`find_relevant_chunks` (Phase E0) does an HNSW cosine
-   search against ``lesson_chunks`` filtered to this course.
-2. If the retrieval set is empty → return the structured refusal
-   immediately (no LLM call, no token spend).
-3. Otherwise build a system prompt that pins the model to the
-   retrieved chunks. The chunks are emitted in
-   ``Lesson L<lesson_id>: <title>\\n<excerpt>`` blocks — the
-   ``L<id>:`` prefix is the citation token the model is told to
-   wrap claims with.
-4. Call :meth:`LLMProvider.chat` with ``[system] + history + [user]``.
-5. :func:`extract_citations` parses ``[L:lesson_id]`` tokens out of
-   the reply, validates each against the retrieval set, and
-   attaches the matching lesson context.
+Citation parsing + the system-prompt builder are kept here because
+the existing tests (and the ``NoopProvider``) pin against them. The
+orchestrator's synthesiser uses the same ``[L:<lesson_id>]`` citation
+format so :func:`extract_citations` continues to be the canonical
+parser when callers want to re-validate citations against a
+retrieval set.
 
 That last validation step is the second guardrail: even if the
 model hallucinates a citation for a lesson id it never saw, we
@@ -48,13 +49,7 @@ from app.models.course import Course
 from app.models.lesson_chunk import LessonChunk
 from app.models.llm_call import SYSTEM_USER_ID
 from app.services.embeddings_retrieval import find_relevant_chunks
-from app.services.llm import (
-    ChatMessage,
-    LLMProvider,
-    NOOP_REFUSAL,
-    get_provider,
-)
-from app.services.llm_call_log import call_logged
+from app.services.llm import LLMProvider
 
 log = get_logger(__name__)
 
@@ -219,31 +214,6 @@ def extract_citations(
     return out
 
 
-def _build_messages(
-    *,
-    course: Course,
-    chunks: list[LessonChunk],
-    user_message: str,
-    history: list[dict[str, Any]] | None,
-) -> list[ChatMessage]:
-    """Compose the full message list sent to the LLM provider."""
-    messages: list[ChatMessage] = [
-        ChatMessage(role="system", content=build_system_prompt(course, chunks))
-    ]
-    for turn in history or []:
-        role = turn.get("role")
-        content = turn.get("content")
-        if role in ("user", "assistant") and isinstance(content, str) and content:
-            messages.append(ChatMessage(role=role, content=content))
-    messages.append(ChatMessage(role="user", content=user_message))
-    return messages
-
-
-def _is_refusal(answer: str) -> bool:
-    """Detect the noop provider's refusal sentinel as a refusal."""
-    return NOOP_REFUSAL.strip() in (answer or "").strip()
-
-
 async def ask(
     db: AsyncSession,
     *,
@@ -257,23 +227,44 @@ async def ask(
 ) -> TutorAnswer:
     """Answer ``user_message`` against ``course``'s content with citations.
 
-    Pipeline:
+    Phase I2 — this is now a thin compatibility wrapper around
+    :func:`tutor_orchestrator.orchestrate`. The orchestrator runs the
+    planner + sub-agent loop + synthesiser; we project its
+    :class:`OrchestratorResult` back into a :class:`TutorAnswer` so
+    callers (the chat API, the MCP ``ask_tutor`` tool, the eval
+    runner) keep their existing signature.
 
-    1. ``find_relevant_chunks`` — HNSW cosine over ``lesson_chunks``,
-       restricted to live lessons in this course.
-    2. **Empty retrieval guardrail** — if nothing comes back, return
-       the structured refusal *without calling the LLM*. This is
-       both a hallucination guard and a cost guard.
-    3. Build system prompt + history + user → call the provider.
-    4. **Refusal echo guardrail** — if the model's reply matches the
-       noop refusal sentinel (or starts with "I don't know"), mark
-       the answer as a refusal so the UI surfaces it as such.
-    5. Parse and validate citations against the retrieval set.
+    Two short-circuits before delegation, both preserving the Phase E1
+    cost guard:
+
+    1. **Empty question** — return the structured refusal immediately.
+       The orchestrator does the same, but doing it here saves one
+       function call frame on a hot path.
+    2. **Empty retrieval** — when retrieval against the course returns
+       nothing, return the refusal *without calling the LLM at all*.
+       This is the cost-guard the Phase E1 implementation set up and
+       the existing test suite pins. We do the retrieval here once;
+       the orchestrator's own retriever sub-agent is wired with
+       ``audit=True`` which we *also* want to fire for the multi-agent
+       path. Skipping the LLM on empty retrieval is the only place we
+       diverge from the orchestrator's "always plan first" behaviour.
+
+    The ``provider`` and ``top_k`` parameters are honoured by the
+    short-circuit retrieval but no longer threaded into the
+    orchestrator — the orchestrator resolves its provider via
+    :func:`llm.get_provider`. Tests that monkeypatch the provider via
+    env-vars + cache clear continue to work; tests that hand-pass a
+    provider instance are routed only through the short-circuit
+    retrieval here and don't reach the orchestrator (no current test
+    does this; the parameter is preserved for API compatibility).
     """
     user_message = (user_message or "").strip()
     if not user_message:
         return TutorAnswer(answer=REFUSAL_TEXT, citations=[], refused=True)
 
+    # Empty-retrieval cost guard — kept here (not deferred into the
+    # orchestrator) so a question against an unembedded course doesn't
+    # burn a planner round-trip before refusing.
     chunks = await find_relevant_chunks(
         db, course_id=course.id, query=user_message, top_k=top_k
     )
@@ -285,42 +276,171 @@ async def ask(
         )
         return TutorAnswer(answer=REFUSAL_TEXT, citations=[], refused=True)
 
-    llm = provider or get_provider()
-    messages = _build_messages(
-        course=course,
-        chunks=chunks,
-        user_message=user_message,
-        history=conversation_history,
-    )
-    # Phase H1 — route through the metered wrapper so every tutor
-    # call lands in ``llm_calls`` with tokens + cost + latency. Tests
-    # that don't pass ``user_id`` get the ``__system__`` sentinel,
-    # which is exempt from the per-user 24h budget guard — the
-    # legacy ``test_tutor.py`` cases don't need to know about the
-    # cost meter to keep working.
-    metered_user_id = user_id or SYSTEM_USER_ID
-    response = await call_logged(
-        llm,
-        messages,
-        user_id=metered_user_id,
-        feature=feature,
-        session=db,
-        temperature=0.2,
-    )
-    answer_text = response.text
+    # Delegate to the multi-agent orchestrator. Importing at call time
+    # avoids the module-level cycle (the orchestrator imports the
+    # sub-agents, none of which need anything from this module).
+    from app.services.tutor_orchestrator import orchestrate
 
-    if _is_refusal(answer_text):
+    result = await orchestrate(
+        db,
+        user_id=user_id or SYSTEM_USER_ID,
+        course=course,
+        question=user_message,
+        conversation_history=conversation_history,
+        feature=feature if feature != "tutor" else "tutor.multi_agent",
+    )
+
+    if result.refused:
         return TutorAnswer(answer=REFUSAL_TEXT, citations=[], refused=True)
 
-    citations = extract_citations(answer_text, chunks)
+    # Resolve lesson-id citations back into the Phase E1 ``Citation``
+    # shape (id + title + excerpt) using the chunks we already
+    # retrieved above. The orchestrator validates citations against
+    # the retriever sub-agent's lesson ids; we project that back to
+    # the persistence shape the chat API + MCP already serialise.
+    chunk_by_lesson: dict[str, LessonChunk] = {}
+    for c in chunks:
+        if c.lesson_id not in chunk_by_lesson:
+            chunk_by_lesson[c.lesson_id] = c
+    citations: list[Citation] = []
+    for lid in result.citations:
+        chunk = chunk_by_lesson.get(lid)
+        if chunk is None:
+            continue
+        citations.append(
+            Citation(
+                lesson_id=lid,
+                lesson_title=chunk.lesson.title or "Untitled lesson",
+                chunk_excerpt=_excerpt(chunk.text, CITATION_EXCERPT_CHARS),
+            )
+        )
+
+    # Defensive: if the orchestrator's synthesiser produced an answer
+    # that didn't cite anything (Noop, or a model that just ignored
+    # the citation directive), fall back to the ``extract_citations``
+    # parser on the raw text — same as Phase E1.
+    if not citations:
+        citations = extract_citations(result.answer, chunks)
+
     log.info(
-        "tutor_answered",
+        "tutor_answered_orchestrator",
         course_id=course.id,
         chunks=len(chunks),
         citations=len(citations),
-        provider=getattr(llm, "name", "unknown"),
+        tool_calls=len(result.tool_calls_made),
+        confidence=result.confidence,
     )
-    return TutorAnswer(answer=answer_text, citations=citations, refused=False)
+    return TutorAnswer(answer=result.answer, citations=citations, refused=False)
+
+
+async def ask_with_trace(
+    db: AsyncSession,
+    *,
+    course: Course,
+    user_message: str,
+    conversation_history: list[dict[str, Any]] | None = None,
+    user_id: str | None = None,
+    feature: str = "tutor.multi_agent",
+) -> tuple[TutorAnswer, "OrchestratorResult"]:
+    """Run the multi-agent orchestrator and project both shapes.
+
+    Phase I2 — surface for callers that want the full orchestrator
+    payload (per-turn plan, tool-call log, confidence) alongside the
+    legacy :class:`TutorAnswer` shape. The chat API uses this so it
+    can render the agent-reasoning panel without making a second
+    pass; backward-compatible callers (MCP, evals) continue to use
+    :func:`ask` and ignore the orchestrator metadata.
+
+    Returns a tuple ``(TutorAnswer, OrchestratorResult)``. The
+    ``TutorAnswer`` exposes the canonical answer + citations + refused
+    flag; the ``OrchestratorResult`` exposes ``tool_calls_made`` +
+    ``confidence`` + ``root_trace_id`` for the trace surface.
+
+    On the empty-retrieval short-circuit (no chunks in the course),
+    returns a refusal :class:`TutorAnswer` plus a synthetic
+    :class:`OrchestratorResult` with an empty tool-call list and
+    confidence 0 — the chat API surfaces this to the frontend so
+    the reasoning panel renders "no plan ran" cleanly.
+    """
+    # Local import to avoid a module-level cycle.
+    from app.services.tutor_orchestrator import (
+        OrchestratorResult as _OrchResult,
+        orchestrate,
+    )
+
+    user_message = (user_message or "").strip()
+    if not user_message:
+        return (
+            TutorAnswer(answer=REFUSAL_TEXT, citations=[], refused=True),
+            _OrchResult(
+                answer=REFUSAL_TEXT,
+                citations=[],
+                tool_calls_made=[],
+                confidence=0,
+                refused=True,
+            ),
+        )
+
+    chunks = await find_relevant_chunks(
+        db, course_id=course.id, query=user_message, top_k=DEFAULT_TOP_K
+    )
+    if not chunks:
+        log.info(
+            "tutor_refusal_no_retrieval",
+            course_id=course.id,
+            question_len=len(user_message),
+        )
+        return (
+            TutorAnswer(answer=REFUSAL_TEXT, citations=[], refused=True),
+            _OrchResult(
+                answer=REFUSAL_TEXT,
+                citations=[],
+                tool_calls_made=[],
+                confidence=0,
+                refused=True,
+            ),
+        )
+
+    orch_result = await orchestrate(
+        db,
+        user_id=user_id or SYSTEM_USER_ID,
+        course=course,
+        question=user_message,
+        conversation_history=conversation_history,
+        feature=feature,
+    )
+
+    if orch_result.refused:
+        return (
+            TutorAnswer(answer=REFUSAL_TEXT, citations=[], refused=True),
+            orch_result,
+        )
+
+    chunk_by_lesson: dict[str, LessonChunk] = {}
+    for c in chunks:
+        if c.lesson_id not in chunk_by_lesson:
+            chunk_by_lesson[c.lesson_id] = c
+    citations: list[Citation] = []
+    for lid in orch_result.citations:
+        chunk = chunk_by_lesson.get(lid)
+        if chunk is None:
+            continue
+        citations.append(
+            Citation(
+                lesson_id=lid,
+                lesson_title=chunk.lesson.title or "Untitled lesson",
+                chunk_excerpt=_excerpt(chunk.text, CITATION_EXCERPT_CHARS),
+            )
+        )
+    if not citations:
+        citations = extract_citations(orch_result.answer, chunks)
+
+    return (
+        TutorAnswer(
+            answer=orch_result.answer, citations=citations, refused=False
+        ),
+        orch_result,
+    )
 
 
 __all__ = [
@@ -332,6 +452,7 @@ __all__ = [
     "REFUSAL_TEXT",
     "TutorAnswer",
     "ask",
+    "ask_with_trace",
     "build_system_prompt",
     "extract_citations",
 ]

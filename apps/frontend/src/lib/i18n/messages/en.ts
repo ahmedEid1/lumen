@@ -750,6 +750,16 @@ export const en = {
   "tutor.startError": "Couldn't start the tutor. Try again.",
   "tutor.sendError": "Couldn't send that. Try again.",
 
+  // Tutor agent-reasoning panel (Phase I2 — multi-agent tutor)
+  "tutor.agentTrace.title": "Agent thinking",
+  "tutor.agentTrace.show": "Show me how you got this",
+  "tutor.agentTrace.hide": "Hide reasoning",
+  "tutor.agentTrace.colTool": "Tool",
+  "tutor.agentTrace.colWhy": "Why",
+  "tutor.agentTrace.colResult": "Result",
+  "tutor.agentTrace.noRationale": "(no rationale)",
+  "tutor.agentTrace.confidenceLabel": "Confidence {n} out of 5",
+
   // AI-assisted authoring (Phase E2) — outline generator + per-lesson assist
   "studio.aiOutline.button": "Generate with AI",
   "ai.outline.title": "Generate course with AI",

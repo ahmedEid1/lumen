@@ -466,11 +466,24 @@ export interface TutorConversationDetail {
   messages: TutorMessageOut[];
 }
 
+/** One sub-agent dispatch as rendered in the agent-reasoning panel (Phase I2). */
+export interface TutorToolCallTrace {
+  tool_name: string;
+  args: Record<string, unknown>;
+  rationale: string;
+  result_summary: string;
+  result_details: Record<string, unknown>;
+}
+
 /** Both turns returned by a single POST /messages call. */
 export interface TutorPostResponse {
   user_message: TutorMessageOut;
   assistant_message: TutorMessageOut;
   refused: boolean;
+  /** Phase I2: 0-5 self-reported by the planner / re-planner. */
+  confidence?: number;
+  /** Phase I2: per-turn tool-call log for the agent-reasoning panel. */
+  agent_trace?: TutorToolCallTrace[];
 }
 
 export const Tutor = {
