@@ -20,6 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   migration `0008_notifications_index_swap` is reversible.
 
 ### Security (rebuild phase B)
+- **Rate-limited the public `/certificates/verify/{id}` endpoint
+  (`@limiter.limit("20/minute")`).** The route is intentionally
+  unauthenticated so anyone with a certificate ID can confirm it
+  was issued by Lumen, but it returns `(learner_name, course_title)`
+  for any valid hit — and certificate IDs are 21-char nanoids over
+  a finite keyspace. With no cap, a single attacker could walk that
+  keyspace and harvest the full roster of everyone who has ever
+  completed a course on the platform. 20/minute is enough for an
+  HR reviewer pasting a stack of credentials into a verifier and
+  far below the rate a scraper needs to be cost-effective.
+  Anonymous traffic keys by IP via the existing slowapi
+  `_identity_key` machinery. Regression in
+  `apps/backend/tests/test_certificates.py::test_public_verify_is_rate_limited`.
 - **Removed hard-coded demo credentials from the login form.**
   `apps/frontend/src/app/login/page.tsx` previously initialised the
   email + password `useState` hooks with `student@lumen.test` /
