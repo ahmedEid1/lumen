@@ -22,8 +22,6 @@ import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { Courses } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import type { LessonOut, LessonType } from "@/lib/api/types";
@@ -74,15 +72,14 @@ export default function ModuleEditorPage({
 
   if (courseQ.isLoading)
     return (
-      <div className="container mx-auto px-4 py-14 text-center font-body text-muted-foreground">
+      <div className="container mx-auto px-6 py-14 text-center font-body text-muted-foreground">
         {t("common.loading")}
       </div>
     );
   if (!courseQ.data || !module)
     return (
-      <div className="container mx-auto flex flex-col items-center gap-3 px-4 py-20 text-center">
-        <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
-        <p className="font-display text-xl italic text-muted-foreground">
+      <div className="container mx-auto flex flex-col items-center gap-3 px-6 py-20 text-center">
+        <p className="font-display text-2xl italic text-muted-foreground">
           {t("moduleEdit.notFound")}
         </p>
       </div>
@@ -98,26 +95,30 @@ export default function ModuleEditorPage({
   }
 
   return (
-    <div className="container mx-auto px-4 py-14">
+    <div className="container mx-auto px-6 py-14">
       <Link
         href={`/studio/${id}`}
-        className="mb-4 inline-flex items-center font-body text-sm text-muted-foreground transition-colors hover:text-gold"
+        className="mb-4 inline-flex items-center font-body text-sm text-muted-foreground transition-colors hover:text-primary"
       >
         <ArrowLeft className="me-1 h-4 w-4" /> {t("moduleEdit.backToCourse")}
       </Link>
       <header className="mb-8 flex flex-col gap-3">
-        <Cartouche>{t("moduleEdit.cartouche")}</Cartouche>
-        <div className="text-[0.65rem] uppercase tracking-[0.28em] text-gold/70">
+        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          {t("moduleEdit.cartouche")}
+        </p>
+        <div className="text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
           {courseQ.data.title} · {t("courseDetail.module", { n: module.order + 1 })}
         </div>
-        <h1 className="font-display text-4xl font-medium tracking-tight">{module.title}</h1>
+        <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
+          {module.title}
+        </h1>
         {module.description && (
           <p className="font-body text-muted-foreground">{module.description}</p>
         )}
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        <Card className="scroll-paper border-gold/20">
+        <Card className="surface">
           <CardHeader>
             <CardTitle className="font-display text-lg">{t("moduleEdit.lessons")}</CardTitle>
           </CardHeader>
@@ -140,8 +141,8 @@ export default function ModuleEditorPage({
               </SortableContext>
             </DndContext>
 
-            <div className="border-t border-gold/15 pt-3">
-              <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-gold/70">
+            <div className="border-t border-border/60 pt-3">
+              <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
                 {t("moduleEdit.addLesson")}
               </p>
               <div className="grid grid-cols-3 gap-1">
@@ -185,10 +186,11 @@ export default function ModuleEditorPage({
               onCancel={() => setCreatingType(null)}
             />
           ) : (
-            <Card className="scroll-paper border-gold/20">
-              <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-                <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
-                <p className="font-body italic text-muted-foreground">{t("moduleEdit.empty")}</p>
+            <Card className="surface">
+              <CardContent className="py-16 text-center">
+                <p className="font-display text-xl italic text-muted-foreground">
+                  {t("moduleEdit.empty")}
+                </p>
               </CardContent>
             </Card>
           )}
@@ -222,14 +224,14 @@ function SortableLesson({
       <div
         className={`flex items-center gap-2 rounded-md border bg-background/60 p-2 text-sm transition-colors ${
           selected
-            ? "border-gold/60 bg-gold/10 text-gold"
-            : "border-border hover:border-gold/30"
+            ? "border-primary/60 bg-primary/10 text-primary"
+            : "border-border/60 hover:border-primary/30"
         }`}
       >
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab text-muted-foreground hover:text-gold"
+          className="cursor-grab text-muted-foreground hover:text-primary"
           aria-label={t("studioEdit.dragHandle")}
         >
           <GripVertical className="h-4 w-4" />
