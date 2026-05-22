@@ -95,6 +95,26 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Single thread + replies
+  "thread.notFound": "Thread not found.",
+  "thread.allDiscussions": "All discussions",
+  "thread.subscribe": "Subscribe",
+  "thread.subscribed": "Subscribed",
+  "thread.subscribeTip": "Get notified when someone replies",
+  "thread.unsubscribeTip": "Stop getting notified about new replies",
+  "thread.subscribeError": "Could not update subscription",
+  "thread.deleteThread": "Delete thread",
+  "thread.deleteReply": "Delete reply",
+  "thread.deletedToast": "Thread deleted",
+  "thread.deleteError": "Could not delete",
+  "thread.replyDeleteError": "Could not delete reply",
+  "thread.replyCard": "Reply",
+  "thread.replyPlaceholder": "Add to the conversation…",
+  "thread.post": "Post reply",
+  "thread.postError": "Could not post reply",
+  "thread.replyCountOne": "{n} reply",
+  "thread.replyCount": "{n} replies",
+
   // Discussions list — around the fire
   "discussions.cartouche": "Around the fire",
   "discussions.title": "Discussions",

@@ -102,6 +102,26 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Single thread + replies
+  "thread.notFound": "الموضوع غير موجود.",
+  "thread.allDiscussions": "كل النقاشات",
+  "thread.subscribe": "اشترك",
+  "thread.subscribed": "مشترك",
+  "thread.subscribeTip": "اشترك لتُخطَر عند الردود الجديدة",
+  "thread.unsubscribeTip": "أوقف الإشعارات عن الردود الجديدة",
+  "thread.subscribeError": "تعذّر تحديث الاشتراك",
+  "thread.deleteThread": "حذف الموضوع",
+  "thread.deleteReply": "حذف الردّ",
+  "thread.deletedToast": "تم حذف الموضوع",
+  "thread.deleteError": "تعذّر الحذف",
+  "thread.replyDeleteError": "تعذّر حذف الردّ",
+  "thread.replyCard": "ردّ",
+  "thread.replyPlaceholder": "أضف إلى النقاش…",
+  "thread.post": "نشر الردّ",
+  "thread.postError": "تعذّر نشر الردّ",
+  "thread.replyCountOne": "{n} ردّ",
+  "thread.replyCount": "{n} ردّ",
+
   // Discussions list — حول النار
   "discussions.cartouche": "حول النار",
   "discussions.title": "النقاشات",

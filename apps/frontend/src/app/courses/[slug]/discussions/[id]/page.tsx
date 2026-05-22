@@ -5,14 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Bell, BellOff, Trash2 } from "lucide-react";
+import { ArrowLeft, Bell, BellOff, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { formatRelative } from "@/lib/utils";
+import { useT } from "@/lib/i18n/provider";
 
 type Author = { id: string; full_name: string; avatar_url: string | null } | null;
 
@@ -45,6 +47,7 @@ export default function ThreadPage({
   const qc = useQueryClient();
   const router = useRouter();
   const { user } = useAuth();
+  const t = useT();
   const [draft, setDraft] = useState("");
 
   const threadQ = useQuery({
@@ -62,7 +65,7 @@ export default function ThreadPage({
       setDraft("");
       qc.invalidateQueries({ queryKey: ["discussion", id] });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not post reply"),
+    onError: (e: Error) => toast.error(e?.message ?? t("thread.postError")),
   });
 
   const toggleSubscribe = useMutation({
@@ -72,16 +75,16 @@ export default function ThreadPage({
         { method: threadQ.data?.is_subscribed ? "DELETE" : "POST" },
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["discussion", id] }),
-    onError: (e: Error) => toast.error(e?.message ?? "Could not update subscription"),
+    onError: (e: Error) => toast.error(e?.message ?? t("thread.subscribeError")),
   });
 
   const deleteThread = useMutation({
     mutationFn: () => api<{ ok: true }>(`/api/v1/discussions/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      toast.success("Thread deleted");
+      toast.success(t("thread.deletedToast"));
       router.replace(`/courses/${slug}/discussions`);
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not delete"),
+    onError: (e: Error) => toast.error(e?.message ?? t("thread.deleteError")),
   });
 
   const deleteReply = useMutation({
@@ -90,33 +93,42 @@ export default function ThreadPage({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["discussion", id] });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not delete reply"),
+    onError: (e: Error) => toast.error(e?.message ?? t("thread.replyDeleteError")),
   });
 
-  if (threadQ.isLoading) return <div className="container mx-auto px-4 py-10">Loading…</div>;
+  if (threadQ.isLoading)
+    return (
+      <div className="container mx-auto px-4 py-14 text-center font-body text-muted-foreground">
+        {t("common.loading")}
+      </div>
+    );
   if (!threadQ.data) {
     return (
-      <div className="container mx-auto px-4 py-10 text-muted-foreground">
-        Thread not found.
+      <div className="container mx-auto flex flex-col items-center gap-3 px-4 py-20 text-center">
+        <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
+        <p className="font-display text-xl italic text-muted-foreground">
+          {t("thread.notFound")}
+        </p>
       </div>
     );
   }
-  const t = threadQ.data;
-  const canEditThread = !!user && (user.id === t.author?.id || user.role === "admin");
+  const thread = threadQ.data;
+  const canEditThread = !!user && (user.id === thread.author?.id || user.role === "admin");
+  const replyCountKey = thread.replies.length === 1 ? "thread.replyCountOne" : "thread.replyCount";
 
   return (
-    <div className="container mx-auto max-w-3xl space-y-6 px-4 py-10">
+    <div className="container mx-auto max-w-3xl space-y-6 px-4 py-14">
       <Link
         href={`/courses/${slug}/discussions`}
-        className="text-sm text-muted-foreground hover:underline"
+        className="inline-flex items-center font-body text-sm text-muted-foreground transition-colors hover:text-gold"
       >
-        ← All discussions
+        <ArrowLeft className="me-1 h-4 w-4" /> {t("thread.allDiscussions")}
       </Link>
 
-      <Card>
-        <CardHeader className="space-y-2">
+      <Card className="scroll-paper border-gold/20">
+        <CardHeader className="space-y-3">
           <div className="flex items-start justify-between gap-3">
-            <CardTitle>{t.title}</CardTitle>
+            <CardTitle className="font-display text-2xl">{thread.title}</CardTitle>
             <div className="flex items-center gap-1">
               {user && (
                 <Button
@@ -125,18 +137,18 @@ export default function ThreadPage({
                   onClick={() => toggleSubscribe.mutate()}
                   disabled={toggleSubscribe.isPending}
                   title={
-                    t.is_subscribed
-                      ? "Stop getting notified about new replies"
-                      : "Get notified when someone replies"
+                    thread.is_subscribed
+                      ? t("thread.unsubscribeTip")
+                      : t("thread.subscribeTip")
                   }
                 >
-                  {t.is_subscribed ? (
+                  {thread.is_subscribed ? (
                     <>
-                      <BellOff className="me-1 h-3.5 w-3.5" /> Subscribed
+                      <BellOff className="me-1 h-3.5 w-3.5" /> {t("thread.subscribed")}
                     </>
                   ) : (
                     <>
-                      <Bell className="me-1 h-3.5 w-3.5" /> Subscribe
+                      <Bell className="me-1 h-3.5 w-3.5" /> {t("thread.subscribe")}
                     </>
                   )}
                 </Button>
@@ -145,67 +157,71 @@ export default function ThreadPage({
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Delete thread"
+                  aria-label={t("thread.deleteThread")}
                   onClick={() => deleteThread.mutate()}
                   disabled={deleteThread.isPending}
+                  className="text-muted-foreground hover:text-destructive"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Avatar className="h-5 w-5">
-              <AvatarImage src={t.author?.avatar_url ?? undefined} alt="" />
+          <div className="flex items-center gap-2 font-body text-xs text-muted-foreground">
+            <Avatar className="h-5 w-5 border border-gold/25">
+              <AvatarImage src={thread.author?.avatar_url ?? undefined} alt="" />
               <AvatarFallback>
-                {(t.author?.full_name ?? "?").slice(0, 1)}
+                {(thread.author?.full_name ?? "?").slice(0, 1)}
               </AvatarFallback>
             </Avatar>
-            <span>{t.author?.full_name ?? "Deleted user"}</span>
-            <span>· {formatRelative(t.created_at)}</span>
+            <span>{thread.author?.full_name ?? t("discussions.deletedUser")}</span>
+            <span>· {formatRelative(thread.created_at)}</span>
           </div>
         </CardHeader>
-        {t.body && (
+        {thread.body && (
           <CardContent>
-            <p className="whitespace-pre-wrap text-sm">{t.body}</p>
+            <p className="whitespace-pre-wrap font-body text-sm text-foreground/90">
+              {thread.body}
+            </p>
           </CardContent>
         )}
       </Card>
 
-      <h2 className="text-sm font-medium text-muted-foreground">
-        {t.replies.length} {t.replies.length === 1 ? "reply" : "replies"}
+      <h2 className="text-[0.65rem] uppercase tracking-[0.28em] text-gold/70">
+        {t(replyCountKey, { n: thread.replies.length })}
       </h2>
       <ul className="space-y-3">
-        {t.replies.map((r) => {
+        {thread.replies.map((r) => {
           const canDelete = !!user && (user.id === r.author?.id || user.role === "admin");
           return (
             <li key={r.id}>
-              <Card>
+              <Card className="scroll-paper border-gold/15">
                 <CardContent className="space-y-2 pt-4">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between font-body text-xs text-muted-foreground">
                     <span className="flex items-center gap-2">
-                      <Avatar className="h-5 w-5">
+                      <Avatar className="h-5 w-5 border border-gold/25">
                         <AvatarImage src={r.author?.avatar_url ?? undefined} alt="" />
                         <AvatarFallback>
                           {(r.author?.full_name ?? "?").slice(0, 1)}
                         </AvatarFallback>
                       </Avatar>
-                      <span>{r.author?.full_name ?? "Deleted user"}</span>
+                      <span>{r.author?.full_name ?? t("discussions.deletedUser")}</span>
                       <span>· {formatRelative(r.created_at)}</span>
                     </span>
                     {canDelete && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        aria-label="Delete reply"
+                        aria-label={t("thread.deleteReply")}
                         onClick={() => deleteReply.mutate(r.id)}
                         disabled={deleteReply.isPending}
+                        className="text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
                   </div>
-                  <p className="whitespace-pre-wrap text-sm">{r.body}</p>
+                  <p className="whitespace-pre-wrap font-body text-sm text-foreground/90">{r.body}</p>
                 </CardContent>
               </Card>
             </li>
@@ -214,9 +230,9 @@ export default function ThreadPage({
       </ul>
 
       {user && (
-        <Card>
+        <Card className="scroll-paper border-gold/20">
           <CardHeader>
-            <CardTitle className="text-base">Reply</CardTitle>
+            <CardTitle className="font-display text-base">{t("thread.replyCard")}</CardTitle>
           </CardHeader>
           <CardContent>
             <form
@@ -232,10 +248,10 @@ export default function ThreadPage({
                 onChange={(e) => setDraft(e.target.value)}
                 rows={3}
                 maxLength={10000}
-                placeholder="Add to the conversation…"
+                placeholder={t("thread.replyPlaceholder")}
               />
               <Button type="submit" disabled={reply.isPending || !draft.trim()}>
-                {reply.isPending ? "Posting…" : "Post reply"}
+                {reply.isPending ? t("discussions.posting") : t("thread.post")}
               </Button>
             </form>
           </CardContent>
