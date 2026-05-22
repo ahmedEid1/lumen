@@ -95,6 +95,16 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Chat — torchlit cohort room
+  "chat.connected": "Connected · {n} online",
+  "chat.reconnecting": "Reconnecting…",
+  "chat.connecting": "Connecting…",
+  "chat.disconnected": "Disconnected",
+  "chat.empty": "No messages yet. Say hi!",
+  "chat.placeholder": "Write a message…",
+  "chat.messageAria": "Message",
+  "chat.send": "Send",
+
   // Site footer
   "footer.copyright": "© {year} Lumen · MIT licensed",
   "footer.docs": "Docs",

@@ -102,6 +102,16 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Chat — قاعة المتعلمين بضوء المشاعل
+  "chat.connected": "متّصل · {n} حاضر",
+  "chat.reconnecting": "جارٍ إعادة الاتصال…",
+  "chat.connecting": "جارٍ الاتصال…",
+  "chat.disconnected": "غير متّصل",
+  "chat.empty": "لا رسائل بعد. ابدأ بالسلام!",
+  "chat.placeholder": "اكتب رسالة…",
+  "chat.messageAria": "رسالة",
+  "chat.send": "إرسال",
+
   // تذييل الموقع
   "footer.copyright": "© {year} لومن · رخصة MIT",
   "footer.docs": "الوثائق",

@@ -32,8 +32,15 @@ vi.mock("@/lib/i18n/provider", async () => {
     useLocale: () => ({ locale: "en", setLocale: vi.fn() }),
     useT:
       () =>
-      (key: string): string =>
-        (en as Record<string, string>)[key] ?? key,
+      (key: string, vars?: Record<string, string | number>): string => {
+        let s = (en as Record<string, string>)[key] ?? key;
+        if (vars) {
+          for (const [k, v] of Object.entries(vars)) {
+            s = s.replaceAll(`{${k}}`, String(v));
+          }
+        }
+        return s;
+      },
     LocaleProvider: ({ children }: { children: React.ReactNode }) => children,
   };
 });
