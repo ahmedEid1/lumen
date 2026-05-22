@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rebuild] - 2026-05-22
+
+The Lumen rebuild. Six phases (A: cuts, B: stop-the-bleed, C: Workbench
+visual pivot, D: PRD-promised quick wins, E: AI-native differentiators,
+F: ship) landed across 25+ commits on the `Rewrite` branch since the
+spec at `docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md`.
+
+Headline user-facing changes: the platform pivoted from a Coursera-style
+OSS LMS to an AI-first OSS learning platform with a light async-cohort
+surface. The Skillpath cobalt palette and the prior Egyptian-deity
+branding are gone, replaced by the Workbench visual identity (electric
+lime on `#0A0B0D`, Inter / JetBrains Mono, border-driven elevation,
+dark-mode-default). Meilisearch was ripped — full-text search runs on
+Postgres `tsvector` + GIN; semantic retrieval ships on pgvector with a
+provider-agnostic embedding service. Per-course WebSocket chat was
+removed; the AI tutor plus per-lesson async comments cover that ground.
+PDF certificates are now a fallback only — the primary credential is an
+Open Badges 3.0 / W3C VC signed with Ed25519. New AI-native surfaces:
+course-scoped RAG tutor with citations (E1), AI-assisted authoring (E2),
+multi-modal ingest from YouTube / Notion / Google Docs (E3), FSRS-6
+spaced-repetition review queue (E4), Tiptap block editor (E6), mastery
+dashboard (E7). Smart digest notifications with per-kind email
+preferences (D4), first-login onboarding tour (D3), instructor
+analytics (D2), "Preview as student" (D1), and a **WCAG 2.2 AA
+axe-core CI gate** (D5) blocking on every PR.
+
 ### Added (rebuild phase E)
 - **Per-learner mastery dashboard (E7).** A new "what to revisit next"
   surface at `/dashboard/mastery` that combines the three independent
@@ -91,33 +117,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the spot carries a `review_card_id`), and the per-course row
   exposes both progress bars with the percentages alongside.
 
-## [1.0.0-rebuild] - 2026-05-22
-
-The Lumen rebuild. Six phases (A: cuts, B: stop-the-bleed, C: Workbench
-visual pivot, D: PRD-promised quick wins, E: AI-native differentiators,
-F: ship) landed across 25+ commits on the `Rewrite` branch since the
-spec at `docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md`.
-
-Headline user-facing changes: the platform pivoted from a Coursera-style
-OSS LMS to an AI-first OSS learning platform with a light async-cohort
-surface. The Skillpath cobalt palette and the prior Egyptian-deity
-branding are gone, replaced by the Workbench visual identity (electric
-lime on `#0A0B0D`, Inter / JetBrains Mono, border-driven elevation,
-dark-mode-default). Meilisearch was ripped — full-text search runs on
-Postgres `tsvector` + GIN; semantic retrieval ships on pgvector with a
-provider-agnostic embedding service. Per-course WebSocket chat was
-removed; the AI tutor plus per-lesson async comments cover that ground.
-PDF certificates are now a fallback only — the primary credential is an
-Open Badges 3.0 / W3C VC signed with Ed25519. New AI-native surfaces:
-course-scoped RAG tutor with citations (E1), AI-assisted authoring (E2),
-multi-modal ingest from YouTube / Notion / Google Docs (E3), FSRS-6
-spaced-repetition review queue (E4), Tiptap block editor (E6), mastery
-dashboard (E7). Smart digest notifications with per-kind email
-preferences (D4), first-login onboarding tour (D3), instructor
-analytics (D2), "Preview as student" (D1), and a **WCAG 2.2 AA
-axe-core CI gate** (D5) blocking on every PR.
-
-### Added (rebuild phase E)
 - **AI-assisted course authoring (E2).** Instructors can paste a
   one-paragraph brief and get back a proposed course structure
   (3-6 modules, each with 3-5 lessons), then drill into individual
