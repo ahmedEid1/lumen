@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Performance (rebuild phase B)
+- **Batched progress lookup on the dashboard listing (Fix B1).**
+  `GET /api/v1/me/enrollments` previously called
+  `enrollment_service.progress_pct(enrollment)` once per enrollment,
+  and each call hit two queries (`count_lessons_in_course` +
+  `count_completed_lessons`). For N enrollments that was 2N round-
+  trips on top of the courses+stats fetch — a learner enrolled in 50
+  courses cost 100 progress queries per dashboard hit. Added
+  `courses_repo.progress_pcts_for_enrollments` which issues two
+  aggregate SELECTs (GROUP BY course_id for live-lesson totals; GROUP
+  BY enrollment_id for completions) and divides in Python, collapsing
+  the dashboard's progress budget to a flat 2 queries regardless of
+  N. API response shape is unchanged. Regression covered by
+  `apps/backend/tests/test_enrollments_dashboard_perf.py`, which
+  attaches a `before_cursor_execute` listener and asserts ≤2
+  progress-related SELECTs for a 5-enrollment listing.
 - **Swapped the notifications composite index from `(user_id, read_at)`
   to `(user_id, created_at)` (rebuild Fix B6).** The old index was
   designed around a "show me the unread ones" query that never

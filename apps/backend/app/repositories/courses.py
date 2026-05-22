@@ -353,6 +353,53 @@ async def count_completed_lessons(db: AsyncSession, enrollment_id: str) -> int:
     return int(res.scalar_one())
 
 
+async def progress_pcts_for_enrollments(
+    db: AsyncSession, enrollments: list[Enrollment]
+) -> dict[str, float]:
+    """Batched progress-% lookup for the dashboard listing.
+
+    Avoids the 2N round-trip the per-enrollment ``progress_pct`` path
+    takes: one aggregate query for total live lessons per course, one
+    aggregate for completed lessons per enrollment, then divide in
+    Python. Result maps enrollment_id -> rounded percentage.
+    """
+    if not enrollments:
+        return {}
+
+    course_ids = {e.course_id for e in enrollments}
+    enrollment_ids = [e.id for e in enrollments]
+
+    totals_res = await db.execute(
+        select(Module.course_id, func.count(Lesson.id))
+        .join(Lesson, Lesson.module_id == Module.id)
+        .where(
+            Module.course_id.in_(course_ids),
+            Lesson.deleted_at.is_(None),
+        )
+        .group_by(Module.course_id)
+    )
+    totals_by_course: dict[str, int] = {cid: int(n) for cid, n in totals_res.all()}
+
+    done_res = await db.execute(
+        select(LessonProgress.enrollment_id, func.count(LessonProgress.id))
+        .join(Lesson, Lesson.id == LessonProgress.lesson_id)
+        .where(
+            LessonProgress.enrollment_id.in_(enrollment_ids),
+            LessonProgress.completed_at.is_not(None),
+            Lesson.deleted_at.is_(None),
+        )
+        .group_by(LessonProgress.enrollment_id)
+    )
+    done_by_enrollment: dict[str, int] = {eid: int(n) for eid, n in done_res.all()}
+
+    out: dict[str, float] = {}
+    for e in enrollments:
+        total = totals_by_course.get(e.course_id, 0)
+        done = done_by_enrollment.get(e.id, 0)
+        out[e.id] = round(done / total * 100.0, 1) if total else 0.0
+    return out
+
+
 async def get_or_create_progress(
     db: AsyncSession, *, enrollment_id: str, lesson_id: str
 ) -> LessonProgress:
