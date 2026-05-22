@@ -1,0 +1,87 @@
+# =============================================================
+# Lumen — Fly.io worker service (Celery)
+#
+# Same image as the API (see fly.api.toml), different entry
+# command. The worker handles:
+#   - Email send (password reset, email verify, digest body)
+#   - Media post-processing (thumbnails, transcoding stubs)
+#   - Certificate minting + Open Badge signing
+#   - Embedding ingest (Phase E0 — pgvector chunks)
+#
+# What the worker does NOT do on free tier: Celery **beat**.
+# Beat would need a Machine running 24/7, which defeats the
+# scale-to-zero cost target. The daily-digest cron runs as a
+# GitHub Actions workflow (see .github/workflows/daily-digest.yml)
+# that pokes the worker via `flyctl ssh` once a day. Any other
+# beat-driven tasks should follow the same pattern.
+#
+# Scale-to-zero details:
+#   - Inbound HTTP doesn't apply here (workers have no public
+#     port). Fly stops the Machine after the configured
+#     `auto_stop_machines` grace period whenever it idles, then
+#     starts it again on the next deploy or `flyctl machine
+#     start`.
+#   - The GitHub-Actions cron does `flyctl ssh console -C <cmd>`
+#     which auto-starts the Machine, runs the task, and lets it
+#     idle back to zero.
+#   - Celery's `task_acks_late=True` (see app/workers/celery_app.py)
+#     means in-flight tasks survive a graceful Machine stop.
+# =============================================================
+
+app             = "lumen-worker"
+primary_region  = "fra"
+
+[build]
+  dockerfile = "../../infra/fly/Dockerfile.fly"
+  [build.args]
+    SERVICE = "worker"
+
+[deploy]
+  # Worker does NOT run migrations — that's the API's release
+  # command. If we ran it here too, two parallel `flyctl deploy`
+  # invocations could race against each other.
+  strategy = "rolling"
+
+[processes]
+  app = "celery -A app.workers.celery_app.celery worker --loglevel=info --concurrency=2"
+
+[env]
+  ENV                 = "production"
+  LOG_LEVEL           = "INFO"
+  LLM_PROVIDER        = "openai"
+  LLM_MODEL           = "llama-3.3-70b-versatile"
+  OPENAI_API_BASE     = "https://api.groq.com/openai/v1"
+  EMBEDDING_PROVIDER  = "local"
+  SEARCH_BACKEND      = "postgres"
+  # Workers don't serve HTTP, but the CORS_ORIGINS env var is
+  # still read at boot by app.core.config — must be non-empty
+  # to pass the H6 prod guard. The value doesn't affect any
+  # outbound calls.
+  CORS_ORIGINS        = '["https://lumen.vercel.app"]'
+  PROMETHEUS_ENABLED  = "false"
+
+# Worker has no inbound HTTP — no [http_service] block. Fly
+# still bills per Machine-second, so we keep it at the smallest
+# VM. The worker idles to zero after `auto_stop_machines` fires
+# (Fly's machine-level scale-to-zero — not the http_service
+# variant).
+[[vm]]
+  size    = "shared-cpu-1x"
+  memory  = "256mb"
+  cpus    = 1
+
+# Machine-level scale-to-zero. Without an http_service the only
+# way to stop the worker is to set its Machine count to 0;
+# `flyctl scale count 0` after deploys, or use `auto_stop` once
+# it's stable in your tier. See free-tier runbook step "scale
+# the worker to zero on idle".
+[[services]]
+  protocol      = "tcp"
+  internal_port = 9000
+  # No `ports = [...]` block — this service is internal-only;
+  # it exists purely to give the Fly proxy a "thing" to attach
+  # auto-stop semantics to. Celery itself doesn't listen here;
+  # this is a no-op placeholder.
+  auto_stop_machines   = "stop"
+  auto_start_machines  = false
+  min_machines_running = 0

@@ -1,0 +1,121 @@
+# =============================================================
+# Lumen — Fly.io API service (FastAPI)
+#
+# Free-tier deploy target per v2 spec §8 addendum:
+#   - Scale-to-zero: idle Machines stop after their grace
+#     window; the next inbound HTTP request cold-starts a
+#     Machine. Steady-state cost at zero traffic = $0/mo.
+#   - 256 MB VM (free allowance covers ~3 shared-cpu-1x VMs
+#     of this size).
+#   - Single region `fra` (Frankfurt) — closest to operator
+#     in Essen/Germany. Add more regions later if needed
+#     via `fly regions add ...`.
+#   - All long-lived secrets live in `fly secrets set`, not
+#     in this file. The `[env]` block only carries
+#     non-secret config knobs.
+#
+# Deploy:  flyctl deploy --remote-only --config infra/fly/fly.api.toml
+#
+# First-time setup is documented in docs/deployment/free-tier.md.
+# =============================================================
+
+app             = "lumen-api"
+primary_region  = "fra"
+
+[build]
+  # The runtime image is multi-stage; we target the `runtime`
+  # stage so the api Machine doesn't carry dev-only deps.
+  dockerfile = "../../infra/fly/Dockerfile.fly"
+  # Same image is reused by the worker (different start cmd).
+  # Build args here are kept minimal — anything that needs to
+  # change between api / worker is a runtime env, not a build
+  # arg, so cache layers stay shared.
+  [build.args]
+    SERVICE = "api"
+
+[deploy]
+  # Run Alembic on every deploy. This is the only place that
+  # writes schema changes against Supabase Postgres; the worker
+  # never runs migrations. `release_command` blocks the new
+  # release from going live until migrations land cleanly.
+  release_command = "alembic upgrade head"
+  strategy        = "rolling"
+
+# Default process group runs uvicorn directly (no celery here —
+# the worker is a separate Fly app). We bind 0.0.0.0:8000;
+# Fly's edge proxy terminates TLS and forwards to this port.
+[processes]
+  app = "uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips=*"
+
+[env]
+  ENV                 = "production"
+  LOG_LEVEL           = "INFO"
+  PORT                = "8000"
+  # Phase E0 / H1: embedding + LLM defaults match the v2 spec
+  # §8 addendum (Groq Llama 3.3 70B free tier). The actual
+  # OPENAI_API_KEY and ANTHROPIC_API_KEY are `fly secrets`.
+  LLM_PROVIDER        = "openai"
+  LLM_MODEL           = "llama-3.3-70b-versatile"
+  OPENAI_API_BASE     = "https://api.groq.com/openai/v1"
+  EMBEDDING_PROVIDER  = "local"
+  # SEARCH_BACKEND=postgres → fall back to ILIKE + tsvector
+  # (Phase D5) instead of Meilisearch, which isn't part of the
+  # free-tier stack. The H1/E0 embedding similarity path still
+  # works via pgvector on Supabase.
+  SEARCH_BACKEND      = "postgres"
+  PROMETHEUS_ENABLED  = "false"
+  # CORS lockdown: only the Vercel frontend can hit the api.
+  # The H6 boot guard refuses to start in prod with any
+  # localhost / .test entry, so this list must be real public
+  # origins. Update via `fly secrets set` if the Vercel URL
+  # changes (preview deploys land on `*.vercel.app`, which
+  # the operator can add as a glob via the env or move to a
+  # secret).
+  CORS_ORIGINS        = '["https://lumen.vercel.app"]'
+
+# Internal HTTP service — Fly's edge handles TLS, redirects,
+# and the public hostname (lumen-api.fly.dev by default; add
+# a custom domain via `fly certs add lumen.example.com`).
+[http_service]
+  internal_port        = 8000
+  force_https          = true
+  # Scale-to-zero: stop idle machines, start on demand. The
+  # `min_machines_running = 0` is the line that makes the free
+  # tier work. Expect ~1.5-3s cold-start latency on the first
+  # request after idle; subsequent requests in the same window
+  # stay warm.
+  auto_stop_machines   = "stop"
+  auto_start_machines  = true
+  min_machines_running = 0
+  processes            = ["app"]
+
+  [http_service.concurrency]
+    type       = "requests"
+    # 256 MB VM with 1 uvicorn worker comfortably handles ~20
+    # in-flight requests. Hard cap at 50 so a runaway client
+    # doesn't OOM the Machine.
+    hard_limit = 50
+    soft_limit = 20
+
+  # Fly's L4 healthcheck — used for routing decisions. If this
+  # fails 3× the Machine is marked unhealthy and the edge
+  # routes around it.
+  [[http_service.checks]]
+    method        = "GET"
+    path          = "/api/v1/health/live"
+    interval      = "15s"
+    timeout       = "5s"
+    grace_period  = "30s"
+
+# VM sizing — shared-cpu-1x / 256 MB lands inside the free
+# allowance. Bump to 512 MB if Celery side-effects from the API
+# (rare but possible — `_schedule_index` enqueues) start to
+# pinch.
+[[vm]]
+  size    = "shared-cpu-1x"
+  memory  = "256mb"
+  cpus    = 1
+
+# Mounts: none. The api is stateless; user uploads live in
+# Cloudflare R2, the DB lives on Supabase. Re-running a Machine
+# never loses data because the Machine has no local volume.

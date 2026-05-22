@@ -198,6 +198,19 @@ def reindex() -> None:
     asyncio.run(_reindex())
 
 
+@cli.command(name="demo-seed")
+def demo_seed() -> None:
+    """Load the H4 free-tier demo bundle (3 courses + demo student).
+
+    Sits on top of ``seed``: run ``seed`` first if you want the full
+    subject / tag / instructor / student dev fixtures; ``demo-seed`` is
+    additive and idempotent on its own. See ``app/seeds/demo.py``.
+    """
+    from app.seeds.demo import run as _demo_run
+
+    asyncio.run(_demo_run())
+
+
 @cli.command()
 def info() -> None:
     """Print configuration summary."""

@@ -1,0 +1,96 @@
+# syntax=docker/dockerfile:1.7-labs
+# =============================================================
+# Lumen — Fly.io runtime image (shared by api + worker)
+#
+# Why this is a separate Dockerfile from apps/backend/Dockerfile:
+#   - The main Dockerfile has a `dev` target that bakes pytest,
+#     ruff, mypy, factory-boy, faker — none of which we want on
+#     the deployed image. Keeping them out shaves ~80 MB and
+#     trims the attack surface.
+#   - Fly's `flyctl deploy` defaults to the repo-root Dockerfile;
+#     pointing it at this file via `dockerfile = "..."` in
+#     fly.api.toml / fly.worker.toml is how we keep the dev
+#     image untouched while shipping a slimmer prod artifact.
+#   - The Fly build context is the *repo root* (so the toml's
+#     relative path `../../infra/fly/Dockerfile.fly` resolves
+#     correctly). That means COPY paths are relative to the
+#     repo root, not apps/backend/.
+#
+# Build context: repo root.
+# Targets: a single `runtime` stage. The api and worker use the
+# same image; their entrypoint differs (set in their fly.*.toml
+# [processes] block).
+# =============================================================
+
+# ---------------- base ----------------
+FROM python:3.13-slim AS base
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH=/opt/venv/bin:/root/.local/bin:$PATH
+
+# libpq5 for the psycopg sync driver (Alembic uses sync);
+# tini reaps zombies cleanly so uvicorn / celery workers exit
+# fast on SIGTERM (important for Fly's scale-to-zero grace).
+# curl is kept because Fly's `flyctl ssh console` healthcheck
+# diagnostics call /api/v1/health/live from inside the Machine.
+# ca-certificates lets the runtime trust HTTPS endpoints
+# (Anthropic / Groq / Supabase / Upstash / R2).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libpq5 curl ca-certificates tini build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+ADD https://astral.sh/uv/install.sh /uv-install.sh
+RUN sh /uv-install.sh && rm /uv-install.sh && mv /root/.local/bin/uv /usr/local/bin/uv
+
+WORKDIR /app
+
+# ---------------- deps ----------------
+FROM base AS deps
+# Same two-step cache strategy as apps/backend/Dockerfile.
+COPY apps/backend/pyproject.toml apps/backend/uv.lock* ./
+RUN mkdir -p app && touch app/__init__.py
+RUN uv venv /opt/venv \
+ && (uv sync --frozen --no-install-project --no-dev || uv pip install -e '.')
+
+# ---------------- build ----------------
+FROM deps AS build
+COPY apps/backend/ ./
+
+# ---------------- runtime ----------------
+FROM python:3.13-slim AS runtime
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH=/opt/venv/bin:$PATH
+
+# Strip build-essential here — runtime doesn't need a compiler.
+# libpq5 stays (psycopg sync driver runs at Alembic time).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libpq5 tini curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 1001 lumen
+
+COPY --from=build /opt/venv /opt/venv
+COPY --from=build /app /app
+
+WORKDIR /app
+USER lumen
+
+# Fly's `internal_port = 8000` for the api maps to this EXPOSE.
+# The worker process ignores it (celery doesn't bind a port).
+EXPOSE 8000
+
+# No HEALTHCHECK directive here — Fly's [[http_service.checks]]
+# block in fly.api.toml drives healthchecks via the edge, which
+# is the source of truth for routing decisions. A Docker
+# HEALTHCHECK would only confuse the picture (Fly ignores it).
+
+# Default command is overridden by [processes].app in each
+# fly.*.toml. The CMD here is the api path so that
+# `docker run lumen-api:fly` works as a sanity check locally
+# without Fly involved.
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips=*"]

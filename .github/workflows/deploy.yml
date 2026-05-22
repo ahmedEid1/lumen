@@ -1,0 +1,153 @@
+# =============================================================
+# Deploy — Fly.io api + worker
+#
+# Runs on every push to `Rewrite` after CI is green. Vercel
+# auto-deploys the frontend from its own GitHub integration, so
+# this workflow only drives the two Fly apps (`lumen-api` and
+# `lumen-worker`).
+#
+# Required secrets (set under repo Settings → Secrets):
+#   FLY_API_TOKEN  — `flyctl auth token` from the operator's
+#                    local machine, or a deploy-scoped token
+#                    created via `flyctl tokens create deploy
+#                    --app lumen-api` (one token per app is the
+#                    cleaner pattern but a single org-wide
+#                    token also works at this size).
+#
+# Notes
+# -----
+# - We don't run pytest here; the `CI` workflow on push +
+#   pull_request already does that. This workflow assumes CI
+#   has already passed for the same commit via the
+#   `workflow_run` gate.
+# - The api deploy carries the `release_command = "alembic
+#   upgrade head"` from fly.api.toml, so migrations land before
+#   the new Machines accept traffic. If migrations fail, Fly
+#   doesn't promote the new release.
+# - Worker deploy is decoupled: a bad worker doesn't block the
+#   api. If the worker deploy fails, the api keeps serving on
+#   the previous worker image.
+# - All commands use `--remote-only` so we never need a local
+#   Docker daemon on the runner — Fly builds the image on its
+#   own builders.
+# =============================================================
+
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [Rewrite]
+  # Manual override — useful for re-deploying after rotating a
+  # secret without touching the codebase.
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which service to deploy"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - api
+          - worker
+
+concurrency:
+  # One deploy at a time per branch. Rolling deploys are fine,
+  # but two `flyctl deploy` invocations against the same app
+  # will race (and the second blocks anyway). Cancelling the
+  # in-progress one when a new push lands is safer than
+  # queueing — Fly's rolling strategy means the half-deployed
+  # state is still serving traffic.
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Gate on CI success
+    runs-on: ubuntu-24.04
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Log trigger
+        run: |
+          echo "Triggered by: ${{ github.event_name }}"
+          echo "Commit:       ${{ github.event.workflow_run.head_sha || github.sha }}"
+
+  deploy-api:
+    name: Deploy api → Fly.io
+    needs: gate
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'api') || github.event_name == 'workflow_run' }}
+    runs-on: ubuntu-24.04
+    environment:
+      name: production
+      url: https://lumen-api.fly.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy api
+        run: |
+          flyctl deploy \
+            --config infra/fly/fly.api.toml \
+            --dockerfile infra/fly/Dockerfile.fly \
+            --remote-only \
+            --strategy rolling \
+            --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Smoke check
+        run: |
+          # Cold-start the Machine and confirm the liveness probe.
+          # `curl --fail` exits non-zero on >=400, so this fails the
+          # job loudly if the deploy is broken.
+          for i in 1 2 3 4 5; do
+            if curl --fail --silent --show-error --max-time 20 https://lumen-api.fly.dev/api/v1/health/live; then
+              echo "api healthy"
+              exit 0
+            fi
+            echo "attempt $i — waiting 10s for cold start..."
+            sleep 10
+          done
+          echo "api never returned 2xx — investigate"
+          exit 1
+
+  deploy-worker:
+    name: Deploy worker → Fly.io
+    needs: gate
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'worker') || github.event_name == 'workflow_run' }}
+    runs-on: ubuntu-24.04
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy worker
+        run: |
+          flyctl deploy \
+            --config infra/fly/fly.worker.toml \
+            --dockerfile infra/fly/Dockerfile.fly \
+            --remote-only \
+            --strategy rolling \
+            --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  notify-vercel:
+    name: Vercel deploy status (info only)
+    needs: [deploy-api]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Note
+        run: |
+          echo "Frontend deploys are driven by Vercel's GitHub integration."
+          echo "Check the Vercel dashboard for the latest deploy of this commit:"
+          echo "  https://vercel.com/<your-team>/lumen"
+          echo "If the dashboard shows a failed build, see infra/vercel/README.md."
