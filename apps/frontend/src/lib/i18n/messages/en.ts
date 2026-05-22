@@ -95,7 +95,7 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
-  // Catalog page — the scroll room (public browse)
+  // Catalog page (public browse)
   "catalogPage.cartouche": "Catalogue",
   "catalogPage.h1_1": "Every subject,",
   "catalogPage.h1_2": "catalogued",
@@ -123,14 +123,13 @@ export const en = {
   "home.pillarsCartouche": "Why Skillpath",
   "home.pillarsH2_1": "A platform that respects your time.",
   "home.pillarsH2_2": "And the depth of the work.",
-  "home.underDeity": "{deity}",
-  "home.deity.thoth": "01",
-  "home.deity.seshat": "02",
-  "home.deity.ptah": "03",
+  "home.pillar1.number": "01",
+  "home.pillar2.number": "02",
+  "home.pillar3.number": "03",
   "home.pillar1.title": "Build real projects.",
   "home.pillar1.body": "Every course ends in something you can show — a deployed app, an analysed dataset, a finished portfolio piece. No quizzes pretending to be skills.",
-  "home.pillar2.title": "Learn with a cohort.",
-  "home.pillar2.body": "Live chat per course. Real-time presence. Real people answering real questions, not a forum graveyard.",
+  "home.pillar2.title": "Learn at your pace.",
+  "home.pillar2.body": "Async lessons with per-step progress, an AI tutor that answers from the course itself, and a review queue that surfaces what to revisit next.",
   "home.pillar3.title": "Keep what you make.",
   "home.pillar3.body": "MIT-licensed, self-hostable. Your courses, your data, your certificates — yours to keep forever, with or without us.",
   "home.scrollCartouche": "Browse the catalogue",
@@ -212,7 +211,7 @@ export const en = {
   "notif.marking": "Marking…",
   "notif.empty": "Nothing here yet.",
 
-  // Preview lesson — open scroll for non-enrolled visitors
+  // Preview lesson — non-enrolled visitors
   "preview.cartouche": "Preview",
   "preview.lessonFallback": "Lesson",
   "preview.forbidden": "This lesson is for enrolled students. Enroll in the course to read it.",
@@ -363,7 +362,7 @@ export const en = {
   "adminUsers.roleError": "Could not update role",
   "adminUsers.activeError": "Could not update",
 
-  // Admin / audit — eye of the temple
+  // Admin / audit
   "adminAudit.cartouche": "Audit",
   "adminAudit.title": "Audit log",
   "adminAudit.recentCard": "Recent events",
@@ -476,7 +475,7 @@ export const en = {
   "studioEdit.addOutcome": "Add outcome",
   "studioEdit.outcomesToast": "Outcomes saved",
 
-  // Studio / new — inscribe a course
+  // Studio / new course
   "studioNew.cartouche": "New course",
   "studioNew.title": "New course",
   "studioNew.field.title": "Title",
@@ -508,7 +507,7 @@ export const en = {
   "studio.moduleCount": "{n} modules",
   "studio.studentCount": "{n} students",
 
-  // Learn — the lesson player / scribe's desk
+  // Learn — lesson player
   "learn.cartouche": "Learning",
   "learn.signInPrompt": "Sign in to open this course.",
   "learn.signInButton": "Sign in",
@@ -518,7 +517,7 @@ export const en = {
   "learn.noLessons": "No lessons in this course yet.",
   "learn.courseChat": "Course chat",
 
-  // Course detail — the inscribed scroll
+  // Course detail page
   "courseDetail.cartouche": "Course",
   "courseDetail.notFound": "Course not found.",
   "courseDetail.instructor": "Instructor",
@@ -606,7 +605,7 @@ export const en = {
   "profile.toast.verifyResent": "Verification email sent",
   "profile.toast.verifyError": "Could not send verification email",
 
-  // Dashboard — scribe's hall of records
+  // Dashboard — your activity
   "dashboard.cartouche": "Your activity",
   "dashboard.welcome": "Welcome back, {name}",
   "dashboard.subtitle": "Pick up where you left your stylus.",
@@ -615,7 +614,7 @@ export const en = {
   "dashboard.completed": "Completed",
   "dashboard.empty.enrollments": "You haven't enrolled in a course yet.",
   "dashboard.empty.browse": "Browse the catalog",
-  "dashboard.empty.completed": "No completions yet — every scribe starts with a blank papyrus.",
+  "dashboard.empty.completed": "No completions yet. Finish a course to see it here.",
   "dashboard.percentComplete": "{pct}% complete",
   "dashboard.continue": "Continue",
   "dashboard.certificate": "Certificate",

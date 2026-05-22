@@ -61,6 +61,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still has the seed. Both fields now start as empty strings.
   Regression covered by `apps/frontend/tests/login.test.tsx`.
 
+### Changed (rebuild phase A)
+- **Stripped remaining Egyptian deity copy from the home page + i18n
+  (Cuts A1 + A6).** The 35-iter Thoth (Egyptian temple) theme was
+  visually replaced by Skillpath cobalt months ago, but textual
+  residue stayed put: the home page rendered "01 Thoth / 02 Seshat /
+  03 Ptah" pillar cards keyed by `home.deity.thoth/seshat/ptah` +
+  `home.underDeity`, the empty-completed dashboard string read "every
+  scribe starts with a blank papyrus", and every i18n file section
+  header had Egyptian-flavoured comments ("scroll room", "eye of the
+  temple", "inscribe a course", "scribe's hall of records", and the
+  Arabic equivalents). The 3D pointer-tilt on the pillar cards +
+  `mesh-bg` / `text-shine` chrome on the hero also die here — they're
+  Skillpath-era set dressing the Workbench pivot won't keep. Replaced
+  with neutral copy (Build real projects / Learn at your pace / Keep
+  what you make), flat hero (no mesh, no text-shine, no drift
+  animations), and plain section comments. The `cartouche` key naming
+  pattern stays for now (values are already neutral); Phase C2 will
+  decide whether to rename it as part of the surface repaint. en.ts +
+  ar.ts remain at 550/550 keys, parity preserved.
 ### Removed (rebuild phase A)
 - **Course duplication feature (Cut A5).** `POST
   /api/v1/courses/{id}/duplicate` cloned a course with all its modules

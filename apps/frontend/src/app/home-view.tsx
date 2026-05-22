@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CourseCard } from "@/components/course/course-card";
@@ -17,17 +16,17 @@ type Pillar = {
 
 const PILLARS: Pillar[] = [
   {
-    numberKey: "home.deity.thoth",
+    numberKey: "home.pillar1.number",
     titleKey: "home.pillar1.title",
     bodyKey: "home.pillar1.body",
   },
   {
-    numberKey: "home.deity.seshat",
+    numberKey: "home.pillar2.number",
     titleKey: "home.pillar2.title",
     bodyKey: "home.pillar2.body",
   },
   {
-    numberKey: "home.deity.ptah",
+    numberKey: "home.pillar3.number",
     titleKey: "home.pillar3.title",
     bodyKey: "home.pillar3.body",
   },
@@ -38,10 +37,8 @@ export function HomeView({ featured }: { featured: Page<CourseListItem> }) {
 
   return (
     <div className="relative">
-      {/* ── HERO ────────────────────────────────────────────────────── */}
       <Hero t={t} />
 
-      {/* ── PILLARS ────────────────────────────────────────────────── */}
       <section className="container mx-auto px-6 py-32 sm:py-40">
         <div className="mx-auto mb-16 max-w-3xl text-center">
           <p className="reveal mb-4 font-body text-sm font-medium uppercase tracking-[0.18em] text-primary">
@@ -56,12 +53,11 @@ export function HomeView({ featured }: { featured: Page<CourseListItem> }) {
 
         <div className="grid gap-6 md:grid-cols-3">
           {PILLARS.map((p, i) => (
-            <Pillar key={p.titleKey} t={t} pillar={p} delayMs={i * 80} />
+            <PillarCard key={p.titleKey} t={t} pillar={p} delayMs={i * 80} />
           ))}
         </div>
       </section>
 
-      {/* ── FEATURED COURSES ──────────────────────────────────────── */}
       <section className="border-t border-border/60 py-32 sm:py-40">
         <div className="container mx-auto mb-16 flex flex-col items-start justify-between gap-6 px-6 sm:flex-row sm:items-end">
           <div>
@@ -104,7 +100,6 @@ export function HomeView({ featured }: { featured: Page<CourseListItem> }) {
         )}
       </section>
 
-      {/* ── CLOSING CTA ───────────────────────────────────────────── */}
       <section className="border-t border-border/60">
         <div className="container mx-auto flex flex-col items-center gap-8 px-6 py-32 text-center sm:py-40">
           <h2 className="reveal max-w-3xl font-display text-5xl leading-[1.02] tracking-tight sm:text-7xl">
@@ -136,10 +131,10 @@ export function HomeView({ featured }: { featured: Page<CourseListItem> }) {
 
 function Hero({ t }: { t: ReturnType<typeof useT> }) {
   return (
-    <section className="relative mesh-bg overflow-hidden">
+    <section className="relative overflow-hidden">
       <div className="container mx-auto flex min-h-[88vh] flex-col items-center justify-center gap-8 px-6 py-32 text-center">
         <p className="reveal inline-flex items-center gap-2 font-body text-sm font-medium uppercase tracking-[0.18em] text-primary">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary [animation:drift_2.4s_ease-in-out_infinite]" />
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
           {t("home.cartouche")}
         </p>
 
@@ -149,7 +144,7 @@ function Hero({ t }: { t: ReturnType<typeof useT> }) {
         >
           {t("home.heroTitle1")}
           <br />
-          <span className="italic text-shine">{t("home.heroTitle2")}</span>
+          <span className="italic">{t("home.heroTitle2")}</span>
         </h1>
 
         <p
@@ -175,27 +170,11 @@ function Hero({ t }: { t: ReturnType<typeof useT> }) {
           </Link>
         </div>
       </div>
-
-      {/* Subtle scroll cue */}
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-8 flex justify-center"
-        aria-hidden
-      >
-        <div className="h-8 w-px bg-gradient-to-b from-transparent via-muted-foreground/40 to-transparent [animation:drift_3s_ease-in-out_infinite]" />
-      </div>
     </section>
   );
 }
 
-/**
- * Pillar card with a tiny 3D lift on pointer-move that follows the
- * cursor. The card leans toward the cursor with rotateX/Y, gets a
- * stronger shadow, and slightly lifts. Pointer-leave snaps it back.
- *
- * Falls back gracefully on touch devices (no pointer-move events
- * fire, so the card stays flat — which is the right behaviour).
- */
-function Pillar({
+function PillarCard({
   t,
   pillar,
   delayMs,
@@ -204,37 +183,13 @@ function Pillar({
   pillar: Pillar;
   delayMs: number;
 }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
-
-  function onMove(e: React.PointerEvent<HTMLDivElement>) {
-    const el = ref.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const px = (e.clientX - rect.left) / rect.width;
-    const py = (e.clientY - rect.top) / rect.height;
-    // -3deg..+3deg max — gentle, Apple-style not arcade.
-    setTilt({ x: (py - 0.5) * -6, y: (px - 0.5) * 6 });
-  }
-  function onLeave() {
-    setTilt({ x: 0, y: 0 });
-  }
-
   return (
     <article
-      ref={ref}
-      onPointerMove={onMove}
-      onPointerLeave={onLeave}
-      className="reveal surface group relative flex h-full flex-col p-8 transition-shadow duration-500 hover:shadow-[0_24px_48px_-16px_hsl(0_0%_0%/0.18),0_8px_24px_-12px_hsl(var(--primary)/0.18)]"
-      style={{
-        animationDelay: `${delayMs}ms`,
-        transformStyle: "preserve-3d",
-        transform: `perspective(900px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-        transition: "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
-      }}
+      className="reveal surface relative flex h-full flex-col p-8"
+      style={{ animationDelay: `${delayMs}ms` }}
     >
       <p className="mb-6 font-mono text-xs font-medium uppercase tracking-[0.2em] text-primary">
-        {t("home.underDeity", { deity: t(pillar.numberKey) })}
+        {t(pillar.numberKey)}
       </p>
       <h3 className="mb-4 font-display text-3xl leading-tight tracking-tight">
         {t(pillar.titleKey)}

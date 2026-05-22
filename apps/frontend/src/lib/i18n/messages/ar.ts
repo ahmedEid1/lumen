@@ -57,7 +57,7 @@ export const ar: Record<MessageKey, string> = {
   "player.completed": "تم",
   "player.freePreview": "معاينة مجانية",
 
-  // Auth — المحراب / النقش / مفتاح ضائع / قلم جديد
+  // Auth
   "auth.login.title": "تسجيل الدخول",
   "auth.login.cartouche": "الحساب",
   "auth.login.heading": "أهلًا بعودتك",
@@ -102,7 +102,7 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
-  // Catalog page — غرفة اللفائف (التصفّح العام)
+  // Catalog page (public browse)
   "catalogPage.cartouche": "الكتالوج",
   "catalogPage.h1_1": "كل علم،",
   "catalogPage.h1_2": "مفهرس",
@@ -130,14 +130,13 @@ export const ar: Record<MessageKey, string> = {
   "home.pillarsCartouche": "لماذا سكِلپاث",
   "home.pillarsH2_1": "منصّة تحترم وقتك.",
   "home.pillarsH2_2": "وعمق العمل.",
-  "home.underDeity": "{deity}",
-  "home.deity.thoth": "٠١",
-  "home.deity.seshat": "٠٢",
-  "home.deity.ptah": "٠٣",
+  "home.pillar1.number": "٠١",
+  "home.pillar2.number": "٠٢",
+  "home.pillar3.number": "٠٣",
   "home.pillar1.title": "ابنِ مشاريع حقيقية.",
   "home.pillar1.body": "كل دورة تنتهي بشيء يمكنك إظهاره — تطبيق منشور، بيانات محلَّلة، عمل مكتمل في معرضك. لا اختبارات تتظاهر بأنها مهارات.",
-  "home.pillar2.title": "تعلَّم مع مجموعة.",
-  "home.pillar2.body": "محادثة لكل دورة. حضور مباشر. أناس حقيقيون يجيبون على أسئلة حقيقية، لا منتدى مهجور.",
+  "home.pillar2.title": "تعلَّم بإيقاعك.",
+  "home.pillar2.body": "دروس غير متزامنة بتتبع تقدّم خطوة بخطوة، ومرشد ذكي يجيب من محتوى الدورة نفسه، وقائمة مراجعة تكشف ما يستحق العودة إليه.",
   "home.pillar3.title": "احتفظ بما تصنع.",
   "home.pillar3.body": "ترخيص MIT، قابلة للاستضافة الذاتية. دوراتك، بياناتك، شهاداتك — لك إلى الأبد، معنا أو بدوننا.",
   "home.scrollCartouche": "تصفّح الكتالوج",
@@ -219,7 +218,7 @@ export const ar: Record<MessageKey, string> = {
   "notif.marking": "جارٍ التعليم…",
   "notif.empty": "لا شيء هنا بعد.",
 
-  // Preview lesson — لفافة مفتوحة لغير المسجّلين
+  // Preview lesson — non-enrolled visitors
   "preview.cartouche": "معاينة",
   "preview.lessonFallback": "درس",
   "preview.forbidden": "هذا الدرس مخصّص للطلاب المسجّلين. سجّل في الدورة لقراءته.",
@@ -242,7 +241,7 @@ export const ar: Record<MessageKey, string> = {
   "thread.replyCountOne": "{n} ردّ",
   "thread.replyCount": "{n} ردّ",
 
-  // Discussions list — حول النار
+  // Discussions list
   "discussions.cartouche": "النقاشات",
   "discussions.title": "النقاشات",
   "discussions.startCard": "ابدأ موضوعًا",
@@ -316,7 +315,7 @@ export const ar: Record<MessageKey, string> = {
   "quiz.failLine": "علامة النجاح {pct}٪. حاول مجدّدًا.",
   "quiz.retake": "إعادة المحاولة",
 
-  // Chat — قاعة المتعلمين بضوء المشاعل
+  // Chat
   "chat.connected": "متّصل · {n} حاضر",
   "chat.reconnecting": "جارٍ إعادة الاتصال…",
   "chat.connecting": "جارٍ الاتصال…",
@@ -330,7 +329,7 @@ export const ar: Record<MessageKey, string> = {
   "footer.copyright": "© {year} سكِلپاث · رخصة MIT",
   "footer.docs": "الوثائق",
 
-  // Admin / courses — رفّ القيّم
+  // Admin / courses
   "adminCourses.cartouche": "الكتالوج",
   "adminCourses.title": "الدورات",
   "adminCourses.subtitle": "أدر اختيار الدورات المميّزة وأشرف على الكتالوج.",
@@ -348,7 +347,7 @@ export const ar: Record<MessageKey, string> = {
   "adminCourses.successToast": "تم التحديث",
   "adminCourses.error": "تعذّر التحديث",
 
-  // Admin / users — أسماء في السجل
+  // Admin / users
   "adminUsers.cartouche": "المستخدمون",
   "adminUsers.title": "المستخدمون",
   "adminUsers.subtitle": "رقّ المدرّسين، عطّل الحسابات.",
@@ -370,7 +369,7 @@ export const ar: Record<MessageKey, string> = {
   "adminUsers.roleError": "تعذّر تحديث الدور",
   "adminUsers.activeError": "تعذّر التحديث",
 
-  // Admin / audit — عين المعبد
+  // Admin / audit
   "adminAudit.cartouche": "المراقبة",
   "adminAudit.title": "سجل المراقبة",
   "adminAudit.recentCard": "الأحداث الأخيرة",
@@ -405,7 +404,7 @@ export const ar: Record<MessageKey, string> = {
   "adminTags.empty": "لا وسوم بعد.",
   "adminTags.error": "تعذّرت الإضافة",
 
-  // Admin root — قاعة الكاهن الأعظم
+  // Admin root
   "admin.cartouche": "الإدارة",
   "admin.title": "الإدارة",
   "admin.subtitle": "أدر المنصّة.",
@@ -483,7 +482,7 @@ export const ar: Record<MessageKey, string> = {
   "studioEdit.addOutcome": "إضافة نتيجة",
   "studioEdit.outcomesToast": "تم حفظ النتائج",
 
-  // Studio / new — انقش دورة جديدة
+  // Studio / new — new course
   "studioNew.cartouche": "دورة جديدة",
   "studioNew.title": "دورة جديدة",
   "studioNew.field.title": "العنوان",
@@ -515,7 +514,7 @@ export const ar: Record<MessageKey, string> = {
   "studio.moduleCount": "{n} وحدة",
   "studio.studentCount": "{n} طالب",
 
-  // Learn — مكتب الكاتب
+  // Learn — lesson player
   "learn.cartouche": "التعلّم",
   "learn.signInPrompt": "سجّل الدخول لفتح هذه الدورة.",
   "learn.signInButton": "تسجيل الدخول",
@@ -525,7 +524,7 @@ export const ar: Record<MessageKey, string> = {
   "learn.noLessons": "لا توجد دروس في هذه الدورة بعد.",
   "learn.courseChat": "محادثة الدورة",
 
-  // Course detail — اللفافة المنقوشة
+  // Course detail
   "courseDetail.cartouche": "الدورة",
   "courseDetail.notFound": "الدورة غير موجودة.",
   "courseDetail.instructor": "المدرّس",
@@ -574,7 +573,7 @@ export const ar: Record<MessageKey, string> = {
   "verifyCert.forCompleting": "لإتمامه",
   "verifyCert.issuedOn": "أُصدرت في {date}",
 
-  // Profile — نقشك
+  // Profile
   "profile.cartouche": "الإعدادات",
   "profile.badge.verified": "موثَّق",
   "profile.badge.unverified": "غير موثَّق",
@@ -613,7 +612,7 @@ export const ar: Record<MessageKey, string> = {
   "profile.toast.verifyResent": "تم إرسال رسالة التوثيق",
   "profile.toast.verifyError": "تعذّر إرسال رسالة التوثيق",
 
-  // Dashboard — قاعة سجلات الكاتب
+  // Dashboard — your activity
   "dashboard.cartouche": "نشاطك",
   "dashboard.welcome": "أهلًا بعودتك يا {name}",
   "dashboard.subtitle": "تابع من حيث تركت قلمك.",
@@ -622,7 +621,7 @@ export const ar: Record<MessageKey, string> = {
   "dashboard.completed": "مكتمل",
   "dashboard.empty.enrollments": "لم تسجّل في أي دورة بعد.",
   "dashboard.empty.browse": "تصفّح الدورات",
-  "dashboard.empty.completed": "لا اكتمالات بعد — كل كاتب يبدأ بورق فارغ.",
+  "dashboard.empty.completed": "لا اكتمالات بعد. أكمل دورة لتظهر هنا.",
   "dashboard.percentComplete": "{pct}٪ مكتمل",
   "dashboard.continue": "متابعة",
   "dashboard.certificate": "الشهادة",
