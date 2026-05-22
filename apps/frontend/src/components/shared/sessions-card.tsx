@@ -50,7 +50,7 @@ export function SessionsCard() {
   const active = sessions.filter((s) => !s.revoked_at);
 
   return (
-    <Card className="scroll-paper border-gold/20">
+    <Card className="surface">
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -75,9 +75,9 @@ export function SessionsCard() {
         {q.isLoading ? (
           <p className="font-body text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : sessions.length === 0 ? (
-          <p className="font-body text-sm italic text-muted-foreground">{t("sessions.empty")}</p>
+          <p className="font-display text-lg italic text-muted-foreground">{t("sessions.empty")}</p>
         ) : (
-          <ul className="divide-y divide-gold/15 font-body">
+          <ul className="divide-y divide-border/60 font-body">
             {sessions.map((s) => (
               <li key={s.id} className="flex items-start justify-between gap-3 py-3 text-sm">
                 <div className="min-w-0">
