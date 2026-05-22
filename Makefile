@@ -106,6 +106,10 @@ test.web: ## Frontend unit tests.
 test.e2e: ## Playwright end-to-end tests against the live stack (uses the e2e profile).
 	$(COMPOSE) --profile e2e run --rm e2e
 
+.PHONY: a11y
+a11y: ## WCAG 2.2 AA axe-core gate (requires `make up` first; chromium only).
+	$(COMPOSE) --profile e2e run --rm e2e tests/e2e/accessibility.spec.ts --project=chromium
+
 # ----- shells -----
 .PHONY: shell.api
 shell.api: ## Shell into the API container.

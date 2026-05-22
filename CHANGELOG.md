@@ -26,6 +26,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   green. Five vitest cases cover initial render, advance-on-Next,
   Done-dismisses-and-persists, no-render-when-flag-set, and
   Skip-dismisses-and-persists.
+- **WCAG 2.2 AA CI gate (D5).** Every PR and every push to `Rewrite`
+  / `master` now runs `@axe-core/playwright` inside a real Chromium
+  session against the built Next.js app and fails on any AA
+  violation. The April 24 2026 WCAG 2.2 AA effective date applies
+  broadly to consumer-facing surfaces, so this is treated as a
+  release blocker rather than a soft check.
+
+  Routes audited: `/`, `/courses`, `/login`, `/register`,
+  `/forgot-password`, the first seeded `/courses/{slug}`,
+  `/dashboard` (student), `/profile` (student), `/studio`
+  (instructor), `/admin` (admin). Auth runs through the seeded
+  demo accounts from `make seed`, so the gate hits the same
+  surfaces a developer sees locally.
+
+  Tag set is `wcag2a + wcag2aa + wcag21a + wcag21aa + wcag22aa` —
+  `best-practice` rules are informational and do not gate. Axe
+  surfaces each violation with the rule id, impact, WCAG help URL,
+  offending CSS selector, and a human-readable failure summary; the
+  custom formatter in `accessibility.spec.ts` prints all of that
+  into the CI log so triage doesn't require a re-run, and the
+  workflow uploads `playwright-report` + `test-results` as the
+  `playwright-axe-report` artifact on failure for screenshots and
+  traces.
+
+  Files: `apps/frontend/tests/e2e/accessibility.spec.ts` (new),
+  `.github/workflows/accessibility.yml` (new), `Makefile` (`a11y`
+  target for local runs against an up dev stack),
+  `docs/accessibility.md` (new — triage guide),
+  `docs/architecture.md` (§13 cross-link),
+  `apps/frontend/package.json` (`@axe-core/playwright` dev dep).
+
+  Local: `make up && make migrate && make seed && make a11y`. The
+  policy is to *fix* violations, not ignore them; if a rule needs
+  to be temporarily suppressed during triage, scope a
+  `disableRules([...])` on the single test with a tracking `TODO`,
+  rather than growing a global ignore file.
 
 ### Changed (rebuild phase C)
 - **Workbench repaint of dashboard + learn + studio + admin + profile

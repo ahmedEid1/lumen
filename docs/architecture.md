@@ -209,3 +209,17 @@ Presence is approximated by Redis sorted set `presence:{course_id}` (member = us
 - Stateless API and FE allow horizontal scaling behind the proxy.
 - Postgres is the primary bottleneck; v1 is single-writer. Read replicas + Pgpool can be added without code changes (repositories accept an explicit session).
 - WebSocket pubsub via Redis means any API replica can receive a message for any room.
+
+## 13. Accessibility gate
+
+- `WCAG 2.2 AA` is enforced in CI via `@axe-core/playwright` against
+  the built Next.js app on every PR and every push to `Rewrite` /
+  `master`. The audit covers the golden-path routes for all three
+  roles (logged-out home/catalog/auth pages, course detail,
+  student dashboard + profile, instructor studio, admin).
+- Workflow: `.github/workflows/accessibility.yml`. Suite:
+  `apps/frontend/tests/e2e/accessibility.spec.ts`. Run locally with
+  `make a11y` against an up dev stack.
+- Full guide — including how to read an axe failure, when to fix
+  vs. when to scope a `disableRules` call, and why there is no
+  global ignore list — is in [`docs/accessibility.md`](./accessibility.md).
