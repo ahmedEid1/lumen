@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     admin,
     auth,
+    badges,
     catalog,
     certificates,
     courses,
@@ -31,5 +32,6 @@ api_router.include_router(reviews.router, prefix="/courses", tags=["reviews"])
 api_router.include_router(uploads.router, prefix="/uploads", tags=["uploads"])
 api_router.include_router(notifications.router, prefix="/me/notifications", tags=["notifications"])
 api_router.include_router(certificates.router, prefix="/certificates", tags=["certificates"])
+api_router.include_router(badges.router, prefix="/credentials", tags=["badges"])
 api_router.include_router(discussions.router, tags=["discussions"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])

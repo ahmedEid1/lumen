@@ -8,6 +8,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added (rebuild phase E)
+- **Open Badges 3.0 / W3C Verifiable Credentials issuance + public
+  verification (E5).** Every certificate minted on 100% course
+  completion now also produces a signed OB3 JSON-LD credential, stored
+  on `enrollments.badge_credential` (JSONB, Alembic `0020`). The
+  legacy `cert_<nanoid>` and the PDF download stay exactly as they
+  were — the PDF remains the human-facing fallback — but a learner
+  who wants to drop their credential into a wallet, paste it into a
+  third-party verifier, or hand an employer something a generic VC
+  toolkit can check now has a machine-readable artifact alongside the
+  PDF.
+
+  **Why OB3 over PDF-as-primary.** A PDF certificate proves only "we
+  could render this PDF"; a verifier has no cryptographic way to tell
+  it apart from a forgery without round-tripping through Lumen's
+  servers. An OB3 credential is a JSON-LD document signed with the
+  platform's Ed25519 key, so any party with the issuer's public key
+  can verify offline. Switching to OB3-primary, dropping PDF, would
+  also drop the case where a learner just wants a printable
+  certificate — that's why both ship, with the OB3 path additive.
+
+  **Signing model.** New module `app/core/badges_keys.py` loads an
+  Ed25519 private key from `BADGES_SIGNING_KEY` (PEM PKCS#8) and falls
+  back to a key deterministically derived from `secret_key` in dev /
+  test so `docker compose up` works without any explicit config. The
+  production guard in `Settings.assert_production_ready` refuses to
+  boot if `secret_key` is still the dev default OR if
+  `BADGES_ISSUER_URL` still points at localhost — issued credentials
+  would otherwise resolve to a dev host and fail external
+  verification. Signature: Ed25519 over the JCS-canonicalized
+  (RFC-8785-style: sorted keys, no whitespace) credential payload
+  minus its `proof` member, embedded as a `DataIntegrityProof` /
+  `eddsa-jcs-2022` `proof` object — the cryptosuite OB3 §8.2 names
+  for the JCS path. `pyld` is in the dep tree for future
+  URDNA2015 / did:web work but isn't on the v1 hot path.
+
+  **Public verify endpoint shape.** Two new public,
+  rate-limited (60/minute, same posture as `/certificates/verify/{id}`
+  from Fix B2) endpoints under `/api/v1/credentials`:
+  `GET /credentials/{certificate_id}` returns the signed JSON-LD
+  credential with `Content-Type: application/ld+json`, suitable for
+  a wallet or a verifier to consume directly; `GET /credentials/
+  {certificate_id}/verify` re-runs the signature check server-side
+  and returns a `{ valid, issuer, achievement_name, learner_name }`
+  summary for browser clients that don't want to ship a JOSE library.
+  Both endpoints mint on the fly for historical certificates that
+  predate Phase E5 (read-only — they don't write the freshly-signed
+  credential back to the row).
+
+  **Dashboard link.** Each completed enrollment on `apps/frontend/src/
+  app/dashboard/page.tsx` now renders an "Open Badge" link next to
+  the existing "Download PDF" link. Open Badge opens
+  `/api/v1/credentials/{certificate_id}` in a new tab (the raw
+  JSON-LD); PDF stays as `target=_self` for the existing browser
+  download flow.
+
+  **Verify page extension.** `apps/frontend/src/app/verify/[id]/page.
+  tsx` previously only resolved the certificate ID to learner +
+  course. Phase E5 adds a side query against the OB3 `/verify`
+  endpoint and renders a signature panel on success: a shield-check
+  badge with the "Signature verified" label and a link to the raw
+  credential JSON, or a shield-X badge with "Signature invalid" if
+  the stored credential was tampered with. The panel is silent for
+  pre-E5 certificates whose verify call fails; the certificate ID
+  + learner name + course title still resolve as before.
+
+  **PDF fallback contract.** `/api/v1/certificates/{course_id}.pdf`
+  is unchanged: same path, same auth, same response, same
+  `Content-Disposition`. The legacy `/api/v1/certificates/verify/
+  {certificate_id}` endpoint also stays — it's the only public
+  surface that returns learner_name without requiring credential
+  fetch, and the front-end verify page still calls it for the
+  initial resolve before layering the OB3 verify result on top.
+  Both pieces persist exactly because a learner who wants the
+  human-readable artifact, an HR reviewer pasting a stack of IDs,
+  and a wallet ingesting a credential are three different
+  consumers with three different needs.
+
+  **Storage + issuance hook.** `_maybe_issue_certificate` in
+  `app/services/enrollment.py` now also calls
+  `badges_service.issue_for_enrollment(...)` when minting the
+  certificate, stores the result on `enrollment.badge_credential`,
+  and swallows any signing failure so the legacy cert path stays
+  intact if the OB3 path raises. The signing exception is logged
+  via `structlog` (`badges.issue_failed`) so it surfaces in Sentry
+  /OTLP if it ever fires.
+
+  Five new files (`app/core/badges_keys.py`, `app/services/badges.
+  py`, `app/api/v1/badges.py`, `tests/test_badges.py`, Alembic
+  `0020`), six i18n keys × 2 locales (en + ar) added. Eight
+  pytest cases cover issue → verify roundtrip, two flavours of
+  tamper detection (payload + signature), 404 on unknown cert,
+  JSON-LD content-type + body shape, verify summary shape, stored-
+  credential tamper detection on the server side, and the rate-limit
+  cap firing after 60 hits. Backend test files unchanged elsewhere;
+  the existing `test_certificates.py` PDF + verify suite still
+  passes.
+
 - **pgvector + per-lesson chunk index + provider-agnostic embedding
   service (E0).** Lays the storage and ingestion plumbing the rest of
   the AI moat (E1 tutor / E2 authoring / E3 multi-modal / E7 mastery
@@ -138,6 +235,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Two i18n key renames (`lessonEdit.bodyMarkdown` →
   `lessonEdit.body`, placeholder updated) × 2 locales — parity
   test passes.
+- **FSRS-6 spaced-repetition review queue (E4).** Every completed
+  quiz lesson — pass *or* fail — joins the learner's per-card
+  forgetting-curve schedule, with a dedicated dashboard surface for
+  working through what's due. Algorithm: the `fsrs` (≥5.0) Python
+  package, which is the reference implementation of Free Spaced
+  Repetition Scheduler v6 used across Anki's official integration,
+  Mochi, RemNote, and other 2026 spaced-repetition tools. We pull
+  it in instead of rolling our own SM-2 because FSRS-6 fits a
+  per-card stability + difficulty model from review logs and targets
+  a configurable retention rate (default 0.9), where SM-2 treats
+  every card with the same forgetting curve modulo an ease factor —
+  overshooting on early reviews and undershooting on lapses.
+  Storage: new `review_cards` table (migration `0019`) with one row
+  per `(user_id, lesson_id)` — a `UniqueConstraint` enforced by the
+  DB so `ensure_card` is safely idempotent across concurrent quiz
+  submissions. Columns are the FSRS-6 memory variables (`stability`,
+  `difficulty`, both float), the scheduler state (`new | learning |
+  review | relearning` — `new` is our pre-FSRS state for cards that
+  have never been graded), `step` (Learning / Relearning step
+  counter, NULL after graduation), `due_at` (composite index with
+  `user_id` so the queue read is an index-only scan),
+  `last_reviewed_at`, and a denormalized `total_reviews` counter
+  for the stats endpoint. Cardinality choice: **quiz-only for v1**
+  and **one card per lesson, not per question** — FSRS treats each
+  card as a single forgetting curve, and per-question cards would
+  explode the queue (5-question quiz ⇒ 5 cards/learner) while
+  forcing the UI to render bare question fragments out of context.
+  Hook: `app.services.enrollment.record_quiz_attempt` calls
+  `app.services.fsrs.ensure_card` on every quiz submission so the
+  card joins the queue immediately (cards are added on fail too —
+  failed quizzes are exactly the material the queue exists to help
+  revisit). Service surface:
+  `ensure_card(user_id, lesson_id) → ReviewCard` (idempotent
+  get-or-create with `due_at = now()` so it shows up at the top of
+  the next dashboard refresh), `record_review(card, rating) →
+  ReviewCard` (runs the FSRS-6 scheduler and writes the updated
+  stability / difficulty / state / step / due_at / last_reviewed_at
+  back onto the row, bumps `total_reviews`), `due_cards(user_id,
+  limit=20)` (oldest-due first, eager-loads
+  `lesson.module.course` so the API doesn't N+1), `stats(user_id)`
+  (counters for the four buckets — due-now, learning, review,
+  next-7-days). API surface: new `app/api/v1/reviews_queue.py`
+  module mounted under `/me/reviews` (kept disjoint from
+  `/courses/{id}/reviews` which is the course-rating endpoint),
+  with `GET /me/reviews/queue?limit=N`, `GET /me/reviews/stats`,
+  and `POST /me/reviews/{card_id}/grade` (body `{"rating": "again"
+  | "hard" | "good" | "easy"}`). Cross-user grading returns 404
+  rather than 403 so the endpoint can't be used to probe card ids.
+  Invalid rating → 422 with `review_card.invalid_rating`. Frontend
+  surface: new `/dashboard/reviews` route on the Workbench palette
+  — a stats grid (mono-typeset counts in `surface` cells), a
+  bordered list of due cards with course context, and an inline
+  grade panel that swaps in below the active row. Workbench rule
+  on the four grade buttons: **none of them get the lime accent**,
+  because semantically Again / Hard / Good / Easy are equal-status
+  self-reports — tinting one would suggest a "correct" choice.
+  The single lime accent on the screen sits on the per-row "Start
+  review" CTA. New "Reviews" nav link in `site-header.tsx` for
+  every authenticated user (instructors and admins can have learner
+  cards too if they've taken quizzes; the empty-state copy handles
+  the no-cards case cleanly). i18n: 22 keys × 2 locales (en + ar)
+  added; parity test passes. Tests:
+  `apps/backend/tests/test_fsrs.py` covers `ensure_card` defaults +
+  idempotency, `record_review` state-advance + bad-rating handling,
+  `due_cards` future-filter, stats bucketing, the
+  quiz-submit-creates-card side effect, the grade endpoint's update
+  + cross-user 404, and the stats endpoint — 11 tests, all green.
+  Reference spec §4 Phase E item 4. Migration coordination note:
+  this commit ships `0019_review_cards` after E0's `0018_lesson_chunks`;
+  if a later phase needs to renumber the chain that's the
+  merge-time concern of whoever lands last.
 
 ### Added (rebuild phase D)
 - **Per-kind email notification preferences + daily digest worker

@@ -9,12 +9,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.core.ids import new_id
+from app.core.logging import get_logger
 from app.models.course import Course, CourseStatus, Enrollment, Lesson, LessonProgress
 from app.models.notification import NotificationKind
 from app.models.quiz_attempt import QuizAttempt
 from app.models.user import User
 from app.repositories import courses as courses_repo
 from app.repositories import notifications as notifications_repo
+from app.services import badges as badges_service
+
+log = get_logger(__name__)
 
 
 async def _resolve_enrollment_for_lesson(
@@ -42,10 +46,34 @@ async def _maybe_issue_certificate(
     total: int,
     done: int,
 ) -> None:
-    """Mint a certificate + notification when every lesson is complete."""
+    """Mint a certificate + notification when every lesson is complete.
+
+    Phase E5 also mints a signed Open Badges 3.0 / W3C VC credential
+    next to the legacy ``certificate_id``. The credential is durably
+    stored as JSONB on the enrollment so the public ``/credentials/
+    {id}`` and ``/verify`` endpoints can serve it without re-signing
+    per request — re-signing on every fetch would mean the issuer's
+    private key is in the request path, and a future key rotation
+    would also invalidate already-shipped credentials.
+    """
     if total and done == total and not enrollment.completed_at:
         enrollment.completed_at = datetime.now(UTC)
         enrollment.certificate_id = f"cert_{new_id()}"
+        # Best-effort: if signing fails for any reason we still mint
+        # the legacy cert + ship the in-app notification. The OB3
+        # credential can be re-issued later by re-calling the service
+        # — see the comment on ``Enrollment.badge_credential``.
+        try:
+            enrollment.badge_credential = badges_service.issue_for_enrollment(
+                enrollment=enrollment, user=user, course=course,
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            log.exception(
+                "badges.issue_failed",
+                certificate_id=enrollment.certificate_id,
+                error=str(exc),
+            )
+            enrollment.badge_credential = None
         await notifications_repo.create(
             db,
             user_id=user.id,

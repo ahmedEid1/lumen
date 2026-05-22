@@ -144,13 +144,28 @@ export default function DashboardPage() {
                   {e.course.title}
                 </Link>
                 {e.certificate_id && (
-                  <a
-                    href={`/api/v1/certificates/${e.course.id}.pdf`}
-                    className="inline-flex items-center gap-1 font-body text-sm text-primary transition-colors duration-[160ms] hover:text-primary/80"
-                  >
-                    {t("dashboard.certificate")}
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </a>
+                  <div className="flex items-center gap-4">
+                    {/* Phase E5: the OB3 / W3C VC link sits next to
+                        the PDF download. A learner who wants to keep
+                        the credential in a wallet or paste it into a
+                        verifier opens the JSON-LD; the PDF stays as
+                        the human-facing fallback. */}
+                    <a
+                      href={`/api/v1/credentials/${e.certificate_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors duration-[160ms] hover:text-foreground"
+                    >
+                      {t("dashboard.openBadge")}
+                    </a>
+                    <a
+                      href={`/api/v1/certificates/${e.course.id}.pdf`}
+                      className="inline-flex items-center gap-1 font-body text-sm text-primary transition-colors duration-[160ms] hover:text-primary/80"
+                    >
+                      {t("dashboard.certificate")}
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
                 )}
               </li>
             ))}

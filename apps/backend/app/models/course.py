@@ -192,6 +192,14 @@ class Enrollment(IdMixin, TimestampMixin, Base):
     course_id: Mapped[str] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     certificate_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Signed Open Badges 3.0 / W3C VC credential — populated at the
+    # same instant ``certificate_id`` is minted, by
+    # ``app.services.enrollment._maybe_issue_certificate``. Nullable
+    # because soft-historical rows from before Phase E5 don't have one
+    # (the service can re-mint on demand).
+    badge_credential: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
 
     user: Mapped[User] = relationship(back_populates="enrollments")
     course: Mapped[Course] = relationship(back_populates="enrollments")

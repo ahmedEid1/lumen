@@ -666,6 +666,31 @@ export const ar: Record<MessageKey, string> = {
   "onboarding.instructor.s3.body":
     "استخدم «معاينة كطالب» للتحقق من التجربة، ثم اضغط «نشر». ستتحدّث القائمة فورًا.",
 
+  // Reviews queue — FSRS-6 spaced repetition (Phase E4)
+  "nav.reviews": "المراجعة",
+  "reviews.cartouche": "مراجعة",
+  "reviews.title": "التكرار المتباعد",
+  "reviews.subtitle":
+    "الاختبارات التي خضت لها تعود إلى هنا وفق جدول مضبوط على مدى تذكّرك لها.",
+  "reviews.stats.due": "مستحقة الآن",
+  "reviews.stats.learning": "قيد التعلّم",
+  "reviews.stats.review": "قيد المراجعة",
+  "reviews.stats.next7": "خلال 7 أيام",
+  "reviews.empty.title": "لا شيء للمراجعة",
+  "reviews.empty.body":
+    "أدِّ اختبارًا في أي دورة، وسيعود إلى هنا حين يحين وقت تحديث ذاكرتك.",
+  "reviews.queueHeading": "التالي",
+  "reviews.startReview": "ابدأ المراجعة",
+  "reviews.grade.heading": "إلى أيّ مدى تذكّرت؟",
+  "reviews.grade.again": "مرة أخرى",
+  "reviews.grade.hard": "صعب",
+  "reviews.grade.good": "جيد",
+  "reviews.grade.easy": "سهل",
+  "reviews.grade.allDone": "أنجزت كل شيء — عُد غدًا.",
+  "reviews.lastReviewed": "آخر مراجعة {when}",
+  "reviews.neverReviewed": "لم تُراجع بعد",
+  "reviews.openCourse": "فتح الدورة",
+
   // Generic
   "common.loading": "جارٍ التحميل…",
   "common.save": "حفظ",

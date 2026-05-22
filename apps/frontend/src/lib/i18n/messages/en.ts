@@ -659,6 +659,31 @@ export const en = {
   "onboarding.instructor.s3.body":
     "Use 'Preview as student' to verify the flow, then hit Publish. The catalog updates immediately.",
 
+  // Reviews queue — FSRS-6 spaced repetition (Phase E4)
+  "nav.reviews": "Reviews",
+  "reviews.cartouche": "Review",
+  "reviews.title": "Spaced repetition",
+  "reviews.subtitle":
+    "Quizzes you've taken come back here on a schedule tuned to how well you remembered them.",
+  "reviews.stats.due": "Due now",
+  "reviews.stats.learning": "Learning",
+  "reviews.stats.review": "In review",
+  "reviews.stats.next7": "Next 7 days",
+  "reviews.empty.title": "Nothing to review",
+  "reviews.empty.body":
+    "Take a quiz on any course and it'll come back here when it's time to refresh your memory.",
+  "reviews.queueHeading": "Up next",
+  "reviews.startReview": "Start review",
+  "reviews.grade.heading": "How well did you remember?",
+  "reviews.grade.again": "Again",
+  "reviews.grade.hard": "Hard",
+  "reviews.grade.good": "Good",
+  "reviews.grade.easy": "Easy",
+  "reviews.grade.allDone": "All caught up — come back tomorrow.",
+  "reviews.lastReviewed": "last reviewed {when}",
+  "reviews.neverReviewed": "never reviewed",
+  "reviews.openCourse": "Open course",
+
   // Generic
   "common.loading": "Loading…",
   "common.save": "Save",
