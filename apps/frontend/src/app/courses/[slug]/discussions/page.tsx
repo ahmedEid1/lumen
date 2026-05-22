@@ -10,8 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { formatRelative } from "@/lib/utils";
@@ -71,16 +69,15 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
 
   if (courseQ.isLoading) {
     return (
-      <div className="container mx-auto px-4 py-14 text-center font-body text-muted-foreground">
+      <div className="container mx-auto px-6 py-14 text-center font-body text-muted-foreground">
         {t("common.loading")}
       </div>
     );
   }
   if (!courseQ.data) {
     return (
-      <div className="container mx-auto flex flex-col items-center gap-3 px-4 py-20 text-center">
-        <Glyph name="feather" size={48} mode="tint" className="text-gold/40" />
-        <p className="font-display text-xl italic text-muted-foreground">
+      <div className="container mx-auto flex flex-col items-center gap-3 px-6 py-20 text-center">
+        <p className="font-display text-2xl italic text-muted-foreground">
           {t("courseDetail.notFound")}
         </p>
       </div>
@@ -89,22 +86,24 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
   const course = courseQ.data;
 
   return (
-    <div className="container mx-auto max-w-3xl space-y-6 px-4 py-14">
+    <div className="container mx-auto max-w-3xl space-y-6 px-6 py-14">
       <Link
         href={`/courses/${course.slug}`}
-        className="inline-flex items-center font-body text-sm text-muted-foreground transition-colors hover:text-gold"
+        className="inline-flex items-center font-body text-sm text-muted-foreground transition-colors hover:text-primary"
       >
         <ArrowLeft className="me-1 h-4 w-4" /> {course.title}
       </Link>
       <header className="flex flex-col gap-2">
-        <Cartouche>{t("discussions.cartouche")}</Cartouche>
-        <h1 className="font-display text-3xl font-medium tracking-tight">
+        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          {t("discussions.cartouche")}
+        </p>
+        <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
           {t("discussions.title")}
         </h1>
       </header>
 
       {user && (
-        <Card className="scroll-paper border-gold/20">
+        <Card className="surface">
           <CardHeader>
             <CardTitle className="font-display text-xl">
               {t("discussions.startCard")}
@@ -142,7 +141,7 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
         </Card>
       )}
 
-      <Card className="scroll-paper border-gold/20">
+      <Card className="surface">
         <CardHeader>
           <CardTitle className="font-display text-xl">
             {t("discussions.threadCount", { n: threadsQ.data?.total ?? 0 })}
@@ -154,22 +153,21 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
               {t("common.loading")}
             </p>
           ) : !threadsQ.data?.items.length ? (
-            <div className="flex flex-col items-center gap-3 py-10 text-center">
-              <Glyph name="ankh" size={40} mode="tint" className="text-gold/35" />
-              <p className="font-body text-sm italic text-muted-foreground">
+            <div className="py-12 text-center">
+              <p className="font-display text-xl italic text-muted-foreground">
                 {t("discussions.empty")}
               </p>
             </div>
           ) : (
-            <ul className="divide-y divide-gold/15">
+            <ul className="divide-y divide-border/60">
               {threadsQ.data.items.map((thread) => (
                 <li key={thread.id}>
                   <Link
                     href={`/courses/${course.slug}/discussions/${thread.id}`}
-                    className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/30"
+                    className="group flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/30"
                   >
                     <div className="flex items-start gap-3">
-                      <Avatar className="h-8 w-8 border border-gold/30">
+                      <Avatar className="h-8 w-8 border border-border/60">
                         <AvatarImage
                           src={thread.author?.avatar_url ?? undefined}
                           alt={thread.author?.full_name ?? ""}
@@ -179,7 +177,7 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-display text-base font-medium transition-colors group-hover:text-gold">
+                        <p className="font-display text-base font-medium transition-colors group-hover:text-primary">
                           {thread.title}
                         </p>
                         <p className="font-body text-xs text-muted-foreground">
@@ -188,7 +186,7 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
                         </p>
                       </div>
                     </div>
-                    <span className="rounded-full border border-gold/25 bg-gold/5 px-2.5 py-0.5 text-xs tabular-nums text-gold">
+                    <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs tabular-nums text-primary">
                       {thread.reply_count}
                     </span>
                   </Link>

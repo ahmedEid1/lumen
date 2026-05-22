@@ -241,7 +241,7 @@ export const en = {
   "thread.replyCount": "{n} replies",
 
   // Discussions list — around the fire
-  "discussions.cartouche": "Around the fire",
+  "discussions.cartouche": "Discussions",
   "discussions.title": "Discussions",
   "discussions.startCard": "Start a thread",
   "discussions.bodyPlaceholder": "Optional context — what have you tried?",

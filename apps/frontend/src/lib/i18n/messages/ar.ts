@@ -248,7 +248,7 @@ export const ar: Record<MessageKey, string> = {
   "thread.replyCount": "{n} ردّ",
 
   // Discussions list — حول النار
-  "discussions.cartouche": "حول النار",
+  "discussions.cartouche": "النقاشات",
   "discussions.title": "النقاشات",
   "discussions.startCard": "ابدأ موضوعًا",
   "discussions.bodyPlaceholder": "سياق اختياري — ماذا جرّبت حتى الآن؟",
