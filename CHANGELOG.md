@@ -8,6 +8,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added (rebuild phase E)
+- **AI-assisted course authoring (E2).** Instructors can paste a
+  one-paragraph brief and get back a proposed course structure
+  (3-6 modules, each with 3-5 lessons), then drill into individual
+  lessons to draft a Tiptap block-doc body or generate a 4-question
+  quiz — all reviewed and edited in the studio before anything
+  lands in the database. Four new endpoints under
+  `/api/v1/studio/ai`: `POST /outline`, `POST /lesson-body`,
+  `POST /quiz` (all pure generate — no DB writes), and
+  `POST /commit-outline` which persists the (possibly-edited)
+  outline as draft modules + lessons against an existing course.
+  All four require `RequireInstructor` and are rate-limited at
+  5/minute per user.
+
+  **Human-in-the-loop, by design.** No auto-persist on generate.
+  The LLM hallucinates; an instructor who clicks "Generate" and
+  walks away must not come back to a course full of model-authored
+  content carrying their name. Generate returns a preview; the
+  studio surfaces the preview as an inline-editable tree (rename
+  per row, delete per row, delete per module); only on explicit
+  "Create draft course" does the outline land in the DB, and even
+  then the course stays in draft with placeholder lesson bodies
+  that the instructor will overwrite per-lesson via the
+  "Draft with AI" / "Generate quiz questions" buttons in the
+  lesson editor.
+
+  **LLM coordination with E1.** Phase E1 (RAG tutor) shipped the
+  `app.services.llm.LLMProvider` Protocol + concrete Anthropic /
+  OpenAI / Noop providers — the authoring service consumes that
+  contract verbatim (`async chat(messages, temperature) -> str`)
+  rather than building a parallel stack. Switching the operator's
+  LLM via `LLM_PROVIDER` re-routes both authoring and tutor traffic
+  in one place.
+
+  **Error model — strict parse + one retry.** Every generate path
+  asks the LLM for a JSON object, parses with Pydantic, and on
+  failure sends one corrective turn back to the model with the
+  parse error quoted inline. Two failures surface as
+  `ValidationAppError("ai.bad_output")` so the studio modal can
+  show a clean "try again" rather than leaking the broken text.
+
+  **Files.** New service `app/services/ai_authoring.py` (prompts,
+  schemas, retry helper, commit logic). New API
+  `app/api/v1/ai_authoring.py` (four endpoints + Pydantic request /
+  response models). New studio component
+  `apps/frontend/src/components/studio/ai-outline-modal.tsx`
+  (three-phase modal: brief → review → creating). Lesson editor
+  picks up "Draft with AI" (text lessons) and "Generate quiz
+  questions" (quiz lessons) buttons that pre-fill the existing
+  editor — never auto-save.
+
+  **Backend tests** (`tests/test_ai_authoring.py`, 14 cases):
+  outline parsing, malformed-then-retry path, twice-malformed
+  surfacing `ai.bad_output`, markdown-fence stripping, schema
+  rejection + recovery, lesson body returns a Tiptap doc, quiz
+  returns the expected number of MCQs, HTTP surface requires
+  instructor, commit creates the right module / lesson rows in
+  order, non-owner gets 403, and rate-limit fires on the 6th
+  call/minute. All routed through a scripted provider that returns
+  canned JSON so no network call ever leaves the test process.
+
+  **Frontend tests** (`tests/ai-outline-modal.test.tsx`, 3 cases):
+  stub the API, drive the brief → review flow, and assert the
+  preview tree renders module + lesson titles as editable inputs.
+
 - **Course-scoped RAG AI tutor (E1).** "Ask the tutor" lands on
   every course surface (lesson player toolbar + course detail
   syllabus card for enrolled learners). Each answer is grounded

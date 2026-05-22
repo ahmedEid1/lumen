@@ -235,6 +235,87 @@ export const Ingest = {
     }),
 };
 
+// ---------- AI authoring (Phase E2) ----------
+
+export interface OutlineLesson {
+  title: string;
+  type: "text" | "quiz";
+}
+
+export interface OutlineModule {
+  title: string;
+  lessons: OutlineLesson[];
+}
+
+export interface CourseOutline {
+  title: string;
+  overview: string;
+  modules: OutlineModule[];
+}
+
+export interface AIQuizQuestion {
+  id: string;
+  prompt: string;
+  kind: "single" | "multiple" | "short";
+  choices: { id: string; text: string }[];
+  answer_keys: string[];
+}
+
+export interface CommittedLesson {
+  id: string;
+  title: string;
+  type: string;
+  order: number;
+}
+
+export interface CommittedModule {
+  id: string;
+  title: string;
+  order: number;
+  lessons: CommittedLesson[];
+}
+
+export interface CommitOutlineResponse {
+  course_id: string;
+  modules: CommittedModule[];
+}
+
+export const AI = {
+  outline: (input: { brief: string; target_modules?: number }, token?: string) =>
+    api<CourseOutline>("/api/v1/studio/ai/outline", {
+      method: "POST",
+      body: input,
+      token,
+    }),
+  lessonBody: (
+    input: { lesson_title: string; course_context?: string },
+    token?: string,
+  ) =>
+    api<{ blocks: Record<string, unknown> }>("/api/v1/studio/ai/lesson-body", {
+      method: "POST",
+      body: input,
+      token,
+    }),
+  quiz: (
+    input: { lesson_title: string; course_context?: string; n?: number },
+    token?: string,
+  ) =>
+    api<{ questions: AIQuizQuestion[] }>("/api/v1/studio/ai/quiz", {
+      method: "POST",
+      body: input,
+      token,
+    }),
+  commitOutline: (
+    input: { course_id: string; outline: CourseOutline },
+    token?: string,
+  ) =>
+    api<CommitOutlineResponse>("/api/v1/studio/ai/commit-outline", {
+      method: "POST",
+      body: input,
+      token,
+    }),
+};
+
 // ---------- Reviews ----------
 export const Reviews = {
   list: (courseId: string) => api<ReviewOut[]>(`/api/v1/courses/${courseId}/reviews`),

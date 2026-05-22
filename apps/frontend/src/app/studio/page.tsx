@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Download, Plus } from "lucide-react";
+import { Download, Plus, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
+import { AIOutlineModal } from "@/components/studio/ai-outline-modal";
 import { IngestModal } from "@/components/studio/ingest-modal";
 import { Courses } from "@/lib/api/endpoints";
 import type { CourseListItem, CourseStatus } from "@/lib/api/types";
@@ -46,6 +47,7 @@ export default function StudioPage() {
   const mine = useQuery({ queryKey: qk.myCourses, queryFn: () => Courses.mine(), enabled: !!user });
   const [filter, setFilter] = useState<FilterValue>("all");
   const [importOpen, setImportOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -89,6 +91,9 @@ export default function StudioPage() {
             <p className="mt-2 font-body text-sm text-muted-foreground">{t("studio.subtitle")}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => setAiOpen(true)}>
+              <Sparkles className="me-2 h-4 w-4" /> {t("studio.aiOutline.button")}
+            </Button>
             <Button variant="outline" onClick={() => setImportOpen(true)}>
               <Download className="me-2 h-4 w-4" /> {t("studio.import.button")}
             </Button>
@@ -101,6 +106,7 @@ export default function StudioPage() {
         </div>
       </header>
       <IngestModal open={importOpen} onClose={() => setImportOpen(false)} />
+      {aiOpen && <AIOutlineModal onClose={() => setAiOpen(false)} />}
 
       {/* Filter tabs — border-b-2 active marker, no pill chips. */}
       <div
