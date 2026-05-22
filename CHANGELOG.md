@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed (rebuild phase G)
+- **Tutor rate-limit test isolation (G3).** The
+  `test_post_message_rate_limited_at_20_per_minute` case in
+  `apps/backend/tests/test_tutor.py` passed in isolation but
+  flaked sporadically in the full suite. The conftest's
+  `_reset_rate_limiter` autouse fixture *does* call
+  `ratelimit.reset_for_tests()` before every test, but pytest
+  doesn't guarantee a strict ordering between two same-scope
+  autouse fixtures — and `test_tutor.py` declares a second
+  autouse (`_force_noop_providers`) that monkeypatches the
+  `LLM_PROVIDER` / `EMBEDDING_PROVIDER` env vars and clears the
+  settings cache. Under the wrong ordering, the slowapi
+  MemoryStorage was being touched again after the reset had
+  fired, leaving stale window entries from prior tutor cases
+  (different `user:<sub>` keys, but the in-process dict was
+  still warm). The fix is the surgical one: the rate-limit test
+  itself now calls `reset_for_tests()` inline at the start and
+  again after the `auth_headers` fixtures have hit `/auth/login`
+  (which is also rate-limited, 10/minute, keyed by IP for
+  anonymous traffic). The test is now self-contained and no
+  longer depends on autouse ordering.
+
+  Files: `apps/backend/tests/test_tutor.py`.
+
 - **Light-mode primary contrast (G1).** The Workbench rebuild's
   light-mode `--primary` was `hsl(72 80% 38%)` (`#8FAE13`), which
   only managed 2.44:1 against `#FAFAF9`, 2.54:1 against `#FFFFFF`,

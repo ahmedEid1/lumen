@@ -510,7 +510,24 @@ async def test_post_message_rate_limited_at_20_per_minute(
     We don't want to actually wait a minute, so this asserts the
     cap and that the error envelope matches the standard 429
     payload shape.
+
+    Isolation note: the conftest ``_reset_rate_limiter`` autouse
+    fixture already calls ``ratelimit.reset_for_tests()`` before
+    every test, but in the full-suite run we still saw sporadic
+    failures from this test. The root cause was that the
+    ``_force_noop_providers`` autouse fixture in *this* module
+    runs alongside the conftest one, and fixture-ordering between
+    same-scope autouse fixtures isn't strictly guaranteed — under
+    parallel-ish ordering the limiter was being torn back up with
+    leftover hits from a prior tutor test that had used the same
+    "user:<sub>" key family (different sub, but the storage dict
+    was holding stale window entries that hadn't expired). We
+    explicitly reset the limiter again here so the test is
+    self-contained and doesn't depend on the autouse ordering.
     """
+    from app.core.ratelimit import reset_for_tests as _reset_limiter
+
+    _reset_limiter()
     teacher = await auth_headers(role=Role.instructor)
     course_id = await _course_via_api(
         client,
@@ -519,6 +536,14 @@ async def test_post_message_rate_limited_at_20_per_minute(
         lesson_bodies=[("L", "Body about something. " * 20)],
     )
     learner = await auth_headers(role=Role.student)
+    # Reset once more after the auth fixtures ran — ``auth_headers``
+    # itself hits ``/auth/login`` which is rate-limited (10/minute,
+    # keyed by IP for anonymous traffic). Stale entries from prior
+    # tests' login attempts in the same MemoryStorage bucket dict
+    # have been known to interact oddly with later hits at the
+    # 20/minute tier; clearing again right before the post loop
+    # guarantees we start from zero.
+    _reset_limiter()
     new = await client.post(
         f"/api/v1/courses/{course_id}/tutor/conversations",
         headers=learner,
