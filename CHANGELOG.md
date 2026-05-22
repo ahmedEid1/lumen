@@ -62,6 +62,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Regression covered by `apps/frontend/tests/login.test.tsx`.
 
 ### Removed (rebuild phase A)
+- **Course duplication feature (Cut A5).** `POST
+  /api/v1/courses/{id}/duplicate` cloned a course with all its modules
+  and lessons into a fresh draft owned by the caller. The feature is
+  not in the v1 PRD and never made it into the studio UX flows beyond
+  a single "Duplicate" button on the course-edit toolbar. Instructors
+  who want a remix workflow can create a new course manually — at
+  v1 catalog scale the keystroke savings did not justify the surface
+  area (route, service, schema, two test files, frontend mutation,
+  four `studioEdit.duplicate*` i18n keys). Removed: the route + the
+  ~70-line service method, the `Courses.duplicate` client, the
+  toolbar button + mutation in `apps/frontend/src/app/studio/[id]/page.tsx`,
+  the four `studioEdit.duplicate*` i18n keys from en.ts + ar.ts,
+  `apps/backend/tests/test_duplicate_visibility.py`, and the two
+  duplicate tests from the former `test_analytics_and_duplicate.py`
+  (file renamed to `test_analytics.py`). No migration needed —
+  duplication never had its own schema. Revisit if the catalog ever
+  grows past O(100) instructor-authored courses.
 - **`DiscussionSubscription` model + subscribe/unsubscribe endpoints
   (Cut A4).** The model and its table tracked which users wanted bell
   notifications for a thread, but no delivery mechanism ever shipped —

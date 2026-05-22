@@ -415,14 +415,3 @@ async def course_cohort_csv(
         },
     )
 
-
-# ---------- Duplication ----------
-
-
-@router.post("/{course_id}/duplicate", response_model=CourseListItem, status_code=status.HTTP_201_CREATED)
-async def duplicate_course(
-    course_id: str, user: RequireInstructor, db: DBSession
-) -> CourseListItem:
-    course = await courses_service.duplicate_course(db, source_id=course_id, owner=user)
-    refreshed, stats = await _load_course_with_stats(db, course.id)
-    return _builders.list_item(refreshed, stats)

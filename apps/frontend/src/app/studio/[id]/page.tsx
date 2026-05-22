@@ -59,16 +59,6 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
     },
   });
 
-  const duplicate = useMutation({
-    mutationFn: () => Courses.duplicate(id),
-    onSuccess: (c) => {
-      toast.success(t("studioEdit.duplicateToast"));
-      qc.invalidateQueries({ queryKey: qk.myCourses });
-      window.location.href = `/studio/${c.id}`;
-    },
-    onError: (e: Error) => toast.error(e?.message ?? t("studioEdit.duplicateError")),
-  });
-
   const createModule = useMutation({
     mutationFn: () => Courses.createModule(id, { title: newModuleTitle }),
     onSuccess: () => {
@@ -143,13 +133,6 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
             <Link href={`/courses/${course.slug}`} target="_blank">
               <Button variant="outline">{t("studioEdit.previewAsStudent")}</Button>
             </Link>
-            <Button
-              variant="outline"
-              onClick={() => duplicate.mutate()}
-              disabled={duplicate.isPending}
-            >
-              {duplicate.isPending ? t("studioEdit.duplicating") : t("studioEdit.duplicate")}
-            </Button>
             {course.status !== "published" && (
               <Button onClick={() => publish.mutate("published")}>{t("studioEdit.publish")}</Button>
             )}

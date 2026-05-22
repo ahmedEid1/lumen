@@ -113,9 +113,6 @@ export const Courses = {
       enrollments_last_30d: number;
     }>(`/api/v1/courses/${courseId}/analytics`, { token }),
 
-  duplicate: (courseId: string, token?: string) =>
-    api<CourseListItem>(`/api/v1/courses/${courseId}/duplicate`, { method: "POST", token }),
-
   getLesson: (lessonId: string, token?: string) =>
     api<LessonOut>(`/api/v1/courses/lessons/${lessonId}`, { token }),
 

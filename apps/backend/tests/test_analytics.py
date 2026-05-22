@@ -1,4 +1,4 @@
-"""Per-course analytics + course duplication."""
+"""Per-course analytics."""
 
 from __future__ import annotations
 
@@ -92,38 +92,3 @@ async def test_analytics_reflects_enrollment_and_completion(
     # avg progress = (100 + 0) / 2 = 50.0
     assert body["avg_progress_pct"] == 50.0
     assert body["enrollments_last_7d"] == 2
-
-
-async def test_duplicate_clones_structure_as_draft(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
-) -> None:
-    teacher_a = await auth_headers(role=Role.instructor)
-    teacher_b = await auth_headers(role=Role.instructor)
-    subject = await _make_subject(db_session)
-    course_id, _ = await _full_course(client, teacher_a, subject.id, title="Original")
-
-    # Any instructor can duplicate; the copy is owned by them and starts as a draft.
-    r = await client.post(f"/api/v1/courses/{course_id}/duplicate", headers=teacher_b)
-    assert r.status_code == 201, r.text
-    copy = r.json()
-    assert copy["title"] == "Original (copy)"
-    assert copy["status"] == "draft"
-    assert copy["slug"] != "original"
-
-    detail = await client.get(f"/api/v1/courses/{copy['id']}", headers=teacher_b)
-    assert detail.status_code == 200
-    body = detail.json()
-    assert len(body["modules"]) == 1
-    assert len(body["modules"][0]["lessons"]) == 1
-
-
-async def test_duplicate_requires_instructor(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
-) -> None:
-    teacher = await auth_headers(role=Role.instructor)
-    student = await auth_headers(role=Role.student)
-    subject = await _make_subject(db_session)
-    course_id, _ = await _full_course(client, teacher, subject.id)
-
-    r = await client.post(f"/api/v1/courses/{course_id}/duplicate", headers=student)
-    assert r.status_code == 403
