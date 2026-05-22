@@ -27,7 +27,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, IdMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.chat import ChatMessage
     from app.models.user import User
 
 
@@ -124,7 +123,6 @@ class Course(IdMixin, TimestampMixin, Base):
     )
     enrollments: Mapped[list[Enrollment]] = relationship(back_populates="course", cascade="all, delete-orphan")
     reviews: Mapped[list[Review]] = relationship(back_populates="course", cascade="all, delete-orphan")
-    chat_messages: Mapped[list[ChatMessage]] = relationship(back_populates="course", cascade="all, delete-orphan")
 
 
 class Module(IdMixin, TimestampMixin, Base):

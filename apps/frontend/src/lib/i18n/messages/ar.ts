@@ -313,16 +313,6 @@ export const ar: Record<MessageKey, string> = {
   "quiz.failLine": "علامة النجاح {pct}٪. حاول مجدّدًا.",
   "quiz.retake": "إعادة المحاولة",
 
-  // Chat
-  "chat.connected": "متّصل · {n} حاضر",
-  "chat.reconnecting": "جارٍ إعادة الاتصال…",
-  "chat.connecting": "جارٍ الاتصال…",
-  "chat.disconnected": "غير متّصل",
-  "chat.empty": "لا رسائل بعد. ابدأ بالسلام!",
-  "chat.placeholder": "اكتب رسالة…",
-  "chat.messageAria": "رسالة",
-  "chat.send": "إرسال",
-
   // تذييل الموقع
   "footer.copyright": "© {year} سكِلپاث · رخصة MIT",
   "footer.docs": "الوثائق",
@@ -520,7 +510,6 @@ export const ar: Record<MessageKey, string> = {
   "learn.markedToast": "تم وضع علامة الإنجاز",
   "learn.saveError": "تعذّر الحفظ",
   "learn.noLessons": "لا توجد دروس في هذه الدورة بعد.",
-  "learn.courseChat": "محادثة الدورة",
 
   // Course detail
   "courseDetail.cartouche": "الدورة",

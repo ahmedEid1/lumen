@@ -106,14 +106,6 @@ export interface ReviewOut {
   author: UserPublic;
 }
 
-export interface ChatMessageOut {
-  id: string;
-  course_id: string;
-  body: string;
-  created_at: string;
-  author: UserPublic;
-}
-
 export interface TokenResponse {
   access_token: string;
   token_type: "bearer";

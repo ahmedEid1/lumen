@@ -2,7 +2,6 @@
 
 from app.models.asset import Asset
 from app.models.audit import AuditEvent
-from app.models.chat import ChatMessage
 from app.models.course import (
     Course,
     CourseStatus,
@@ -25,7 +24,6 @@ from app.models.user import RefreshToken, Role, User
 __all__ = [
     "Asset",
     "AuditEvent",
-    "ChatMessage",
     "Course",
     "CourseStatus",
     "Difficulty",

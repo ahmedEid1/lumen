@@ -12,7 +12,6 @@ from app.api.deps import CurrentUser, DBSession, client_ip, user_agent
 from app.core.email_type import Email
 from app.core.errors import NotFoundError, UnauthorizedError, ValidationAppError
 from app.core.security import hash_password, verify_password
-from app.models.chat import ChatMessage
 from app.models.course import Enrollment, Review
 from app.models.user import RefreshToken
 from app.repositories import audit as audit_repo
@@ -107,13 +106,11 @@ async def export_my_data(user: CurrentUser, db: DBSession) -> dict:
 
     enrollments = await _count(select(func.count(Enrollment.id)).where(Enrollment.user_id == user.id))
     reviews = await _count(select(func.count(Review.id)).where(Review.author_id == user.id))
-    messages = await _count(select(func.count(ChatMessage.id)).where(ChatMessage.author_id == user.id))
     return {
         "profile": UserOut.model_validate(user).model_dump(mode="json"),
         "counts": {
             "enrollments": enrollments,
             "reviews": reviews,
-            "chat_messages": messages,
         },
     }
 

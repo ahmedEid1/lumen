@@ -7,7 +7,6 @@ from app.api.v1 import (
     auth,
     catalog,
     certificates,
-    chat,
     courses,
     discussions,
     enrollments,
@@ -29,7 +28,6 @@ api_router.include_router(search.router, prefix="/search", tags=["search"])
 api_router.include_router(courses.router, prefix="/courses", tags=["courses"])
 api_router.include_router(enrollments.router, prefix="/me", tags=["enrollments"])
 api_router.include_router(reviews.router, prefix="/courses", tags=["reviews"])
-api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 api_router.include_router(uploads.router, prefix="/uploads", tags=["uploads"])
 api_router.include_router(notifications.router, prefix="/me/notifications", tags=["notifications"])
 api_router.include_router(certificates.router, prefix="/certificates", tags=["certificates"])

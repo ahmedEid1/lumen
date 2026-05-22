@@ -306,16 +306,6 @@ export const en = {
   "quiz.failLine": "Pass mark is {pct}%. Try again.",
   "quiz.retake": "Retake",
 
-  // Chat — torchlit cohort room
-  "chat.connected": "Connected · {n} online",
-  "chat.reconnecting": "Reconnecting…",
-  "chat.connecting": "Connecting…",
-  "chat.disconnected": "Disconnected",
-  "chat.empty": "No messages yet. Say hi!",
-  "chat.placeholder": "Write a message…",
-  "chat.messageAria": "Message",
-  "chat.send": "Send",
-
   // Site footer
   "footer.copyright": "© {year} Skillpath · MIT licensed",
   "footer.docs": "Docs",
@@ -513,7 +503,6 @@ export const en = {
   "learn.markedToast": "Marked complete",
   "learn.saveError": "Could not save",
   "learn.noLessons": "No lessons in this course yet.",
-  "learn.courseChat": "Course chat",
 
   // Course detail page
   "courseDetail.cartouche": "Course",

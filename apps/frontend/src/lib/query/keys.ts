@@ -7,6 +7,5 @@ export const qk = {
   reviews: (courseId: string) => ["course", courseId, "reviews"] as const,
   enrollments: ["me", "enrollments"] as const,
   myCourses: ["me", "my-courses"] as const,
-  chatHistory: (courseId: string) => ["chat", courseId, "history"] as const,
   notifications: ["me", "notifications"] as const,
 };

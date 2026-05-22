@@ -89,8 +89,8 @@ async def db_session(_engine) -> AsyncIterator[AsyncSession]:
     async with db_base.get_sessionmaker()() as session:
         # Clean tables between tests (fast for our small set).
         await session.execute(text(
-            "TRUNCATE assets, audit_events, notifications, chat_messages, reviews, quiz_attempts, "
-            "discussion_subscriptions, discussion_replies, discussions, lesson_progress, "
+            "TRUNCATE assets, audit_events, notifications, reviews, quiz_attempts, "
+            "discussion_replies, discussions, lesson_progress, "
             "enrollments, lessons, modules, course_tags, courses, tags, subjects, "
             "auth_refresh_tokens, users RESTART IDENTITY CASCADE"
         ))

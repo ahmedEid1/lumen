@@ -5,14 +5,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, CheckCircle2, Circle, MessagesSquare } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Courses, Me } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { LessonPlayer } from "@/components/lesson/lesson-player";
-import { ChatRoom } from "@/components/chat/chat-room";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 import { pickResumeLessonId } from "@/lib/lesson-resume";
@@ -101,7 +100,7 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
   }
 
   return (
-    <div className="container mx-auto grid gap-6 px-6 py-10 lg:grid-cols-[280px_1fr_320px]">
+    <div className="container mx-auto grid gap-6 px-6 py-10 lg:grid-cols-[280px_1fr]">
       {/* Outline */}
       <aside className="order-2 lg:order-none">
         <Card className="surface">
@@ -215,20 +214,6 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
         )}
       </section>
 
-      {/* Chat */}
-      <aside className="order-3 lg:order-none">
-        <Card className="surface flex h-[400px] flex-col lg:h-[600px]">
-          <CardHeader className="border-b border-border/60">
-            <CardTitle className="inline-flex items-center gap-2 font-display text-base">
-              <MessagesSquare className="h-4 w-4 text-muted-foreground" />{" "}
-              {t("learn.courseChat")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-hidden p-0">
-            <ChatRoom courseId={course.id} token={token} />
-          </CardContent>
-        </Card>
-      </aside>
     </div>
   );
 }

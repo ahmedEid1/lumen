@@ -112,6 +112,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   decide whether to rename it as part of the surface repaint. en.ts +
   ar.ts remain at 550/550 keys, parity preserved.
 ### Removed (rebuild phase A)
+- **Per-course WebSocket chat (Cut A8).** The chat module shipped a
+  WebSocket connection manager, a paginated REST history endpoint, a
+  ChatMessage model + table, a presence counter, and the
+  `ChatRoom` component that sat in the learn-page right column. The
+  backend audit flagged the WS receive loop as untested (no
+  integration tests on the actual send/persist/broadcast path) and
+  lossy on reconnect (exponential backoff with no max cap left the
+  client spinning "Reconnecting…" forever if the endpoint hung), and
+  the cuts-inventory agent recommended replacing the per-course
+  chat surface entirely with lesson-scoped async comments + a
+  course-level AI tutor (which Phase D/E will deliver). Per Lumen
+  2.0 rebuild spec section 3.2 the chat surface goes now; the
+  replacement surfaces ship later in their own phases. Removed:
+  `apps/backend/app/models/chat.py`, `app/api/v1/chat.py`,
+  `app/services/chat.py`, `app/repositories/chat.py`,
+  `app/schemas/chat.py`, the `chat` router registration, the
+  `ChatMessage` model export, the `chat_messages` relationship on
+  `Course`, the `chat_messages` count in GDPR export, three test
+  files (`test_chat.py`, `test_chat_presence.py`,
+  `test_chat_ws_revalidate.py`), `chat_messages` from the
+  `conftest.py` TRUNCATE list, the `apps/frontend/src/components/chat/`
+  directory + its test, the chat panel + right column on the learn
+  page (3-col → 2-col layout), the `qk.chatHistory` query key, the
+  `ChatMessageOut` TS type, `learn.courseChat` + the nine `chat.*`
+  i18n keys in en.ts and ar.ts. Alembic 0013 drops the table with a
+  reversible downgrade. en.ts + ar.ts remain at 537/537 keys.
 - **Bookmarks (Cut A7).** The Bookmark model + `bookmarks` table +
   three `/me/bookmarks` endpoints tracked "saved for later" courses
   per learner. The state was UX-redundant with enrollment: anything a
