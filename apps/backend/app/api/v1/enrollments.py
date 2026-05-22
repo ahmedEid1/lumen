@@ -82,7 +82,7 @@ async def mark_lesson_progress(
 ) -> dict:
     lesson = await _get_live_lesson(db, lesson_id)
     enrollment, lp, pct = await enrollment_service.mark_lesson(
-        db, user=user, lesson=lesson, completed=payload.completed, payload=payload.payload
+        db, user=user, lesson=lesson, completed=payload.completed
     )
     return {
         "lesson_id": lesson.id,
@@ -209,11 +209,7 @@ async def submit_quiz(
         lesson=lesson,
         score=result.score,
         passed=result.passed,
-        payload={
-            "answers": payload.answers,
-            "score": result.score,
-            "passed": result.passed,
-        },
+        answers=payload.answers,
     )
 
     return QuizSubmitResponse(

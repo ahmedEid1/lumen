@@ -264,7 +264,6 @@ class EnrollmentOut(BaseModel):
 
 class ProgressUpdate(BaseModel):
     completed: bool = True
-    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 # ----- Reviews -----

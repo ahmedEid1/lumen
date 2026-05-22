@@ -183,7 +183,6 @@ class LessonProgress(IdMixin, TimestampMixin, Base):
     lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
     enrollment: Mapped[Enrollment] = relationship(back_populates="lesson_progress")
     lesson: Mapped[Lesson] = relationship(back_populates="progress")

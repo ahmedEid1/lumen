@@ -368,11 +368,9 @@ async def get_or_create_progress(
     return lp
 
 
-async def mark_completed(db: AsyncSession, lp: LessonProgress, *, payload: dict[str, object] | None = None) -> None:
+async def mark_completed(db: AsyncSession, lp: LessonProgress) -> None:
     if not lp.completed_at:
         lp.completed_at = datetime.now(UTC)
-    if payload:
-        lp.payload = {**(lp.payload or {}), **payload}
 
 
 # ----- Reviews -----

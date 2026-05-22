@@ -103,24 +103,25 @@ async def record_quiz_attempt(
     lesson: Lesson,
     score: int,
     passed: bool,
-    payload: dict[str, Any] | None = None,
+    answers: dict[str, Any] | None = None,
 ) -> tuple[Enrollment, LessonProgress, float]:
     """Persist a quiz attempt.
 
     Unlike :func:`mark_lesson`, a failing retake never clears a previously
     earned ``completed_at`` — once a learner has passed a quiz, the lesson
     stays complete regardless of subsequent attempts. The latest score is
-    always stored on ``LessonProgress.score``.
+    always stored on ``LessonProgress.score``; the verbatim ``answers`` go
+    on the append-only ``QuizAttempt`` row, which is the single source of
+    truth for attempt history (rebuild Cut A3 dropped the redundant
+    ``LessonProgress.payload`` JSONB mirror).
     """
     course, enrollment = await _resolve_enrollment_for_lesson(db, user=user, lesson=lesson)
 
     lp = await courses_repo.get_or_create_progress(db, enrollment_id=enrollment.id, lesson_id=lesson.id)
     clamped_score = max(0, min(100, score))
     lp.score = clamped_score
-    if payload:
-        lp.payload = {**(lp.payload or {}), **payload}
     if passed:
-        await courses_repo.mark_completed(db, lp, payload=None)
+        await courses_repo.mark_completed(db, lp)
 
     # Append-only attempt history. Captures the verbatim
     # answers so a future "review your attempt" UI can highlight
@@ -131,7 +132,7 @@ async def record_quiz_attempt(
         lesson_id=lesson.id,
         score=clamped_score,
         passed=passed,
-        answers=(payload or {}).get("answers", {}),
+        answers=answers or {},
         submitted_at=datetime.now(UTC),
     )
     db.add(attempt)
@@ -154,13 +155,12 @@ async def mark_lesson(
     user: User,
     lesson: Lesson,
     completed: bool,
-    payload: dict[str, Any] | None = None,
 ) -> tuple[Enrollment, LessonProgress, float]:
     course, enrollment = await _resolve_enrollment_for_lesson(db, user=user, lesson=lesson)
 
     lp = await courses_repo.get_or_create_progress(db, enrollment_id=enrollment.id, lesson_id=lesson.id)
     if completed:
-        await courses_repo.mark_completed(db, lp, payload=payload)
+        await courses_repo.mark_completed(db, lp)
     else:
         lp.completed_at = None
     # the app's sessionmaker has `autoflush=False`, so the

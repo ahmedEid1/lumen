@@ -44,6 +44,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Regression covered by `apps/frontend/tests/login.test.tsx`.
 
 ### Removed (rebuild phase A)
+- **`LessonProgress.payload` JSONB column (Cut A3).** The column
+  mirrored the latest quiz submission (answers + score + passed),
+  but since iteration 47 the append-only `quiz_attempts` table
+  (Alembic 0004) has been the single source of truth for attempt
+  history. The mirror had zero remaining read sites outside its
+  own write — every consumer that wanted "did the learner answer
+  X?" already queried `QuizAttempt`. Dropped via Alembic 0008
+  (reversible; downgrade re-adds the column with the original
+  default). Service+API stripped of the unused write path:
+  `record_quiz_attempt` now takes `answers` directly,
+  `mark_lesson` no longer accepts `payload`, and
+  `ProgressUpdate.payload` is gone from the schema. Frontend
+  never sent the field.
 - Idempotency middleware (`app/core/idempotency.py` + middleware
   registration in `app/main.py`) and its test suite. The middleware
   was scaffolded for a future payments surface but never enforced —
