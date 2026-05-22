@@ -117,11 +117,11 @@ export function ImageUpload({
           <img
             src={value}
             alt=""
-            className={`${previewClass} border border-gold/30 bg-muted`}
+            className={`${previewClass} border border-border/60 bg-muted`}
           />
         ) : (
           <div
-            className={`${previewClass} flex items-center justify-center border border-gold/20 bg-muted/40 font-body text-xs italic text-muted-foreground`}
+            className={`${previewClass} flex items-center justify-center border border-border/60 bg-muted/40 font-body text-xs italic text-muted-foreground`}
           >
             {t("upload.none")}
           </div>
@@ -139,8 +139,8 @@ export function ImageUpload({
               }}
               disabled={busy}
             />
-            <span className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-gold/30 bg-background/60 px-4 font-body text-sm transition-colors hover:border-gold/60 hover:bg-gold/5 disabled:opacity-50">
-              <Upload className="h-4 w-4 text-gold/70" />{" "}
+            <span className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-border/60 bg-background px-4 font-body text-sm transition-colors hover:border-primary/60 hover:bg-primary/5 disabled:opacity-50">
+              <Upload className="h-4 w-4 text-muted-foreground" />{" "}
               {busy ? t("upload.uploading") : t("upload.choose")}
             </span>
           </label>
