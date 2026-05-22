@@ -102,6 +102,15 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Error / Not-found pages
+  "errorPage.cartouche": "خطأ ما",
+  "errorPage.title": "حدث خطأ غير متوقّع",
+  "errorPage.body": "وقع خلل لم نتوقّعه. تم إخطار الفريق.",
+  "notFound.cartouche": "خرطوش فارغ",
+  "notFound.code": "404",
+  "notFound.title": "الصفحة غير موجودة",
+  "notFound.body": "الصفحة التي تبحث عنها غير موجودة.",
+
   // Lesson editor — أداة كتابة الدرس
   "lessonEdit.titleEdit": "تعديل الدرس",
   "lessonEdit.titleNew": "درس جديد",

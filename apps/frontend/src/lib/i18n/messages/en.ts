@@ -95,6 +95,15 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Error / Not-found pages
+  "errorPage.cartouche": "Something is amiss",
+  "errorPage.title": "Something went sideways",
+  "errorPage.body": "We hit an unexpected error. The team has been notified.",
+  "notFound.cartouche": "Empty cartouche",
+  "notFound.code": "404",
+  "notFound.title": "Page not found",
+  "notFound.body": "The page you're looking for doesn't exist.",
+
   // Lesson editor — instructor's tool for writing a lesson
   "lessonEdit.titleEdit": "Edit lesson",
   "lessonEdit.titleNew": "New lesson",
