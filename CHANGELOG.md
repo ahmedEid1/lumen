@@ -8,6 +8,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed (rebuild phase G)
+- **Worker image now picks up new backend deps on rebuild (G5).**
+  At session start the worker container was missing the seven
+  Phase E deps that landed during the rebuild (`pgvector`,
+  `fsrs`, `anthropic`, `openai`, `pyld`,
+  `youtube-transcript-api`, `notion-client`) — they were listed
+  in `apps/backend/pyproject.toml` but a bare `docker compose up`
+  kept using the previously built image, which had been built
+  against an older pyproject. The Dockerfile already copies
+  `pyproject.toml` + `uv.lock` into the `deps` stage *before*
+  the source, so the layer cache is keyed on dependency
+  declarations and any change to those files invalidates the
+  install layer — but the install command silenced stderr
+  (`2>/dev/null`) on the `uv sync --frozen` fast path, which
+  hid the actual failure mode when developers added a dep
+  without re-running `uv lock`.
+
+  Fix: stopped silencing stderr on the sync attempt so the lock-
+  drift case shows up in build logs, and added an in-Dockerfile
+  comment explaining the cache-invalidation contract. The two-
+  pass install (fast path: `uv sync --frozen`; fallback:
+  `uv pip install -e '.'` straight from pyproject) was already
+  in place and continues to do the right thing — the comment
+  just makes it discoverable. Added
+  `docs/runbooks/upgrade.md` documenting that bare
+  `docker compose up` doesn't auto-rebuild on pyproject changes:
+  after a pull that touches backend deps you need
+  `docker compose build api worker beat && docker compose up -d`
+  (or `docker compose up --build`), plus a verification command
+  to confirm the new deps actually landed in the worker image.
+
+  Files: `apps/backend/Dockerfile`, `docs/runbooks/upgrade.md`.
+
 - **Stale tests from Phase A cuts cleaned up (G4).** Seven backend
   tests still referenced features removed during the rebuild's
   Phase A cuts. Each got the right treatment — fixed, rewritten,
