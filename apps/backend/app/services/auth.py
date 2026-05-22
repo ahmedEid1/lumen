@@ -21,6 +21,7 @@ from app.core.security import (
 from app.models.user import RefreshToken, Role, User
 from app.repositories import audit as audit_repo
 from app.repositories import users as users_repo
+from app.services import notifications as notifications_service
 from app.services import password_hibp
 
 if TYPE_CHECKING:
@@ -112,6 +113,37 @@ async def rotate_refresh(
         # Reuse detection — revoke all tokens for this user.
         await users_repo.revoke_all_refresh_tokens(db, stored.user_id)
         await audit_repo.record(db, actor_id=stored.user_id, action="auth.refresh_reuse", ip_address=ip, user_agent=user_agent)
+        # H6 — also fire an admin notification so an operator notices
+        # the alarm without having to grep the audit log. The helper is
+        # best-effort: a notification write failure must not poison the
+        # auth path (we still want to raise the 401 below). Wrapped in
+        # a broad except as defense-in-depth on top of the per-admin
+        # handling inside ``notify_admins`` itself.
+        try:
+            owner = await users_repo.get_by_id(db, stored.user_id)
+            who = owner.email if owner is not None else stored.user_id
+            await notifications_service.notify_admins(
+                db,
+                kind="security.refresh_reuse",
+                title=f"Refresh-token reuse detected for user {who}",
+                body=(
+                    "Chain revoked. Reused token created at "
+                    f"{stored.issued_at.isoformat()}, last used "
+                    f"{stored.revoked_at.isoformat() if stored.revoked_at else 'unknown'}. "
+                    f"Source IP: {ip or 'unknown'}."
+                ),
+                data={
+                    "user_id": stored.user_id,
+                    "user_email": owner.email if owner is not None else None,
+                    "refresh_token_id": stored.id,
+                    "issued_at": stored.issued_at.isoformat(),
+                    "revoked_at": stored.revoked_at.isoformat() if stored.revoked_at else None,
+                    "ip": ip,
+                    "user_agent": user_agent,
+                },
+            )
+        except Exception as exc:  # pragma: no cover — defense in depth
+            log.warning("refresh_reuse_alarm_failed", error=str(exc), user_id=stored.user_id)
         raise UnauthorizedError("Refresh token reuse detected", code="auth.refresh_reuse")
     if stored.expires_at < now:
         raise UnauthorizedError("Refresh token expired", code="auth.refresh_expired")
