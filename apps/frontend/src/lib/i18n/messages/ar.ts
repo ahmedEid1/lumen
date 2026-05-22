@@ -102,6 +102,20 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Cohort card — قائمة طلاب المدرّس
+  "cohort.title": "الطلاب",
+  "cohort.exportCsv": "تصدير CSV",
+  "cohort.loadError": "تعذّر تحميل القائمة",
+  "cohort.empty": "لا تسجيلات بعد.",
+  "cohort.col.student": "الطالب",
+  "cohort.col.enrolled": "تاريخ التسجيل",
+  "cohort.col.progress": "التقدّم",
+  "cohort.col.status": "الحالة",
+  "cohort.learnerFallback": "متعلّم",
+  "cohort.status.completed": "مكتمل",
+  "cohort.status.inProgress": "قيد التقدّم",
+  "cohort.status.notStarted": "لم يبدأ",
+
   // Image / file upload
   "upload.choose": "اختر ملفًا",
   "upload.uploading": "جارٍ الرفع…",

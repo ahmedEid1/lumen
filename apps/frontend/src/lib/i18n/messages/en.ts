@@ -95,6 +95,20 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Cohort card — instructor's student roster
+  "cohort.title": "Students",
+  "cohort.exportCsv": "Export CSV",
+  "cohort.loadError": "Could not load cohort",
+  "cohort.empty": "No enrolments yet.",
+  "cohort.col.student": "Student",
+  "cohort.col.enrolled": "Enrolled",
+  "cohort.col.progress": "Progress",
+  "cohort.col.status": "Status",
+  "cohort.learnerFallback": "Learner",
+  "cohort.status.completed": "completed",
+  "cohort.status.inProgress": "in progress",
+  "cohort.status.notStarted": "not started",
+
   // Image / file upload
   "upload.choose": "Choose file",
   "upload.uploading": "Uploading…",
