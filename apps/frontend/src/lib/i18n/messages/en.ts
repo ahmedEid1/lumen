@@ -213,7 +213,7 @@ export const en = {
   "notif.empty": "Nothing here yet.",
 
   // Preview lesson — open scroll for non-enrolled visitors
-  "preview.cartouche": "Open scroll",
+  "preview.cartouche": "Preview",
   "preview.lessonFallback": "Lesson",
   "preview.forbidden": "This lesson is for enrolled students. Enroll in the course to read it.",
   "preview.notFound": "Lesson not found.",

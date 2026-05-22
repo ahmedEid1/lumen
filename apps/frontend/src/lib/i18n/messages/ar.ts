@@ -220,7 +220,7 @@ export const ar: Record<MessageKey, string> = {
   "notif.empty": "لا شيء هنا بعد.",
 
   // Preview lesson — لفافة مفتوحة لغير المسجّلين
-  "preview.cartouche": "لفافة مفتوحة",
+  "preview.cartouche": "معاينة",
   "preview.lessonFallback": "درس",
   "preview.forbidden": "هذا الدرس مخصّص للطلاب المسجّلين. سجّل في الدورة لقراءته.",
   "preview.notFound": "الدرس غير موجود.",
