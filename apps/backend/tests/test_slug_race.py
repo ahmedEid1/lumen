@@ -152,42 +152,13 @@ async def test_update_rename_recovers_from_slug_collision(
     assert r.json()["slug"] != "renamed-course"
 
 
-async def test_duplicate_also_recovers_from_slug_collision(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, make_user, seed_lesson
-) -> None:
-    """Duplicate path goes through the same _flush_course_with_slug_retry
-    helper, so a busy slug for ``"Foo (copy)"`` shouldn't 500 the dup."""
-    teacher = await auth_headers(role=Role.instructor)
-    subject = await _make_subject(db_session)
-
-    create = await client.post(
-        "/api/v1/courses",
-        json={"title": "Foo", "subject_id": subject.id, "overview": "x"},
-        headers=teacher,
-    )
-    course_id = create.json()["id"]
-    await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=teacher,
-    )
-
-    # Pre-claim the natural duplicate slug ("foo-copy").
-    placeholder_owner = await make_user(role=Role.instructor)
-    db_session.add(
-        Course(
-            owner_id=placeholder_owner.id,
-            subject_id=subject.id,
-            title="placeholder",
-            slug="foo-copy",
-            overview="x",
-            status=CourseStatus.draft,
-        )
-    )
-    await db_session.commit()
-
-    r = await client.post(f"/api/v1/courses/{course_id}/duplicate", headers=teacher)
-    assert r.status_code == 201, r.text
-    assert r.json()["slug"].startswith("foo-copy")
-    assert r.json()["slug"] != "foo-copy"
+# NOTE: the ``test_duplicate_also_recovers_from_slug_collision`` case
+# that lived here previously exercised the
+# ``POST /api/v1/courses/{course_id}/duplicate`` endpoint, which was
+# removed in rebuild Cut A5 (the "duplicate course" flow was deemed
+# instructor-side spelunking the new authoring stack covers with the
+# AI-assisted outline generator). The savepoint-retry helper it
+# regressed against is still exercised by ``test_create_recovers...``
+# and ``test_update_rename_recovers...`` above, so dropping the
+# duplicate-specific case doesn't lose coverage on the underlying
+# slug-mint path.

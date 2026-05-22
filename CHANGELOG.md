@@ -8,6 +8,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed (rebuild phase G)
+- **Stale tests from Phase A cuts cleaned up (G4).** Seven backend
+  tests still referenced features removed during the rebuild's
+  Phase A cuts. Each got the right treatment — fixed, rewritten,
+  or trimmed — so the suite passes cleanly against the post-rebuild
+  surface area.
+  - `tests/test_builders.py`: the
+    `test_detail_passes_through_enrollment_and_bookmark_flags` case
+    asserted on `is_bookmarked` and passed `is_bookmarked=True` to
+    `_builders.detail()`, but bookmarks were ripped in Cut A7 and
+    the builder no longer accepts that kwarg. Renamed and slimmed
+    to the enrollment/progress half that still holds.
+  - `tests/test_enrollments_dashboard_perf.py`: the
+    `test_dashboard_progress_is_batched` case called
+    `seed_lesson(course_id, teacher, title=...)`, but the
+    `seed_lesson` conftest fixture is a two-positional helper that
+    never accepted a `title` kwarg. The title was only ever
+    cosmetic — dropped the kwarg so the helper calls match the
+    signature.
+  - `tests/test_discussion_reply_notifies.py`: the
+    `test_no_notification_when_thread_author_was_deleted` case
+    exercised the post-cascade state where
+    `Discussion.author_id` is `NULL` (FK `SET NULL` on user
+    delete). The reply path naively notified `user_id=d.author_id`
+    without the NULL guard, which would have violated the
+    NOT-NULL constraint on `notifications.user_id`. Fixed the
+    real race in `app/services/discussions.py::reply` —
+    `if d.author_id is not None and d.author_id != user.id` —
+    rather than skipping the test.
+  - `tests/test_rate_limit_per_user.py` and
+    `tests/test_rate_limit_writes.py`: both hammered
+    `/api/v1/chat/courses/{id}/messages`, which was removed
+    alongside the per-course WebSocket chat in Cut A8. Rewrote
+    against `/api/v1/discussions/{id}/replies` (20/minute,
+    same per-user keying) — it's the post-A8 stand-in for the
+    flood surface those tests were guarding.
+  - `tests/test_slug_race.py` and `tests/test_slug_uniqueness.py`:
+    each had one case driving
+    `POST /api/v1/courses/{id}/duplicate`, removed in Cut A5
+    along with the "duplicate course" flow (the AI authoring
+    stack now covers the instructor's instinct to fork a course).
+    Deleted those two cases — the shared slug-mint helper they
+    regressed against is still exercised by the surviving
+    create + rename cases above them in the same files.
+
+  Files: `apps/backend/tests/test_builders.py`,
+  `apps/backend/tests/test_enrollments_dashboard_perf.py`,
+  `apps/backend/tests/test_discussion_reply_notifies.py`,
+  `apps/backend/tests/test_rate_limit_per_user.py`,
+  `apps/backend/tests/test_rate_limit_writes.py`,
+  `apps/backend/tests/test_slug_race.py`,
+  `apps/backend/tests/test_slug_uniqueness.py`,
+  `apps/backend/app/services/discussions.py`.
+
 - **Tutor rate-limit test isolation (G3).** The
   `test_post_message_rate_limited_at_20_per_minute` case in
   `apps/backend/tests/test_tutor.py` passed in isolation but

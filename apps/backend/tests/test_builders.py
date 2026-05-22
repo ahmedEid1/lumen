@@ -101,7 +101,12 @@ def test_list_item_defaults_when_stats_missing() -> None:
     assert item.tags == []
 
 
-def test_detail_passes_through_enrollment_and_bookmark_flags() -> None:
+def test_detail_passes_through_enrollment_flags() -> None:
+    # The companion ``is_bookmarked`` assertion was dropped along with
+    # the bookmark feature itself in rebuild Cut A7; the builder no
+    # longer accepts an ``is_bookmarked=`` kwarg and ``CourseDetail``
+    # no longer carries the field. We keep the enrollment + progress
+    # pass-through case because those are still load-bearing.
     course = _course()
     module = Module(
         id="m_1",
@@ -118,11 +123,9 @@ def test_detail_passes_through_enrollment_and_bookmark_flags() -> None:
         [module],
         {"modules_count": 1},
         is_enrolled=True,
-        is_bookmarked=True,
         progress_pct=37.5,
     )
     assert detail.is_enrolled is True
-    assert detail.is_bookmarked is True
     assert detail.progress_pct == 37.5
     assert detail.modules_count == 1
     assert len(detail.modules) == 1 and detail.modules[0].id == "m_1"

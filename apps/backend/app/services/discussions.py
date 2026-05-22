@@ -111,7 +111,15 @@ async def reply(
     # Subscription fanout was removed with the DiscussionSubscription
     # model — author notification covers the only "did anyone answer
     # my question?" case the original fanout was built for.
-    if d.author_id != user.id:
+    #
+    # ``Discussion.author_id`` is a FK with ``ondelete=SET NULL``: when
+    # a learner deletes their account, threads they opened persist with
+    # ``author_id=None`` so replies can still be read by the rest of
+    # the cohort. The notification side of that fanout has no
+    # recipient — there's no user row to deliver to, and
+    # ``notifications.user_id`` is NOT NULL — so we just skip the
+    # notification in that case rather than blow up the reply write.
+    if d.author_id is not None and d.author_id != user.id:
         await notifications_repo.create(
             db,
             user_id=d.author_id,

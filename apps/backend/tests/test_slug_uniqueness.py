@@ -56,24 +56,12 @@ async def test_recreating_a_deleted_courses_title_picks_a_fresh_slug(
     assert second.json()["slug"] != first_slug
 
 
-async def test_duplicating_a_course_uses_a_fresh_slug(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
-) -> None:
-    teacher = await auth_headers(role=Role.instructor)
-    subject = await _make_subject(db_session)
-    create = await client.post(
-        "/api/v1/courses",
-        json={"title": "Original", "subject_id": subject.id, "overview": "x"},
-        headers=teacher,
-    )
-    original_id = create.json()["id"]
-    original_slug = create.json()["slug"]
-
-    dup1 = await client.post(f"/api/v1/courses/{original_id}/duplicate", headers=teacher)
-    dup2 = await client.post(f"/api/v1/courses/{original_id}/duplicate", headers=teacher)
-    assert dup1.status_code == 201 and dup2.status_code == 201
-    slugs = {original_slug, dup1.json()["slug"], dup2.json()["slug"]}
-    assert len(slugs) == 3, slugs
+# NOTE: the ``test_duplicating_a_course_uses_a_fresh_slug`` case that
+# lived here previously exercised the
+# ``POST /api/v1/courses/{course_id}/duplicate`` endpoint, removed in
+# rebuild Cut A5. Slug uniqueness on the surviving create + rename
+# paths is still asserted by the two cases that bracket it; the
+# slug-mint helper they all share is what was load-bearing here.
 
 
 async def test_renaming_keeps_slug_when_unchanged(

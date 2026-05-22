@@ -61,9 +61,16 @@ async def _enrolled_with_progress(
         headers=teacher,
     )
     course_id = create.json()["id"]
+    # ``seed_lesson`` is a positional-only helper — it creates a fresh
+    # module + lesson per call with the same canned title. The original
+    # test passed ``title=f"L{i + 2}"`` to disambiguate the rows in test
+    # output, but the helper never accepted that kwarg and the perf
+    # assertion doesn't depend on lesson titles being unique. Just
+    # call the helper N+1 times; each call creates a new module +
+    # lesson pair which is what the batched-progress fetcher needs.
     lesson_ids = [await seed_lesson(course_id, teacher)]
-    for i in range(extra_lessons):
-        lesson_ids.append(await seed_lesson(course_id, teacher, title=f"L{i + 2}"))
+    for _ in range(extra_lessons):
+        lesson_ids.append(await seed_lesson(course_id, teacher))
     await client.patch(
         f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
     )
