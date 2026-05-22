@@ -95,6 +95,21 @@ export const en = {
   "auth.reset.successToast": "Password updated — please sign in",
   "auth.reset.error": "Could not reset password",
 
+  // Review editor — leave / update your own review
+  "review.yours": "Your review",
+  "review.leave": "Leave a review",
+  "review.ratingAria": "Rating",
+  "review.starAria": "{n} star",
+  "review.starsAria": "{n} stars",
+  "review.bodyPlaceholder": "Optional thoughts…",
+  "review.update": "Update review",
+  "review.post": "Post review",
+  "review.updatedToast": "Review updated",
+  "review.postedToast": "Review posted",
+  "review.saveError": "Could not save review",
+  "review.removedToast": "Review removed",
+  "review.removeError": "Could not remove review",
+
   // Cohort card — instructor's student roster
   "cohort.title": "Students",
   "cohort.exportCsv": "Export CSV",

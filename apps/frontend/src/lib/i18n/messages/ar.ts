@@ -102,6 +102,21 @@ export const ar: Record<MessageKey, string> = {
   "auth.reset.successToast": "تم تحديث كلمة المرور — سجّل الدخول من جديد",
   "auth.reset.error": "تعذّر إعادة تعيين كلمة المرور",
 
+  // Review editor — اكتب أو حدّث مراجعتك
+  "review.yours": "مراجعتك",
+  "review.leave": "اكتب مراجعة",
+  "review.ratingAria": "التقييم",
+  "review.starAria": "{n} نجمة",
+  "review.starsAria": "{n} نجوم",
+  "review.bodyPlaceholder": "أفكار اختيارية…",
+  "review.update": "تحديث المراجعة",
+  "review.post": "نشر المراجعة",
+  "review.updatedToast": "تم تحديث المراجعة",
+  "review.postedToast": "تم نشر المراجعة",
+  "review.saveError": "تعذّر حفظ المراجعة",
+  "review.removedToast": "تم حذف المراجعة",
+  "review.removeError": "تعذّر حذف المراجعة",
+
   // Cohort card — قائمة طلاب المدرّس
   "cohort.title": "الطلاب",
   "cohort.exportCsv": "تصدير CSV",
