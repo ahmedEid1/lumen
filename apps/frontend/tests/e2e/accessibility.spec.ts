@@ -122,8 +122,11 @@ test.describe("WCAG 2.2 AA — public routes", () => {
     await page.goto("/");
     // Wait for hero so SSR + hydration + theme-aware tokens settle
     // before axe runs (otherwise color-contrast can race the theme).
+    // Hero copy is `home.heroTitle1` + `home.heroTitle2`
+    // ("Take a path. Become it.") after the Workbench repaint — the
+    // previous "Learn anything" selector dates from the pre-pivot hero.
     await expect(
-      page.getByRole("heading", { name: /Learn anything/i }),
+      page.getByRole("heading", { name: /Take a path\.\s+Become it\./i }),
     ).toBeVisible();
     await expectNoAxeViolations(page);
   });
@@ -156,11 +159,18 @@ test.describe("WCAG 2.2 AA — public routes", () => {
 
   test("course detail (first seeded course)", async ({ page }) => {
     await page.goto("/courses");
-    // Same dynamic-slug trick learner-journey.spec.ts uses — robust
-    // against seed slug renames.
-    const firstCourse = page.locator('a[href^="/courses/"]').first();
-    await firstCourse.waitFor();
-    await firstCourse.click();
+    // The Workbench card is a single `<Link>` wrapping a badge row, an
+    // <h3> title, an overview, an avatar/owner block, and a meta footer
+    // — so the link's accessible name is a noisy concatenation of all
+    // of that. Anchor against the h3 (the card's title) instead: a
+    // stable accessible-name node that survives seed slug renames the
+    // same way the old `a[href^="/courses/"]` selector did, while
+    // clicking it still triggers the wrapping anchor's navigation.
+    const firstCourseHeading = page
+      .getByRole("heading", { level: 3 })
+      .first();
+    await firstCourseHeading.waitFor();
+    await firstCourseHeading.click();
     await expect(page).toHaveURL(/\/courses\/[^/]+$/);
     await expectNoAxeViolations(page);
   });
