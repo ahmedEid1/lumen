@@ -18,6 +18,7 @@ from app.api.v1 import (
     reviews,
     reviews_queue,
     search,
+    tutor,
     uploads,
     users,
 )
@@ -43,6 +44,12 @@ api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(
     content_ingest.router, prefix="/studio/ingest", tags=["studio-ingest"]
 )
+# Tutor (Phase E1) — mounts both course-scoped routes
+# (``/courses/{id}/tutor/conversations``) and conversation-scoped
+# routes (``/tutor/conversations/{id}``) so we let the router root
+# inherit the ``/api/v1`` prefix and the module file declares its
+# own paths.
+api_router.include_router(tutor.router, tags=["tutor"])
 # AI-assisted authoring (Phase E2) — outline + lesson body + quiz
 # generation. All four endpoints share the ``/studio/ai`` prefix and
 # the per-user 5/minute rate limit declared inside the module.

@@ -185,6 +185,56 @@ export interface NotificationPrefsResponse {
   prefs: Record<NotificationKind, NotificationDispatch>;
 }
 
+// ---------- Studio content ingest (Phase E3) ----------
+
+export type IngestSource = "youtube" | "notion" | "google_docs" | "unknown";
+
+export interface IngestLessonDraft {
+  title: string;
+  type: "text";
+  body: string;
+  anchor: string | null;
+}
+
+export interface IngestModuleDraft {
+  title: string;
+  lessons: IngestLessonDraft[];
+}
+
+export interface IngestPayload {
+  title: string;
+  source_url: string;
+  source: IngestSource;
+  modules: IngestModuleDraft[];
+}
+
+export interface IngestCommitResponse {
+  course_id: string;
+  modules: number;
+  lessons: number;
+}
+
+export const Ingest = {
+  detect: (url: string, token?: string) =>
+    api<{ source: IngestSource }>(`/api/v1/studio/ingest/detect`, {
+      method: "POST",
+      body: { url },
+      token,
+    }),
+  preview: (url: string, token?: string) =>
+    api<IngestPayload>(`/api/v1/studio/ingest/preview`, {
+      method: "POST",
+      body: { url },
+      token,
+    }),
+  commit: (input: { course_id: string; payload: IngestPayload }, token?: string) =>
+    api<IngestCommitResponse>(`/api/v1/studio/ingest/commit`, {
+      method: "POST",
+      body: input,
+      token,
+    }),
+};
+
 // ---------- Reviews ----------
 export const Reviews = {
   list: (courseId: string) => api<ReviewOut[]>(`/api/v1/courses/${courseId}/reviews`),
@@ -245,5 +295,82 @@ export const ReviewsQueue = {
       body: { rating },
       token,
     }),
+};
+
+// ---------- Tutor (course-scoped RAG, Phase E1) ----------
+
+/** One citation pill rendered under an assistant message. */
+export interface TutorCitation {
+  lesson_id: string;
+  lesson_title: string;
+  chunk_excerpt: string;
+}
+
+/** One turn in a tutor conversation. */
+export interface TutorMessageOut {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  citations: TutorCitation[];
+  created_at: string;
+}
+
+/** Conversation list row in the "my recent threads" panel. */
+export interface TutorConversationSummary {
+  id: string;
+  course_id: string;
+  created_at: string;
+  last_message_at: string;
+  last_message_preview: string;
+  message_count: number;
+}
+
+/** Full conversation detail with its message history. */
+export interface TutorConversationDetail {
+  id: string;
+  course_id: string;
+  created_at: string;
+  last_message_at: string;
+  messages: TutorMessageOut[];
+}
+
+/** Both turns returned by a single POST /messages call. */
+export interface TutorPostResponse {
+  user_message: TutorMessageOut;
+  assistant_message: TutorMessageOut;
+  refused: boolean;
+}
+
+export const Tutor = {
+  startConversation: (courseId: string, token?: string) =>
+    api<TutorConversationDetail>(
+      `/api/v1/courses/${encodeURIComponent(courseId)}/tutor/conversations`,
+      { method: "POST", token },
+    ),
+  listConversations: (
+    courseId: string,
+    params: { page?: number; page_size?: number } = {},
+    token?: string,
+  ) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null) qs.set(k, String(v));
+    }
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<Page<TutorConversationSummary>>(
+      `/api/v1/courses/${encodeURIComponent(courseId)}/tutor/conversations${suffix}`,
+      { token },
+    );
+  },
+  getConversation: (conversationId: string, token?: string) =>
+    api<TutorConversationDetail>(
+      `/api/v1/tutor/conversations/${encodeURIComponent(conversationId)}`,
+      { token },
+    ),
+  postMessage: (conversationId: string, content: string, token?: string) =>
+    api<TutorPostResponse>(
+      `/api/v1/tutor/conversations/${encodeURIComponent(conversationId)}/messages`,
+      { method: "POST", body: { content }, token },
+    ),
 };
 
