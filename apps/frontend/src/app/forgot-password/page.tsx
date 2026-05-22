@@ -6,8 +6,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 
@@ -31,18 +29,14 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="container mx-auto flex max-w-md flex-col items-center px-4 py-20">
-      <Cartouche className="mb-5">{t("auth.forgot.cartouche")}</Cartouche>
-      <Card className="w-full scroll-paper border-gold/20">
-        <CardContent className="space-y-6 pt-8">
-          <header className="flex flex-col items-center gap-3 text-center">
-            <Glyph
-              name="feather"
-              size={42}
-              mode="tint"
-              className="text-gold/85 drop-shadow-[0_0_10px_hsl(var(--gold-leaf)/0.4)]"
-            />
-            <h1 className="font-display text-3xl font-medium tracking-tight">
+    <div className="container mx-auto flex max-w-md flex-col items-center px-6 py-24">
+      <p className="mb-4 font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+        {t("auth.forgot.cartouche")}
+      </p>
+      <Card className="surface w-full">
+        <CardContent className="space-y-7 pt-8">
+          <header className="flex flex-col items-center gap-2 text-center">
+            <h1 className="font-display text-4xl leading-tight tracking-tight">
               {t("auth.forgot.heading")}
             </h1>
             <p className="font-body text-sm text-muted-foreground">
@@ -65,7 +59,7 @@ export default function ForgotPasswordPage() {
               <br />
               <Link
                 href="/login"
-                className="text-gold underline-offset-4 hover:underline"
+                className="font-medium text-primary underline-offset-4 hover:underline"
               >
                 {t("auth.forgot.backToLogin")}
               </Link>
@@ -79,7 +73,6 @@ export default function ForgotPasswordPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="border-gold/25 bg-background/60 focus-visible:border-gold/60"
               />
               <Button type="submit" className="w-full" disabled={submitting}>
                 {submitting ? t("auth.forgot.submitting") : t("auth.forgot.submit")}

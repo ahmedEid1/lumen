@@ -7,8 +7,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { useAuth } from "@/lib/auth/store";
 import { ApiError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
@@ -38,18 +36,14 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="container mx-auto flex max-w-md flex-col items-center px-4 py-20">
-      <Cartouche className="mb-5">{t("auth.register.cartouche")}</Cartouche>
-      <Card className="w-full scroll-paper border-gold/20">
-        <CardContent className="space-y-6 pt-8">
-          <header className="flex flex-col items-center gap-3 text-center">
-            <Glyph
-              name="ankh"
-              size={42}
-              mode="tint"
-              className="text-gold/85 drop-shadow-[0_0_10px_hsl(var(--gold-leaf)/0.4)]"
-            />
-            <h1 className="font-display text-3xl font-medium tracking-tight">
+    <div className="container mx-auto flex max-w-md flex-col items-center px-6 py-24">
+      <p className="mb-4 font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+        {t("auth.register.cartouche")}
+      </p>
+      <Card className="surface w-full">
+        <CardContent className="space-y-7 pt-8">
+          <header className="flex flex-col items-center gap-2 text-center">
+            <h1 className="font-display text-4xl leading-tight tracking-tight">
               {t("auth.register.heading")}
             </h1>
             <p className="font-body text-sm text-muted-foreground">{t("auth.register.subtitle")}</p>
@@ -65,7 +59,6 @@ export default function RegisterPage() {
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="border-gold/25 bg-background/60 focus-visible:border-gold/60"
               />
             </div>
             <div className="space-y-1.5">
@@ -79,7 +72,6 @@ export default function RegisterPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="border-gold/25 bg-background/60 focus-visible:border-gold/60"
               />
             </div>
             <div className="space-y-1.5">
@@ -94,7 +86,6 @@ export default function RegisterPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="border-gold/25 bg-background/60 focus-visible:border-gold/60"
               />
               <p className="font-body text-xs text-muted-foreground">
                 {t("auth.register.passwordHint")}
@@ -103,9 +94,12 @@ export default function RegisterPage() {
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? t("auth.register.submitting") : t("auth.register.submit")}
             </Button>
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center font-body text-sm text-muted-foreground">
               {t("auth.register.haveAccount")}{" "}
-              <Link href="/login" className="text-gold underline-offset-4 hover:underline">
+              <Link
+                href="/login"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
                 {t("auth.login.submit")}
               </Link>
             </p>

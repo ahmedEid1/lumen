@@ -7,8 +7,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 
@@ -22,8 +20,8 @@ export default function ResetPasswordPage() {
 
 function ResetFallback() {
   return (
-    <div className="container mx-auto flex max-w-md flex-col px-4 py-20">
-      <div className="h-64 animate-pulse rounded-md border border-border bg-card/40" aria-hidden />
+    <div className="container mx-auto flex max-w-md flex-col px-6 py-24">
+      <div className="surface h-64 animate-pulse" aria-hidden />
     </div>
   );
 }
@@ -58,18 +56,14 @@ function ResetForm() {
   }
 
   return (
-    <div className="container mx-auto flex max-w-md flex-col items-center px-4 py-20">
-      <Cartouche className="mb-5">{t("auth.reset.cartouche")}</Cartouche>
-      <Card className="w-full scroll-paper border-gold/20">
-        <CardContent className="space-y-6 pt-8">
-          <header className="flex flex-col items-center gap-3 text-center">
-            <Glyph
-              name="djed"
-              size={42}
-              mode="tint"
-              className="text-gold/85 drop-shadow-[0_0_10px_hsl(var(--gold-leaf)/0.4)]"
-            />
-            <h1 className="font-display text-3xl font-medium tracking-tight">
+    <div className="container mx-auto flex max-w-md flex-col items-center px-6 py-24">
+      <p className="mb-4 font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+        {t("auth.reset.cartouche")}
+      </p>
+      <Card className="surface w-full">
+        <CardContent className="space-y-7 pt-8">
+          <header className="flex flex-col items-center gap-2 text-center">
+            <h1 className="font-display text-4xl leading-tight tracking-tight">
               {t("auth.reset.heading")}
             </h1>
             <p className="font-body text-sm text-muted-foreground">{t("auth.reset.subtitle")}</p>
@@ -80,7 +74,7 @@ function ResetForm() {
               {t("auth.reset.missingToken")}{" "}
               <Link
                 href="/forgot-password"
-                className="text-gold underline-offset-4 hover:underline"
+                className="font-medium text-primary underline-offset-4 hover:underline"
               >
                 {t("auth.reset.requestNew")}
               </Link>
@@ -96,7 +90,6 @@ function ResetForm() {
                 minLength={12}
                 autoComplete="new-password"
                 required
-                className="border-gold/25 bg-background/60 focus-visible:border-gold/60"
               />
               <Button type="submit" className="w-full" disabled={submitting}>
                 {submitting ? t("auth.reset.submitting") : t("auth.reset.submit")}
