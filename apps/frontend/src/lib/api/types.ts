@@ -54,6 +54,25 @@ export interface CourseListItem {
 
 export type LessonType = "text" | "video" | "image" | "file" | "quiz";
 
+/**
+ * Shape of `lesson.data` for `type === "text"` lessons. The block
+ * editor (Phase E6) writes `blocks`; pre-E6 lessons stored their
+ * content in `body_markdown`. We keep both fields typed so the
+ * editor / player can resolve whichever exists on the wire — the
+ * promotion path is in `@/lib/lesson/blocks#resolveTextLessonDoc`.
+ *
+ * `blocks` is intentionally typed as `unknown` here rather than
+ * importing `BlockDoc` to keep this file dependency-free. The
+ * runtime guard (`isBlockDoc`) in `lib/lesson/blocks.ts` enforces
+ * the real shape before it reaches the renderer.
+ */
+export interface TextLessonData {
+  blocks?: unknown;
+  body_markdown?: string;
+  /** Optional alias kept for forward-compat with the rebuild spec wording. */
+  body?: string;
+}
+
 export interface LessonOut {
   id: string;
   title: string;
@@ -63,6 +82,11 @@ export interface LessonOut {
   is_preview: boolean;
   /** Populated by the course-detail endpoint when the viewer is enrolled. */
   completed?: boolean;
+  /**
+   * Lesson-type-specific payload. Discriminate at the call site
+   * using `lesson.type` — e.g. cast to `TextLessonData` when
+   * `type === "text"`.
+   */
   data: Record<string, unknown>;
 }
 

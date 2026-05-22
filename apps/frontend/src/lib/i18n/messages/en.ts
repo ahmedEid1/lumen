@@ -262,8 +262,8 @@ export const en = {
   "lessonEdit.titleNew": "New lesson",
   "lessonEdit.duration": "Duration (seconds)",
   "lessonEdit.freePreview": "Free preview (visible to non-enrolled visitors when the course is published)",
-  "lessonEdit.bodyMarkdown": "Body (Markdown)",
-  "lessonEdit.bodyPlaceholder": "# Heading\n\nWrite your lesson…",
+  "lessonEdit.body": "Body",
+  "lessonEdit.bodyPlaceholder": "Write your lesson…",
   "lessonEdit.videoUrl": "Video URL",
   "lessonEdit.captionsUrl": "Captions URL (WebVTT, optional)",
   "lessonEdit.captionsHelp": "Add WebVTT captions so the lesson stays accessible to deaf / hard-of-hearing learners. Default: on.",
@@ -554,6 +554,12 @@ export const en = {
   "verifyCert.issuedTo": "Certificate issued to",
   "verifyCert.forCompleting": "for completing",
   "verifyCert.issuedOn": "Issued {date}",
+  // Open Badges 3.0 / W3C VC — signature panel + credential link (Phase E5)
+  "verifyCert.signatureValid": "Signature verified",
+  "verifyCert.signatureInvalid": "Signature invalid",
+  "verifyCert.openCredential": "Open credential JSON",
+  "verifyCert.ob3Title": "Verifiable credential",
+  "verifyCert.ob3Body": "This certificate is also available as a signed Open Badges 3.0 credential.",
 
   // Profile — your inscription
   "profile.cartouche": "Settings",
@@ -625,6 +631,7 @@ export const en = {
   "dashboard.percentComplete": "{pct}% complete",
   "dashboard.continue": "Continue",
   "dashboard.certificate": "Certificate",
+  "dashboard.openBadge": "Open Badge",
 
   // Onboarding — first-login tour (Phase D3)
   "onboarding.welcome": "Welcome to Lumen",

@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (rebuild phase E)
+- **Block editor for `text` lessons — Tiptap, Notion-style (E6).**
+  The free-form markdown `<Textarea>` that backed text lessons is
+  replaced with a block-based editor. Authors compose paragraphs,
+  headings, bulleted + numbered lists, blockquotes, code blocks
+  (lowlight-highlighted at authoring time), images, callouts, and
+  horizontal rules; the lesson player renders the same JSON tree
+  read-only via a dedicated `BlockRenderer` that imports no editor
+  runtime, so the learner bundle stays small. Stack pick:
+  **Tiptap** (`@tiptap/react`, `@tiptap/starter-kit`,
+  `@tiptap/extension-link`, `@tiptap/extension-image`,
+  `@tiptap/extension-code-block-lowlight`, `lowlight`) — ProseMirror
+  underneath, JSON-native (so the wire format and the editor's
+  internal state are the same object — zero serialization layer),
+  MIT-licensed, and modular enough that the player needs none of
+  it. Storage stays inside the existing `lesson.data` JSONB column
+  under a new `blocks` field; the legacy `body_markdown` field
+  remains valid on the wire and gets promoted to a single paragraph
+  block on first edit (deliberately not a full markdown parser —
+  see `apps/frontend/src/lib/lesson/blocks.ts`'s
+  `fromLegacyMarkdown` for the contract). Workbench styling: a
+  bordered `surface` panel with a `prose` content area, plus an
+  inline `BubbleMenu` toolbar that floats next to the current
+  selection (no permanent top bar eating vertical space) and
+  exposes bold / italic / inline code / link / heading-2 /
+  bulleted list / numbered list / quote / code-block / image
+  buttons — matches the Workbench "chrome appears only when it's
+  needed" pattern from C0/C1. `BlockRenderer` walks the JSON tree
+  with a tiny recursive visitor, supports all the editor's block
+  types plus marks (bold / italic / code / strike / underline /
+  link, with `rel="noopener noreferrer"` hard-baked into every
+  link), and degrades gracefully on unknown block types by
+  rendering their children rather than dropping content. Two new
+  tests: `block-editor.test.tsx` (mounts the editor with a stubbed
+  Tiptap, asserts the `onUpdate → onChange` wiring carries the
+  typed paragraph through), `block-renderer.test.tsx` (renders
+  paragraph / heading / bulletList / inline marks / codeBlock /
+  blockquote / hr / image and asserts the expected HTML shape).
+  Two i18n key renames (`lessonEdit.bodyMarkdown` →
+  `lessonEdit.body`, placeholder updated) × 2 locales — parity
+  test passes.
+
 ### Added (rebuild phase D)
 - **Per-kind email notification preferences + daily digest worker
   (D4).** Notifications used to be bell-only; this phase makes them

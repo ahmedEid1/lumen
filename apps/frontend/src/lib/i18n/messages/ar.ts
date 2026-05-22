@@ -269,8 +269,8 @@ export const ar: Record<MessageKey, string> = {
   "lessonEdit.titleNew": "درس جديد",
   "lessonEdit.duration": "المدّة (بالثواني)",
   "lessonEdit.freePreview": "معاينة مجانية (تظهر لغير المسجّلين عند نشر الدورة)",
-  "lessonEdit.bodyMarkdown": "المحتوى (Markdown)",
-  "lessonEdit.bodyPlaceholder": "# عنوان\n\nاكتب درسك…",
+  "lessonEdit.body": "المحتوى",
+  "lessonEdit.bodyPlaceholder": "اكتب درسك…",
   "lessonEdit.videoUrl": "رابط الفيديو",
   "lessonEdit.captionsUrl": "رابط الترجمة (WebVTT، اختياري)",
   "lessonEdit.captionsHelp": "أضف ترجمة WebVTT لتبقى الدرس متاحًا للمتعلمين الصمّ وضعاف السمع. افتراضيًا: مفعّلة.",
@@ -561,6 +561,12 @@ export const ar: Record<MessageKey, string> = {
   "verifyCert.issuedTo": "مُنحت الشهادة لـ",
   "verifyCert.forCompleting": "لإتمامه",
   "verifyCert.issuedOn": "أُصدرت في {date}",
+  // Open Badges 3.0 / W3C VC — لوحة التوقيع + رابط البيانات (المرحلة E5)
+  "verifyCert.signatureValid": "تم التحقق من التوقيع",
+  "verifyCert.signatureInvalid": "التوقيع غير صالح",
+  "verifyCert.openCredential": "افتح بيانات الشهادة",
+  "verifyCert.ob3Title": "شهادة قابلة للتحقق",
+  "verifyCert.ob3Body": "تتوفر هذه الشهادة أيضًا بصيغة Open Badges 3.0 موقَّعة رقميًا.",
 
   // Profile
   "profile.cartouche": "الإعدادات",
@@ -632,6 +638,7 @@ export const ar: Record<MessageKey, string> = {
   "dashboard.percentComplete": "{pct}٪ مكتمل",
   "dashboard.continue": "متابعة",
   "dashboard.certificate": "الشهادة",
+  "dashboard.openBadge": "الشارة المفتوحة",
 
   // Onboarding — first-login tour (Phase D3)
   "onboarding.welcome": "مرحبًا بك في لومن",

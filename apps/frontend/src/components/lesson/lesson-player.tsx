@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { LessonOut } from "@/lib/api/types";
+import type { LessonOut, TextLessonData } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Download } from "lucide-react";
 import { api, ApiError } from "@/lib/api/client";
 import { type QuizQuestion } from "@/lib/quiz";
+import { BlockRenderer } from "@/components/lesson/block-renderer";
+import { resolveTextLessonDoc } from "@/lib/lesson/blocks";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
@@ -16,11 +18,13 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
   const data = lesson.data as Record<string, any>;
   switch (lesson.type) {
     case "text":
-      return (
-        <article className="prose prose-neutral max-w-none font-body dark:prose-invert prose-headings:font-display">
-          <Markdown body={String(data.body_markdown ?? "")} />
-        </article>
-      );
+      // BlockRenderer is the read-only counterpart to BlockEditor;
+      // it walks the same JSON tree without pulling Tiptap into
+      // the learner bundle. `resolveTextLessonDoc` handles both
+      // the new `blocks` field and the legacy `body_markdown` /
+      // `body` strings, so a course written before Phase E6 still
+      // renders without a backfill.
+      return <BlockRenderer value={resolveTextLessonDoc(data as TextLessonData)} />;
     case "video":
       return (
         <div className="aspect-video w-full overflow-hidden rounded-md border border-border bg-black">
@@ -80,31 +84,6 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
         </p>
       );
   }
-}
-
-function Markdown({ body }: { body: string }) {
-  // Tiny inline renderer — paragraphs + headings + bold. For richer content, plug in a library.
-  const lines = body.split(/\n+/);
-  return (
-    <>
-      {lines.map((line, i) => {
-        if (line.startsWith("# ")) return <h1 key={i}>{line.slice(2)}</h1>;
-        if (line.startsWith("## ")) return <h2 key={i}>{line.slice(3)}</h2>;
-        if (line.startsWith("### ")) return <h3 key={i}>{line.slice(4)}</h3>;
-        return <p key={i} dangerouslySetInnerHTML={{ __html: inline(line) }} />;
-      })}
-    </>
-  );
-}
-
-function inline(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
 type QuizResult = {

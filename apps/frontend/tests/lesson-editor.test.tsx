@@ -8,6 +8,18 @@ import type { LessonOut } from "@/lib/api/types";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+// Tiptap drives the block editor — it pulls ProseMirror into the
+// page and exercises DOM Selection / Range APIs that happy-dom
+// doesn't implement. We swap the block editor for a stub so this
+// test stays focused on the lesson-editor wiring (title / preview
+// / save), not the editor's own behaviour. There's a dedicated
+// block-editor.test.tsx for that.
+vi.mock("@/components/lesson/block-editor", () => ({
+  BlockEditor: ({ value }: { value: unknown }) => (
+    <div data-testid="block-editor" data-value={JSON.stringify(value)} />
+  ),
+}));
+
 function renderWithClient(ui: React.ReactNode) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -22,6 +34,9 @@ const TEXT_LESSON: LessonOut = {
   order: 0,
   duration_seconds: 120,
   is_preview: false,
+  // Legacy shape on the wire — the lesson editor promotes it to the
+  // new `blocks` field on first save, exercising the
+  // fromLegacyMarkdown path through normalizeData.
   data: { type: "text", body_markdown: "Hello world" },
 };
 
@@ -43,11 +58,14 @@ describe("LessonEditor", () => {
   it("seeds the editor from the existing lesson and patches on save", async () => {
     const onSaved = vi.fn();
     renderWithClient(
-      <LessonEditor courseId="c_1" moduleId="m_1" lesson={TEXT_LESSON} onSaved={onSaved} />,
+      <LessonEditor moduleId="m_1" lesson={TEXT_LESSON} onSaved={onSaved} />,
     );
 
     expect(screen.getByLabelText(/^Title$/i)).toHaveValue("Welcome");
-    expect(screen.getByLabelText(/Body \(Markdown\)/i)).toHaveValue("Hello world");
+    // The block editor's seeded `value` is the promoted form of
+    // the legacy `body_markdown` — a single paragraph block.
+    const editor = screen.getByTestId("block-editor");
+    expect(editor.getAttribute("data-value")).toContain("Hello world");
 
     const user = userEvent.setup();
     await user.clear(screen.getByLabelText(/^Title$/i));
@@ -56,40 +74,42 @@ describe("LessonEditor", () => {
     await user.click(screen.getByRole("button", { name: /save lesson/i }));
 
     await waitFor(() => {
-      expect(patchSpy).toHaveBeenCalledWith(
-        "l_1",
-        expect.objectContaining({
-          title: "Renamed",
-          is_preview: true,
-          data: expect.objectContaining({ type: "text", body_markdown: "Hello world" }),
-        }),
-      );
+      expect(patchSpy).toHaveBeenCalled();
     });
+    const [lessonId, payload] = patchSpy.mock.calls[0] as [string, Record<string, unknown>];
+    expect(lessonId).toBe("l_1");
+    expect(payload.title).toBe("Renamed");
+    expect(payload.is_preview).toBe(true);
+    // Legacy `body_markdown` is promoted to a block-tree doc on save.
+    const data = payload.data as { type: string; blocks: { type: string; content: unknown[] } };
+    expect(data.type).toBe("text");
+    expect(data.blocks.type).toBe("doc");
+    expect(JSON.stringify(data.blocks)).toContain("Hello world");
     expect(onSaved).toHaveBeenCalled();
   });
 
   it("calls createLesson when no lesson is supplied", async () => {
     const onSaved = vi.fn();
     renderWithClient(
-      <LessonEditor courseId="c_1" moduleId="m_1" newType="text" onSaved={onSaved} />,
+      <LessonEditor moduleId="m_1" newType="text" onSaved={onSaved} />,
     );
 
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/^Title$/i), "Fresh");
-    await user.type(screen.getByLabelText(/Body \(Markdown\)/i), "# Hi");
     await user.click(screen.getByRole("button", { name: /save lesson/i }));
 
     await waitFor(() => {
-      expect(createSpy).toHaveBeenCalledWith(
-        "m_1",
-        expect.objectContaining({
-          title: "Fresh",
-          type: "text",
-          is_preview: false,
-          data: expect.objectContaining({ type: "text", body_markdown: "# Hi" }),
-        }),
-      );
+      expect(createSpy).toHaveBeenCalled();
     });
+    const [moduleId, payload] = createSpy.mock.calls[0] as [string, Record<string, unknown>];
+    expect(moduleId).toBe("m_1");
+    expect(payload.title).toBe("Fresh");
+    expect(payload.type).toBe("text");
+    expect(payload.is_preview).toBe(false);
+    const data = payload.data as { type: string; blocks: { type: string } };
+    expect(data.type).toBe("text");
+    // Empty new lesson — the block tree is an empty doc, not legacy markdown.
+    expect(data.blocks.type).toBe("doc");
   });
 
   it("Delete invokes deleteLesson and onDeleted", async () => {
@@ -97,7 +117,6 @@ describe("LessonEditor", () => {
     const onSaved = vi.fn();
     renderWithClient(
       <LessonEditor
-        courseId="c_1"
         moduleId="m_1"
         lesson={TEXT_LESSON}
         onSaved={onSaved}

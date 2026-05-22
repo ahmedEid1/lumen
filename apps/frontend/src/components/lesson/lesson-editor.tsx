@@ -7,10 +7,11 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Courses } from "@/lib/api/endpoints";
-import type { LessonOut, LessonType } from "@/lib/api/types";
+import type { LessonOut, LessonType, TextLessonData } from "@/lib/api/types";
+import { BlockEditor } from "@/components/lesson/block-editor";
+import { resolveTextLessonDoc, type BlockDoc } from "@/lib/lesson/blocks";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
@@ -133,16 +134,16 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
 
         {type === "text" && (
           <div className="space-y-1.5">
-            <label className="font-body text-sm font-medium" htmlFor="body">
-              {t("lessonEdit.bodyMarkdown")}
+            <label className="font-body text-sm font-medium" id="lesson-body-label">
+              {t("lessonEdit.body")}
             </label>
-            <Textarea
-              id="body"
-              rows={14}
-              value={data.body_markdown ?? ""}
-              onChange={(e) => setData({ ...data, body_markdown: e.target.value })}
-              placeholder={t("lessonEdit.bodyPlaceholder")}
-            />
+            <div aria-labelledby="lesson-body-label">
+              <BlockEditor
+                value={data.blocks as BlockDoc}
+                onChange={(blocks) => setData({ ...data, blocks })}
+                placeholder={t("lessonEdit.bodyPlaceholder")}
+              />
+            </div>
           </div>
         )}
 
@@ -456,7 +457,15 @@ function normalizeData(type: LessonType, raw: any): any {
   delete copy.type;
   switch (type) {
     case "text":
-      return { body_markdown: copy.body_markdown ?? "" };
+      // Promote whichever shape arrived from the wire into the new
+      // block-tree form. Legacy lessons stored markdown in
+      // `body_markdown`; the block editor (Phase E6) writes
+      // `blocks` and is the only field the player reads going
+      // forward. The promotion is lossless for new lessons (the
+      // doc round-trips through Tiptap unchanged) and best-effort
+      // for legacy ones (markdown → single paragraph; see
+      // `lib/lesson/blocks.ts`).
+      return { blocks: resolveTextLessonDoc(copy as TextLessonData) };
     case "video":
       return {
         url: copy.url ?? "",
