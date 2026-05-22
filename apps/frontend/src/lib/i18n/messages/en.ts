@@ -528,7 +528,7 @@ export const en = {
   "learn.courseChat": "Course chat",
 
   // Course detail — the inscribed scroll
-  "courseDetail.cartouche": "Inscribed scroll",
+  "courseDetail.cartouche": "Course",
   "courseDetail.notFound": "Course not found.",
   "courseDetail.instructor": "Instructor",
   "courseDetail.noModules": "No modules yet.",

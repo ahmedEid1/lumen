@@ -535,7 +535,7 @@ export const ar: Record<MessageKey, string> = {
   "learn.courseChat": "محادثة الدورة",
 
   // Course detail — اللفافة المنقوشة
-  "courseDetail.cartouche": "لفافة منقوشة",
+  "courseDetail.cartouche": "الدورة",
   "courseDetail.notFound": "الدورة غير موجودة.",
   "courseDetail.instructor": "المدرّس",
   "courseDetail.noModules": "لا توجد وحدات بعد.",
