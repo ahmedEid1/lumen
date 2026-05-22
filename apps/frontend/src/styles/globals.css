@@ -124,10 +124,6 @@
   --color-cobalt: hsl(var(--cobalt));
   --color-cobalt-hi: hsl(var(--cobalt-hi));
 
-  --color-gold: hsl(var(--primary));     /* compat alias for legacy lumen components — points to cobalt now */
-  --color-gold-hi: hsl(var(--primary-hi));
-  --color-lapis: hsl(var(--card));
-
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
