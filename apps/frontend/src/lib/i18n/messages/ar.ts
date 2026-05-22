@@ -401,7 +401,7 @@ export const ar: Record<MessageKey, string> = {
   "adminSubjects.deleteError": "تعذّر الحذف",
 
   // Admin / tags — الأختام
-  "adminTags.cartouche": "الأختام",
+  "adminTags.cartouche": "الوسوم",
   "adminTags.title": "الوسوم",
   "adminTags.addCard": "إضافة وسم",
   "adminTags.namePlaceholder": "الاسم (مثلًا Python)",

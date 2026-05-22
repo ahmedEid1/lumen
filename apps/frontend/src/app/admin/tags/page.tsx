@@ -7,8 +7,6 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Cartouche } from "@/components/lumen/cartouche";
-import { Glyph } from "@/components/lumen/glyph";
 import { api } from "@/lib/api/client";
 import { Catalog } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
@@ -35,15 +33,17 @@ export default function AdminTags() {
   });
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-14">
+    <div className="container mx-auto max-w-3xl px-6 py-14">
       <header className="mb-8 flex flex-col gap-3">
-        <Cartouche>{t("adminTags.cartouche")}</Cartouche>
-        <h1 className="font-display text-3xl font-medium tracking-tight">
+        <p className="font-body text-xs font-medium uppercase tracking-[0.18em] text-primary">
+          {t("adminTags.cartouche")}
+        </p>
+        <h1 className="font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
           {t("adminTags.title")}
         </h1>
       </header>
 
-      <Card className="scroll-paper border-gold/20">
+      <Card className="surface">
         <CardHeader>
           <CardTitle className="font-display text-xl">{t("adminTags.addCard")}</CardTitle>
         </CardHeader>
@@ -60,7 +60,6 @@ export default function AdminTags() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="border-gold/25 bg-background/60 focus-visible:border-gold/60"
             />
             <Button type="submit" disabled={!name || create.isPending}>
               <Plus className="me-1 h-4 w-4" /> {t("adminTags.add")}
@@ -69,22 +68,23 @@ export default function AdminTags() {
         </CardContent>
       </Card>
 
-      <Card className="mt-6 scroll-paper border-gold/20">
+      <Card className="surface mt-6">
         <CardHeader>
           <CardTitle className="font-display text-xl">{t("adminTags.allCard")}</CardTitle>
         </CardHeader>
         <CardContent>
           {!tagsQ.data?.length ? (
-            <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <Glyph name="feather" size={40} mode="tint" className="text-gold/40" />
-              <p className="font-body italic text-muted-foreground">{t("adminTags.empty")}</p>
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <p className="font-display text-xl italic text-muted-foreground">
+                {t("adminTags.empty")}
+              </p>
             </div>
           ) : (
             <ul className="flex flex-wrap gap-2">
               {tagsQ.data.map((tag) => (
                 <li
                   key={tag.id}
-                  className="flex items-center gap-1.5 rounded-full border border-gold/25 bg-background/60 px-3 py-1 text-sm font-body transition-colors hover:border-gold/50"
+                  className="flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-3 py-1 text-sm font-body transition-colors hover:border-primary/40"
                 >
                   {tag.name}
                   <button

@@ -394,7 +394,7 @@ export const en = {
   "adminSubjects.deleteError": "Could not delete",
 
   // Admin / tags — the seals
-  "adminTags.cartouche": "The seals",
+  "adminTags.cartouche": "Tags",
   "adminTags.title": "Tags",
   "adminTags.addCard": "Add tag",
   "adminTags.namePlaceholder": "Name (e.g. Python)",
