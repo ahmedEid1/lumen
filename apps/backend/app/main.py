@@ -26,7 +26,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.errors import install_handlers
-from app.core.idempotency import IdempotencyMiddleware
 from app.core.logging import configure_logging, get_logger
 from app.core.ratelimit import limiter
 from app.core.tracing import init_tracing
@@ -265,7 +264,6 @@ def create_app() -> FastAPI:
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
-    app.add_middleware(IdempotencyMiddleware)
     app.add_middleware(CSRFOriginMiddleware)
     app.add_middleware(AccessLogMiddleware)
 

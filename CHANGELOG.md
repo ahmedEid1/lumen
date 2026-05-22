@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed (rebuild phase A)
+- Idempotency middleware (`app/core/idempotency.py` + middleware
+  registration in `app/main.py`) and its test suite. The middleware
+  was scaffolded for a future payments surface but never enforced —
+  no `Idempotency-Key` header was required by any v1 endpoint and no
+  business logic depended on the replay-cache it maintained. Per
+  Lumen 2.0 rebuild spec §3.2 we revisit when payments land; until
+  then it was a moving part with zero load-bearing role. Frontend
+  client never sent the header either.
+
 ### Changed (simplify iter 43) — frontend studio/[id] tidy via simplifier
 Twenty-sixth dispatch of the `code-simplifier` plugin agent —
 first frontend file. Applied 3 of its 5 recommendations:
