@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance (rebuild phase B)
+- **Swapped the notifications composite index from `(user_id, read_at)`
+  to `(user_id, created_at)` (rebuild Fix B6).** The old index was
+  designed around a "show me the unread ones" query that never
+  materialised — `read_at` is mostly NULL and no repo or service
+  filters by it. The actual hot path is
+  `notifications.list_for_user`, which selects by `user_id` and
+  orders by `created_at DESC LIMIT N`. The new composite supports
+  the WHERE and the ORDER BY in a single index scan and lets the
+  planner skip the sort entirely for the bell-icon dropdown. Alembic
+  migration `0008_notifications_index_swap` is reversible.
+
 ### Security (rebuild phase B)
 - **Removed hard-coded demo credentials from the login form.**
   `apps/frontend/src/app/login/page.tsx` previously initialised the
