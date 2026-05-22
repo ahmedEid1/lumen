@@ -254,10 +254,10 @@ export const en = {
   "discussions.deletedUser": "Deleted user",
 
   // Error / Not-found pages
-  "errorPage.cartouche": "Something is amiss",
+  "errorPage.cartouche": "Error",
   "errorPage.title": "Something went sideways",
   "errorPage.body": "We hit an unexpected error. The team has been notified.",
-  "notFound.cartouche": "Empty cartouche",
+  "notFound.cartouche": "Not found",
   "notFound.code": "404",
   "notFound.title": "Page not found",
   "notFound.body": "The page you're looking for doesn't exist.",
