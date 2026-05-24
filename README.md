@@ -194,13 +194,22 @@ The same `LLMProvider` abstraction also accepts native Anthropic (`LLM_PROVIDER=
 
 ---
 
-## Deploy it (free tier)
+## Deploy it (Oracle Cloud Always Free)
 
-The live demo runs on a $0/mo idle stack: **Vercel** (Next.js), **Fly.io** with scale-to-zero (FastAPI + Celery worker), **Supabase** (Postgres + pgvector, 500 MB free), **Upstash** (Redis, 10k cmds/day free), **Cloudflare R2** (object storage, 10 GB free). A GitHub-Actions cron runs the daily Celery digest because Fly idle-suspends `celery beat`.
+The live demo runs on **one** Oracle Cloud Always-Free Ampere A1 VM (4 OCPU + 24 GB RAM + 200 GB block, ARM64 Ubuntu 24.04) — $0/mo, **forever**, no card charged. The unmodified `docker-compose.prod.yml` brings up FastAPI + Celery worker + beat + Postgres-pgvector + Redis + MinIO + a containerised Caddy 2 that auto-fetches a Let's Encrypt cert. Putting Cloudflare's DNS proxy in front is an optional next step, not a prerequisite.
 
-Full runbook: [docs/deployment/free-tier.md](docs/deployment/free-tier.md) *(ships with Phase H, item H4)*.
+tl;dr after you have an Oracle account and the VM is running:
 
-Cost callout: steady-state **$0/mo idle**. Pay only on sustained traffic; the per-user 24h budget guard caps spend at $1/user/day by default and the operator can dial it lower in `.env`.
+```bash
+ssh ubuntu@<vm-public-ip>
+curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/master/scripts/oracle-bootstrap.sh | sudo bash
+# log out, log back in as the new admin user, then:
+git clone https://github.com/ahmedEid1/E-Learning-Platform.git lumen && cd lumen
+cp .env.example .env.production    # fill APP_DOMAIN + secrets (see runbook step 5)
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+```
+
+Full runbook (VM creation through TLS + smokes): [docs/deployment/oracle-vps.md](docs/deployment/oracle-vps.md). Cost callout: steady-state **$0/mo, forever** on the Always-Free tier; the per-user 24h LLM budget guard caps spend at $1/user/day by default and the operator can dial it lower in `.env`.
 
 ---
 
