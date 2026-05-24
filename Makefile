@@ -190,3 +190,27 @@ deploy.demo-seed: ## Run the demo seed on the deployed api (via flyctl ssh).
 .PHONY: mcp-token
 mcp-token: ## Mint a new MCP OAuth client + print its secret once.
 	$(COMPOSE) exec api python -m app.cli mcp-token --owner-email "$(or $(OWNER),teacher@lumen.test)" --name "$(or $(NAME),Local MCP client)" --scopes "$(or $(SCOPES),*)"
+
+# ----- release publish (A6) -----
+# Push the local `Rewrite` branch to `origin/Rewrite` and open the
+# release PR against `master`. Previews the commits that would land
+# and prompts before doing anything destructive. The PR body is
+# pre-written at docs/release/1.1.0-agentic-pr-body.md.
+#
+# Requires: `gh` authenticated (`gh auth status`) and write access
+# to the origin remote. The push is a fast-forward (origin/Rewrite
+# is an ancestor of local Rewrite), so no --force is needed.
+.PHONY: publish-rewrite
+publish-rewrite: ## Push Rewrite to origin and open the release PR.
+	@echo ""
+	@echo "  Publishing local Rewrite to origin/Rewrite + opening PR vs master."
+	@echo "  PR body source: docs/release/1.1.0-agentic-pr-body.md"
+	@echo ""
+	@echo "  Commits that will be pushed (origin/Rewrite..Rewrite):"
+	@echo "  ---------------------------------------------------------------"
+	@git log origin/Rewrite..Rewrite --oneline | head -25
+	@echo "  ---------------------------------------------------------------"
+	@echo ""
+	@read -p "  Confirm push Rewrite to origin and open PR? [y/N] " ans && [ "$$ans" = "y" ] || (echo "  aborted"; exit 1)
+	git push origin Rewrite
+	gh pr create --base master --head Rewrite --title "release: 1.1.0-agentic — Phase H + Phase I shipped" --body-file docs/release/1.1.0-agentic-pr-body.md
