@@ -7,6 +7,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Activation (Wave 1+2, portfolio publish prep — 2026-05-25)
+
+Portfolio activation team passed: branch is push-ready for the
+1.1.0-agentic release. Six agents landed disjoint scopes across two
+waves without external credentials.
+
+**Wave 1 (parallel):**
+
+- **A2** — Smoke-tested the H2 eval harness end-to-end against the
+  deterministic `noop` provider. Fixed the Typer CLI collapse so
+  `python -m app.evals run --suite tutor` (referenced by README,
+  CHANGELOG, the `pnpm-eval-smoke.yml` CI gate, and `/admin/evals`)
+  stops raising `Got unexpected extra argument (run)` — a no-op
+  `@cli.callback()` restores the explicit subcommand. The CLI now
+  preflights `LLM_PROVIDER` credentials before opening a DB session
+  so a missing `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` fails with one
+  named-env-var error at the boundary instead of an opaque vendor
+  exception after a partial report. Added `make eval` (overrides via
+  `suite=…` and `limit=N`) so the operator runbook stays a one-liner.
+- **A3** — Made the Lumen MCP server packet-ready for
+  `registry.modelcontextprotocol.io`. Rewrote
+  `apps/backend/app/mcp/registry_metadata.json` against the current
+  2025-12-11 registry schema (the previous file used the 2024 shape
+  and would have been rejected), renamed it to the
+  `io.github.ahmedeid1/lumen` namespace required for GitHub-OAuth
+  publishing, aligned the version to `1.1.0`, and validated locally
+  with `ajv`. New operator runbook at
+  `docs/mcp-registry-submission.md` walks through `mcp-publisher`
+  install, GitHub OAuth login, the one-line submit, verification,
+  and the README badge swap. No submission performed.
+- **A4** — Replaced the multi-provider free-tier deploy story with a
+  single-VM Oracle Cloud Always-Free runbook. New
+  `docs/deployment/oracle-vps.md` walks Oracle signup → A1 Ampere VM
+  (4 OCPU / 24 GB RAM / 200 GB block, ARM64 Ubuntu 24.04) →
+  hardened-host setup → unmodified `docker-compose.prod.yml` stack →
+  TLS via the already-containerised Caddy 2 against Let's Encrypt.
+  Added `scripts/oracle-bootstrap.sh` — idempotent first-boot
+  installer for non-root admin user, hardened sshd, ufw + fail2ban,
+  Docker Engine + Compose v2 (ARM64). Deleted the old
+  `docs/deployment/free-tier.md` and rewrote the README "Deploy it"
+  section. Target steady-state cost: **$0/mo, forever**.
+- **A5** — Built out the demo seed so `make seed` produces a
+  recruiter-legible dataset, then captured the five-PNG portfolio
+  screenshot pack against it. New `app/seeds/agentic_demo.py` adds
+  five published courses (rounding the catalog to six), backfills
+  the FastAPI course with `cover_url` + `learning_outcomes`, and
+  gives the seed student a completed FastAPI enrollment
+  (`certificate_id` + best-effort OB3 `badge_credential`) plus a
+  ~50%-progress Data Engineering enrollment. Persists one tutor turn
+  with matching `agent_traces` / `llm_calls` / `retrieval_audits`
+  inside the 120 s I4 temporal-join window, and an eight-row
+  self-critique trace on the `ai-tutor-design-patterns` draft so
+  `/studio/draft/{id}/replay` populates. Idempotent. New Playwright
+  spec at `tests/e2e/screenshots.spec.ts` lands hero, trace-timeline,
+  studio-replay, observability, and evals PNGs at 1440×900 under
+  `docs/screenshots/`; README's `HERO_SCREENSHOT_TBD` now points at
+  `hero.png`.
+- **A6** — Pre-wrote the GitHub PR body for the `Rewrite → master`
+  release at `docs/release/1.1.0-agentic-pr-body.md` (lifts the
+  `[1.1.0-agentic]` CHANGELOG section verbatim, adds an architecture
+  diff vs `1.0.0-rebuild`, lists the verification gates, embeds the
+  operator's seven-item definition-of-done checklist). Added a
+  `make publish-rewrite` Makefile target that previews pending
+  commits, prompts `[y/N]`, then runs `git push origin Rewrite` +
+  `gh pr create --base master --head Rewrite --body-file …`. No
+  push or PR opened from this task — materials only.
+
+**Wave 2 (parallel + sequential):**
+
+- **A1** — Snippet not produced within the 30-second wait window;
+  see commit log on this branch for any A1 diff that lands
+  separately.
+- **C1** — Consolidated the six per-agent snippet files into this
+  entry and removed the scaffolding files in the same commit.
+
+**Operator runbook (next steps, no agent intervention required):**
+
+1. Provision Oracle Always Free ARM A1 VM and run
+   `scripts/oracle-bootstrap.sh` — see
+   `docs/deployment/oracle-vps.md`.
+2. Set `LLM_PROVIDER=openai` + Groq endpoint + `OPENAI_API_KEY` in
+   `.env.production` (free Groq key from
+   <https://console.groq.com>); restart the stack.
+3. Run `make eval` to populate the real tutor-eval score in the
+   README badge.
+4. Run `mcp-publisher publish apps/backend/app/mcp/registry_metadata.json`
+   — see `docs/mcp-registry-submission.md`.
+5. Capture the 90-second Loom against the live demo; paste URL into
+   the `LOOM_URL_TBD` placeholder in `README.md`.
+6. Run `make publish-rewrite` to push `Rewrite` to origin and open
+   the PR.
+
+**Phase I / H follow-up flagged by Wave 1 (out of scope to fix here):**
+
+- Run `oxipng -o4` on the committed PNGs — files land at 45–80 KB
+  out of Playwright; lossless oxipng tends to halve them if/when
+  README grows additional inline screenshots.
+- Catch the "Loading Celery health…" flash on `/admin/observability`
+  — either pre-fetch the poll on tab focus or show a skeleton with
+  rough shape so first-paint isn't a single-line gray string.
+- `/admin/evals` reads "no runs yet" until a suite is executed —
+  either ship a tiny noop-provider judging result as part of the
+  seed so suite cards always show a score, or document that
+  `make eval` against the noop provider produces a meaningful
+  screenshot.
+- The seeded tutor turn uses the `noop` provider's deterministic
+  output, which stamps `noop/lumen-noop-1` into screenshots rather
+  than `groq/llama-3.3-70b`. Consider a `LUMEN_DEMO_PROVIDER_LABEL`
+  env var that lets the seed stamp a chosen provider/model string
+  into the seeded `llm_calls` rows without calling a remote API.
+- Picsum cover URLs occasionally serve a different image on
+  cache-miss. Fine for now; if the catalog screenshot ever joins
+  the pack, bake committed cover PNGs under
+  `apps/backend/app/seeds/assets/covers/` and serve via MinIO.
+- The studio replay scrubs to step 3 (Reviser) deterministically
+  but the lime-active row is at the top of frame, not centred. Add
+  `scrollIntoView({ block: 'center' })` inside `TraceTimeline`
+  whenever `activeIndex` changes so the active card stays in view
+  if page chrome grows.
+
 ## [1.1.0-agentic] - 2026-05-22
 
 Phase H (production-grade hardening) + Phase I (agentic-AI signature
