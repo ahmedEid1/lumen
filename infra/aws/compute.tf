@@ -24,6 +24,20 @@ resource "aws_key_pair" "lumen" {
   public_key = tls_private_key.lumen.public_key_openssh
 }
 
+# Allocate the EIP up front (no instance association yet) so its public_ip
+# is knowable at `templatefile` eval time. That fixes the race where
+# cloud-init can grab the instance's temporary auto-assigned public IP
+# before the EIP attaches and persists the wrong `<temp>.nip.io` domain
+# into /etc/lumen-deploy/deploy.env. The aws_eip_association below wires
+# it to the instance after the instance comes up.
+resource "aws_eip" "lumen" {
+  domain = "vpc"
+
+  tags = {
+    Name = "${var.project}-prod-eip"
+  }
+}
+
 resource "aws_instance" "lumen" {
   ami                         = data.aws_ami.ubuntu_2404_arm64.id
   instance_type               = var.instance_type
@@ -38,11 +52,13 @@ resource "aws_instance" "lumen" {
   #   2. Drop a relaxed fail2ban jail BEFORE the bootstrap installs fail2ban
   #      so deploy traffic (rsync, scp, iterative ssh) doesn't get banned.
   #   3. Run the full aws-bootstrap.sh non-interactively with the EIP-derived
-  #      nip.io domain.
+  #      nip.io domain (passed in from Terraform, not polled from IMDS at
+  #      boot — see the EIP race comment on aws_eip.lumen above).
   # User-data output ends up in /var/log/cloud-init-output.log on the box.
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
     bootstrap_script = file("${path.module}/../../scripts/aws-bootstrap.sh")
-    admin_email      = "ahmedhobeishy.tools@gmail.com"
+    admin_email      = var.admin_email
+    public_ip        = aws_eip.lumen.public_ip
   })
 
   # The user_data hash is in user_data_replace_on_change, so changing the
@@ -68,20 +84,9 @@ resource "aws_instance" "lumen" {
   tags = {
     Name = "${var.project}-prod"
   }
-
-  # Recreate if the AMI changes — Terraform's default is to ignore AMI
-  # drift, but we WANT new AMIs to roll: Canonical patches Ubuntu LTS
-  # roughly monthly and we don't want to be running last year's image.
-  lifecycle {
-    ignore_changes = []
-  }
 }
 
-resource "aws_eip" "lumen" {
-  instance = aws_instance.lumen.id
-  domain   = "vpc"
-
-  tags = {
-    Name = "${var.project}-prod-eip"
-  }
+resource "aws_eip_association" "lumen" {
+  instance_id   = aws_instance.lumen.id
+  allocation_id = aws_eip.lumen.id
 }

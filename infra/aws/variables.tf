@@ -43,3 +43,16 @@ variable "ssh_key_dir" {
   type        = string
   default     = "./keys"
 }
+
+variable "admin_email" {
+  description = "Email Let's Encrypt uses for cert-expiry warnings, passed into the bootstrap script as ADMIN_EMAIL. Required — provide via -var or terraform.tfvars so a forked deploy doesn't silently route warnings to the original author."
+  type        = string
+
+  validation {
+    # `can(regex("@", ...))` keeps the rule conservative: anything that
+    # parses as an email address survives, but the empty string and
+    # obvious placeholder text both fail loudly at `terraform plan`.
+    condition     = length(var.admin_email) > 0 && can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.admin_email))
+    error_message = "admin_email must be a real email address (e.g. ops@example.com)."
+  }
+}

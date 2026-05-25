@@ -96,6 +96,26 @@ def check_llm_provider(settings: Any, problems: list[str]) -> None:
         )
 
 
+def check_embedding_provider(settings: Any, problems: list[str]) -> None:
+    """Reject the ``noop`` embedding provider in production.
+
+    The noop embedder returns deterministic hash-seeded zero-magnitude
+    vectors so the stack still boots without a paid embedding key. In
+    production that silently breaks RAG: every cosine similarity returns
+    the same garbage ranking, so retrieval is functionally disabled with
+    no error in the logs. Mirror the LLM guard so the compose comment
+    promising this behaviour is actually true.
+    """
+    provider = getattr(settings, "embedding_provider", None)
+    value = getattr(provider, "value", provider)
+    if value == "noop":
+        problems.append(
+            "EMBEDDING_PROVIDER=noop is forbidden in production; "
+            "set it to 'openai' (Cloudflare Workers AI or paid OpenAI via "
+            "OpenAI-compat) or 'local' (sentence-transformers on box)"
+        )
+
+
 def check_secret_strength(settings: Any, problems: list[str]) -> None:
     """Reject SECRET_KEY (and JWT_SECRET) shorter than 32 chars.
 
@@ -170,6 +190,7 @@ def collect_problems(settings: Any) -> tuple[list[str], list[str]]:
     problems: list[str] = []
     warnings: list[str] = []
     check_llm_provider(settings, problems)
+    check_embedding_provider(settings, problems)
     check_secret_strength(settings, problems)
     check_database_not_loopback(settings, problems)
     check_llm_base_url_for_openai(settings, warnings)

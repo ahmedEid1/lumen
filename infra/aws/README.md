@@ -42,16 +42,30 @@ After `apply`:
 ```bash
 # Connect (the .pem was generated locally — see keys/)
 $(terraform output -raw ssh_command)
+```
 
-# Run the bootstrap script (4 GB swap + Docker + hardened sshd + ufw + fail2ban)
-sudo bash -c 'curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/master/scripts/aws-bootstrap.sh | bash'
+**Bootstrap (swap + Docker + hardened sshd + ufw + fail2ban) runs automatically**
+from cloud-init `user_data` on first boot — `terraform apply` is the only
+command needed. Tail progress with `sudo tail -f /var/log/lumen-first-boot.log`.
 
-# Or non-interactive (Terraform-friendly):
+If first-boot bootstrap fails and you need to re-run it manually, **don't pipe
+`curl … | bash`** — the script uses interactive `read -p` prompts that read
+EOF from a pipe and the run aborts. Download then execute, or use the
+non-interactive env-var form:
+
+```bash
+# Download then execute (interactive — reads ADMIN_USER / APP_DOMAIN / ADMIN_EMAIL from your tty)
+curl -fsSL -o /tmp/aws-bootstrap.sh \
+  https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/Rewrite/scripts/aws-bootstrap.sh
+chmod +x /tmp/aws-bootstrap.sh
+sudo /tmp/aws-bootstrap.sh
+
+# Non-interactive (Terraform-friendly — no prompts)
 LUMEN_BOOTSTRAP_NONINTERACTIVE=1 \
   ADMIN_USER=lumen \
   APP_DOMAIN=$(terraform output -raw dns_nip_io) \
   ADMIN_EMAIL=you@example.com \
-  sudo -E bash scripts/aws-bootstrap.sh
+  sudo -E bash /tmp/aws-bootstrap.sh
 ```
 
 Full deploy runbook (rsync repo → `.env.production` → `docker compose

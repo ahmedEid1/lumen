@@ -22,6 +22,7 @@ from app.core.prod_guards import (
     _database_host_is_loopback,
     assert_production_safe,
     check_database_not_loopback,
+    check_embedding_provider,
     check_llm_base_url_for_openai,
     check_llm_provider,
     check_secret_strength,
@@ -40,6 +41,7 @@ def _prod_settings(**overrides):
         "is_prod": True,
         "env": SimpleNamespace(value="production"),
         "llm_provider": "anthropic",
+        "embedding_provider": "openai",
         "secret_key": "a" * 64,
         "jwt_secret": "b" * 64,
         "database_url": "postgresql+asyncpg://user:pw@db-prod.example.com:5432/lumen",
@@ -79,6 +81,40 @@ def test_check_llm_provider_accepts_enum_value() -> None:
     s = _prod_settings(llm_provider=SimpleNamespace(value="noop"))
     problems: list[str] = []
     check_llm_provider(s, problems)
+    assert any("noop" in p for p in problems)
+
+
+# ---------- Embedding provider ----------
+
+
+def test_check_embedding_provider_rejects_noop_in_prod() -> None:
+    s = _prod_settings(embedding_provider="noop")
+    problems: list[str] = []
+    check_embedding_provider(s, problems)
+    assert any("EMBEDDING_PROVIDER=noop" in p for p in problems)
+
+
+def test_check_embedding_provider_accepts_openai() -> None:
+    s = _prod_settings(embedding_provider="openai")
+    problems: list[str] = []
+    check_embedding_provider(s, problems)
+    assert problems == []
+
+
+def test_check_embedding_provider_accepts_local() -> None:
+    """``local`` means sentence-transformers on box — legitimate in prod."""
+    s = _prod_settings(embedding_provider="local")
+    problems: list[str] = []
+    check_embedding_provider(s, problems)
+    assert problems == []
+
+
+def test_check_embedding_provider_accepts_enum_value() -> None:
+    """Match the LLM-provider test — Settings wraps the field in a
+    StrEnum-like value and the guard must follow .value coercion."""
+    s = _prod_settings(embedding_provider=SimpleNamespace(value="noop"))
+    problems: list[str] = []
+    check_embedding_provider(s, problems)
     assert any("noop" in p for p in problems)
 
 
@@ -218,6 +254,7 @@ def test_collect_problems_lists_every_failure() -> None:
     operators should see the whole list at once, not fix-and-retry."""
     s = _prod_settings(
         llm_provider="noop",
+        embedding_provider="noop",
         secret_key="short",
         jwt_secret="short",
         database_url="postgresql+asyncpg://u:p@127.0.0.1/db",
@@ -228,6 +265,7 @@ def test_collect_problems_lists_every_failure() -> None:
     # to ``openai`` and rely on the other reds for the hard problems.
     s.llm_provider = "openai"
     hard, soft = collect_problems(s)
+    assert any("EMBEDDING_PROVIDER=noop" in p for p in hard)
     assert any("SECRET_KEY" in p for p in hard)
     assert any("JWT_SECRET" in p for p in hard)
     assert any("DATABASE_URL" in p for p in hard)

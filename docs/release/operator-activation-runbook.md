@@ -225,14 +225,18 @@ WEB_BASE_URL=https://<DOMAIN_NAME>
 Then append the **2 GB RAM tuning block** (t4g.small only has 2 GB):
 
 ```env
-# t4g.small low-memory tuning
-POSTGRES_SHARED_BUFFERS=192MB
-POSTGRES_WORK_MEM=4MB
-POSTGRES_MAINTENANCE_WORK_MEM=64MB
-POSTGRES_EFFECTIVE_CACHE_SIZE=512MB
+# t4g.small low-memory tuning — wired into docker-compose.prod.yml
+# via the redis and worker `command:` blocks; effective on next `up -d`.
 REDIS_MAXMEMORY=64mb
 CELERY_CONCURRENCY=1
 ```
+
+The `pgvector/pgvector:pg17` image runs with stock Postgres 17
+defaults; the 4 GB swapfile that `aws-bootstrap.sh` installed
+covers the 2 GB ceiling for normal operation. If Postgres itself
+OOMs under sustained load, add `-c shared_buffers=128MB -c
+effective_cache_size=512MB` to the `db:` service's `command:` in
+`docker-compose.prod.yml`.
 
 Save + exit.
 
@@ -364,7 +368,7 @@ Reference the README's "Built by" section and link the Loom in your cover paragr
 - **AWS `InsufficientInstanceCapacity` on launch:** Pick a different Availability Zone (subnet) within `<AWS_REGION>` and retry. Rarely sustains >5 min.
 - **Free Plan credits exhausted before 6 months:** Check *Billing → Cost Explorer*. Most likely culprit is an unattached Elastic IP — release any spares (`EC2 → Elastic IPs → Actions → Release`). t4g.small instance hours are free regardless of credits through Dec 31 2026.
 - **Free Plan auto-close email at 6 months:** Either add a card to upgrade to Paid Plan (~$18/mo steady-state after Dec 31 2026) or migrate the deploy to Oracle Always Free A1 / Hetzner CAX11 — the compose stack works on all three because all three are ARM64 Ubuntu 24.04. Migration mostly means rerunning Steps 2–3 against the new target.
-- **Out-of-memory killer reaped a container:** t4g.small is tight. Drop `CELERY_CONCURRENCY=0` (process tasks inline), reduce Postgres `shared_buffers` to 128MB, or move the Next.js frontend to Vercel free (see "Split deploy" in `docs/deployment/aws-vps.md`).
+- **Out-of-memory killer reaped a container:** t4g.small is tight. Set `CELERY_CONCURRENCY=1` and `REDIS_MAXMEMORY=64mb` in `.env.production`, or move the Next.js frontend to Vercel free (see "Split deploy" in `docs/deployment/aws-vps.md`). If Postgres is the OOM victim, add `-c shared_buffers=128MB -c effective_cache_size=512MB` to the `db:` service's `command:` in `docker-compose.prod.yml`.
 - **Groq rate-limit during eval:** free tier is 30 req/min on Llama 3.3 70B. The eval runner respects this; if it errors, re-run — it resumes from the report's last line.
 - **Caddy TLS won't issue:** check `docker compose logs proxy`; the most common cause is DNS not propagated yet. `dig <DOMAIN_NAME>` from the VM should return its own IP.
 - **`make publish-rewrite` says "no commits to push":** you're on the wrong local branch. `git checkout Rewrite` first.

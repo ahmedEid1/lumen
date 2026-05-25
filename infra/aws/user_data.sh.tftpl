@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # cloud-init user_data — runs once as root at first boot.
-# Templated by Terraform: ${admin_email} is interpolated; the bootstrap
-# script is embedded verbatim from scripts/aws-bootstrap.sh.
+# Templated by Terraform: ${admin_email}, ${public_ip}, and ${bootstrap_script}
+# are interpolated. The public IP comes from the pre-allocated EIP, NOT
+# from IMDS — IMDS would return the instance's temporary auto-assigned IP
+# on early boots, before the aws_eip_association attaches the EIP, and we'd
+# bake the wrong `<temp>.nip.io` domain into /etc/lumen-deploy/deploy.env.
 set -eux
 exec > >(tee -a /var/log/lumen-first-boot.log) 2>&1
 
 echo "=== lumen first-boot: $(date -u +%FT%TZ) ==="
 
-# Resolve the public IP for the nip.io APP_DOMAIN. Use IMDSv2 (the
-# instance metadata service v2) since we required token auth in Terraform.
-TOKEN=$(curl -fsSL -X PUT "http://169.254.169.254/latest/api/token" \
-  -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
-PUBLIC_IP=$(curl -fsSL -H "X-aws-ec2-metadata-token: $TOKEN" \
-  http://169.254.169.254/latest/meta-data/public-ipv4)
-echo "resolved public IP: $PUBLIC_IP"
+# Public IP is the EIP that Terraform pre-allocated; it's already the IP
+# the operator will point DNS at, so deploy.env is correct from boot 1.
+PUBLIC_IP="${public_ip}"
+echo "resolved public IP (from Terraform EIP): $PUBLIC_IP"
 
 # Pre-stage a relaxed fail2ban jail BEFORE installing fail2ban, so when
 # the bootstrap installs+starts the service it reads our config first.

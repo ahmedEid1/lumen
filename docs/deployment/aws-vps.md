@@ -194,14 +194,20 @@ Required edits in `.env.production`:
 **2 GB RAM tuning** — append to `.env.production`:
 
 ```dotenv
-# t4g.small low-memory tuning
-POSTGRES_SHARED_BUFFERS=192MB
-POSTGRES_WORK_MEM=4MB
-POSTGRES_MAINTENANCE_WORK_MEM=64MB
-POSTGRES_EFFECTIVE_CACHE_SIZE=512MB
+# t4g.small low-memory tuning — these are read by docker-compose.prod.yml's
+# redis and worker `command:` blocks and take effect on the next `up -d`.
 REDIS_MAXMEMORY=64mb
 CELERY_CONCURRENCY=1
 ```
+
+Postgres on t4g.small runs cleanly with the `pgvector/pgvector:pg17`
+image's stock defaults plus the 4 GB swapfile. If sustained
+indexing pushes Postgres to OOM regardless, you have two options:
+add `-c shared_buffers=128MB -c effective_cache_size=512MB` to the
+`db:` service's `command:` (the pgvector image is just stock
+Postgres 17 underneath), or bind-mount a tuned `postgresql.conf`.
+Both are operator-level overrides — there's no env-var indirection
+for these in compose.
 
 ---
 
@@ -298,7 +304,7 @@ Rotate a secret: edit `.env.production`, then `docker compose -f docker-compose.
 
 If the 2 GB cap bites under real load, move the Next.js frontend to **Vercel free tier**, leaving only api + worker + db + redis + minio + caddy on the EC2. Frees up ~250 MB on the box.
 
-1. Pin the Vercel project to `apps/web` and set `NEXT_PUBLIC_API_BASE=https://api.lumen.example.com`.
+1. Pin the Vercel project to `apps/frontend` and set `NEXT_PUBLIC_API_BASE_URL=https://api.lumen.example.com`.
 2. Point `api.lumen.example.com` at the Elastic IP via a second A record.
 3. Edit `infra/caddy/Caddyfile` to drop the `/ → web:3000` block and bind to `api.lumen.example.com` only.
 4. Remove the `web:` service from `docker-compose.prod.yml` (or `docker compose stop web` and disable on subsequent boots).
@@ -316,7 +322,7 @@ If the 2 GB cap bites under real load, move the Next.js frontend to **Vercel fre
 | `docker compose pull` → `no matching manifest for linux/arm64/v8` | You picked an x86 instance somewhere                               | Confirm the instance type is **t4g.small** (Graviton2 ARM). The default `pgvector/pgvector:pg17`, `redis:7-alpine`, `caddy:2-alpine`, and `minio` images all ship ARM64 manifests. |
 | `prod_guards.py` boot failure: `SECRET_KEY too short` | You left an example value in `.env.production`                                  | Re-run the `openssl rand -base64 32` loop in Step 5.                                          |
 | Let's Encrypt rate-limited (`too many certificates`) | You bounced the `caddy-data` volume during testing                              | Wait 7 days, or temporarily set Caddy to staging via `ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory`. |
-| `OutOfMemory` killer reaped a container         | t4g.small is tight; bursty work pushed past 2 GB + 4 GB swap                          | Reduce `CELERY_CONCURRENCY` to 1, drop Postgres `shared_buffers` to 128MB, or switch to the **split deploy** above. |
+| `OutOfMemory` killer reaped a container         | t4g.small is tight; bursty work pushed past 2 GB + 4 GB swap                          | Set `CELERY_CONCURRENCY=1` and `REDIS_MAXMEMORY=64mb` in `.env.production`, or switch to the **split deploy** above. If Postgres itself is the OOM victim, add `-c shared_buffers=128MB -c effective_cache_size=512MB` to the `db:` service's `command:` in `docker-compose.prod.yml`. |
 | Free Plan auto-close warning email             | 6 months elapsed or $200 credits exhausted                                            | Add a card to upgrade to Paid Plan (~$18/mo steady-state) or migrate to Oracle Always Free / Hetzner CAX11. |
 
 ---
