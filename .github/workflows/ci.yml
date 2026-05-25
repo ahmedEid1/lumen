@@ -1,8 +1,14 @@
 name: CI
 
+# Triggers — push to the canonical working branch (`Rewrite`) and to
+# `main` (kept around as the eventual merge target). Every PR runs the
+# same set so contributors get the full gate before merge. e2e.yml and
+# accessibility.yml run in parallel as separate workflows on the same
+# triggers; deploy.yml waits on this workflow's `build-images` job
+# completing successfully on `Rewrite` to roll the AWS box.
 on:
   push:
-    branches: [main]
+    branches: [Rewrite, main]
   pull_request:
 
 concurrency:
@@ -106,10 +112,16 @@ jobs:
     name: Build container images
     runs-on: ubuntu-24.04
     needs: [backend, frontend]
+    # Only build on push (not PR) — PRs from the same repo would
+    # produce dupes; PRs from forks can't push to ghcr anyway.
     if: github.event_name == 'push'
     permissions:
       contents: read
       packages: write
+    outputs:
+      # Surface to downstream workflows (deploy.yml) so the rollout
+      # commands target an immutable SHA tag, not a moving pointer.
+      sha: ${{ steps.meta.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -120,20 +132,39 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Compute tags
         id: meta
+        # docker-metadata-action handles the canonical-branch / SHA /
+        # latest tagging matrix without us hand-rolling shell expansions.
+        # On push to Rewrite: produces tags `rewrite`, `latest`, `<sha>`.
+        # On push to main:    produces tags `main`, `<sha>` (no latest —
+        #                     `main` is the stale merge target, not the
+        #                     working branch; we don't want a stale main
+        #                     push to clobber `:latest` and accidentally
+        #                     roll AWS back).
         run: |
-          REPO=${GITHUB_REPOSITORY,,}
-          echo "api=ghcr.io/${REPO/lumen-api/lumen-api}-api" >> $GITHUB_OUTPUT
-          echo "web=ghcr.io/${REPO/lumen-web/lumen-web}-web" >> $GITHUB_OUTPUT
-          echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          # Long form so it's obvious what the tags will be in the run
+          # log instead of buried inside a third-party action's output.
+          sha7=${GITHUB_SHA::7}
+          echo "sha=${sha7}" >> "$GITHUB_OUTPUT"
+          echo "Tagging plan for push to ${GITHUB_REF_NAME}:"
+          if [ "$GITHUB_REF_NAME" = "Rewrite" ]; then
+            echo "  api: :${GITHUB_SHA}, :rewrite, :latest"
+            echo "  web: :${GITHUB_SHA}, :rewrite, :latest"
+          else
+            echo "  api: :${GITHUB_SHA}, :${GITHUB_REF_NAME}"
+            echo "  web: :${GITHUB_SHA}, :${GITHUB_REF_NAME}"
+          fi
       - name: Build backend
         uses: docker/build-push-action@v6
         with:
           context: apps/backend
           target: prod
           push: true
+          # The `latest` tag only moves on Rewrite pushes — see the meta
+          # step comment for why we don't tag latest from main.
           tags: |
             ghcr.io/${{ github.repository_owner }}/lumen-api:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/lumen-api:main
+            ghcr.io/${{ github.repository_owner }}/lumen-api:${{ github.ref_name }}
+            ${{ github.ref_name == 'Rewrite' && format('ghcr.io/{0}/lumen-api:latest', github.repository_owner) || '' }}
           cache-from: type=gha,scope=lumen-api
           cache-to: type=gha,mode=max,scope=lumen-api
       - name: Build frontend
@@ -144,7 +175,8 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/lumen-web:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/lumen-web:main
+            ghcr.io/${{ github.repository_owner }}/lumen-web:${{ github.ref_name }}
+            ${{ github.ref_name == 'Rewrite' && format('ghcr.io/{0}/lumen-web:latest', github.repository_owner) || '' }}
           cache-from: type=gha,scope=lumen-web
           cache-to: type=gha,mode=max,scope=lumen-web
       - name: Trivy scan — backend
@@ -154,6 +186,10 @@ jobs:
           format: sarif
           output: trivy-api.sarif
           severity: CRITICAL,HIGH
+          # exit-code: "0" keeps the scan informational (uploads SARIF
+          # to Security tab) instead of blocking the build on CVEs.
+          # Bump to "1" once the base images are pinned to digests so
+          # noise stays low.
           exit-code: "0"
       - name: Trivy scan — frontend
         uses: aquasecurity/trivy-action@0.28.0

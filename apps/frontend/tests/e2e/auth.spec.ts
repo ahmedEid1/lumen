@@ -118,12 +118,15 @@ test.describe("auth golden path — register → verify → reset → login", ()
       /\/reset-password\?token=/,
     );
 
-    // 6) Submit the new password.
+    // 6) Submit the new password. Button regex includes /set/i — the
+    // actual i18n copy is "Set new password" (auth.reset.submit), which
+    // didn't match the original /reset|submit|update/i and let
+    // Playwright spin for the whole 60s actionTimeout before failing.
     await page.goto(`/reset-password?token=${encodeURIComponent(resetToken)}`);
     await page.getByLabel(/password/i).fill(resetPassword);
     await page
       .locator("form")
-      .getByRole("button", { name: /reset|submit|update/i })
+      .getByRole("button", { name: /set|reset|submit|update/i })
       .click();
     // After a successful reset we redirect to /login.
     await expect(page).toHaveURL(/\/login/);

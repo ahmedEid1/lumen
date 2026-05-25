@@ -1,0 +1,208 @@
+name: Deploy to AWS
+
+# Continuous Delivery for the Lumen demo. Pulls the latest container
+# images from ghcr.io into the AWS t4g.small VM at
+# lumen.ahmedhobeishy.tech, runs Alembic migrations, restarts the
+# stack via `docker compose -f docker-compose.prod.yml`, and waits for
+# the `/api/v1/health/live` smokes to come back 200 before reporting
+# success.
+#
+# Triggers:
+#   1. workflow_dispatch — the safe default. Operator clicks "Run
+#      workflow" on the GitHub Actions tab and (optionally) picks an
+#      image tag (defaults to :latest, which `ci.yml`'s build-images
+#      job moves on every push to Rewrite).
+#   2. workflow_run on CI / E2E / Accessibility, scoped to Rewrite —
+#      auto-rolls the box once every gate is green for that commit.
+#      Defensive: requires the triggering run to have `conclusion ==
+#      success` AND `head_branch == "Rewrite"`. If any gate is red,
+#      this never fires.
+#
+# Required repo secrets (settings → secrets and variables → actions):
+#   AWS_SSH_HOST       hostname or IP of the box (e.g. "lumen.ahmedhobeishy.tech")
+#   AWS_SSH_USER       linux account to ssh as (e.g. "lumen")
+#   AWS_SSH_PRIVATE_KEY  full PEM contents of the operator's deploy key
+#   AWS_KNOWN_HOSTS    output of `ssh-keyscan -H <host>` for that host
+#                      (lock down the StrictHostKeyChecking path so a
+#                      MITM can't impersonate the box on first deploy)
+#   GHCR_PULL_TOKEN    classic PAT with `read:packages` scope. Set this
+#                      ONLY if the ghcr images aren't public. The
+#                      bootstrap recommends keeping them private — the
+#                      token is the cheapest way to support that.
+#   APP_DOMAIN         e.g. "lumen.ahmedhobeishy.tech". Used for the
+#                      post-deploy smoke (curl https://${APP_DOMAIN}/…)
+#                      so we test what users actually hit, not the
+#                      internal compose network.
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (default: latest)"
+        required: false
+        default: "latest"
+      run_migrations:
+        description: "Run alembic upgrade head after pull?"
+        required: false
+        default: "true"
+        type: choice
+        options: ["true", "false"]
+  workflow_run:
+    workflows: ["CI", "E2E (Playwright)", "Accessibility (WCAG 2.2 AA)"]
+    types: [completed]
+    branches: [Rewrite]
+
+# Don't run two deploys in parallel — the latter would race the
+# former's `docker compose up -d`. `cancel-in-progress: false` means
+# an in-flight deploy isn't aborted (rolling deploys are non-atomic;
+# aborting mid-restart leaves the stack in a known-bad state).
+concurrency:
+  group: deploy-aws
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Roll AWS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Gate the workflow_run trigger on the upstream succeeding. The
+    # event fires for both success and failure ("types: [completed]")
+    # so we filter here. Manual workflow_dispatch always runs.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    env:
+      IMAGE_TAG: ${{ github.event.inputs.image_tag || 'latest' }}
+    steps:
+      - name: Verify required secrets are present
+        # Fail loud and early with a readable message instead of letting
+        # the ssh-action error with "Permission denied (publickey)".
+        run: |
+          missing=()
+          [ -n "${{ secrets.AWS_SSH_HOST }}" ] || missing+=(AWS_SSH_HOST)
+          [ -n "${{ secrets.AWS_SSH_USER }}" ] || missing+=(AWS_SSH_USER)
+          [ -n "${{ secrets.AWS_SSH_PRIVATE_KEY }}" ] || missing+=(AWS_SSH_PRIVATE_KEY)
+          [ -n "${{ secrets.AWS_KNOWN_HOSTS }}" ] || missing+=(AWS_KNOWN_HOSTS)
+          [ -n "${{ secrets.APP_DOMAIN }}" ] || missing+=(APP_DOMAIN)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Required deploy secrets not configured: ${missing[*]}"
+            echo "Set them in Settings → Secrets and variables → Actions. See .github/workflows/deploy.yml header for descriptions."
+            exit 1
+          fi
+
+      - name: Configure SSH
+        # webfactory/ssh-agent loads the key into an agent and prepends
+        # the configured known_hosts so StrictHostKeyChecking can stay
+        # on without breaking the first connection.
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+
+      - name: Trust AWS host fingerprint
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AWS_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Authenticate box to ghcr (if pulling private images)
+        if: ${{ secrets.GHCR_PULL_TOKEN != '' }}
+        env:
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        # Pipe the token over stdin into a remote `docker login` so it
+        # never lands in process listings or the GH log. The PAT only
+        # needs `read:packages` scope; rotate it on a calendar tick.
+        run: |
+          ssh -o StrictHostKeyChecking=yes \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
+              "docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin" <<< "${GHCR_PULL_TOKEN}"
+
+      - name: Sync repo on the box
+        # Keep the box's git checkout aligned with the commit we're
+        # rolling out. The compose file + bootstrap script come from
+        # here, so a stale repo could pull new images against an old
+        # compose anchor. Tag the deploy SHA so a later `git log` on
+        # the box shows the exact commit serving traffic.
+        run: |
+          set -euxo pipefail
+          ssh -o StrictHostKeyChecking=yes \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} bash -se <<'REMOTE'
+            set -euo pipefail
+            cd ~/lumen
+            git fetch --depth=50 origin Rewrite
+            git checkout Rewrite
+            git reset --hard origin/Rewrite
+          REMOTE
+
+      - name: Pull new images
+        run: |
+          set -euxo pipefail
+          # IMAGE_TAG flows in via env so .env.production on the box
+          # doesn't need editing for every deploy. `docker compose`
+          # picks up the env var at parse time when invoked with -E.
+          ssh -o StrictHostKeyChecking=yes \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
+              "cd ~/lumen && \
+               IMAGE_TAG=${IMAGE_TAG} \
+               docker compose -f docker-compose.prod.yml --env-file ~/.env.production pull api web worker beat"
+
+      - name: Roll stack
+        # `up -d` is idempotent — Compose restarts services whose image
+        # tag, env, or compose-file content changed; untouched services
+        # stay up. Start with api so the DB connection settles before
+        # worker/beat resume; web last so the proxy doesn't briefly
+        # serve a stale frontend against a new api.
+        run: |
+          set -euxo pipefail
+          ssh -o StrictHostKeyChecking=yes \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
+              "cd ~/lumen && \
+               IMAGE_TAG=${IMAGE_TAG} \
+               docker compose -f docker-compose.prod.yml --env-file ~/.env.production up -d --remove-orphans api worker beat web"
+
+      - name: Run migrations
+        if: ${{ github.event.inputs.run_migrations != 'false' }}
+        # Migrations run AFTER `up -d` because the new api container
+        # has to be alive to host the alembic command (it's the same
+        # image, but exec needs a running container). Idempotent —
+        # rerunning `upgrade head` with no pending revisions is a
+        # 1-second no-op.
+        run: |
+          set -euxo pipefail
+          ssh -o StrictHostKeyChecking=yes \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
+              "cd ~/lumen && \
+               IMAGE_TAG=${IMAGE_TAG} \
+               docker compose -f docker-compose.prod.yml --env-file ~/.env.production exec -T api alembic upgrade head"
+
+      - name: Smoke test
+        # Hit the live HTTPS endpoint so we test what users see — Caddy
+        # + TLS + the standalone web + the api reverse-proxy. /live is
+        # cheap (no DB); /ready hits db + redis so we catch
+        # config-rot pre-rollback. Retry briefly to absorb container
+        # restart settling.
+        run: |
+          set -euxo pipefail
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 5 "https://${{ secrets.APP_DOMAIN }}/api/v1/health/live" >/dev/null \
+            && curl -fsS --max-time 5 "https://${{ secrets.APP_DOMAIN }}/api/v1/health/ready" >/dev/null; then
+              echo "smokes green"
+              exit 0
+            fi
+            echo "smoke $i/30 not green yet — sleeping 5s"
+            sleep 5
+          done
+          echo "::error::Smoke tests failed after 2.5 minutes — manual investigation needed"
+          exit 1
+
+      - name: Capture post-deploy compose state (debug)
+        # Always — even on failure — so an aborted deploy leaves
+        # breadcrumbs in the run log. `ps` shows which images each
+        # service is on; if a pull half-succeeded the mix is here.
+        if: always()
+        run: |
+          ssh -o StrictHostKeyChecking=yes \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
+              "cd ~/lumen && docker compose -f docker-compose.prod.yml --env-file ~/.env.production ps" || true

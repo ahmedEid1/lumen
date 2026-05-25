@@ -60,7 +60,21 @@ function pickIngestUrl(): string {
 }
 
 test.describe("multi-modal ingest golden path", () => {
-  test("paste YouTube URL → preview → commit → draft listed", async ({
+  // fixme: depends on a live YouTube transcript fetch from inside the api
+  // container (apps/backend/app/services/content_ingest.py:181 calls the
+  // youtube-transcript-api library). YouTube actively blocks GitHub-hosted
+  // CI runner IPs and the fallback / dataset URLs go in and out of having
+  // transcripts; the test is structurally sound but the upstream signal
+  // isn't a reliable CI gate. Two paths to re-green this:
+  //   1. add an `INGEST_PROVIDER=fixture` mode that reads a canned
+  //      transcript fixture from disk when env says so (mirroring
+  //      LLM_PROVIDER=noop / EMBEDDING_PROVIDER=noop), and pin that in
+  //      e2e.yml's .env overrides
+  //   2. or pin a private corporate-owned video with stable captions and
+  //      proxy the transcript fetch through a backend route
+  // Until either lands, run this manually against the live AWS box with
+  // `pnpm exec playwright test ingest-multimodal --project=chromium`.
+  test.fixme("paste YouTube URL → preview → commit → draft listed", async ({
     page,
   }) => {
     // 1) Login.

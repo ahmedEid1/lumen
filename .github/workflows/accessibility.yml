@@ -105,7 +105,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-pw-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('apps/frontend/pnpm-lock.yaml') }}
+          # `pw2` segment matches e2e.yml's bust — see that file's
+          # cache step for the reason. Keeps the two workflows on the
+          # same cache lineage so the first runner to populate it
+          # serves both.
+          key: ${{ runner.os }}-pw2-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('apps/frontend/pnpm-lock.yaml') }}
 
       - name: Install Playwright browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'
