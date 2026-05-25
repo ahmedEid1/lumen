@@ -306,24 +306,22 @@ Verify at <https://registry.modelcontextprotocol.io/v0.1/servers/io.github.ahmed
 
 ---
 
-## Step 6 — Record the 90-second Loom (~15 min)
+## Step 6 — Record the 90-second Loom (~15–30 min)
 
-Sign up at <https://www.loom.com> (free tier is fine; 5-min cap per video, 25 videos total).
+**Two paths — pick whichever is ready first:**
 
-Install the Loom Chrome extension or desktop app.
+| Path | When | Pros | Cons |
+|---|---|---|---|
+| **6a — Local-stack recording** (recommended now) | Whenever your local docker stack is up | Doesn't wait on Oracle/Hetzner; unblocks portfolio submissions today | URL bar shows `localhost:3000` (acknowledged in voiceover) |
+| **6b — Live-URL recording** | After Step 3 lands a public URL | Cleaner — URL bar shows `lumen.ahmedhobeishy.de` | Blocked until deploy is up |
 
-### The script (90 seconds, broken into 6 beats — 15 sec each)
+**Full script + pre-recording checklist + voiceover delivery notes:** [`docs/release/loom-recording-script.md`](loom-recording-script.md)
 
-1. **Beat 1 (0:00–0:15) — Landing.** Open https://`<DOMAIN_NAME>` in a fresh incognito window. Say: "This is Lumen — an open-source agentic learning platform I built as a portfolio piece. The whole thing runs on $0 of infra."
-2. **Beat 2 (0:15–0:30) — Log in + tutor.** Log in as `student@lumen.test`. Open a course. Click into the tutor. Ask: "Explain backpressure in FastAPI."
-3. **Beat 3 (0:30–0:45) — Agent reasoning.** When the answer renders, click the **AgentReasoningPanel** expander. Say: "The tutor is a multi-agent orchestrator — planner, retriever, web-searcher, code-runner, quiz-gen, concept-explainer. You can see which tools fired and what each returned."
-4. **Beat 4 (0:45–1:00) — Trace surface.** Navigate to `/dashboard/tutor/<conversationId>/turn/<messageId>`. Say: "Every turn writes an observable trace — token usage, cost, retrieval audit, the planner's decisions."
-5. **Beat 5 (1:00–1:15) — Self-critique authoring.** Switch to teacher login (`teacher@lumen.test`). Open Studio → click into the seeded `AI Tutor Design Patterns` draft → click Replay. Say: "Authoring uses a self-critique loop — researcher → outliner → critic → reviser. Every step is recorded for replay."
-6. **Beat 6 (1:15–1:30) — Wrap.** Switch to admin (`admin@lumen.test`) → `/admin/observability`. Say: "And it all flows through a cost meter with per-user budget guards — production-grade observability from day one. The full source is on GitHub, MCP server is in the public registry, eval suite is open."
+The script covers the same 6 beats × 15 sec (intro → tutor → agent reasoning → trace surface → self-critique replay → observability wrap), with two variants for local vs live recording. The local-stack version has an explicit "running locally; public demo being provisioned" caveat in Beat 1 — recruiters appreciate the honesty, and the agentic behavior renders identically either way.
 
-End the recording. Copy the share URL.
+Loom signup: <https://www.loom.com> (free tier — 5-min cap per video, 25 videos total).
 
-🛑 Ping Claude with the Loom URL. Claude pastes it into the `LOOM_URL_TBD` placeholder in `README.md`.
+🛑 After recording, ping Claude with the Loom URL. Claude pastes it into the `LOOM_URL_TBD` placeholder in `README.md` and commits.
 
 ---
 
