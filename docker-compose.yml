@@ -37,6 +37,26 @@ x-api-env: &api-env
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
   PROMETHEUS_ENABLED: ${PROMETHEUS_ENABLED:-true}
   SEED_DEMO: ${SEED_DEMO:-true}
+  # LLM + embedding provider selection. The e2e workflow appends
+  # ``LLM_PROVIDER=noop`` to the root .env to keep AI-touching paths
+  # deterministic + free; without these explicit pass-throughs the
+  # api / worker / beat containers would ignore the override and fall
+  # back to the ``anthropic`` default (failing on missing API key).
+  # Same posture for ``EMBEDDING_PROVIDER`` so the local CPU embedder
+  # stays selectable in CI. Other LLM knobs (model, api base, keys)
+  # come along for the ride so an operator who flips to Groq /
+  # Anthropic in .env doesn't have to also edit this anchor.
+  LLM_PROVIDER: ${LLM_PROVIDER:-noop}
+  LLM_MODEL: ${LLM_MODEL:-}
+  LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-1024}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
+  EMBEDDING_MODEL_LOCAL: ${EMBEDDING_MODEL_LOCAL:-sentence-transformers/all-MiniLM-L6-v2}
+  EMBEDDING_MODEL_OPENAI: ${EMBEDDING_MODEL_OPENAI:-text-embedding-3-small}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ANTHROPIC_API_BASE: ${ANTHROPIC_API_BASE:-}
+  NOTION_TOKEN: ${NOTION_TOKEN:-}
 
 x-healthcheck-defaults: &healthcheck-defaults
   interval: 10s
