@@ -77,9 +77,7 @@ async def test_pdf_still_downloads_after_course_soft_delete(
     assert all(c["id"] != course_id for c in catalog.json()["items"])
 
     # … but the cert PDF still renders, and verify still works.
-    post = await client.get(
-        f"/api/v1/certificates/{course_id}.pdf", headers=student
-    )
+    post = await client.get(f"/api/v1/certificates/{course_id}.pdf", headers=student)
     assert post.status_code == 200, post.text
     assert post.content.startswith(b"%PDF")
 
@@ -94,9 +92,7 @@ async def test_pdf_404_when_course_truly_missing(
     genuinely-bad course_id either. The endpoint still distinguishes a
     completed-but-course-missing case from a not-enrolled case."""
     student = await auth_headers(role=Role.student)
-    r = await client.get(
-        "/api/v1/certificates/nope-not-a-real-id.pdf", headers=student
-    )
+    r = await client.get("/api/v1/certificates/nope-not-a-real-id.pdf", headers=student)
     # Not enrolled is the first guard so this is 403, not 404 — covered
     # to lock down ordering of the checks.
     assert r.status_code == 403

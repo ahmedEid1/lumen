@@ -41,7 +41,9 @@ async def _enrolled_course(
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, teacher)
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    )
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     return course_id
 
@@ -80,9 +82,7 @@ async def test_archived_course_is_invisible_to_non_enrolled_strangers(
     subject = await _make_subject(db_session)
     course_id = await _enrolled_course(client, teacher, enrolled, subject.id, seed_lesson)
 
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "archived"}, headers=teacher
-    )
+    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "archived"}, headers=teacher)
 
     # clear accumulated login cookies so the "anonymous"
     # request below isn't auto-authed as the most recent user.

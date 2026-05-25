@@ -24,7 +24,9 @@ async def test_admin_can_crud_subjects(client: AsyncClient, auth_headers) -> Non
     assert dup.status_code == 409
 
     upd = await client.patch(
-        f"/api/v1/admin/subjects/{sub_id}", json={"title": "DevOps", "slug": "dev-ops"}, headers=admin
+        f"/api/v1/admin/subjects/{sub_id}",
+        json={"title": "DevOps", "slug": "dev-ops"},
+        headers=admin,
     )
     assert upd.status_code == 200
     assert upd.json()["slug"] == "dev-ops"

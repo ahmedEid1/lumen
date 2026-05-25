@@ -40,7 +40,9 @@ async def test_stats_reflect_seeded_state(
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, teacher)
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    )
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 
     r = await client.get("/api/v1/admin/stats", headers=admin)

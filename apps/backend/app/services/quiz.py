@@ -21,7 +21,7 @@ class QuestionResult:
 
 @dataclass(slots=True)
 class GradeResult:
-    score: int                       # 0-100
+    score: int  # 0-100
     pass_score: int
     passed: bool
     correct_count: int

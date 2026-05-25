@@ -40,6 +40,8 @@ from app.models.course import Course, CourseStatus, Lesson, Module
 from app.models.lesson_chunk import LessonChunk
 from app.services.embeddings import (
     EmbeddingProvider,
+)
+from app.services.embeddings import (
     get_provider as get_embedding_provider,
 )
 
@@ -96,9 +98,7 @@ class ResearchBundle(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     web_snippets: list[ResearchWebSnippet] = Field(default_factory=list)
-    catalog_neighbours: list[ResearchCatalogNeighbour] = Field(
-        default_factory=list
-    )
+    catalog_neighbours: list[ResearchCatalogNeighbour] = Field(default_factory=list)
     note: str = ""
 
     def to_prompt_block(self) -> str:
@@ -114,18 +114,12 @@ class ResearchBundle(BaseModel):
         parts: list[str] = []
         if self.web_snippets:
             web_lines = "\n".join(
-                f"- {s.title} ({s.url}): {s.content_first_240}"
-                for s in self.web_snippets
+                f"- {s.title} ({s.url}): {s.content_first_240}" for s in self.web_snippets
             )
             parts.append(f"WEB:\n{web_lines}")
         if self.catalog_neighbours:
-            cat_lines = "\n".join(
-                f"- {n.slug}: {n.title}" for n in self.catalog_neighbours
-            )
-            parts.append(
-                "CATALOG (existing Lumen courses — avoid duplicating):"
-                f"\n{cat_lines}"
-            )
+            cat_lines = "\n".join(f"- {n.slug}: {n.title}" for n in self.catalog_neighbours)
+            parts.append(f"CATALOG (existing Lumen courses — avoid duplicating):\n{cat_lines}")
         if self.note:
             parts.append(f"NOTE: {self.note}")
         return "\n\n".join(parts)
@@ -172,10 +166,8 @@ async def _fetch_web_snippets(
     if api_key is None:
         return [], "web search disabled (no TAVILY_API_KEY)"
     try:
-        raw = await asyncio.to_thread(
-            _tavily_search_sync, api_key, query, max_results
-        )
-    except Exception as exc:  # noqa: BLE001 — graceful degradation
+        raw = await asyncio.to_thread(_tavily_search_sync, api_key, query, max_results)
+    except Exception as exc:
         kind = type(exc).__name__
         log.warning(
             "authoring_researcher_tavily_failed",
@@ -232,16 +224,14 @@ async def _fetch_catalog_neighbours(
     try:
         prov = embedding_provider or get_embedding_provider()
         [query_vec] = prov.embed([brief])
-    except Exception as exc:  # noqa: BLE001 — graceful degradation
+    except Exception as exc:
         log.warning(
             "authoring_researcher_embed_failed",
             error_kind=type(exc).__name__,
         )
         return []
 
-    distance_col = LessonChunk.embedding.cosine_distance(query_vec).label(
-        "distance"
-    )
+    distance_col = LessonChunk.embedding.cosine_distance(query_vec).label("distance")
     stmt = (
         select(
             distance_col,
@@ -304,9 +294,7 @@ async def _fallback_recent_published(
         .limit(top_k)
     )
     rows = (await db.execute(stmt)).all()
-    return [
-        ResearchCatalogNeighbour(slug=r.slug, title=r.title) for r in rows
-    ]
+    return [ResearchCatalogNeighbour(slug=r.slug, title=r.title) for r in rows]
 
 
 async def run_researcher(
@@ -337,9 +325,7 @@ async def run_researcher(
         top_k=catalog_max_results,
         embedding_provider=embedding_provider,
     )
-    (web_snippets, web_note), catalog = await asyncio.gather(
-        web_task, catalog_task
-    )
+    (web_snippets, web_note), catalog = await asyncio.gather(web_task, catalog_task)
 
     note_parts: list[str] = []
     if web_note:
@@ -356,10 +342,10 @@ async def run_researcher(
 __all__ = [
     "DEFAULT_CATALOG_NEIGHBOURS",
     "DEFAULT_WEB_SNIPPETS",
+    "SNIPPET_MAX_CHARS",
+    "TAVILY_API_KEY_ENV",
     "ResearchBundle",
     "ResearchCatalogNeighbour",
     "ResearchWebSnippet",
-    "SNIPPET_MAX_CHARS",
-    "TAVILY_API_KEY_ENV",
     "run_researcher",
 ]

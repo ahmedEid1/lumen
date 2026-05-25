@@ -22,7 +22,9 @@ class AppError(Exception):
     status_code: int = status.HTTP_400_BAD_REQUEST
     code: str = "error"
 
-    def __init__(self, message: str, *, code: str | None = None, details: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, message: str, *, code: str | None = None, details: dict[str, Any] | None = None
+    ) -> None:
         super().__init__(message)
         self.message = message
         if code:
@@ -81,7 +83,9 @@ class BudgetExceededError(AppError):
     code = "llm.budget_exceeded"
 
 
-def _payload(code: str, message: str, *, details: dict[str, Any] | None, request_id: str | None) -> dict[str, Any]:
+def _payload(
+    code: str, message: str, *, details: dict[str, Any] | None, request_id: str | None
+) -> dict[str, Any]:
     return {
         "error": {
             "code": code,
@@ -103,9 +107,13 @@ def _request_id(request: Request) -> str | None:
 
 def install_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
-    async def _app_error(request: Request, exc: AppError) -> JSONResponse:  # pragma: no cover - thin shim
+    async def _app_error(
+        request: Request, exc: AppError
+    ) -> JSONResponse:  # pragma: no cover - thin shim
         rid = _request_id(request)
-        log.warning("app_error", code=exc.code, message=exc.message, details=exc.details, request_id=rid)
+        log.warning(
+            "app_error", code=exc.code, message=exc.message, details=exc.details, request_id=rid
+        )
         return JSONResponse(
             status_code=exc.status_code,
             content=_payload(exc.code, exc.message, details=exc.details, request_id=rid),
@@ -149,6 +157,8 @@ def install_handlers(app: FastAPI) -> None:
         log.exception("unhandled_exception", request_id=rid)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=_payload("internal_error", "Internal server error", details=None, request_id=rid),
+            content=_payload(
+                "internal_error", "Internal server error", details=None, request_id=rid
+            ),
             headers={"X-Request-ID": rid or ""},
         )

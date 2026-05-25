@@ -134,9 +134,7 @@ class _ScriptedProvider:
         )
 
 
-def _install_provider(
-    monkeypatch: pytest.MonkeyPatch, replies: list[str]
-) -> _ScriptedProvider:
+def _install_provider(monkeypatch: pytest.MonkeyPatch, replies: list[str]) -> _ScriptedProvider:
     prov = _ScriptedProvider(replies)
     monkeypatch.setattr(llm_service, "get_provider", lambda: prov)
     return prov
@@ -145,9 +143,7 @@ def _install_provider(
 # ---------- retriever ----------
 
 
-async def test_retriever_returns_chunks_and_citations(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_retriever_returns_chunks_and_citations(db_session: AsyncSession, make_user) -> None:
     """Happy path: chunks come back; citation list is deduped lesson ids."""
     owner = await make_user(role=Role.instructor)
     course = await _seed_course(
@@ -180,9 +176,7 @@ async def test_retriever_returns_empty_for_unembedded_course(
 ) -> None:
     """Course exists but no chunks — retriever returns an empty result."""
     owner = await make_user(role=Role.instructor)
-    course = await _seed_course(
-        db_session, owner_id=owner.id, lesson_bodies=[("L", "body. " * 10)]
-    )
+    course = await _seed_course(db_session, owner_id=owner.id, lesson_bodies=[("L", "body. " * 10)])
     # No ingest_course → no chunks.
     result = await retriever.run(
         db_session,
@@ -295,9 +289,7 @@ async def test_code_runner_handles_blank_code(
 # ---------- quiz_generator ----------
 
 
-async def test_quiz_generator_happy_path(
-    db_session: AsyncSession, monkeypatch
-) -> None:
+async def test_quiz_generator_happy_path(db_session: AsyncSession, monkeypatch) -> None:
     """Valid JSON on first try → a populated QuizGenResult."""
     payload = json.dumps(
         {
@@ -326,9 +318,7 @@ async def test_quiz_generator_happy_path(
     assert result.note == ""
 
 
-async def test_quiz_generator_recovers_on_retry(
-    db_session: AsyncSession, monkeypatch
-) -> None:
+async def test_quiz_generator_recovers_on_retry(db_session: AsyncSession, monkeypatch) -> None:
     """First reply unparsable, second valid → recovered_on_retry trace + good result."""
     valid = json.dumps(
         {
@@ -396,11 +386,7 @@ async def test_concept_explainer_tolerates_missing_analogy(
     db_session: AsyncSession, monkeypatch
 ) -> None:
     """Empty ANALOGY section → analogy is None, explanation still set."""
-    reply = (
-        "EXPLANATION:\n"
-        "Mitochondria generate ATP, the chemical fuel of the cell.\n\n"
-        "ANALOGY:\n"
-    )
+    reply = "EXPLANATION:\nMitochondria generate ATP, the chemical fuel of the cell.\n\nANALOGY:\n"
     _install_provider(monkeypatch, [reply])
 
     result = await concept_explainer.run(

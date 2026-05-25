@@ -63,10 +63,10 @@ async def test_read_all_clears_only_callers_unread(
 
     # The other user's notifications are untouched.
     others = (
-        await db_session.execute(
-            select(Notification).where(Notification.user_id == other.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(Notification).where(Notification.user_id == other.id)))
+        .scalars()
+        .all()
+    )
     assert others and all(n.read_at is None for n in others)
 
 

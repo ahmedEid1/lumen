@@ -52,9 +52,7 @@ async def test_headers_present_on_public_endpoint(client: AsyncClient) -> None:
     _assert_security_headers(r)
 
 
-async def test_headers_present_on_auth_endpoint(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_headers_present_on_auth_endpoint(client: AsyncClient, auth_headers) -> None:
     h = await auth_headers()
     r = await client.get("/api/v1/auth/me", headers=h)
     assert r.status_code == 200
@@ -112,6 +110,4 @@ async def test_hsts_only_in_production(client: AsyncClient) -> None:
     a faked prod env (which would also fight the assert_production_ready
     boot guard)."""
     r = await client.get("/api/v1/subjects")
-    assert "strict-transport-security" not in {
-        k.lower() for k in r.headers
-    }
+    assert "strict-transport-security" not in {k.lower() for k in r.headers}

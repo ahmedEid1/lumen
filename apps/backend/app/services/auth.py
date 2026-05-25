@@ -93,7 +93,9 @@ async def authenticate(
 
     await users_repo.update_login_success(db, user)
     tokens, _ = await _issue_tokens_returning(db, user, ip=ip, user_agent=user_agent)
-    await audit_repo.record(db, actor_id=user.id, action="auth.login", ip_address=ip, user_agent=user_agent)
+    await audit_repo.record(
+        db, actor_id=user.id, action="auth.login", ip_address=ip, user_agent=user_agent
+    )
     return user, tokens
 
 
@@ -112,7 +114,13 @@ async def rotate_refresh(
     if stored.revoked_at is not None:
         # Reuse detection — revoke all tokens for this user.
         await users_repo.revoke_all_refresh_tokens(db, stored.user_id)
-        await audit_repo.record(db, actor_id=stored.user_id, action="auth.refresh_reuse", ip_address=ip, user_agent=user_agent)
+        await audit_repo.record(
+            db,
+            actor_id=stored.user_id,
+            action="auth.refresh_reuse",
+            ip_address=ip,
+            user_agent=user_agent,
+        )
         # H6 — also fire an admin notification so an operator notices
         # the alarm without having to grep the audit log. The helper is
         # best-effort: a notification write failure must not poison the

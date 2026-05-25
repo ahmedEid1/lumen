@@ -212,16 +212,16 @@ class Settings(BaseSettings):
         if any("localhost" in o for o in self.cors_origins):
             problems.append("CORS_ORIGINS contains localhost in production")
         if "localhost" in str(self.web_base_url):
-            problems.append("WEB_BASE_URL is still the localhost default — emails would link to a dev host")
+            problems.append(
+                "WEB_BASE_URL is still the localhost default — emails would link to a dev host"
+            )
         if "localhost" in str(self.badges_issuer_url):
             problems.append(
                 "BADGES_ISSUER_URL is still the localhost default — issued OB3"
                 " credentials would resolve to a dev host and fail external verification"
             )
         if problems:
-            raise RuntimeError(
-                "Refusing to start: " + "; ".join(problems) + ". Update your .env."
-            )
+            raise RuntimeError("Refusing to start: " + "; ".join(problems) + ". Update your .env.")
 
     @property
     def is_prod(self) -> bool:

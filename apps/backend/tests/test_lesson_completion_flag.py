@@ -19,7 +19,9 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _two_lesson_course(client: AsyncClient, teacher: dict, subject_id: str) -> tuple[str, str, str]:
+async def _two_lesson_course(
+    client: AsyncClient, teacher: dict, subject_id: str
+) -> tuple[str, str, str]:
     create = await client.post(
         "/api/v1/courses",
         json={"title": "Two", "subject_id": subject_id, "overview": "x"},
@@ -27,7 +29,9 @@ async def _two_lesson_course(client: AsyncClient, teacher: dict, subject_id: str
     )
     course_id = create.json()["id"]
     m = (
-        await client.post(f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher)
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher
+        )
     ).json()
     a = (
         await client.post(
@@ -43,7 +47,9 @@ async def _two_lesson_course(client: AsyncClient, teacher: dict, subject_id: str
             headers=teacher,
         )
     ).json()
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    )
     return course_id, a["id"], b["id"]
 
 
@@ -69,9 +75,7 @@ async def test_completed_flag_reflects_per_viewer_progress(
     assert _lesson(before.json(), a)["completed"] is False
     assert _lesson(before.json(), b)["completed"] is False
 
-    await client.post(
-        f"/api/v1/me/progress/lessons/{a}", json={"completed": True}, headers=student
-    )
+    await client.post(f"/api/v1/me/progress/lessons/{a}", json={"completed": True}, headers=student)
 
     after = await client.get(f"/api/v1/courses/{course_id}", headers=student)
     assert _lesson(after.json(), a)["completed"] is True
@@ -107,9 +111,7 @@ async def test_completed_flag_false_for_anon_and_non_enrolled(
     subject = await _make_subject(db_session)
     course_id, a, _ = await _two_lesson_course(client, teacher, subject.id)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
-    await client.post(
-        f"/api/v1/me/progress/lessons/{a}", json={"completed": True}, headers=student
-    )
+    await client.post(f"/api/v1/me/progress/lessons/{a}", json={"completed": True}, headers=student)
 
     # clear cookies so the "anonymous" GET below isn't
     # promoted to the student's session by the cookie jar.

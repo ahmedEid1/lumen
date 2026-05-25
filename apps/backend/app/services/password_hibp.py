@@ -80,7 +80,6 @@ async def assert_not_pwned(password: str) -> None:
     """
     if await is_pwned(password):
         raise ValidationAppError(
-            "This password has appeared in a known data breach. "
-            "Please choose a different one.",
+            "This password has appeared in a known data breach. Please choose a different one.",
             code="auth.password_breached",
         )

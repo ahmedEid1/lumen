@@ -144,10 +144,8 @@ async def run(
         return WebSearchResult(snippets=[], citations=[], note=note)
 
     try:
-        raw = await asyncio.to_thread(
-            _tavily_search_sync, api_key, query, max_results
-        )
-    except Exception as exc:  # noqa: BLE001 — graceful degradation
+        raw = await asyncio.to_thread(_tavily_search_sync, api_key, query, max_results)
+    except Exception as exc:
         kind = type(exc).__name__
         note = f"web search failed ({kind})"
         log.warning(

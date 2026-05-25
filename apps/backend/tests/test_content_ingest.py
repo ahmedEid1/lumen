@@ -20,7 +20,6 @@ from app.models.course import Course, CourseStatus, Difficulty, Subject
 from app.models.user import Role, User
 from app.services import content_ingest
 
-
 # ---------- detect_source ----------
 
 
@@ -78,8 +77,7 @@ def test_extract_google_docs_id() -> None:
 
 def test_chunk_transcript_groups_into_target_windows() -> None:
     segments = [
-        content_ingest._TranscriptSegment(text=f"line {i}", start=float(i * 60))
-        for i in range(15)
+        content_ingest._TranscriptSegment(text=f"line {i}", start=float(i * 60)) for i in range(15)
     ]
     chunks = content_ingest._chunk_transcript(segments, target_seconds=240.0)
     # 15 minutes / 4 minutes ≈ 4 chunks
@@ -132,17 +130,13 @@ def test_extract_youtube_builds_payload(monkeypatch: pytest.MonkeyPatch) -> None
     import types
 
     if "youtube_transcript_api" not in sys.modules:
-        sys.modules["youtube_transcript_api"] = types.ModuleType(
-            "youtube_transcript_api"
-        )
+        sys.modules["youtube_transcript_api"] = types.ModuleType("youtube_transcript_api")
     sys.modules["youtube_transcript_api"].YouTubeTranscriptApi = fake_api_class  # type: ignore[attr-defined]
 
     # Skip the oEmbed network call.
     monkeypatch.setattr(content_ingest, "_fetch_youtube_title", lambda vid: "Fake video")
 
-    payload = content_ingest.extract_youtube(
-        "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-    )
+    payload = content_ingest.extract_youtube("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
     assert payload.source == "youtube"
     assert payload.title == "Fake video"
     assert len(payload.modules) == 1
@@ -168,6 +162,7 @@ def test_extract_youtube_bad_url_raises() -> None:
 
 def _fake_notion_blocks() -> list[dict[str, Any]]:
     """A mini Notion tree: 1 H1 → 2 H2 → 2 paragraphs each."""
+
     def block(btype: str, text: str) -> dict[str, Any]:
         return {
             "type": btype,
@@ -362,9 +357,7 @@ async def test_preview_endpoint_uses_extractor(
     assert body["modules"][0]["lessons"][0]["title"] == "l1"
 
 
-async def test_preview_unsupported_url_returns_422(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_preview_unsupported_url_returns_422(client: AsyncClient, auth_headers) -> None:
     headers = await auth_headers(role=Role.instructor)
     r = await client.post(
         "/api/v1/studio/ingest/preview",
@@ -412,9 +405,7 @@ async def test_commit_creates_modules_and_lessons(
             ],
         },
     }
-    r = await client.post(
-        "/api/v1/studio/ingest/commit", json=payload, headers=headers
-    )
+    r = await client.post("/api/v1/studio/ingest/commit", json=payload, headers=headers)
     assert r.status_code == 201, r.text
     body = r.json()
     assert body["modules"] == 2
@@ -450,21 +441,15 @@ async def test_commit_forbidden_for_non_owner(
             "title": "x",
             "source_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             "source": "youtube",
-            "modules": [
-                {"title": "m", "lessons": [{"title": "l", "type": "text", "body": "b"}]}
-            ],
+            "modules": [{"title": "m", "lessons": [{"title": "l", "type": "text", "body": "b"}]}],
         },
     }
-    r = await client.post(
-        "/api/v1/studio/ingest/commit", json=payload, headers=instructor_b
-    )
+    r = await client.post("/api/v1/studio/ingest/commit", json=payload, headers=instructor_b)
     assert r.status_code == 403
     assert r.json()["error"]["code"] == "course.forbidden"
 
 
-async def test_commit_unknown_course_returns_404(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_commit_unknown_course_returns_404(client: AsyncClient, auth_headers) -> None:
     headers = await auth_headers(role=Role.instructor)
     payload = {
         "course_id": "does-not-exist",
@@ -472,9 +457,7 @@ async def test_commit_unknown_course_returns_404(
             "title": "x",
             "source_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             "source": "youtube",
-            "modules": [
-                {"title": "m", "lessons": [{"title": "l", "type": "text", "body": "b"}]}
-            ],
+            "modules": [{"title": "m", "lessons": [{"title": "l", "type": "text", "body": "b"}]}],
         },
     }
     r = await client.post("/api/v1/studio/ingest/commit", json=payload, headers=headers)

@@ -23,7 +23,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1 import learner_traces
-from app.models.agent_trace import TRACE_STATUS_OK, AgentTrace  # noqa: F401
+from app.models.agent_trace import TRACE_STATUS_OK, AgentTrace
 from app.models.course import Course, Subject
 from app.models.course_draft_trace import (
     DRAFT_STATUS_OK,
@@ -39,7 +39,6 @@ from app.models.tutor_conversation import (
 )
 from app.models.user import Role
 
-
 # ---------- Fixtures ----------
 
 
@@ -47,10 +46,7 @@ from app.models.user import Role
 async def traces_app(app):
     """Mount the learner-traces router under the test app."""
     paths = {r.path for r in app.routes}  # type: ignore[attr-defined]
-    sentinel = (
-        "/api/v1/me/tutor/conversations/{conversation_id}"
-        "/turns/{message_id}/trace"
-    )
+    sentinel = "/api/v1/me/tutor/conversations/{conversation_id}/turns/{message_id}/trace"
     if sentinel not in paths:
         app.include_router(
             learner_traces.router,
@@ -75,9 +71,7 @@ async def traces_client(traces_app):
 
 
 async def _login(client: AsyncClient, email: str, password: str) -> str:
-    r = await client.post(
-        "/api/v1/auth/login", json={"email": email, "password": password}
-    )
+    r = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
     assert r.status_code == 200, r.text
     return r.json()["access_token"]
 
@@ -91,9 +85,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _make_course(
-    db: AsyncSession, *, owner_id: str, subject_id: str
-) -> Course:
+async def _make_course(db: AsyncSession, *, owner_id: str, subject_id: str) -> Course:
     suffix = uuid.uuid4().hex[:6]
     c = Course(
         title=f"Course {suffix}",
@@ -114,9 +106,7 @@ async def _ensure_course_row(db: AsyncSession, *, course_id: str, owner_id: str)
     existing = await db.get(Course, course_id)
     if existing is not None:
         return
-    subj = Subject(
-        title=f"Subj {course_id}", slug=f"subj-{course_id.replace('_', '-')}"
-    )
+    subj = Subject(title=f"Subj {course_id}", slug=f"subj-{course_id.replace('_', '-')}")
     db.add(subj)
     await db.flush()
     db.add(
@@ -160,9 +150,7 @@ async def _seed_conv_with_turn(
     return conv, asst_msg
 
 
-async def _seed_trace_and_call(
-    db: AsyncSession, *, user_id: str, anchor
-) -> None:
+async def _seed_trace_and_call(db: AsyncSession, *, user_id: str, anchor) -> None:
     when = anchor - timedelta(seconds=2)
     db.add(
         AgentTrace(
@@ -224,9 +212,7 @@ async def test_owner_gets_tutor_trace(
         password="Password!1234",
         role=Role.student,
     )
-    token = await _login(
-        traces_client, "learner-trace@lumen.test", "Password!1234"
-    )
+    token = await _login(traces_client, "learner-trace@lumen.test", "Password!1234")
     conv, asst = await _seed_conv_with_turn(db_session, user_id=user.id)
     await _seed_trace_and_call(db_session, user_id=user.id, anchor=asst.created_at)
 
@@ -261,9 +247,7 @@ async def test_non_owner_blocked_with_403(
         password="Password!1234",
         role=Role.student,
     )
-    token = await _login(
-        traces_client, "stranger-trace@lumen.test", "Password!1234"
-    )
+    token = await _login(traces_client, "stranger-trace@lumen.test", "Password!1234")
     conv, asst = await _seed_conv_with_turn(db_session, user_id=owner.id)
 
     r = await traces_client.get(
@@ -284,9 +268,7 @@ async def test_missing_conversation_returns_404(
         password="Password!1234",
         role=Role.student,
     )
-    token = await _login(
-        traces_client, "learner-404@lumen.test", "Password!1234"
-    )
+    token = await _login(traces_client, "learner-404@lumen.test", "Password!1234")
     r = await traces_client.get(
         "/api/v1/me/tutor/conversations/conv_does_not_exist/turns/msg_x/trace",
         headers={"Authorization": f"Bearer {token}"},
@@ -306,9 +288,7 @@ async def test_missing_message_returns_404(
         password="Password!1234",
         role=Role.student,
     )
-    token = await _login(
-        traces_client, "learner-msg404@lumen.test", "Password!1234"
-    )
+    token = await _login(traces_client, "learner-msg404@lumen.test", "Password!1234")
     conv, _ = await _seed_conv_with_turn(db_session, user_id=user.id)
 
     r = await traces_client.get(
@@ -342,13 +322,9 @@ async def test_instructor_owner_gets_replay(
         password="Password!1234",
         role=Role.instructor,
     )
-    token = await _login(
-        traces_client, "instr-replay@lumen.test", "Password!1234"
-    )
+    token = await _login(traces_client, "instr-replay@lumen.test", "Password!1234")
     subject = await _make_subject(db_session)
-    course = await _make_course(
-        db_session, owner_id=owner.id, subject_id=subject.id
-    )
+    course = await _make_course(db_session, owner_id=owner.id, subject_id=subject.id)
     draft_id = uuid.uuid4().hex[:16]
     db_session.add(
         CourseDraftTrace(
@@ -392,13 +368,9 @@ async def test_other_instructor_gets_403_on_replay(
         password="Password!1234",
         role=Role.instructor,
     )
-    token = await _login(
-        traces_client, "instr-stranger-r@lumen.test", "Password!1234"
-    )
+    token = await _login(traces_client, "instr-stranger-r@lumen.test", "Password!1234")
     subject = await _make_subject(db_session)
-    course = await _make_course(
-        db_session, owner_id=owner.id, subject_id=subject.id
-    )
+    course = await _make_course(db_session, owner_id=owner.id, subject_id=subject.id)
 
     r = await traces_client.get(
         f"/api/v1/me/studio/drafts/{course.id}/replay",
@@ -418,9 +390,7 @@ async def test_missing_course_replay_returns_404(
         password="Password!1234",
         role=Role.instructor,
     )
-    token = await _login(
-        traces_client, "instr-404r@lumen.test", "Password!1234"
-    )
+    token = await _login(traces_client, "instr-404r@lumen.test", "Password!1234")
     r = await traces_client.get(
         "/api/v1/me/studio/drafts/crs_no_such_course/replay",
         headers={"Authorization": f"Bearer {token}"},

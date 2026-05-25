@@ -36,7 +36,9 @@ async def _publish_with_two_lessons(
     )
     course_id = create.json()["id"]
     m = (
-        await client.post(f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=headers)
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=headers
+        )
     ).json()
     l1 = (
         await client.post(
@@ -52,7 +54,9 @@ async def _publish_with_two_lessons(
             headers=headers,
         )
     ).json()
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers
+    )
     return course_id, l1["id"], l2["id"]
 
 
@@ -66,7 +70,9 @@ async def test_progress_does_not_exceed_100_after_lesson_soft_delete(
 
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     # Complete both lessons
-    await client.post(f"/api/v1/me/progress/lessons/{l1}", json={"completed": True}, headers=student)
+    await client.post(
+        f"/api/v1/me/progress/lessons/{l1}", json={"completed": True}, headers=student
+    )
     final = await client.post(
         f"/api/v1/me/progress/lessons/{l2}", json={"completed": True}, headers=student
     )
@@ -98,8 +104,12 @@ async def test_cohort_progress_stays_under_100_after_lesson_soft_delete(
     course_id, l1, l2 = await _publish_with_two_lessons(client, teacher, subject.id)
 
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
-    await client.post(f"/api/v1/me/progress/lessons/{l1}", json={"completed": True}, headers=student)
-    await client.post(f"/api/v1/me/progress/lessons/{l2}", json={"completed": True}, headers=student)
+    await client.post(
+        f"/api/v1/me/progress/lessons/{l1}", json={"completed": True}, headers=student
+    )
+    await client.post(
+        f"/api/v1/me/progress/lessons/{l2}", json={"completed": True}, headers=student
+    )
     await client.delete(f"/api/v1/courses/lessons/{l1}", headers=teacher)
 
     cohort = await client.get(f"/api/v1/courses/{course_id}/students", headers=teacher)
@@ -116,8 +126,12 @@ async def test_per_course_analytics_avg_progress_stays_under_100(
     course_id, l1, l2 = await _publish_with_two_lessons(client, teacher, subject.id)
 
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
-    await client.post(f"/api/v1/me/progress/lessons/{l1}", json={"completed": True}, headers=student)
-    await client.post(f"/api/v1/me/progress/lessons/{l2}", json={"completed": True}, headers=student)
+    await client.post(
+        f"/api/v1/me/progress/lessons/{l1}", json={"completed": True}, headers=student
+    )
+    await client.post(
+        f"/api/v1/me/progress/lessons/{l2}", json={"completed": True}, headers=student
+    )
     await client.delete(f"/api/v1/courses/lessons/{l1}", headers=teacher)
 
     analytics = await client.get(f"/api/v1/courses/{course_id}/analytics", headers=teacher)

@@ -28,13 +28,15 @@ from app.core.config import get_settings
 from app.core.errors import install_handlers
 from app.core.logging import configure_logging, get_logger
 from app.core.prod_guards import assert_production_safe
-from app.core.ratelimit import limiter
 from app.core.rate_limit_metrics import record_rate_limited
+from app.core.ratelimit import limiter
 from app.core.tracing import init_tracing
 from app.db.base import dispose_engine
 
 settings = get_settings()
-configure_logging(level=settings.log_level, json=not settings.is_dev or settings.env.value == "production")
+configure_logging(
+    level=settings.log_level, json=not settings.is_dev or settings.env.value == "production"
+)
 log = get_logger(__name__)
 
 
@@ -320,9 +322,7 @@ def create_app() -> FastAPI:
     # ``_filter_prod_cors_origins`` directly.
     allowed_origins = _filter_prod_cors_origins(settings.cors_origins, is_prod=settings.is_prod)
     if settings.is_prod and not allowed_origins:
-        raise RuntimeError(
-            "Production CORS_ORIGINS must include at least one non-loopback origin"
-        )
+        raise RuntimeError("Production CORS_ORIGINS must include at least one non-loopback origin")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
@@ -342,9 +342,12 @@ def create_app() -> FastAPI:
     app.include_router(api_router)
 
     if settings.prometheus_enabled:
+
         @app.get("/metrics", include_in_schema=False)
         async def metrics() -> PlainTextResponse:
-            return PlainTextResponse(generate_latest(_registry).decode(), media_type=CONTENT_TYPE_LATEST)
+            return PlainTextResponse(
+                generate_latest(_registry).decode(), media_type=CONTENT_TYPE_LATEST
+            )
 
     @app.get("/", include_in_schema=False)
     async def root() -> dict[str, str]:
@@ -353,7 +356,9 @@ def create_app() -> FastAPI:
     if settings.sentry_dsn:  # pragma: no cover - depends on env
         import sentry_sdk
 
-        sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.1, environment=settings.env.value)
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn, traces_sample_rate=0.1, environment=settings.env.value
+        )
 
     # OpenTelemetry — opt-in via OTEL_EXPORTER_OTLP_ENDPOINT. No-op
     # when unset (dev / test / air-gapped).

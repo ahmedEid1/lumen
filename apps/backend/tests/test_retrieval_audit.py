@@ -30,7 +30,7 @@ from app.models.course import (
     Subject,
 )
 from app.models.lesson_chunk import LessonChunk
-from app.models.retrieval_audit import RetrievalAudit  # noqa: F401 — register table
+from app.models.retrieval_audit import RetrievalAudit
 from app.models.user import Role, User
 from app.services.embeddings import NoopEmbeddingProvider
 from app.services.embeddings_ingest import ingest_course
@@ -71,9 +71,7 @@ async def _seed_course(db: AsyncSession, *, suffix: str) -> str:
         difficulty=Difficulty.beginner,
         status=CourseStatus.draft,
     )
-    module = Module(
-        id=f"mod_{suffix}", course_id=course.id, title="Module 1", order=0
-    )
+    module = Module(id=f"mod_{suffix}", course_id=course.id, title="Module 1", order=0)
     db.add_all([owner, subject, course, module])
     await db.flush()
     for i, body in enumerate(
@@ -110,10 +108,10 @@ async def test_default_does_not_write_audit_row(db_session: AsyncSession) -> Non
     # so other parallel tests don't make the count noisy.
     user_id = f"u-{uuid.uuid4().hex[:16]}"
     before = (
-        await db_session.execute(
-            select(RetrievalAudit).where(RetrievalAudit.user_id == user_id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(RetrievalAudit).where(RetrievalAudit.user_id == user_id)))
+        .scalars()
+        .all()
+    )
     assert before == []
 
     results = await find_relevant_chunks(
@@ -129,10 +127,10 @@ async def test_default_does_not_write_audit_row(db_session: AsyncSession) -> Non
     assert len(results) > 0
 
     after = (
-        await db_session.execute(
-            select(RetrievalAudit).where(RetrievalAudit.user_id == user_id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(RetrievalAudit).where(RetrievalAudit.user_id == user_id)))
+        .scalars()
+        .all()
+    )
     assert after == []
 
 
@@ -163,9 +161,7 @@ async def test_audit_true_writes_row_with_chunks_and_scores(
     assert len(results) > 0
 
     audit = (
-        await db_session.execute(
-            select(RetrievalAudit).where(RetrievalAudit.user_id == user_id)
-        )
+        await db_session.execute(select(RetrievalAudit).where(RetrievalAudit.user_id == user_id))
     ).scalar_one()
     assert audit.query == "cellular respiration"
     assert audit.course_id == course_id
@@ -210,9 +206,7 @@ async def test_audit_chunks_reference_real_lesson_chunks(
     await db_session.commit()
 
     audit = (
-        await db_session.execute(
-            select(RetrievalAudit).where(RetrievalAudit.user_id == user_id)
-        )
+        await db_session.execute(select(RetrievalAudit).where(RetrievalAudit.user_id == user_id))
     ).scalar_one()
     for chunk_meta in audit.chunks:
         row = (
@@ -239,8 +233,8 @@ async def test_audit_blank_query_writes_no_row(db_session: AsyncSession) -> None
     )
     assert results == []
     rows = (
-        await db_session.execute(
-            select(RetrievalAudit).where(RetrievalAudit.user_id == user_id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(RetrievalAudit).where(RetrievalAudit.user_id == user_id)))
+        .scalars()
+        .all()
+    )
     assert rows == []

@@ -87,8 +87,7 @@ NOOP_RESPONSE_PREFIX = "Based on the course content, "
 # noop's role here is to expose a deterministic "no context"
 # signal that downstream tests can assert against.
 NOOP_REFUSAL = (
-    "I don't have material in this course that covers that yet. "
-    "Try a different question."
+    "I don't have material in this course that covers that yet. Try a different question."
 )
 
 
@@ -220,9 +219,7 @@ class AnthropicProvider:
         temperature: float = 0.2,
     ) -> ChatResponse:
         if not self._api_key:
-            raise RuntimeError(
-                "Anthropic provider selected but ANTHROPIC_API_KEY is unset"
-            )
+            raise RuntimeError("Anthropic provider selected but ANTHROPIC_API_KEY is unset")
 
         # The Messages API takes ``system`` as a top-level parameter;
         # only ``user`` / ``assistant`` turns are allowed inside
@@ -232,11 +229,7 @@ class AnthropicProvider:
         # pushes multiple system messages.
         system_parts = [m.content for m in messages if m.role == "system"]
         system = "\n\n".join(system_parts) if system_parts else ""
-        turns = [
-            {"role": m.role, "content": m.content}
-            for m in messages
-            if m.role != "system"
-        ]
+        turns = [{"role": m.role, "content": m.content} for m in messages if m.role != "system"]
 
         client = self._get_client()
         max_tokens = self._max_tokens
@@ -338,9 +331,7 @@ class OpenAIProvider:
         temperature: float = 0.2,
     ) -> ChatResponse:
         if not self._api_key:
-            raise RuntimeError(
-                "OpenAI provider selected but OPENAI_API_KEY is unset"
-            )
+            raise RuntimeError("OpenAI provider selected but OPENAI_API_KEY is unset")
 
         client = self._get_client()
         payload = [{"role": m.role, "content": m.content} for m in messages]
@@ -495,15 +486,15 @@ def get_provider() -> LLMProvider:
 
 
 __all__ = [
-    "AnthropicProvider",
-    "ChatMessage",
-    "ChatResponse",
     "DEFAULT_ANTHROPIC_MODEL",
     "DEFAULT_OPENAI_MODEL",
-    "LLMProvider",
     "NOOP_MODEL_NAME",
     "NOOP_REFUSAL",
     "NOOP_RESPONSE_PREFIX",
+    "AnthropicProvider",
+    "ChatMessage",
+    "ChatResponse",
+    "LLMProvider",
     "NoopProvider",
     "OpenAIProvider",
     "get_provider",

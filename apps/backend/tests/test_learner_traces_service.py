@@ -25,6 +25,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ForbiddenError, NotFoundError
 from app.models.agent_trace import TRACE_STATUS_OK, AgentTrace
+from app.models.course import (
+    Course,
+    CourseStatus,
+    Difficulty,
+    Subject,
+)
 from app.models.course_draft_trace import (
     DRAFT_STATUS_OK,
     DRAFT_STEP_OUTLINER,
@@ -33,12 +39,6 @@ from app.models.course_draft_trace import (
 )
 from app.models.llm_call import STATUS_OK, LLMCall
 from app.models.retrieval_audit import RetrievalAudit
-from app.models.course import (
-    Course,
-    CourseStatus,
-    Difficulty,
-    Subject,
-)
 from app.models.tutor_conversation import (
     TutorConversation,
     TutorMessage,
@@ -58,9 +58,7 @@ async def _ensure_course(db: AsyncSession, *, course_id: str, owner_id: str) -> 
     existing = await db.get(Course, course_id)
     if existing is not None:
         return
-    subj = Subject(
-        title=f"Subject {course_id}", slug=f"subj-{course_id.replace('_', '-')}"
-    )
+    subj = Subject(title=f"Subject {course_id}", slug=f"subj-{course_id.replace('_', '-')}")
     db.add(subj)
     await db.flush()
     db.add(
@@ -76,6 +74,8 @@ async def _ensure_course(db: AsyncSession, *, course_id: str, owner_id: str) -> 
         )
     )
     await db.flush()
+
+
 from app.services.learner_traces import (
     fetch_draft_replay,
     fetch_tutor_turn_trace,
@@ -223,9 +223,7 @@ async def _seed_audit(
 # ---------- Auth invariants ----------
 
 
-async def test_owner_gets_populated_trace(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_owner_gets_populated_trace(db_session: AsyncSession, make_user) -> None:
     """A learner with traces in the time window gets the full shape."""
     user = await make_user(role=Role.student)
     _conv, asst = await _make_conv_with_turn(db_session, user_id=user.id)
@@ -287,9 +285,7 @@ async def test_owner_gets_populated_trace(
     assert plan.id in trace_ids
 
 
-async def test_non_owner_raises_forbidden(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_non_owner_raises_forbidden(db_session: AsyncSession, make_user) -> None:
     owner = await make_user(role=Role.student)
     stranger = await make_user(role=Role.student)
     conv, asst = await _make_conv_with_turn(db_session, user_id=owner.id)
@@ -303,9 +299,7 @@ async def test_non_owner_raises_forbidden(
         )
 
 
-async def test_missing_conversation_raises_not_found(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_missing_conversation_raises_not_found(db_session: AsyncSession, make_user) -> None:
     user = await make_user(role=Role.student)
     with pytest.raises(NotFoundError):
         await fetch_tutor_turn_trace(
@@ -316,9 +310,7 @@ async def test_missing_conversation_raises_not_found(
         )
 
 
-async def test_missing_message_raises_not_found(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_missing_message_raises_not_found(db_session: AsyncSession, make_user) -> None:
     user = await make_user(role=Role.student)
     conv, _ = await _make_conv_with_turn(db_session, user_id=user.id)
 
@@ -331,9 +323,7 @@ async def test_missing_message_raises_not_found(
         )
 
 
-async def test_user_turn_id_raises_not_found(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_user_turn_id_raises_not_found(db_session: AsyncSession, make_user) -> None:
     """A trace can only be requested for an assistant turn."""
     user = await make_user(role=Role.student)
     await _ensure_course(db_session, course_id="crs_x", owner_id=user.id)
@@ -362,9 +352,7 @@ async def test_user_turn_id_raises_not_found(
 # ---------- Roll-up + confidence ----------
 
 
-async def test_cost_latency_token_rollup(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_cost_latency_token_rollup(db_session: AsyncSession, make_user) -> None:
     """Multiple LLM calls in the window sum into the totals."""
     user = await make_user(role=Role.student)
     conv, asst = await _make_conv_with_turn(db_session, user_id=user.id)
@@ -407,9 +395,7 @@ async def test_cost_latency_token_rollup(
     assert result.llm_call.feature == "tutor.multi_agent.synth"
 
 
-async def test_replan_overrides_plan_confidence(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_replan_overrides_plan_confidence(db_session: AsyncSession, make_user) -> None:
     user = await make_user(role=Role.student)
     conv, asst = await _make_conv_with_turn(db_session, user_id=user.id)
     base = asst.created_at - timedelta(seconds=5)
@@ -440,9 +426,7 @@ async def test_replan_overrides_plan_confidence(
     assert result.confidence == 5
 
 
-async def test_empty_window_returns_zero_rollups(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_empty_window_returns_zero_rollups(db_session: AsyncSession, make_user) -> None:
     """A refused / empty-retrieval turn → empty lists, zero totals."""
     user = await make_user(role=Role.student)
     conv, asst = await _make_conv_with_turn(db_session, user_id=user.id)
@@ -464,9 +448,7 @@ async def test_empty_window_returns_zero_rollups(
 # ---------- Draft replay ----------
 
 
-async def test_draft_replay_returns_steps_and_totals(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_draft_replay_returns_steps_and_totals(db_session: AsyncSession, make_user) -> None:
     user = await make_user(role=Role.instructor)
     course_id = "crs_draft_replay_001"
     await _ensure_course(db_session, course_id=course_id, owner_id=user.id)
@@ -511,9 +493,7 @@ async def test_draft_replay_returns_steps_and_totals(
 async def test_draft_replay_returns_empty_for_unknown_course(
     db_session: AsyncSession,
 ) -> None:
-    result = await fetch_draft_replay(
-        db_session, course_id="crs_no_draft_ever"
-    )
+    result = await fetch_draft_replay(db_session, course_id="crs_no_draft_ever")
     assert result.step_count == 0
     assert result.steps == []
     assert result.draft_id is None

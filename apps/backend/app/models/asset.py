@@ -17,8 +17,12 @@ if TYPE_CHECKING:
 class Asset(IdMixin, TimestampMixin, Base):
     __tablename__ = "assets"
 
-    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    kind: Mapped[str] = mapped_column(String(40), nullable=False, index=True)  # avatar | lesson | cover
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(
+        String(40), nullable=False, index=True
+    )  # avatar | lesson | cover
     key: Mapped[str] = mapped_column(String(500), unique=True, nullable=False, index=True)
     content_type: Mapped[str] = mapped_column(String(120), nullable=False)
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)

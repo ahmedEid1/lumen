@@ -35,6 +35,7 @@ from app.models.tutor_conversation import (
 from app.models.user import RefreshToken, Role, User
 
 __all__ = [
+    "EMBEDDING_DIM",
     "AgentTrace",
     "Asset",
     "AuditEvent",
@@ -44,12 +45,11 @@ __all__ = [
     "Difficulty",
     "Discussion",
     "DiscussionReply",
-    "EMBEDDING_DIM",
     "Enrollment",
-    "Lesson",
     "LLMCall",
     "LearningPath",
     "LearningPathStep",
+    "Lesson",
     "LessonChunk",
     "LessonProgress",
     "LessonType",

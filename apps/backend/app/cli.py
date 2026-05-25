@@ -44,7 +44,9 @@ async def _get_or_create(db, model, *, lookup: dict, defaults: dict):
 
 
 @cli.command()
-def bootstrap_admin(email: str = "admin@lumen.test", password: str = "Admin!2026", full_name: str = "Admin") -> None:
+def bootstrap_admin(
+    email: str = "admin@lumen.test", password: str = "Admin!2026", full_name: str = "Admin"
+) -> None:
     """Create or upsert an admin user."""
     asyncio.run(_bootstrap_admin(email, password, full_name))
 
@@ -60,7 +62,14 @@ async def _bootstrap_admin(email: str, password: str, full_name: str) -> None:
             user.full_name = full_name
             msg = f"Updated existing user {email} → admin"
         else:
-            db.add(User(email=email, password_hash=hash_password(password), full_name=full_name, role=Role.admin))
+            db.add(
+                User(
+                    email=email,
+                    password_hash=hash_password(password),
+                    full_name=full_name,
+                    role=Role.admin,
+                )
+            )
             msg = f"Created admin {email}"
         await db.commit()
         console.print(f"[green]{msg}[/green]")
@@ -76,7 +85,9 @@ async def _seed() -> None:
     Session = get_sessionmaker()
     async with Session() as db:
         subjects = {
-            slug: await _get_or_create(db, Subject, lookup={"slug": slug}, defaults={"title": title})
+            slug: await _get_or_create(
+                db, Subject, lookup={"slug": slug}, defaults={"title": title}
+            )
             for title, slug in [
                 ("Programming", "programming"),
                 ("Data Science", "data-science"),
@@ -110,7 +121,12 @@ async def _seed() -> None:
             res = await db.execute(select(User).where(User.email == email))
             user = res.scalar_one_or_none()
             if not user:
-                user = User(email=email, password_hash=hash_password(password), full_name=full_name, role=role)
+                user = User(
+                    email=email,
+                    password_hash=hash_password(password),
+                    full_name=full_name,
+                    role=role,
+                )
                 db.add(user)
                 await db.flush()
             created[email] = user
@@ -138,50 +154,91 @@ async def _seed() -> None:
             db.add(course)
             await db.flush()
 
-            module1 = Module(course_id=course.id, title="Getting started", description="The why and the how.", order=0)
-            module2 = Module(course_id=course.id, title="Routing & schemas", description="Pydantic + path & query.", order=1)
-            module3 = Module(course_id=course.id, title="Persistence", description="Async SQLAlchemy.", order=2)
+            module1 = Module(
+                course_id=course.id,
+                title="Getting started",
+                description="The why and the how.",
+                order=0,
+            )
+            module2 = Module(
+                course_id=course.id,
+                title="Routing & schemas",
+                description="Pydantic + path & query.",
+                order=1,
+            )
+            module3 = Module(
+                course_id=course.id, title="Persistence", description="Async SQLAlchemy.", order=2
+            )
             db.add_all([module1, module2, module3])
             await db.flush()
 
-            db.add_all([
-                Lesson(
-                    module_id=module1.id, title="Welcome", type=LessonType.text, order=0,
-                    data={"type": "text", "body_markdown": "Welcome to *FastAPI from Zero*. Let's build something!"},
-                ),
-                Lesson(
-                    module_id=module1.id, title="Project layout", type=LessonType.text, order=1,
-                    data={"type": "text", "body_markdown": "We'll structure the project with clear seams between layers."},
-                ),
-                Lesson(
-                    module_id=module2.id, title="Path & query params", type=LessonType.text, order=0,
-                    data={"type": "text", "body_markdown": "FastAPI infers OpenAPI from your type hints."},
-                ),
-                Lesson(
-                    module_id=module2.id, title="Quick quiz", type=LessonType.quiz, order=1,
-                    data={
-                        "type": "quiz",
-                        "pass_score": 60,
-                        "questions": [
-                            {
-                                "id": "q1",
-                                "prompt": "Which library provides FastAPI's data validation?",
-                                "kind": "single",
-                                "choices": [
-                                    {"id": "a", "text": "marshmallow"},
-                                    {"id": "b", "text": "pydantic"},
-                                    {"id": "c", "text": "attrs"},
-                                ],
-                                "answer_keys": ["b"],
-                            }
-                        ],
-                    },
-                ),
-                Lesson(
-                    module_id=module3.id, title="Async session", type=LessonType.text, order=0,
-                    data={"type": "text", "body_markdown": "Use `AsyncSession` and let SQLAlchemy 2 do the heavy lifting."},
-                ),
-            ])
+            db.add_all(
+                [
+                    Lesson(
+                        module_id=module1.id,
+                        title="Welcome",
+                        type=LessonType.text,
+                        order=0,
+                        data={
+                            "type": "text",
+                            "body_markdown": "Welcome to *FastAPI from Zero*. Let's build something!",
+                        },
+                    ),
+                    Lesson(
+                        module_id=module1.id,
+                        title="Project layout",
+                        type=LessonType.text,
+                        order=1,
+                        data={
+                            "type": "text",
+                            "body_markdown": "We'll structure the project with clear seams between layers.",
+                        },
+                    ),
+                    Lesson(
+                        module_id=module2.id,
+                        title="Path & query params",
+                        type=LessonType.text,
+                        order=0,
+                        data={
+                            "type": "text",
+                            "body_markdown": "FastAPI infers OpenAPI from your type hints.",
+                        },
+                    ),
+                    Lesson(
+                        module_id=module2.id,
+                        title="Quick quiz",
+                        type=LessonType.quiz,
+                        order=1,
+                        data={
+                            "type": "quiz",
+                            "pass_score": 60,
+                            "questions": [
+                                {
+                                    "id": "q1",
+                                    "prompt": "Which library provides FastAPI's data validation?",
+                                    "kind": "single",
+                                    "choices": [
+                                        {"id": "a", "text": "marshmallow"},
+                                        {"id": "b", "text": "pydantic"},
+                                        {"id": "c", "text": "attrs"},
+                                    ],
+                                    "answer_keys": ["b"],
+                                }
+                            ],
+                        },
+                    ),
+                    Lesson(
+                        module_id=module3.id,
+                        title="Async session",
+                        type=LessonType.text,
+                        order=0,
+                        data={
+                            "type": "text",
+                            "body_markdown": "Use `AsyncSession` and let SQLAlchemy 2 do the heavy lifting.",
+                        },
+                    ),
+                ]
+            )
             await db.flush()
 
             db.add(Enrollment(user_id=student.id, course_id=course.id))
@@ -285,9 +342,7 @@ async def _mcp_token(*, owner_email: str, name: str, scopes: str) -> None:
         res = await db.execute(select(User).where(User.email == owner_email))
         owner = res.scalar_one_or_none()
         if owner is None or not owner.is_active:
-            console.print(
-                f"[red]Owner not found or inactive: {owner_email}[/red]"
-            )
+            console.print(f"[red]Owner not found or inactive: {owner_email}[/red]")
             raise typer.Exit(code=1)
 
         plaintext_secret = new_id()
@@ -312,9 +367,7 @@ async def _mcp_token(*, owner_email: str, name: str, scopes: str) -> None:
         print(f"owner_user_id={row.owner_user_id}")
         print(f"name={row.name}")
         print(f"scopes={','.join(row.scopes)}")
-        console.print(
-            "\n[yellow]Save the client_secret now — it will not be shown again.[/yellow]"
-        )
+        console.print("\n[yellow]Save the client_secret now — it will not be shown again.[/yellow]")
 
 
 @cli.command()

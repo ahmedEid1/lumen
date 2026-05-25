@@ -52,9 +52,7 @@ def test_assert_production_ready_accepts_real_web_base_url():
     s.assert_production_ready()  # must not raise
 
 
-async def test_password_reset_link_uses_web_base_url(
-    monkeypatch, client, make_user
-):
+async def test_password_reset_link_uses_web_base_url(monkeypatch, client, make_user):
     from app.core import config as cfg_module
 
     # Override the global settings cache so the endpoint picks up our test URL.

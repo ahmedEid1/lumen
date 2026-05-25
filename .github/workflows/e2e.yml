@@ -179,14 +179,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          # `pw2` segment busts the previous cache entry, which was
-          # populated when the install command was `--with-deps
-          # chromium` (chromium only). Webkit was added later but the
-          # cache key wasn't bumped, so subsequent runs hit on the
-          # old key and got binaries without webkit-2104 — leading
-          # to `Executable doesn't exist at .../webkit-2104/pw_run.sh`
-          # on every webkit test.
-          key: ${{ runner.os }}-pw2-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('apps/frontend/pnpm-lock.yaml') }}
+          # Browser-set segment `-cw-` (chromium+webkit) — accessibility.yml
+          # uses `-c-` (chromium-only). Keeping them on separate keys is
+          # what stops the earlier "a11y populates cache with chromium,
+          # then e2e hits the same key and skips install, then dies on
+          # missing webkit-2104" failure mode. Plus `pw2` to bust the
+          # pre-bump cache that had the same browser-agnostic problem.
+          key: ${{ runner.os }}-pw2-cw-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('apps/frontend/pnpm-lock.yaml') }}
 
       - name: Install Playwright browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'

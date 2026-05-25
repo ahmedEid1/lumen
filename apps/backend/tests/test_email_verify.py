@@ -42,7 +42,9 @@ async def test_confirm_is_idempotent(client: AsyncClient, make_user) -> None:
     assert a.status_code == 200 and b.status_code == 200
 
 
-async def test_stale_token_after_email_change_rejected(client: AsyncClient, make_user, db_session) -> None:
+async def test_stale_token_after_email_change_rejected(
+    client: AsyncClient, make_user, db_session
+) -> None:
     user = await make_user(email="ver3@lumen.test")
     token = verify.make_token(user)
 

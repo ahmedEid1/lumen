@@ -125,12 +125,8 @@ async def test_republish_blocked_if_all_lessons_soft_deleted(
     assert pub.status_code == 200
 
     # Move back to draft, then soft-delete the only lesson.
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "draft"}, headers=teacher
-    )
-    drop = await client.delete(
-        f"/api/v1/courses/lessons/{lesson_id}", headers=teacher
-    )
+    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "draft"}, headers=teacher)
+    drop = await client.delete(f"/api/v1/courses/lessons/{lesson_id}", headers=teacher)
     assert drop.status_code == 200
 
     # Now publishing again must be rejected.

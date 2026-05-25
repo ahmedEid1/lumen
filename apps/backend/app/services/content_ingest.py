@@ -435,9 +435,7 @@ def _notion_block_text(block: dict) -> str:
     rich = payload.get("rich_text") or payload.get("title") or []
     if not isinstance(rich, list):
         return ""
-    return "".join(
-        str(piece.get("plain_text", "")) for piece in rich if isinstance(piece, dict)
-    )
+    return "".join(str(piece.get("plain_text", "")) for piece in rich if isinstance(piece, dict))
 
 
 def _notion_blocks_to_modules(blocks: Iterable[dict]) -> list[ModuleDraft]:
@@ -592,9 +590,7 @@ def _split_google_docs_text(text: str) -> list[ModuleDraft]:
             return
         body = "\n\n".join(s.strip() for s in cur_lesson_buf if s.strip()).strip()
         title = cur_lesson_title or "Section"
-        cur_module.lessons.append(
-            LessonDraft(title=title[:200], type="text", body=body[:200_000])
-        )
+        cur_module.lessons.append(LessonDraft(title=title[:200], type="text", body=body[:200_000]))
         cur_lesson_buf = []
         cur_lesson_title = None
 
@@ -621,11 +617,7 @@ def _split_google_docs_text(text: str) -> list[ModuleDraft]:
         first_line, _, rest = para.partition("\n")
         first_line = first_line.strip()
         # ALL-CAPS short solo paragraph ⇒ module-level heading.
-        if (
-            len(line) <= 100
-            and "\n" not in line
-            and _HEADING_LINE_RE.match(line)
-        ):
+        if len(line) <= 100 and "\n" not in line and _HEADING_LINE_RE.match(line):
             _start_module(line.title())
             continue
         # A paragraph whose first line is short and ends with a colon
@@ -668,9 +660,7 @@ def extract_google_docs(url: str) -> IngestPayload:
         modules = [
             ModuleDraft(
                 title="Content",
-                lessons=[
-                    LessonDraft(title="Content", type="text", body=text[:200_000])
-                ],
+                lessons=[LessonDraft(title="Content", type="text", body=text[:200_000])],
             )
         ]
     # First line is the conventional doc title.

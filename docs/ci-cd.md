@@ -14,10 +14,10 @@ This page documents how code lands in front of users at
 flowchart LR
     PR[PR to Rewrite] -->|CI gates only| CI[CI / E2E / A11y / Eval / Gitleaks / CodeQL]
     Push[push to Rewrite] --> CI
-    CI -->|push only, all green| Build[ci.yml: build-images]
+    CI -->|push only| Build[ci.yml: build-images]
     Build -->|tag :sha, :rewrite, :latest| GHCR[(ghcr.io)]
-    Build -->|workflow_run on Rewrite| Deploy[deploy.yml]
-    Manual[workflow_dispatch] --> Deploy
+    Manual[Operator: workflow_dispatch] --> Deploy[deploy.yml]
+    GHCR -. pulled by .-> Deploy
     Deploy -->|ssh + docker compose pull + up -d| AWS[(AWS t4g.small)]
     Tag["tag v*.*.*"] --> Release[release.yml]
     Release -->|tag :vX.Y.Z + :latest| GHCR
@@ -29,10 +29,30 @@ flowchart LR
 | Branch / event | What fires | Result |
 |---|---|---|
 | PR (any → `Rewrite` or `main`) | `ci.yml` jobs (backend/frontend lint+test), `e2e.yml`, `accessibility.yml`, `pnpm-eval-smoke.yml`, `gitleaks.yml`, `codeql.yml` | red blocks merge |
-| Push to `Rewrite` | Same as above **plus** `ci.yml:build-images` | new images on GHCR; `deploy.yml` auto-fires via `workflow_run` |
-| Push to `main` | Same CI but build-images tags only `:main` + `:<sha>` (no `:latest` — see below) | images on GHCR; deploy does **not** auto-fire |
+| Push to `Rewrite` | Same as above **plus** `ci.yml:build-images` | new images on GHCR with `:<sha>`, `:rewrite`, `:latest` tags |
+| Push to `main` | Same CI but build-images tags only `:main` + `:<sha>` (no `:latest` — see below) | images on GHCR; deploy is **not** automatic |
 | Tag `v*.*.*` | `release.yml` | images tagged `:vX.Y.Z` + `:latest`, GitHub Release drafted |
-| Manual | `workflow_dispatch` on `deploy.yml` | operator picks image tag (defaults `latest`), deploys to AWS |
+| Manual | `workflow_dispatch` on `deploy.yml` | operator picks image tag (defaults `latest`) + optional rollback commit_sha, ships to AWS |
+
+**Deploy is manual on purpose.** The previous design used GitHub's
+`workflow_run` to chain CI → Deploy automatically once every gate
+went green. Two structural problems blocked that path:
+
+1. `workflow_run` fires once *per upstream workflow*, not after all
+   succeed. With three workflows in the gate (CI, E2E, A11y), every
+   push to Rewrite would queue 3 sequential deploys, and the first
+   would fire before the slowest gate had finished — defeating
+   "ship only after all gates green."
+2. `workflow_run` triggers only fire from workflow files living on
+   the repository's **default branch**. The default here is `master`
+   and Rewrite is 358+ commits ahead; `deploy.yml` lives on Rewrite
+   only, so the trigger would never fire even if (1) were solved.
+
+Both are solvable (consolidate into one workflow, or query the
+GitHub API for sibling-workflow status on the same SHA before
+proceeding). They're worth doing for a multi-engineer setup but
+not for a solo portfolio anchor where the operator is the one
+clicking "Deploy" anyway. See "Future enhancements" below.
 
 ## Image-tag matrix
 
@@ -84,11 +104,21 @@ If smokes fail, the job logs the post-deploy compose state and
 exits 1. **There is no automatic rollback** — manual remediation is
 expected (the operator's first instinct in a broken deploy is
 usually to investigate root cause, not blindly roll back). To
-rollback to a known-good tag:
+rollback to a known-good tag, pass both inputs so the compose file
+on the box matches the image:
 
 ```bash
-gh workflow run deploy.yml -f image_tag=<sha-of-last-good-deploy> -f run_migrations=false
+gh workflow run deploy.yml \
+  -f image_tag=<sha-of-last-good-deploy> \
+  -f commit_sha=<sha-of-last-good-deploy> \
+  -f run_migrations=false
 ```
+
+`commit_sha` is the rollback-critical input — without it, the box
+syncs to `origin/Rewrite` HEAD on every deploy, which means an
+old-image rollback would launch yesterday's container against
+today's compose definition (new services / renamed env vars /
+adjusted healthchecks). Passing both keeps the rollout coherent.
 
 ## Required repo secrets
 
@@ -141,11 +171,37 @@ re-runs `docker login` each time using `GHCR_PULL_TOKEN`.
 ## Why this shape
 
 For a single-operator portfolio anchor with one production box,
-"push to Rewrite → live in ~4 min" is the right cadence. The gates
-in front (CI + E2E + A11y) catch the things that bite, the manual
+"green CI, then click Deploy" is the right cadence. The gates in
+front (CI + E2E + A11y) catch the things that bite, the manual
 `workflow_dispatch` gives a panic button for rollbacks, and
 `release.yml` exists so you can stamp a versioned image when
 something is worth pinning. No staging environment, no blue/green —
 the VM has 2 GB RAM and one Caddy reverse-proxy in front; the
 operational cost of a more elaborate setup outweighs the benefit
 at this scale.
+
+## Future enhancements
+
+When the project grows past a solo operator, the things worth adding:
+
+- **Auto-deploy on green CI** — consolidate `e2e.yml` + `accessibility.yml`
+  into jobs inside `ci.yml` (with shared docker-compose setup), then add
+  a `deploy` job in `ci.yml` that runs after all gates pass on Rewrite.
+  Or keep the workflows separate and add a `wait-for-checks` step at
+  the top of `deploy.yml` that polls the GitHub API for sibling-workflow
+  status on the same SHA. Either move solves the "fires per workflow"
+  problem the current setup ducked.
+- **Default-branch flip** — set the GitHub default branch to `Rewrite`
+  (Settings → Branches → default), and remove the `:main` paths from
+  `ci.yml`. The 358-commit gap to `master` makes the dual-branch
+  trigger more confusing than useful.
+- **Staging environment** — second AWS t4g.small (or t4g.micro on
+  free tier) at `staging.lumen.ahmedhobeishy.tech`. CD auto-rolls
+  staging on Rewrite push, prod requires manual promote.
+- **Trivy gate** — flip `exit-code` from `"0"` to `"1"` on the
+  Trivy scans in `ci.yml:build-images` once the base images are
+  pinned to digests so CVE noise stays low.
+- **Branch protection** — `Settings → Branches → Rewrite → Require
+  status checks before merging`, list the 5 gates. Loses the ability
+  to push directly to Rewrite but gains the guarantee that every
+  commit reaching the canonical branch has passed all checks.

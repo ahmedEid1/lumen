@@ -34,9 +34,7 @@ if TYPE_CHECKING:
 
 class Discussion(IdMixin, TimestampMixin, Base):
     __tablename__ = "discussions"
-    __table_args__ = (
-        Index("ix_discussions_course_created", "course_id", "created_at"),
-    )
+    __table_args__ = (Index("ix_discussions_course_created", "course_id", "created_at"),)
 
     course_id: Mapped[str] = mapped_column(
         ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
@@ -46,9 +44,7 @@ class Discussion(IdMixin, TimestampMixin, Base):
     )
     title: Mapped[str] = mapped_column(String(240), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     course: Mapped[Course] = relationship()
     author: Mapped[User | None] = relationship()
@@ -72,9 +68,7 @@ class DiscussionReply(IdMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     body: Mapped[str] = mapped_column(Text, nullable=False)
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     discussion: Mapped[Discussion] = relationship(back_populates="replies")
     author: Mapped[User | None] = relationship()

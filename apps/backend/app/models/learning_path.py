@@ -89,22 +89,16 @@ class LearningPath(IdMixin, Base):
         ),
     )
 
-    user_id: Mapped[str] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     goal: Mapped[str] = mapped_column(Text, nullable=False)
     # Free-form natural-language reasoning the agent emitted. The
     # frontend renders this verbatim so the learner can see "why"
     # behind each pick. Empty string until the agent fills it in.
-    rationale: Mapped[str] = mapped_column(
-        Text, nullable=False, default="", server_default=""
-    )
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     # ``{course_slug: str, kind: str}`` or null. The TodayWidget reads
     # this directly; the API enriches it with ``due_review_count``
     # and (for ``start_lesson``) a resolved lesson id.
-    next_action: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB, nullable=True
-    )
+    next_action: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String(24), nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(

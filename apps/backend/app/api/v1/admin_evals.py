@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.api.deps import RequireAdmin
 from app.core.errors import NotFoundError, ValidationAppError
 from app.core.logging import get_logger
-from app.evals.golden import SUITES, SuiteName, dataset_path, load_dataset
+from app.evals.golden import SUITES, dataset_path, load_dataset
 from app.evals.reports import list_reports, read_report_by_id
 from app.evals.runner import run_suite
 
@@ -133,9 +133,7 @@ async def get_eval_report(report_id: str, _: RequireAdmin) -> ReportDetail:
     separator so a curious caller can't poke at the filesystem.
     """
     if "/" in report_id or "\\" in report_id or ".." in report_id:
-        raise ValidationAppError(
-            "Invalid report id", code="evals.bad_report_id"
-        )
+        raise ValidationAppError("Invalid report id", code="evals.bad_report_id")
     payload = read_report_by_id(report_id)
     if payload is None:
         raise NotFoundError("Report not found", code="evals.report_not_found")

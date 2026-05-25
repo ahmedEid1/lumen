@@ -110,7 +110,10 @@ def _client(s=None):
         aws_access_key_id=s.s3_access_key_id,
         aws_secret_access_key=s.s3_secret_access_key.get_secret_value(),
         region_name=s.s3_region,
-        config=Config(signature_version="s3v4", s3={"addressing_style": "path" if s.s3_force_path_style else "auto"}),
+        config=Config(
+            signature_version="s3v4",
+            s3={"addressing_style": "path" if s.s3_force_path_style else "auto"},
+        ),
     )
 
 
@@ -128,9 +131,7 @@ def sign_upload(
     # types are forever rejected because they execute / render in a
     # browser and the public bucket would happily serve them as-is.
     if content_type.lower() in ALWAYS_DENIED_TYPES:
-        raise ValidationAppError(
-            "Content-Type not allowed", code="upload.content_type_denied"
-        )
+        raise ValidationAppError("Content-Type not allowed", code="upload.content_type_denied")
     allowed = ALLOWED_PER_KIND[kind]
     if content_type not in allowed:
         raise ValidationAppError(

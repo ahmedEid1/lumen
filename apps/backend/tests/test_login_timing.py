@@ -46,6 +46,6 @@ async def test_unknown_email_and_wrong_password_take_similar_time(
     # enumeration oracle.
     ratio = max(unknown, wrong) / max(1e-6, min(unknown, wrong))
     assert ratio < 3, (
-        f"unknown={unknown*1000:.1f}ms wrong={wrong*1000:.1f}ms — timing "
+        f"unknown={unknown * 1000:.1f}ms wrong={wrong * 1000:.1f}ms — timing "
         f"side-channel re-opened (ratio={ratio:.1f}×)"
     )

@@ -30,9 +30,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _published(
-    client: AsyncClient, teacher: dict, subject_id: str, seed_lesson
-) -> str:
+async def _published(client: AsyncClient, teacher: dict, subject_id: str, seed_lesson) -> str:
     create = await client.post(
         "/api/v1/courses",
         json={"title": "DN", "subject_id": subject_id, "overview": "x"},
@@ -59,11 +57,13 @@ async def test_reply_notifies_thread_author(
     for h in (asker, helper):
         await client.post(f"/api/v1/me/enrollments/{course_id}", headers=h)
 
-    thread = (await client.post(
-        f"/api/v1/courses/{course_id}/discussions",
-        json={"title": "Help with lesson 3", "body": ""},
-        headers=asker,
-    )).json()
+    thread = (
+        await client.post(
+            f"/api/v1/courses/{course_id}/discussions",
+            json={"title": "Help with lesson 3", "body": ""},
+            headers=asker,
+        )
+    ).json()
 
     # helper replies — asker should get a notification.
     r = await client.post(
@@ -94,11 +94,13 @@ async def test_self_reply_does_not_notify(
     course_id = await _published(client, teacher, subject.id, seed_lesson)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 
-    thread = (await client.post(
-        f"/api/v1/courses/{course_id}/discussions",
-        json={"title": "Note to self", "body": ""},
-        headers=student,
-    )).json()
+    thread = (
+        await client.post(
+            f"/api/v1/courses/{course_id}/discussions",
+            json={"title": "Note to self", "body": ""},
+            headers=student,
+        )
+    ).json()
     await client.post(
         f"/api/v1/discussions/{thread['id']}/replies",
         json={"body": "Replying to myself"},
@@ -132,11 +134,13 @@ async def test_no_notification_when_thread_author_was_deleted(
     )
     asker_h = {"Authorization": f"Bearer {login.json()['access_token']}"}
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=asker_h)
-    thread = (await client.post(
-        f"/api/v1/courses/{course_id}/discussions",
-        json={"title": "Ghosted", "body": ""},
-        headers=asker_h,
-    )).json()
+    thread = (
+        await client.post(
+            f"/api/v1/courses/{course_id}/discussions",
+            json={"title": "Ghosted", "body": ""},
+            headers=asker_h,
+        )
+    ).json()
 
     # Simulate the SET NULL cascade.
     from sqlalchemy import update

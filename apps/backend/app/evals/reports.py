@@ -44,7 +44,6 @@ from typing import Any
 
 from app.evals.golden import reports_dir
 
-
 # Marker key that identifies the summary line in a report file.
 SUMMARY_KEY = "_summary"
 
@@ -136,7 +135,9 @@ def compute_summary(
             except (TypeError, ValueError):
                 continue
 
-    axes_mean: dict[str, float] = {axis: round(mean(vals), 4) for axis, vals in bucket.items() if vals}
+    axes_mean: dict[str, float] = {
+        axis: round(mean(vals), 4) for axis, vals in bucket.items() if vals
+    }
     mean_overall = round(mean(axes_mean.values()), 4) if axes_mean else 0.0
 
     regression: dict[str, Any] | None = None
@@ -161,8 +162,12 @@ def compute_summary(
     return {
         SUMMARY_KEY: True,
         "suite": suite,
-        "started_at": started_at.isoformat() + "Z" if started_at.tzinfo is None else started_at.isoformat(),
-        "finished_at": finished_at.isoformat() + "Z" if finished_at.tzinfo is None else finished_at.isoformat(),
+        "started_at": started_at.isoformat() + "Z"
+        if started_at.tzinfo is None
+        else started_at.isoformat(),
+        "finished_at": finished_at.isoformat() + "Z"
+        if finished_at.tzinfo is None
+        else finished_at.isoformat(),
         "judge_provider": judge_provider,
         "judge_model": judge_model,
         "items_total": items_total,

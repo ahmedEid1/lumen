@@ -33,7 +33,9 @@ async def test_certificate_blocked_until_completion(
     )
     course_id = create.json()["id"]
     m = (
-        await client.post(f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher)
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher
+        )
     ).json()
     lesson = (
         await client.post(
@@ -42,7 +44,9 @@ async def test_certificate_blocked_until_completion(
             headers=teacher,
         )
     ).json()
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    )
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 
     # Not earned yet

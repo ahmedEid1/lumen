@@ -32,7 +32,6 @@ from app.models.llm_call import (
 from app.services.llm import ChatMessage, ChatResponse, NoopProvider
 from app.services.llm_call_log import call_logged
 
-
 # ---------- Helpers ----------
 
 
@@ -143,11 +142,7 @@ async def test_call_logged_persists_ok_row_with_cost(
     await db_session.flush()
     assert response.text == "hi"
 
-    row = (
-        await db_session.execute(
-            select(LLMCall).where(LLMCall.user_id == user_id)
-        )
-    ).scalar_one()
+    row = (await db_session.execute(select(LLMCall).where(LLMCall.user_id == user_id))).scalar_one()
     assert row.status == STATUS_OK
     assert row.error_kind is None
     assert row.feature == "tutor"
@@ -173,18 +168,16 @@ async def test_call_logged_with_noop_provider_uses_estimated_tokens(
     user_id = _make_user_id()
     await call_logged(
         NoopProvider(),
-        [ChatMessage(role="system", content="Lesson Labc: T\nbody"),
-         ChatMessage(role="user", content="What?")],
+        [
+            ChatMessage(role="system", content="Lesson Labc: T\nbody"),
+            ChatMessage(role="user", content="What?"),
+        ],
         user_id=user_id,
         feature="tutor",
         session=db_session,
     )
     await db_session.flush()
-    row = (
-        await db_session.execute(
-            select(LLMCall).where(LLMCall.user_id == user_id)
-        )
-    ).scalar_one()
+    row = (await db_session.execute(select(LLMCall).where(LLMCall.user_id == user_id))).scalar_one()
     assert row.status == STATUS_OK
     assert row.prompt_tokens > 0
     assert row.completion_tokens > 0
@@ -209,11 +202,7 @@ async def test_call_logged_persists_error_row_and_reraises(
             session=db_session,
         )
     await db_session.flush()
-    row = (
-        await db_session.execute(
-            select(LLMCall).where(LLMCall.user_id == user_id)
-        )
-    ).scalar_one()
+    row = (await db_session.execute(select(LLMCall).where(LLMCall.user_id == user_id))).scalar_one()
     assert row.status == STATUS_ERROR
     assert row.error_kind == "RuntimeError"
     assert row.prompt_tokens == 0
@@ -247,12 +236,14 @@ async def test_budget_guard_trips_when_spend_over_cap(
 
     await db_session.flush()
     rows = (
-        await db_session.execute(
-            select(LLMCall)
-            .where(LLMCall.user_id == user_id)
-            .order_by(LLMCall.created_at)
+        (
+            await db_session.execute(
+                select(LLMCall).where(LLMCall.user_id == user_id).order_by(LLMCall.created_at)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(rows) == 2
     statuses = {r.status for r in rows}
     assert STATUS_OK in statuses
@@ -297,9 +288,7 @@ async def test_budget_guard_skipped_for_system_sentinel(
 
     # Even with an absurdly large pre-existing spend on the sentinel,
     # the next call must go through.
-    await _seed_spend(
-        db_session, user_id=SYSTEM_USER_ID, cost=Decimal("999.000000")
-    )
+    await _seed_spend(db_session, user_id=SYSTEM_USER_ID, cost=Decimal("999.000000"))
     response = await call_logged(
         _FixedUsageProvider(),
         _msgs(),
@@ -313,9 +302,7 @@ async def test_budget_guard_skipped_for_system_sentinel(
 # ---------- Disable switch ----------
 
 
-async def test_cost_tracking_disabled_skips_meter(
-    db_session: AsyncSession, monkeypatch
-) -> None:
+async def test_cost_tracking_disabled_skips_meter(db_session: AsyncSession, monkeypatch) -> None:
     """``LLM_COST_TRACKING_ENABLED=false`` → no row written, no guard."""
     monkeypatch.setenv("LLM_COST_TRACKING_ENABLED", "false")
     get_settings.cache_clear()  # type: ignore[attr-defined]
@@ -338,9 +325,9 @@ async def test_cost_tracking_disabled_skips_meter(
     # itself didn't write).
     await db_session.flush()
     rows = (
-        await db_session.execute(
-            select(LLMCall).where(LLMCall.user_id == user_id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(LLMCall).where(LLMCall.user_id == user_id)))
+        .scalars()
+        .all()
+    )
     assert len(rows) == 1
     assert rows[0].cost_usd == Decimal("100.000000")

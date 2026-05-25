@@ -110,7 +110,9 @@ async def _quiz_course(client: AsyncClient, teacher: dict, subject_id: str) -> t
     )
     course_id = create.json()["id"]
     m = (
-        await client.post(f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher)
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher
+        )
     ).json()
     lesson = (
         await client.post(
@@ -142,7 +144,9 @@ async def _quiz_course(client: AsyncClient, teacher: dict, subject_id: str) -> t
             headers=teacher,
         )
     ).json()
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    )
     return course_id, lesson["id"], text_lesson["id"]
 
 

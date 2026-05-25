@@ -62,7 +62,11 @@ def configure_logging(level: str = "INFO", *, json: bool = True, stderr: bool = 
         # nothing.
         TimeStamper(fmt="iso", utc=True),
         CallsiteParameterAdder(
-            parameters={CallsiteParameter.MODULE, CallsiteParameter.FUNC_NAME, CallsiteParameter.LINENO}
+            parameters={
+                CallsiteParameter.MODULE,
+                CallsiteParameter.FUNC_NAME,
+                CallsiteParameter.LINENO,
+            }
         ),
         StackInfoRenderer(),
         format_exc_info,
@@ -70,8 +74,13 @@ def configure_logging(level: str = "INFO", *, json: bool = True, stderr: bool = 
     ]
 
     structlog.configure(
-        processors=[*shared_processors, JSONRenderer() if json else structlog.dev.ConsoleRenderer()],
-        wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, level.upper(), logging.INFO)),
+        processors=[
+            *shared_processors,
+            JSONRenderer() if json else structlog.dev.ConsoleRenderer(),
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(
+            getattr(logging, level.upper(), logging.INFO)
+        ),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(file=stream),
         cache_logger_on_first_use=True,

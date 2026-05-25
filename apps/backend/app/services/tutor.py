@@ -177,9 +177,7 @@ def build_system_prompt(course: Course, chunks: list[LessonChunk]) -> str:
     )
 
 
-def extract_citations(
-    answer: str, chunks: list[LessonChunk]
-) -> list[Citation]:
+def extract_citations(answer: str, chunks: list[LessonChunk]) -> list[Citation]:
     """Parse ``[L:lesson_id]`` tokens, validate, attach lesson context.
 
     The retrieval set bounds the citation universe — any token the
@@ -275,9 +273,7 @@ async def ask(
     # Empty-retrieval cost guard — kept here (not deferred into the
     # orchestrator) so a question against an unembedded course doesn't
     # burn a planner round-trip before refusing.
-    chunks = await find_relevant_chunks(
-        db, course_id=course.id, query=user_message, top_k=top_k
-    )
+    chunks = await find_relevant_chunks(db, course_id=course.id, query=user_message, top_k=top_k)
     if not chunks:
         log.info(
             "tutor_refusal_no_retrieval",
@@ -375,6 +371,8 @@ async def ask_with_trace(
     # Local import to avoid a module-level cycle.
     from app.services.tutor_orchestrator import (
         OrchestratorResult as _OrchResult,
+    )
+    from app.services.tutor_orchestrator import (
         orchestrate,
     )
 
@@ -446,9 +444,7 @@ async def ask_with_trace(
         citations = extract_citations(orch_result.answer, chunks)
 
     return (
-        TutorAnswer(
-            answer=orch_result.answer, citations=citations, refused=False
-        ),
+        TutorAnswer(answer=orch_result.answer, citations=citations, refused=False),
         orch_result,
     )
 
@@ -457,9 +453,9 @@ __all__ = [
     "CITATION_EXCERPT_CHARS",
     "CITATION_RE",
     "CONTEXT_EXCERPT_CHARS",
-    "Citation",
     "DEFAULT_TOP_K",
     "REFUSAL_TEXT",
+    "Citation",
     "TutorAnswer",
     "ask",
     "ask_with_trace",

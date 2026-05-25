@@ -37,9 +37,7 @@ def test_no_kind_uses_wildcard():
 def test_no_kind_allow_list_contains_a_denied_type():
     for kind, allowed in ALLOWED_PER_KIND.items():
         offenders = allowed & ALWAYS_DENIED_TYPES
-        assert not offenders, (
-            f"kind={kind!r} allow-list contains denied types: {offenders!r}"
-        )
+        assert not offenders, f"kind={kind!r} allow-list contains denied types: {offenders!r}"
 
 
 def test_always_denied_covers_the_classic_xss_carriers():
@@ -86,9 +84,7 @@ async def test_sign_rejects_xss_carriers_for_attachment_kind(
     }
 
 
-async def test_sign_allows_a_typical_attachment(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_sign_allows_a_typical_attachment(client: AsyncClient, auth_headers) -> None:
     h = await auth_headers()
     r = await client.post(
         "/api/v1/uploads/sign",

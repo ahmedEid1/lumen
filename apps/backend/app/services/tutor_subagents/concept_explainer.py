@@ -128,7 +128,7 @@ async def run(
             session=db,
             temperature=0.5,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         kind = type(exc).__name__
         log.warning(
             "concept_explainer_llm_failed",
@@ -181,4 +181,4 @@ async def run(
     )
 
 
-__all__ = ["ConceptExplainResult", "FEATURE", "run"]
+__all__ = ["FEATURE", "ConceptExplainResult", "run"]

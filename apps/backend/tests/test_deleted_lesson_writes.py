@@ -38,7 +38,9 @@ async def _publish(client: AsyncClient, teacher: dict, subject_id: str) -> tuple
     )
     course_id = create.json()["id"]
     m = (
-        await client.post(f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher)
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher
+        )
     ).json()
     text_lesson = (
         await client.post(
@@ -70,7 +72,9 @@ async def _publish(client: AsyncClient, teacher: dict, subject_id: str) -> tuple
             headers=teacher,
         )
     ).json()
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    )
     return course_id, text_lesson["id"], quiz_lesson["id"]
 
 

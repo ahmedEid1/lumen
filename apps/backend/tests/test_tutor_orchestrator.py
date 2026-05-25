@@ -119,9 +119,7 @@ class _ScriptedProvider:
         del temperature
         self.calls.append(list(messages))
         if not self._replies:
-            raise AssertionError(
-                "scripted queue exhausted — test under-scripted the LLM"
-            )
+            raise AssertionError("scripted queue exhausted — test under-scripted the LLM")
         return self._replies.pop(0)
 
     async def chat_with_usage(self, messages, temperature: float = 0.2):  # type: ignore[no-untyped-def]
@@ -134,9 +132,7 @@ class _ScriptedProvider:
         )
 
 
-def _install_provider(
-    monkeypatch: pytest.MonkeyPatch, replies: list[str]
-) -> _ScriptedProvider:
+def _install_provider(monkeypatch: pytest.MonkeyPatch, replies: list[str]) -> _ScriptedProvider:
     prov = _ScriptedProvider(replies)
     monkeypatch.setattr(llm_service, "get_provider", lambda: prov)
     return prov
@@ -198,9 +194,7 @@ async def test_orchestrate_happy_path_single_tool_retriever(
 
     # Fetch the seeded lesson ids so we can script a synthesiser
     # reply that cites a real one.
-    lessons = (
-        await db_session.execute(select(Lesson).order_by(Lesson.order))
-    ).scalars().all()
+    lessons = (await db_session.execute(select(Lesson).order_by(Lesson.order))).scalars().all()
     lid = lessons[0].id
 
     plan_reply = json.dumps(
@@ -216,9 +210,7 @@ async def test_orchestrate_happy_path_single_tool_retriever(
             "final_answer_hint": None,
         }
     )
-    synth_reply = (
-        f"Plants use chlorophyll to convert sunlight into sugar [L:{lid}]."
-    )
+    synth_reply = f"Plants use chlorophyll to convert sunlight into sugar [L:{lid}]."
     # confidence_after_plan=5 so re-plan is skipped → only planner + synth.
     _install_provider(monkeypatch, [plan_reply, synth_reply])
 
@@ -248,9 +240,7 @@ async def test_orchestrate_multi_tool_plan_runs_both(
     )
     await ingest_course(db_session, course.id)
 
-    lid = (
-        await db_session.execute(select(Lesson.id))
-    ).scalar_one()
+    lid = (await db_session.execute(select(Lesson.id))).scalar_one()
 
     plan_reply = json.dumps(
         {
@@ -282,9 +272,7 @@ async def test_orchestrate_multi_tool_plan_runs_both(
         f"Cells are the basic unit of life [L:{lid}]. "
         "Try this practice question: What's the basic unit of life?"
     )
-    _install_provider(
-        monkeypatch, [plan_reply, quiz_reply, synth_reply]
-    )
+    _install_provider(monkeypatch, [plan_reply, quiz_reply, synth_reply])
 
     result = await tutor_orchestrator.orchestrate(
         db_session,
@@ -310,9 +298,7 @@ async def test_orchestrate_planner_failure_falls_back_to_retriever(
     )
     await ingest_course(db_session, course.id)
 
-    lid = (
-        await db_session.execute(select(Lesson.id))
-    ).scalar_one()
+    lid = (await db_session.execute(select(Lesson.id))).scalar_one()
 
     # Planner reply: complete garbage → fallback fires.
     # Synthesiser reply (1 LLM call after fallback retriever): valid.
@@ -348,9 +334,7 @@ async def test_orchestrate_records_trace_steps(
     )
     await ingest_course(db_session, course.id)
 
-    lid = (
-        await db_session.execute(select(Lesson.id))
-    ).scalar_one()
+    lid = (await db_session.execute(select(Lesson.id))).scalar_one()
 
     plan_reply = json.dumps(
         {
@@ -366,9 +350,7 @@ async def test_orchestrate_records_trace_steps(
         }
     )
     user_id = _uid()
-    _install_provider(
-        monkeypatch, [plan_reply, f"Cells are foundational [L:{lid}]."]
-    )
+    _install_provider(monkeypatch, [plan_reply, f"Cells are foundational [L:{lid}]."])
 
     await tutor_orchestrator.orchestrate(
         db_session,
@@ -378,10 +360,10 @@ async def test_orchestrate_records_trace_steps(
     )
 
     rows = (
-        await db_session.execute(
-            select(AgentTrace).where(AgentTrace.user_id == user_id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(AgentTrace).where(AgentTrace.user_id == user_id)))
+        .scalars()
+        .all()
+    )
     steps = {r.step for r in rows}
     # At minimum: a plan step, a tool_call step, a sub_agent.retriever
     # step (recorded by the retriever sub-agent itself), and a
@@ -400,19 +382,13 @@ async def test_ask_refusal_on_empty_retrieval_preserved(
 ) -> None:
     """Empty course → REFUSAL_TEXT *without* an LLM call (cost guard)."""
     owner = await make_user(role=Role.instructor)
-    course = await _seed_course(
-        db_session, owner_id=owner.id, lesson_bodies=[]
-    )
-    result = await tutor_service.ask(
-        db_session, course=course, user_message="anything"
-    )
+    course = await _seed_course(db_session, owner_id=owner.id, lesson_bodies=[])
+    result = await tutor_service.ask(db_session, course=course, user_message="anything")
     assert result.refused is True
     assert result.answer == tutor_service.REFUSAL_TEXT
 
 
-async def test_ask_blank_message_returns_refusal(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_ask_blank_message_returns_refusal(db_session: AsyncSession, make_user) -> None:
     """Blank question short-circuits to refusal."""
     owner = await make_user(role=Role.instructor)
     course = await _seed_course(
@@ -420,9 +396,7 @@ async def test_ask_blank_message_returns_refusal(
         owner_id=owner.id,
         lesson_bodies=[("L", "body. " * 20)],
     )
-    result = await tutor_service.ask(
-        db_session, course=course, user_message="   "
-    )
+    result = await tutor_service.ask(db_session, course=course, user_message="   ")
     assert result.refused is True
 
 
@@ -437,9 +411,7 @@ async def test_ask_with_trace_returns_orchestrator_payload(
         lesson_bodies=[("Intro", "Cells everywhere. " * 8)],
     )
     await ingest_course(db_session, course.id)
-    lid = (
-        await db_session.execute(select(Lesson.id))
-    ).scalar_one()
+    lid = (await db_session.execute(select(Lesson.id))).scalar_one()
     plan_reply = json.dumps(
         {
             "tool_calls": [
@@ -453,9 +425,7 @@ async def test_ask_with_trace_returns_orchestrator_payload(
             "final_answer_hint": None,
         }
     )
-    _install_provider(
-        monkeypatch, [plan_reply, f"Cells are foundational [L:{lid}]."]
-    )
+    _install_provider(monkeypatch, [plan_reply, f"Cells are foundational [L:{lid}]."])
 
     answer, orch = await tutor_service.ask_with_trace(
         db_session,

@@ -39,7 +39,9 @@ async def _enrolled(
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, teacher)
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    )
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     return course_id
 
@@ -77,9 +79,7 @@ async def test_archived_courses_still_appear_on_dashboard(
     subject = await _make_subject(db_session)
     course_id = await _enrolled(client, teacher, student, subject.id, "Archived", seed_lesson)
 
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "archived"}, headers=teacher
-    )
+    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "archived"}, headers=teacher)
 
     listing = await client.get("/api/v1/me/enrollments", headers=student)
     ids = {e["course"]["id"] for e in listing.json()}

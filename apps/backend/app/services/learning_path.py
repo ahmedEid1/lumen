@@ -82,8 +82,12 @@ from app.models.learning_path import (
     LearningPathStep,
 )
 from app.models.lesson_chunk import LessonChunk
-from app.services import agent_tracer, fsrs as fsrs_service, llm as llm_service, mastery as mastery_service
-from app.services.embeddings import EmbeddingProvider, get_provider as get_embedding_provider
+from app.services import agent_tracer
+from app.services import fsrs as fsrs_service
+from app.services import llm as llm_service
+from app.services import mastery as mastery_service
+from app.services.embeddings import EmbeddingProvider
+from app.services.embeddings import get_provider as get_embedding_provider
 from app.services.llm_call_log import call_logged
 
 log = get_logger(__name__)
@@ -334,9 +338,7 @@ async def build_path(
     )
 
     # ---------- 3. Build the prompt ----------
-    user_prompt = _build_user_prompt(
-        goal=goal, catalog=catalog, constraints=constraints
-    )
+    user_prompt = _build_user_prompt(goal=goal, catalog=catalog, constraints=constraints)
 
     # ---------- 4. Call the LLM (metered) with one-shot retry ----------
     plan, llm_raw = await _chat_with_retry(
@@ -365,8 +367,7 @@ async def build_path(
     # through the candidate list if the catalog snapshot was taken
     # before the deletion).
     resolved_milestones = [
-        (m, [s for s in m.course_slugs if s in slug_to_course])
-        for m in plan.milestones
+        (m, [s for s in m.course_slugs if s in slug_to_course]) for m in plan.milestones
     ]
     if not any(slugs for _, slugs in resolved_milestones):
         raise AppError(
@@ -419,9 +420,7 @@ async def build_path(
     return await _load_path_with_steps(db, path.id)
 
 
-async def replan_for_user(
-    db: AsyncSession, *, user_id: str
-) -> LearningPath | None:
+async def replan_for_user(db: AsyncSession, *, user_id: str) -> LearningPath | None:
     """Re-run the build for a user's active path, archives the old one.
 
     Returns ``None`` if the user has no active path (the monthly
@@ -466,9 +465,7 @@ async def mark_step_complete(
     return step
 
 
-async def get_active_path(
-    db: AsyncSession, *, user_id: str
-) -> LearningPath | None:
+async def get_active_path(db: AsyncSession, *, user_id: str) -> LearningPath | None:
     """Return the user's single active path (or ``None``)."""
     stmt = (
         select(LearningPath)
@@ -481,9 +478,7 @@ async def get_active_path(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
-async def get_today_action(
-    db: AsyncSession, *, user_id: str
-) -> dict[str, Any] | None:
+async def get_today_action(db: AsyncSession, *, user_id: str) -> dict[str, Any] | None:
     """Bundle the agent's next-action hint with current FSRS load.
 
     Shape returned: ``{course_slug, kind, lesson_id_if_applicable,
@@ -538,9 +533,7 @@ async def _condense_catalog(
     prov = embedding_provider or get_embedding_provider()
     [query_vec] = prov.embed([goal])
 
-    distance_col = LessonChunk.embedding.cosine_distance(query_vec).label(
-        "distance"
-    )
+    distance_col = LessonChunk.embedding.cosine_distance(query_vec).label("distance")
     stmt = (
         select(
             LessonChunk.id.label("chunk_id"),
@@ -606,9 +599,7 @@ async def _condense_catalog(
     return digests[:top_k]
 
 
-async def _fallback_recent_published(
-    db: AsyncSession, top_k: int
-) -> list[CourseDigest]:
+async def _fallback_recent_published(db: AsyncSession, top_k: int) -> list[CourseDigest]:
     """Last-resort candidate list when no chunks have been embedded.
 
     Dev environments where ``embeddings_ingest`` hasn't run on the
@@ -672,15 +663,10 @@ def _build_user_prompt(
 ) -> str:
     """Stitch goal + candidates + constraints into one user-turn prompt."""
     candidate_lines = "\n".join(
-        f"- {c.slug} | {c.title} | {c.difficulty} | {c.overview}"
-        for c in catalog
+        f"- {c.slug} | {c.title} | {c.difficulty} | {c.overview}" for c in catalog
     )
-    mastered_block = (
-        ", ".join(constraints.mastered_slugs) or "(none)"
-    )
-    progress_block = (
-        ", ".join(constraints.in_progress_slugs) or "(none)"
-    )
+    mastered_block = ", ".join(constraints.mastered_slugs) or "(none)"
+    progress_block = ", ".join(constraints.in_progress_slugs) or "(none)"
     return (
         f"GOAL:\n{goal}\n\n"
         f"CANDIDATE COURSES (slug | title | difficulty | overview):\n"
@@ -711,9 +697,7 @@ def _extract_json(raw: str) -> str:
     return raw.strip()
 
 
-def _try_parse(
-    raw: str, *, candidate_slugs: set[str]
-) -> tuple[_Plan | None, str | None]:
+def _try_parse(raw: str, *, candidate_slugs: set[str]) -> tuple[_Plan | None, str | None]:
     """Validate raw LLM output. Returns ``(plan, None)`` or ``(None, error)``.
 
     The slug-membership check happens *here* (not in the Pydantic
@@ -751,8 +735,7 @@ def _try_parse(
         )
     if plan.next_action and plan.next_action.course_slug not in candidate_slugs:
         return None, (
-            f"next_action.course_slug not in candidate list: "
-            f"{plan.next_action.course_slug}"
+            f"next_action.course_slug not in candidate list: {plan.next_action.course_slug}"
         )
     return plan, None
 
@@ -883,9 +866,7 @@ async def _archive_active(db: AsyncSession, *, user_id: str) -> None:
     await db.flush()
 
 
-async def _resolve_slugs(
-    db: AsyncSession, *, slugs: list[str]
-) -> dict[str, Course]:
+async def _resolve_slugs(db: AsyncSession, *, slugs: list[str]) -> dict[str, Course]:
     """Look up live, published courses by slug. Drops missing entries."""
     if not slugs:
         return {}
@@ -924,9 +905,7 @@ def _next_action_dict(
     return {"course_slug": action.course_slug, "kind": action.kind}
 
 
-async def _load_path_with_steps(
-    db: AsyncSession, path_id: str
-) -> LearningPath:
+async def _load_path_with_steps(db: AsyncSession, path_id: str) -> LearningPath:
     """Re-load a path with its steps eagerly attached."""
     stmt = (
         select(LearningPath)
@@ -936,9 +915,7 @@ async def _load_path_with_steps(
     return (await db.execute(stmt)).scalar_one()
 
 
-async def _first_lesson_for_slug(
-    db: AsyncSession, *, slug: str
-) -> str | None:
+async def _first_lesson_for_slug(db: AsyncSession, *, slug: str) -> str | None:
     """Return the first live lesson id in the course (or ``None``).
 
     Used by ``get_today_action`` to deep-link "start lesson" into a
@@ -965,9 +942,7 @@ async def _first_lesson_for_slug(
 # ---------- Authorisation helper (used by the API layer) ----------
 
 
-def ensure_owner_or_admin(
-    *, path_user_id: str, requesting_user_id: str, is_admin: bool
-) -> None:
+def ensure_owner_or_admin(*, path_user_id: str, requesting_user_id: str, is_admin: bool) -> None:
     """Raise ForbiddenError unless the caller owns the path or is admin.
 
     Surfaced here (not just in the API module) so the Celery beat
@@ -984,9 +959,9 @@ def ensure_owner_or_admin(
 
 
 __all__ = [
+    "FEATURE",
     "Constraints",
     "CourseDigest",
-    "FEATURE",
     "build_path",
     "ensure_owner_or_admin",
     "get_active_path",

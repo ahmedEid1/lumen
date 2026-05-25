@@ -72,9 +72,7 @@ async def test_record_step_persists_row_with_expected_fields(
 
     # Round-trip — re-read from the DB to confirm the row landed.
     fetched = (
-        await db_session.execute(
-            select(AgentTrace).where(AgentTrace.id == trace.id)
-        )
+        await db_session.execute(select(AgentTrace).where(AgentTrace.id == trace.id))
     ).scalar_one()
     assert fetched.payload == payload
     assert fetched.user_id == user_id
@@ -168,9 +166,7 @@ async def test_record_step_threads_parent_trace_id_for_tree(
     seen: list[str] = []
     while pointer is not None:
         row = (
-            await db_session.execute(
-                select(AgentTrace).where(AgentTrace.id == pointer)
-            )
+            await db_session.execute(select(AgentTrace).where(AgentTrace.id == pointer))
         ).scalar_one()
         seen.append(row.id)
         pointer = row.parent_trace_id
@@ -280,9 +276,7 @@ async def test_list_recent_filters_by_feature(db_session: AsyncSession) -> None:
         step_index=0,
         payload={},
     )
-    rows = await list_recent(
-        db_session, feature="authoring.critique_revise", user_id=user_id
-    )
+    rows = await list_recent(db_session, feature="authoring.critique_revise", user_id=user_id)
     assert len(rows) == 1
     assert rows[0].feature == "authoring.critique_revise"
 
@@ -386,10 +380,10 @@ async def test_record_step_failure_does_not_poison_outer_transaction(
     # The seeded row is still readable, confirming the outer txn
     # wasn't rolled back.
     rows = (
-        await db_session.execute(
-            select(AgentTrace).where(AgentTrace.user_id == user_id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(AgentTrace).where(AgentTrace.user_id == user_id)))
+        .scalars()
+        .all()
+    )
     ids = {r.id for r in rows}
     assert seeded.id in ids
     assert follow_up.id in ids

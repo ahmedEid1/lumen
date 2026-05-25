@@ -10,8 +10,8 @@ from app.evals.judge import JudgeResult, judge_item
 from app.evals.runner import run_suite
 
 __all__ = [
-    "JudgeResult",
     "SUITES",
+    "JudgeResult",
     "SuiteName",
     "judge_item",
     "load_dataset",

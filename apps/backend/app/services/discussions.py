@@ -79,9 +79,7 @@ async def update_discussion(
     return d
 
 
-async def delete_discussion(
-    db: AsyncSession, *, discussion_id: str, user: User
-) -> None:
+async def delete_discussion(db: AsyncSession, *, discussion_id: str, user: User) -> None:
     d = await discussions_repo.get(db, discussion_id)
     if not d:
         raise NotFoundError("Discussion not found", code="discussion.not_found")
@@ -99,9 +97,7 @@ async def reply(
         raise NotFoundError("Discussion not found", code="discussion.not_found")
     # Replying is a write on the underlying course; gate the same way.
     await _course_for_write(db, d.course_id, user)
-    r = DiscussionReply(
-        discussion_id=d.id, author_id=user.id, body=payload.body.strip()
-    )
+    r = DiscussionReply(discussion_id=d.id, author_id=user.id, body=payload.body.strip())
     db.add(r)
     # Bump parent updated_at so list_for_course's last-activity
     # sort surfaces the bumped thread.
@@ -135,16 +131,12 @@ async def reply(
     return r
 
 
-async def delete_reply(
-    db: AsyncSession, *, reply_id: str, user: User
-) -> None:
+async def delete_reply(db: AsyncSession, *, reply_id: str, user: User) -> None:
     r = await discussions_repo.get_reply(db, reply_id)
     if not r:
         raise NotFoundError("Reply not found", code="reply.not_found")
     d = await discussions_repo.get(db, r.discussion_id)
-    course = (
-        await courses_repo.get_course(db, d.course_id) if d is not None else None
-    )
+    course = await courses_repo.get_course(db, d.course_id) if d is not None else None
     if not _can_edit(r, user, course_owner_id=course.owner_id if course else None):
         raise ForbiddenError("Cannot delete this reply", code="reply.forbidden")
     r.deleted_at = datetime.now(UTC)

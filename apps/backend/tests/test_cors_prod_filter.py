@@ -20,7 +20,6 @@ import pytest
 
 from app.main import _filter_prod_cors_origins
 
-
 # ---------- Filter behaviour ----------
 
 
@@ -144,9 +143,7 @@ def test_app_boot_fails_when_prod_cors_filters_to_empty(monkeypatch) -> None:
     # reaches the CORS-empty check rather than failing earlier.
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@db-prod.example.com:5432/lumen")
     monkeypatch.setenv("LLM_PROVIDER", "anthropic")
-    monkeypatch.setenv(
-        "WEB_BASE_URL", "https://lumen.example.com"
-    )
+    monkeypatch.setenv("WEB_BASE_URL", "https://lumen.example.com")
     monkeypatch.setenv("BADGES_ISSUER_URL", "https://lumen.example.com")
     monkeypatch.setenv("S3_SECRET_ACCESS_KEY", "real-secret-please")
     get_settings.cache_clear()  # type: ignore[attr-defined]
@@ -155,6 +152,7 @@ def test_app_boot_fails_when_prod_cors_filters_to_empty(monkeypatch) -> None:
         # ``settings`` is captured at module import in main.py, so we
         # also need to patch the module-level reference.
         import app.main as main_mod
+
         new_settings = Settings()
         assert new_settings.env == Environment.production
         monkeypatch.setattr(main_mod, "settings", new_settings)
@@ -185,6 +183,7 @@ def test_app_boots_when_prod_cors_has_real_origin(monkeypatch) -> None:
 
     try:
         import app.main as main_mod
+
         new_settings = Settings()
         monkeypatch.setattr(main_mod, "settings", new_settings)
         # No raise — the real origin survived the filter.

@@ -108,9 +108,7 @@ async def test_delete_unused_tag_succeeds(
     assert r.status_code == 200
 
 
-async def test_delete_unknown_tag_is_404(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_delete_unknown_tag_is_404(client: AsyncClient, auth_headers) -> None:
     admin = await auth_headers(role=Role.admin)
     r = await client.delete("/api/v1/admin/tags/nope", headers=admin)
     assert r.status_code == 404

@@ -35,7 +35,6 @@ from app.models.course import (
     Subject,
 )
 from app.models.tutor_conversation import (
-    TutorConversation,
     TutorMessage,
     TutorMessageRole,
 )
@@ -43,15 +42,14 @@ from app.models.user import Role, User
 from app.services import tutor as tutor_service
 from app.services.embeddings_ingest import ingest_course
 from app.services.llm import (
-    AnthropicProvider,
-    ChatMessage,
     NOOP_REFUSAL,
     NOOP_RESPONSE_PREFIX,
+    AnthropicProvider,
+    ChatMessage,
     NoopProvider,
     OpenAIProvider,
     get_provider,
 )
-
 
 # ---------- Fixtures + helpers ----------
 
@@ -185,20 +183,18 @@ async def test_extract_citations_validates_against_retrieval_set(
 
     # Pull the two chunks we just ingested so we have a concrete
     # retrieval set to validate against.
-    chunks = (
+    (
         await db_session.execute(
-            select(tutor_service.LessonChunk).order_by(
-                tutor_service.LessonChunk.lesson_id
-            )
+            select(tutor_service.LessonChunk).order_by(tutor_service.LessonChunk.lesson_id)
         )
-    ).scalars().all() if False else None  # noqa: F841 — keep explicit import readable
+    ).scalars().all() if False else None
     from app.models.lesson_chunk import LessonChunk
 
     chunks_rows = (
-        await db_session.execute(
-            select(LessonChunk).order_by(LessonChunk.lesson_id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(LessonChunk).order_by(LessonChunk.lesson_id)))
+        .scalars()
+        .all()
+    )
     # Eager-load lesson for each chunk so ``extract_citations`` can
     # read ``chunk.lesson.title`` without an N+1 mid-test.
     for c in chunks_rows:
@@ -207,8 +203,7 @@ async def test_extract_citations_validates_against_retrieval_set(
     real_id = chunks_rows[0].lesson_id
     fake_id = "lsn_fake_never_retrieved"
     answer = (
-        f"Plants need light [L:{real_id}] and also magic [L:{fake_id}] "
-        f"plus a repeat [L:{real_id}]."
+        f"Plants need light [L:{real_id}] and also magic [L:{fake_id}] plus a repeat [L:{real_id}]."
     )
     citations = tutor_service.extract_citations(answer, chunks_rows)
     # Real lesson kept, fake one dropped, repeat deduplicated.
@@ -234,9 +229,7 @@ async def test_ask_refuses_when_retrieval_returns_nothing(
     talking to the provider.
     """
     owner = await make_user(role=Role.instructor)
-    course = await _seed_course(
-        db_session, owner_id=owner.id, lesson_bodies=[]
-    )
+    course = await _seed_course(db_session, owner_id=owner.id, lesson_bodies=[])
     result = await tutor_service.ask(
         db_session,
         course=course,
@@ -280,28 +273,19 @@ async def test_ask_returns_answer_with_validated_citations(
     assert result.answer.startswith(NOOP_RESPONSE_PREFIX)
     assert len(result.citations) >= 1
     # Every citation must be a real lesson id we retrieved.
-    valid_ids = {
-        row.id
-        for row in (
-            await db_session.execute(select(Lesson))
-        ).scalars().all()
-    }
+    valid_ids = {row.id for row in (await db_session.execute(select(Lesson))).scalars().all()}
     for c in result.citations:
         assert c.lesson_id in valid_ids
         assert c.lesson_title
         assert c.chunk_excerpt
 
 
-async def test_ask_blank_message_returns_refusal(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_ask_blank_message_returns_refusal(db_session: AsyncSession, make_user) -> None:
     owner = await make_user(role=Role.instructor)
     course = await _seed_course(
         db_session, owner_id=owner.id, lesson_bodies=[("L1", "Body. " * 20)]
     )
-    result = await tutor_service.ask(
-        db_session, course=course, user_message="   "
-    )
+    result = await tutor_service.ask(db_session, course=course, user_message="   ")
     assert result.refused is True
 
 
@@ -324,9 +308,7 @@ async def test_build_system_prompt_emits_lesson_id_headers(
     await ingest_course(db_session, course.id)
     from app.models.lesson_chunk import LessonChunk
 
-    chunks = (
-        await db_session.execute(select(LessonChunk))
-    ).scalars().all()
+    chunks = (await db_session.execute(select(LessonChunk))).scalars().all()
     for c in chunks:
         await db_session.refresh(c, attribute_names=["lesson"])
 
@@ -450,9 +432,7 @@ async def test_conversation_lifecycle(
         assert c["chunk_excerpt"]
 
     # 3) Pull the conversation back — both turns persisted in order.
-    detail = await client.get(
-        f"/api/v1/tutor/conversations/{conv_id}", headers=learner
-    )
+    detail = await client.get(f"/api/v1/tutor/conversations/{conv_id}", headers=learner)
     assert detail.status_code == 200, detail.text
     msgs = detail.json()["messages"]
     assert len(msgs) == 2
@@ -496,9 +476,7 @@ async def test_get_conversation_other_user_is_404(
     )
     conv_id = new.json()["id"]
 
-    other = await client.get(
-        f"/api/v1/tutor/conversations/{conv_id}", headers=learner_b
-    )
+    other = await client.get(f"/api/v1/tutor/conversations/{conv_id}", headers=learner_b)
     assert other.status_code == 404
 
 
@@ -573,7 +551,7 @@ async def test_post_message_persists_user_turn_even_when_refused(
     The user's question must still land in ``tutor_messages`` so
     the audit log shows what they asked.
     """
-    teacher = await auth_headers(role=Role.instructor)
+    await auth_headers(role=Role.instructor)
     # Build an empty course directly (the publish-time minimum-content
     # gate would block the HTTP path, but we want the tutor refusal
     # path which needs an empty retrieval set). We flush the Subject
@@ -614,12 +592,16 @@ async def test_post_message_persists_user_turn_even_when_refused(
 
     # Both rows landed; user turn is durable even on refusal.
     rows = (
-        await db_session.execute(
-            select(TutorMessage)
-            .where(TutorMessage.conversation_id == conv_id)
-            .order_by(TutorMessage.created_at)
+        (
+            await db_session.execute(
+                select(TutorMessage)
+                .where(TutorMessage.conversation_id == conv_id)
+                .order_by(TutorMessage.created_at)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert [r.role for r in rows] == [
         TutorMessageRole.user,
         TutorMessageRole.assistant,
@@ -643,9 +625,7 @@ async def test_start_conversation_requires_auth(
         client, teacher, db_session, lesson_bodies=[("L", "Body. " * 20)]
     )
     client.cookies.clear()
-    r = await client.post(
-        f"/api/v1/courses/{course_id}/tutor/conversations"
-    )
+    r = await client.post(f"/api/v1/courses/{course_id}/tutor/conversations")
     assert r.status_code == 401
 
 

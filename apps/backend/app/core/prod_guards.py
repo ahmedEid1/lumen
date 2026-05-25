@@ -134,9 +134,7 @@ def check_secret_strength(settings: Any, problems: list[str]) -> None:
         )
     jwt_secret = _secret_value(getattr(settings, "jwt_secret", None))
     if len(jwt_secret) < SECRET_MIN_LENGTH:
-        problems.append(
-            f"JWT_SECRET must be at least {SECRET_MIN_LENGTH} characters long"
-        )
+        problems.append(f"JWT_SECRET must be at least {SECRET_MIN_LENGTH} characters long")
 
 
 def check_database_not_loopback(settings: Any, problems: list[str]) -> None:

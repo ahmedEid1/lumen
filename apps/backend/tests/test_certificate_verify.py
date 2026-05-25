@@ -19,7 +19,9 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _earn_certificate(client: AsyncClient, teacher: dict, student: dict, subject_id: str) -> tuple[str, str]:
+async def _earn_certificate(
+    client: AsyncClient, teacher: dict, student: dict, subject_id: str
+) -> tuple[str, str]:
     create = await client.post(
         "/api/v1/courses",
         json={"title": "Verifiable", "subject_id": subject_id, "overview": "x"},
@@ -27,7 +29,9 @@ async def _earn_certificate(client: AsyncClient, teacher: dict, student: dict, s
     )
     course_id = create.json()["id"]
     m = (
-        await client.post(f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher)
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher
+        )
     ).json()
     lesson = (
         await client.post(
@@ -36,7 +40,9 @@ async def _earn_certificate(client: AsyncClient, teacher: dict, student: dict, s
             headers=teacher,
         )
     ).json()
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    )
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     progress = await client.post(
         f"/api/v1/me/progress/lessons/{lesson['id']}", json={"completed": True}, headers=student

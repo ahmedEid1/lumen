@@ -27,10 +27,9 @@ from app.models.agent_trace import (  # noqa: F401 — register table for create
     AgentTrace,
 )
 from app.models.llm_call import STATUS_OK, LLMCall
-from app.models.retrieval_audit import RetrievalAudit  # noqa: F401 — register
+from app.models.retrieval_audit import RetrievalAudit
 from app.models.user import Role
 from app.services.agent_tracer import record_step
-
 
 # ---------- Fixtures ----------
 
@@ -106,9 +105,7 @@ async def test_non_admin_blocked_from_retrieval_endpoint(
     admin_client: AsyncClient, auth_headers
 ) -> None:
     student = await auth_headers(role=Role.student)
-    r = await admin_client.get(
-        "/api/v1/admin/observability/retrieval", headers=student
-    )
+    r = await admin_client.get("/api/v1/admin/observability/retrieval", headers=student)
     assert r.status_code == 403
 
 
@@ -116,15 +113,11 @@ async def test_non_admin_blocked_from_celery_endpoint(
     admin_client: AsyncClient, auth_headers
 ) -> None:
     student = await auth_headers(role=Role.student)
-    r = await admin_client.get(
-        "/api/v1/admin/observability/celery", headers=student
-    )
+    r = await admin_client.get("/api/v1/admin/observability/celery", headers=student)
     assert r.status_code == 403
 
 
-async def test_instructor_blocked_same_as_student(
-    admin_client: AsyncClient, auth_headers
-) -> None:
+async def test_instructor_blocked_same_as_student(admin_client: AsyncClient, auth_headers) -> None:
     """An instructor is not an admin — 403 across all three endpoints."""
     instructor = await auth_headers(role=Role.instructor)
     for path in [
@@ -188,9 +181,7 @@ async def test_admin_can_fetch_trace_for_existing_call(
     assert isinstance(body["audits"], list)
 
 
-async def test_missing_call_id_returns_404(
-    admin_client: AsyncClient, auth_headers
-) -> None:
+async def test_missing_call_id_returns_404(admin_client: AsyncClient, auth_headers) -> None:
     admin = await auth_headers(role=Role.admin)
     r = await admin_client.get(
         "/api/v1/admin/observability/llm-calls/does-not-exist/trace",
@@ -258,9 +249,7 @@ async def test_admin_can_list_retrieval_audits(
     await db_session.commit()
 
     admin = await auth_headers(role=Role.admin)
-    r = await admin_client.get(
-        "/api/v1/admin/observability/retrieval", headers=admin
-    )
+    r = await admin_client.get("/api/v1/admin/observability/retrieval", headers=admin)
     assert r.status_code == 200, r.text
     rows = r.json()
     # The test DB isn't truncated of retrieval_audits between every
@@ -313,9 +302,7 @@ async def test_retrieval_list_filters_by_user_id(
 # ---------- Celery health ----------
 
 
-async def test_admin_can_fetch_celery_health(
-    admin_client: AsyncClient, auth_headers
-) -> None:
+async def test_admin_can_fetch_celery_health(admin_client: AsyncClient, auth_headers) -> None:
     """The endpoint returns 200 even when no worker is running.
 
     The test env has Redis up but no worker, so ``inspect.ping()``
@@ -324,9 +311,7 @@ async def test_admin_can_fetch_celery_health(
     zero in a clean test DB.
     """
     admin = await auth_headers(role=Role.admin)
-    r = await admin_client.get(
-        "/api/v1/admin/observability/celery", headers=admin
-    )
+    r = await admin_client.get("/api/v1/admin/observability/celery", headers=admin)
     assert r.status_code == 200, r.text
     body = r.json()
     # Redis itself is healthy in the test env.

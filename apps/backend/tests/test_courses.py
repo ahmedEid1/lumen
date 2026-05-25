@@ -158,7 +158,11 @@ async def test_enrollment_and_progress(
     course_id = create.json()["id"]
 
     # Module + lesson
-    m = (await client.post(f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher)).json()
+    m = (
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher
+        )
+    ).json()
     lesson = (
         await client.post(
             f"/api/v1/courses/modules/{m['id']}/lessons",
@@ -167,7 +171,9 @@ async def test_enrollment_and_progress(
         )
     ).json()
 
-    pub = await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
+    pub = await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    )
     assert pub.status_code == 200
 
     # Enroll
@@ -202,7 +208,9 @@ async def test_review_requires_enrollment(
     course_id = create.json()["id"]
     # The publish-guard requires at least one lesson.
     await seed_lesson(course_id, teacher)
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    )
 
     r_fail = await client.put(
         f"/api/v1/courses/{course_id}/reviews",

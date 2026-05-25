@@ -40,7 +40,6 @@ from app.services import llm as llm_service
 from app.services.embeddings_ingest import ingest_course
 from app.workers.tasks import learning_path as replan_task
 
-
 # ---------- Scripted provider (mirrors service/api tests) ----------
 
 
@@ -78,9 +77,7 @@ def _settings_overrides(monkeypatch):
     get_settings.cache_clear()  # type: ignore[attr-defined]
 
 
-async def _seed_catalog(
-    db: AsyncSession, *, owner_id: str, n: int = 3
-) -> list[str]:
+async def _seed_catalog(db: AsyncSession, *, owner_id: str, n: int = 3) -> list[str]:
     slugs: list[str] = []
     for i in range(n):
         suffix = uuid.uuid4().hex[:6]
@@ -141,9 +138,7 @@ def _valid_plan(slugs: list[str]) -> str:
 # ---------- Tests ----------
 
 
-async def test_replan_skips_fresh_paths(
-    db_session: AsyncSession, make_user, monkeypatch
-) -> None:
+async def test_replan_skips_fresh_paths(db_session: AsyncSession, make_user, monkeypatch) -> None:
     """A path with replanned_at within the staleness window is skipped."""
     teacher = await make_user(role=Role.instructor)
     learner = await make_user(role=Role.student)
@@ -153,9 +148,7 @@ async def test_replan_skips_fresh_paths(
     # then make sure replanned_at is recent (it is by default).
     prov = _ScriptedProvider([_valid_plan(slugs)])
     monkeypatch.setattr(llm_service, "get_provider", lambda: prov)
-    path = await learning_path_service.build_path(
-        db_session, user_id=learner.id, goal="goal"
-    )
+    path = await learning_path_service.build_path(db_session, user_id=learner.id, goal="goal")
     await db_session.commit()
     assert path.replanned_at > datetime.now(UTC) - timedelta(minutes=5)
 
@@ -185,9 +178,7 @@ async def test_replan_picks_up_stale_paths(
     prov = _ScriptedProvider([_valid_plan(slugs), _valid_plan(slugs)])
     monkeypatch.setattr(llm_service, "get_provider", lambda: prov)
 
-    initial = await learning_path_service.build_path(
-        db_session, user_id=learner.id, goal="goal"
-    )
+    initial = await learning_path_service.build_path(db_session, user_id=learner.id, goal="goal")
     # Backdate ``replanned_at`` so the beat job picks it up.
     initial.replanned_at = datetime.now(UTC) - timedelta(days=45)
     await db_session.commit()
@@ -213,10 +204,10 @@ async def test_replan_picks_up_stale_paths(
 
     # The original path is archived, a fresh active one exists.
     rows = (
-        await db_session.execute(
-            select(LearningPath).where(LearningPath.user_id == learner.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(LearningPath).where(LearningPath.user_id == learner.id)))
+        .scalars()
+        .all()
+    )
     active = [p for p in rows if p.status == PATH_STATUS_ACTIVE]
     archived = [p for p in rows if p.status == PATH_STATUS_ARCHIVED]
     assert len(active) == 1
@@ -236,12 +227,8 @@ async def test_replan_swallows_per_user_errors(
     # Both build paths with the scripted provider.
     prov = _ScriptedProvider([_valid_plan(slugs), _valid_plan(slugs)])
     monkeypatch.setattr(llm_service, "get_provider", lambda: prov)
-    p_good = await learning_path_service.build_path(
-        db_session, user_id=good.id, goal="A"
-    )
-    p_bad = await learning_path_service.build_path(
-        db_session, user_id=bad.id, goal="B"
-    )
+    p_good = await learning_path_service.build_path(db_session, user_id=good.id, goal="A")
+    p_bad = await learning_path_service.build_path(db_session, user_id=bad.id, goal="B")
     p_good.replanned_at = datetime.now(UTC) - timedelta(days=45)
     p_bad.replanned_at = datetime.now(UTC) - timedelta(days=45)
     await db_session.commit()
@@ -259,9 +246,7 @@ async def test_replan_swallows_per_user_errors(
             raise RuntimeError("simulated failure for the bad learner")
         return await real_replan(db, user_id=user_id)
 
-    monkeypatch.setattr(
-        learning_path_service, "replan_for_user", _selective
-    )
+    monkeypatch.setattr(learning_path_service, "replan_for_user", _selective)
     # Also patch the bound name inside the task module — Python
     # binds the reference at import time.
     monkeypatch.setattr(

@@ -29,9 +29,9 @@ from app.services import password_reset as reset
 @pytest.mark.parametrize(
     "weak",
     [
-        "password1234",        # all lowercase + digits, registration would reject
-        "abcdefghijkl",        # all lowercase letters, length OK
-        "1234567890ab",        # all alphanumeric lowercase
+        "password1234",  # all lowercase + digits, registration would reject
+        "abcdefghijkl",  # all lowercase letters, length OK
+        "1234567890ab",  # all alphanumeric lowercase
     ],
 )
 def test_validate_rejects_weak(weak: str) -> None:
@@ -42,9 +42,9 @@ def test_validate_rejects_weak(weak: str) -> None:
 @pytest.mark.parametrize(
     "strong",
     [
-        "Password!1234",       # upper + lower + digit + symbol
-        "MixedCase1234",       # upper + lower + digit
-        "all_lower_with_!",    # symbol breaks isalnum
+        "Password!1234",  # upper + lower + digit + symbol
+        "MixedCase1234",  # upper + lower + digit
+        "all_lower_with_!",  # symbol breaks isalnum
     ],
 )
 def test_validate_accepts_strong(strong: str) -> None:
@@ -69,9 +69,7 @@ def test_reset_confirm_schema_uses_shared_policy() -> None:
 # ---------------- End-to-end paths ----------------
 
 
-async def test_password_reset_rejects_weak_password(
-    client: AsyncClient, make_user
-) -> None:
+async def test_password_reset_rejects_weak_password(client: AsyncClient, make_user) -> None:
     user = await make_user(email="pw-reset@lumen.test", password="OldPassword!1234")
     token = reset.make_token(user)
     r = await client.post(
@@ -87,9 +85,7 @@ async def test_password_reset_rejects_weak_password(
     assert ok.status_code == 200
 
 
-async def test_change_password_rejects_weak_password(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_change_password_rejects_weak_password(client: AsyncClient, auth_headers) -> None:
     h = await auth_headers()
     r = await client.post(
         "/api/v1/users/me/change-password",

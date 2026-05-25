@@ -51,7 +51,6 @@ from app.models.user import Role
 from app.services import authoring_orchestrator
 from app.services import llm as llm_service
 
-
 # ---------- Scripted provider ----------
 
 
@@ -74,10 +73,7 @@ class _ScriptedProvider:
         del temperature
         self.calls.append(list(messages))
         if not self._replies:
-            raise AssertionError(
-                "ScriptedProvider queue exhausted — "
-                "test under-scripted the LLM."
-            )
+            raise AssertionError("ScriptedProvider queue exhausted — test under-scripted the LLM.")
         return self._replies.pop(0)
 
     async def chat_with_usage(self, messages, temperature: float = 0.2):
@@ -103,17 +99,17 @@ def _pin_env(monkeypatch):
     get_settings.cache_clear()  # type: ignore[attr-defined]
 
 
-def _install_provider(
-    monkeypatch: pytest.MonkeyPatch, replies: list[str]
-) -> _ScriptedProvider:
+def _install_provider(monkeypatch: pytest.MonkeyPatch, replies: list[str]) -> _ScriptedProvider:
     prov = _ScriptedProvider(replies)
     # Patch in the modules that import ``get_provider`` directly so
     # the orchestrator + the existing ai_authoring helpers both use
     # the scripted provider.
     monkeypatch.setattr(llm_service, "get_provider", lambda: prov)
     from app.services import authoring_orchestrator as orch_mod
+
     monkeypatch.setattr(orch_mod.llm_service, "get_provider", lambda: prov)
     from app.services import ai_authoring as ai_mod
+
     monkeypatch.setattr(ai_mod.llm_service, "get_provider", lambda: prov)
     return prov
 
@@ -178,7 +174,9 @@ _REVISED_OUTLINE = {
 }
 
 
-def _critic_json(*, coverage: int, learning_arc: int, scope: int, weak_spots=None, rationale="ok") -> str:
+def _critic_json(
+    *, coverage: int, learning_arc: int, scope: int, weak_spots=None, rationale="ok"
+) -> str:
     return json.dumps(
         {
             "scores": {
@@ -282,21 +280,23 @@ async def test_draft_course_happy_path_no_revisions(
 
     # Traces: researcher + outliner + critic + N × lesson-drafter + final.
     traces = (
-        await db_session.execute(
-            select(CourseDraftTrace)
-            .where(CourseDraftTrace.draft_id == result.draft_id)
-            .order_by(CourseDraftTrace.step_index.asc())
+        (
+            await db_session.execute(
+                select(CourseDraftTrace)
+                .where(CourseDraftTrace.draft_id == result.draft_id)
+                .order_by(CourseDraftTrace.step_index.asc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     kinds = [t.step for t in traces]
     assert kinds[0] == DRAFT_STEP_RESEARCHER
     assert kinds[1] == DRAFT_STEP_OUTLINER
     assert kinds[2] == DRAFT_STEP_CRITIC
     assert kinds[-1] == DRAFT_STEP_FINAL_CRITIC
     # Lesson-drafter rows in the middle (one per lesson).
-    lesson_drafter_rows = [
-        t for t in traces if t.step == DRAFT_STEP_LESSON_DRAFTER
-    ]
+    lesson_drafter_rows = [t for t in traces if t.step == DRAFT_STEP_LESSON_DRAFTER]
     assert len(lesson_drafter_rows) == 5
     # No reviser row.
     assert not any(t.step == DRAFT_STEP_REVISER for t in traces)
@@ -318,9 +318,7 @@ async def test_critic_low_triggers_reviser(
 
     replies = [
         json.dumps(_VALID_OUTLINE),  # outliner
-        _critic_json(
-            coverage=2, learning_arc=3, scope=3, weak_spots=["lack of depth"]
-        ),
+        _critic_json(coverage=2, learning_arc=3, scope=3, weak_spots=["lack of depth"]),
         json.dumps(_REVISED_OUTLINE),  # reviser
         _critic_json(coverage=5, learning_arc=5, scope=4),  # accepts revised
         *_lesson_drafter_replies(_REVISED_OUTLINE),
@@ -339,12 +337,16 @@ async def test_critic_low_triggers_reviser(
 
     # Trace: reviser row present, with revision_number=1.
     traces = (
-        await db_session.execute(
-            select(CourseDraftTrace)
-            .where(CourseDraftTrace.draft_id == result.draft_id)
-            .order_by(CourseDraftTrace.step_index.asc())
+        (
+            await db_session.execute(
+                select(CourseDraftTrace)
+                .where(CourseDraftTrace.draft_id == result.draft_id)
+                .order_by(CourseDraftTrace.step_index.asc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     reviser_rows = [t for t in traces if t.step == DRAFT_STEP_REVISER]
     assert len(reviser_rows) == 1
     assert reviser_rows[0].payload.get("revision_number") == 1
@@ -353,9 +355,7 @@ async def test_critic_low_triggers_reviser(
 # ---------- Revisions cap at MAX_REVISIONS ----------
 
 
-async def test_revisions_cap_at_max(
-    db_session: AsyncSession, make_user, monkeypatch
-) -> None:
+async def test_revisions_cap_at_max(db_session: AsyncSession, make_user, monkeypatch) -> None:
     """Even with critic always-low replies, revisions stop at 3."""
     user = await make_user(role=Role.instructor)
     subject = await _make_subject(db_session)
@@ -365,9 +365,7 @@ async def test_revisions_cap_at_max(
     # the loop stops and accepts whatever outline we last had.
     # Sequence: outliner (1), critic (2), reviser (3), critic (4),
     # reviser (5), critic (6) → cap hit; drafter + final follow.
-    always_low = _critic_json(
-        coverage=2, learning_arc=2, scope=2, weak_spots=["x"]
-    )
+    always_low = _critic_json(coverage=2, learning_arc=2, scope=2, weak_spots=["x"])
     replies = [
         json.dumps(_VALID_OUTLINE),  # outliner — call 1
         always_low,  # critic — call 2
@@ -391,12 +389,16 @@ async def test_revisions_cap_at_max(
     assert result.revisions_used <= authoring_orchestrator.MAX_REVISIONS
 
     traces = (
-        await db_session.execute(
-            select(CourseDraftTrace)
-            .where(CourseDraftTrace.draft_id == result.draft_id)
-            .order_by(CourseDraftTrace.step_index.asc())
+        (
+            await db_session.execute(
+                select(CourseDraftTrace)
+                .where(CourseDraftTrace.draft_id == result.draft_id)
+                .order_by(CourseDraftTrace.step_index.asc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     reviser_rows = [t for t in traces if t.step == DRAFT_STEP_REVISER]
     # At most MAX_REVISIONS reviser rows.
     assert len(reviser_rows) <= authoring_orchestrator.MAX_REVISIONS
@@ -444,10 +446,8 @@ async def test_outliner_double_failure_raises(
     assert exc.value.code == "authoring.outliner_failed"
     # No course landed.
     courses = (
-        await db_session.execute(
-            select(Course).where(Course.owner_id == user.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(Course).where(Course.owner_id == user.id))).scalars().all()
+    )
     assert courses == []
 
 
@@ -465,6 +465,4 @@ def test_critic_scores_mean_property() -> None:
 def test_critic_scores_reject_out_of_range() -> None:
     """Each axis is 0-5 inclusive — out-of-range is a validation error."""
     with pytest.raises(Exception):
-        authoring_orchestrator.CriticScores(
-            coverage=6, learning_arc=3, scope=3
-        )
+        authoring_orchestrator.CriticScores(coverage=6, learning_arc=3, scope=3)

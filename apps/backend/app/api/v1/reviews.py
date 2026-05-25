@@ -17,7 +17,10 @@ router = APIRouter()
 
 @router.get("/{course_id}/reviews", response_model=list[ReviewOut])
 async def list_reviews(
-    course_id: str, db: DBSession, limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0)
+    course_id: str,
+    db: DBSession,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ) -> list[ReviewOut]:
     course = await courses_repo.get_course(db, course_id)
     if not course:

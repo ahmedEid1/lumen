@@ -37,7 +37,9 @@ def make_token(user: User) -> str:
 
 def decode_token(token: str) -> dict:
     s = get_settings()
-    return jwt.decode(token, s.jwt_secret.get_secret_value(), algorithms=[s.jwt_algorithm], issuer="lumen")
+    return jwt.decode(
+        token, s.jwt_secret.get_secret_value(), algorithms=[s.jwt_algorithm], issuer="lumen"
+    )
 
 
 async def request_reset(db: AsyncSession, *, email: str) -> tuple[User | None, str | None]:
@@ -52,7 +54,9 @@ async def confirm_reset(db: AsyncSession, *, token: str, new_password: str) -> U
     try:
         payload = decode_token(token)
     except jwt.PyJWTError as exc:
-        raise UnauthorizedError("Reset link is invalid or expired", code="auth.reset_invalid") from exc
+        raise UnauthorizedError(
+            "Reset link is invalid or expired", code="auth.reset_invalid"
+        ) from exc
     if payload.get("purpose") != _PURPOSE:
         raise UnauthorizedError("Reset link is invalid", code="auth.reset_invalid")
     user = await users_repo.get_by_id(db, str(payload.get("sub", "")))

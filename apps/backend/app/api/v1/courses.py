@@ -9,7 +9,6 @@ from datetime import datetime
 
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
 from starlette.responses import Response as StarletteResponse
 
 from app.api.deps import DBSession, OptionalUser, RequireInstructor
@@ -46,9 +45,7 @@ _CACHE_PUBLIC_60 = "public, max-age=60, must-revalidate"
 _VARY_AUTH = "Accept-Encoding, Authorization, Cookie"
 
 
-async def _load_course_with_stats(
-    db: DBSession, course_id: str
-) -> tuple[Course, dict]:
+async def _load_course_with_stats(db: DBSession, course_id: str) -> tuple[Course, dict]:
     """Refresh + 404 + stats — the trio every write-then-render endpoint needs."""
     course = await courses_repo.get_course(db, course_id)
     if course is None:
@@ -85,7 +82,9 @@ def _course_detail_etag(
 
 
 @router.post("", response_model=CourseListItem, status_code=status.HTTP_201_CREATED)
-async def create_course(payload: CourseCreate, user: RequireInstructor, db: DBSession) -> CourseListItem:
+async def create_course(
+    payload: CourseCreate, user: RequireInstructor, db: DBSession
+) -> CourseListItem:
     course = await courses_service.create_course(db, user, payload)
     refreshed, stats = await _load_course_with_stats(db, course.id)
     return _builders.list_item(refreshed, stats)
@@ -228,7 +227,9 @@ async def update_module(
         title=mod.title,
         description=mod.description,
         order=mod.order,
-        lessons=[LessonOut.model_validate(lesson) for lesson in mod.lessons if lesson.deleted_at is None],
+        lessons=[
+            LessonOut.model_validate(lesson) for lesson in mod.lessons if lesson.deleted_at is None
+        ],
     )
 
 
@@ -242,18 +243,24 @@ async def delete_module(module_id: str, user: RequireInstructor, db: DBSession) 
 async def reorder_modules(
     course_id: str, payload: OrderUpdateRequest, user: RequireInstructor, db: DBSession
 ) -> OkResponse:
-    await courses_service.reorder_modules(db, course_id=course_id, owner=user, mapping=payload.order)
+    await courses_service.reorder_modules(
+        db, course_id=course_id, owner=user, mapping=payload.order
+    )
     return OkResponse()
 
 
 # ---------- Lessons ----------
 
 
-@router.post("/modules/{module_id}/lessons", response_model=LessonOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/modules/{module_id}/lessons", response_model=LessonOut, status_code=status.HTTP_201_CREATED
+)
 async def create_lesson(
     module_id: str, payload: LessonCreate, user: RequireInstructor, db: DBSession
 ) -> LessonOut:
-    lesson = await courses_service.create_lesson(db, module_id=module_id, owner=user, payload=payload)
+    lesson = await courses_service.create_lesson(
+        db, module_id=module_id, owner=user, payload=payload
+    )
     return LessonOut.model_validate(lesson)
 
 
@@ -261,7 +268,9 @@ async def create_lesson(
 async def update_lesson(
     lesson_id: str, payload: LessonUpdate, user: RequireInstructor, db: DBSession
 ) -> LessonOut:
-    lesson = await courses_service.update_lesson(db, lesson_id=lesson_id, owner=user, payload=payload)
+    lesson = await courses_service.update_lesson(
+        db, lesson_id=lesson_id, owner=user, payload=payload
+    )
     return LessonOut.model_validate(lesson)
 
 
@@ -275,7 +284,9 @@ async def delete_lesson(lesson_id: str, user: RequireInstructor, db: DBSession) 
 async def reorder_lessons(
     module_id: str, payload: OrderUpdateRequest, user: RequireInstructor, db: DBSession
 ) -> OkResponse:
-    await courses_service.reorder_lessons(db, module_id=module_id, owner=user, mapping=payload.order)
+    await courses_service.reorder_lessons(
+        db, module_id=module_id, owner=user, mapping=payload.order
+    )
     return OkResponse()
 
 
@@ -360,9 +371,7 @@ async def course_cohort(
 
 
 @router.get("/{course_id}/students.csv")
-async def course_cohort_csv(
-    course_id: str, user: RequireInstructor, db: DBSession
-) -> Response:
+async def course_cohort_csv(course_id: str, user: RequireInstructor, db: DBSession) -> Response:
     """Same data the cohort UI shows, dumped as CSV so instructors can
     import into a gradebook / spreadsheet. Reuses the cohort service
     (same authz, same soft-delete handling, same 500-row cap).
@@ -370,9 +379,7 @@ async def course_cohort_csv(
     We hand-format CSV rather than pull in a dependency — it's six
     columns of scalars, escaping handled by Python's stdlib ``csv``.
     """
-    rows = await analytics_service.cohort_for_course(
-        db, course_id=course_id, viewer=user
-    )
+    rows = await analytics_service.cohort_for_course(db, course_id=course_id, viewer=user)
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
     writer.writerow(
@@ -400,4 +407,3 @@ async def course_cohort_csv(
             "Cache-Control": "private, max-age=0, no-store",
         },
     )
-

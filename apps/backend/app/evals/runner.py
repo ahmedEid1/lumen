@@ -46,8 +46,6 @@ from sqlalchemy.orm import selectinload
 
 from app.core.logging import get_logger
 from app.db.base import get_sessionmaker
-from app.models.course import Course, Lesson, Module
-from app.services.llm import ChatMessage, get_provider
 from app.evals import judge as judge_mod
 from app.evals.golden import (
     AuthoringItem,
@@ -63,6 +61,8 @@ from app.evals.reports import (
     read_report,
     write_item,
 )
+from app.models.course import Course, Module
+from app.services.llm import ChatMessage, get_provider
 
 log = get_logger(__name__)
 
@@ -83,9 +83,7 @@ try:  # pragma: no cover — imported in a real build
     from app.models.llm_call import SYSTEM_USER_ID
     from app.services.llm_call_log import call_logged as _real_call_logged
 
-    async def _judge_call(
-        provider: Any, messages: list[ChatMessage], *, session: Any
-    ) -> str:
+    async def _judge_call(provider: Any, messages: list[ChatMessage], *, session: Any) -> str:
         response = await _real_call_logged(
             provider,
             messages,
@@ -108,9 +106,7 @@ except Exception:  # pragma: no cover — H1 not landed yet
 # ---------- Tutor suite ----------
 
 
-async def _load_course_with_lessons(
-    db: AsyncSession, slug: str
-) -> Course | None:
+async def _load_course_with_lessons(db: AsyncSession, slug: str) -> Course | None:
     """Eager-load a course + its modules + lessons by slug.
 
     Returns ``None`` if the course isn't seeded — the runner
@@ -124,9 +120,7 @@ async def _load_course_with_lessons(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
-def _resolve_lesson_titles(
-    course: Course, titles: list[str]
-) -> tuple[list[str], list[str]]:
+def _resolve_lesson_titles(course: Course, titles: list[str]) -> tuple[list[str], list[str]]:
     """Map lesson titles to lesson ids.
 
     Returns ``(resolved_ids, unresolved_titles)``. The runner
@@ -162,9 +156,7 @@ async def _run_tutor_item(db: AsyncSession, item: TutorItem) -> dict[str, Any]:
             "course_slug": item.course_slug,
         }
 
-    resolved_lesson_ids, unresolved_titles = _resolve_lesson_titles(
-        course, item.must_cite_lessons
-    )
+    resolved_lesson_ids, unresolved_titles = _resolve_lesson_titles(course, item.must_cite_lessons)
 
     started = time.perf_counter()
     try:
@@ -220,9 +212,7 @@ def _outline_to_dict(outline: Any) -> dict[str, Any]:
     return {"modules": []}
 
 
-async def _run_authoring_item(
-    item: AuthoringItem, db: AsyncSession
-) -> dict[str, Any]:
+async def _run_authoring_item(item: AuthoringItem, db: AsyncSession) -> dict[str, Any]:
     """Run the AI-authoring outline generator against one brief."""
     from app.services import ai_authoring
 
@@ -246,9 +236,7 @@ async def _run_authoring_item(
 
     actual_outline = _outline_to_dict(outline)
     actual_module_count = len(actual_outline.get("modules") or [])
-    ideal_module_count = len(
-        item.ideal_outline.modules if item.ideal_outline else []
-    )
+    ideal_module_count = len(item.ideal_outline.modules if item.ideal_outline else [])
     return {
         "status": "ok",
         "outline": actual_outline,
@@ -273,9 +261,7 @@ def _payload_to_chapters(payload: Any) -> list[dict[str, Any]]:
         out.append(
             {
                 "title": m.get("title", ""),
-                "lesson_titles": [
-                    l.get("title", "") for l in (m.get("lessons") or [])
-                ],
+                "lesson_titles": [l.get("title", "") for l in (m.get("lessons") or [])],
             }
         )
     return out
@@ -330,9 +316,7 @@ async def _run_ingest_item(item: IngestItem) -> dict[str, Any]:
 # ---------- Per-suite dispatch ----------
 
 
-async def _run_one_item(
-    suite: SuiteName, item: Any, db: AsyncSession
-) -> dict[str, Any]:
+async def _run_one_item(suite: SuiteName, item: Any, db: AsyncSession) -> dict[str, Any]:
     """Dispatch to the right per-suite runner."""
     if suite == "tutor":
         return await _run_tutor_item(db, item)
@@ -355,10 +339,7 @@ def _item_to_dict(item: Any) -> dict[str, Any]:
                 "modules": [
                     {
                         "title": m.get("title", ""),
-                        "lessons": [
-                            {"title": l.get("title", "")}
-                            for l in m.get("lessons", [])
-                        ],
+                        "lessons": [{"title": l.get("title", "")} for l in m.get("lessons", [])],
                     }
                     for m in d["ideal_outline"].get("modules", [])
                 ]
@@ -423,9 +404,7 @@ async def run_suite(
                 # Judge the result. Errors during judging are recorded
                 # on the row but never re-raised — the suite must
                 # finish so the admin can see the partial picture.
-                async def _metered_judge_chat(
-                    prov: Any, msgs: list[ChatMessage]
-                ) -> str:
+                async def _metered_judge_chat(prov: Any, msgs: list[ChatMessage]) -> str:
                     return await _judge_call(prov, msgs, session=db)
 
                 try:

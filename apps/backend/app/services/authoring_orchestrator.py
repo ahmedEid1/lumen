@@ -88,7 +88,8 @@ from app.models.course_draft_trace import (
 from app.models.llm_call import SYSTEM_USER_ID
 from app.models.user import User
 from app.repositories import courses as courses_repo
-from app.services import ai_authoring, llm as llm_service
+from app.services import ai_authoring
+from app.services import llm as llm_service
 from app.services.authoring_subagents import ResearchBundle, run_researcher
 from app.services.courses import _unique_slug
 from app.services.llm_call_log import call_logged
@@ -203,9 +204,7 @@ def _strip_json_fence(raw: str) -> str:
     return raw.strip()
 
 
-def _try_parse[M: BaseModel](
-    raw: str, model: type[M]
-) -> tuple[M | None, str | None]:
+def _try_parse[M: BaseModel](raw: str, model: type[M]) -> tuple[M | None, str | None]:
     """Parse ``raw`` as JSON + validate against ``model``.
 
     Returns ``(instance, None)`` on success, ``(None, error)`` on
@@ -278,9 +277,7 @@ async def _record_trace(
         return None
 
 
-async def _backfill_course_id(
-    db: AsyncSession, *, draft_id: str, course_id: str
-) -> None:
+async def _backfill_course_id(db: AsyncSession, *, draft_id: str, course_id: str) -> None:
     """Stamp ``course_id`` on every trace row tied to ``draft_id``.
 
     Early steps (researcher, first outliner pass, first critic)
@@ -577,7 +574,7 @@ async def _draft_lesson_content(
                 "pass_score": 60,
                 "questions": [q.model_dump() for q in questions],
             }
-        except Exception as exc:  # noqa: BLE001 — degrade to placeholder
+        except Exception as exc:
             log.warning(
                 "authoring_lesson_drafter_quiz_failed",
                 lesson_title=lesson_title[:120],
@@ -598,7 +595,7 @@ async def _draft_lesson_content(
             "body_markdown": "",
             "blocks": doc,
         }
-    except Exception as exc:  # noqa: BLE001 — degrade to placeholder
+    except Exception as exc:
         log.warning(
             "authoring_lesson_drafter_body_failed",
             lesson_title=lesson_title[:120],
@@ -707,12 +704,8 @@ async def draft_course(
                 f"{len(research_bundle.catalog_neighbours)} catalog "
                 f"neighbour(s); note={research_bundle.note!r}"
             ),
-            "web_snippets": [
-                s.model_dump() for s in research_bundle.web_snippets
-            ],
-            "catalog_neighbours": [
-                n.model_dump() for n in research_bundle.catalog_neighbours
-            ],
+            "web_snippets": [s.model_dump() for s in research_bundle.web_snippets],
+            "catalog_neighbours": [n.model_dump() for n in research_bundle.catalog_neighbours],
         },
         duration_ms=research_duration_ms,
         status=DRAFT_STATUS_OK,
@@ -940,15 +933,11 @@ async def draft_course(
                 step_index=step_index,
                 payload={
                     "prompt_summary": lesson.title[:240],
-                    "response_summary": (
-                        f"{data.get('type', 'unknown')} lesson drafted"
-                    ),
+                    "response_summary": (f"{data.get('type', 'unknown')} lesson drafted"),
                     "lesson_id": lesson.id,
                     "lesson_type": str(lesson.type),
                 },
-                duration_ms=int(
-                    (time.perf_counter() - lesson_started) * 1000
-                ),
+                duration_ms=int((time.perf_counter() - lesson_started) * 1000),
                 status=DRAFT_STATUS_OK,
             )
             step_index += 1
@@ -1011,9 +1000,7 @@ async def _call_outliner(
 ) -> tuple[ai_authoring.CourseOutline | None, str, str | None]:
     """First-pass outline call with the research bundle in the prompt."""
     user_msg = (
-        f"BRIEF:\n{brief}\n\n"
-        f"RESEARCH:\n{research.to_prompt_block()}\n\n"
-        "Draft the outline now."
+        f"BRIEF:\n{brief}\n\nRESEARCH:\n{research.to_prompt_block()}\n\nDraft the outline now."
     )
     return await _chat_with_retry(
         db,
@@ -1175,9 +1162,7 @@ async def _persist_outline(
             # Default placeholder; overwritten by the lesson-drafter
             # loop in the orchestrator.
             data = (
-                _placeholder_quiz_data()
-                if lesson_spec.type == "quiz"
-                else _placeholder_text_data()
+                _placeholder_quiz_data() if lesson_spec.type == "quiz" else _placeholder_text_data()
             )
             lesson = Lesson(
                 module_id=module.id,
@@ -1234,9 +1219,7 @@ def _summarise_outline(outline: ai_authoring.CourseOutline) -> str:
 # ---------- Trace read helpers (used by the API surface) ----------
 
 
-async def list_traces_for_course(
-    db: AsyncSession, *, course_id: str
-) -> list[CourseDraftTrace]:
+async def list_traces_for_course(db: AsyncSession, *, course_id: str) -> list[CourseDraftTrace]:
     """Return every trace row for the latest draft of ``course_id``.
 
     "Latest draft" = the rows with the most recent ``draft_id``
@@ -1265,8 +1248,6 @@ async def list_traces_for_course(
 
 __all__ = [
     "ACCEPTANCE_MEAN_SCORE",
-    "CriticScores",
-    "CritiqueResult",
     "FEATURE_CRITIC",
     "FEATURE_FINAL_CRITIC",
     "FEATURE_LESSON_DRAFTER",
@@ -1276,6 +1257,8 @@ __all__ = [
     "FEATURE_ROOT",
     "MAX_OUTLINE_PHASE_LLM_CALLS",
     "MAX_REVISIONS",
+    "CriticScores",
+    "CritiqueResult",
     "OrchestratorResult",
     "draft_course",
     "list_traces_for_course",

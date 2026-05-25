@@ -101,10 +101,13 @@ async def export_my_data(user: CurrentUser, db: DBSession) -> dict:
     zip including chat history, reviews, and enrollment data. For v1 we expose
     the profile inline.
     """
+
     async def _count(stmt) -> int:
         return int((await db.execute(stmt)).scalar_one())
 
-    enrollments = await _count(select(func.count(Enrollment.id)).where(Enrollment.user_id == user.id))
+    enrollments = await _count(
+        select(func.count(Enrollment.id)).where(Enrollment.user_id == user.id)
+    )
     reviews = await _count(select(func.count(Review.id)).where(Review.author_id == user.id))
     return {
         "profile": UserOut.model_validate(user).model_dump(mode="json"),
@@ -118,13 +121,17 @@ async def export_my_data(user: CurrentUser, db: DBSession) -> dict:
 @router.get("/me/sessions", response_model=list[SessionOut])
 async def list_my_sessions(user: CurrentUser, db: DBSession) -> list[SessionOut]:
     rows = (
-        await db.execute(
-            select(RefreshToken)
-            .where(RefreshToken.user_id == user.id)
-            .order_by(desc(RefreshToken.issued_at))
-            .limit(50)
+        (
+            await db.execute(
+                select(RefreshToken)
+                .where(RefreshToken.user_id == user.id)
+                .order_by(desc(RefreshToken.issued_at))
+                .limit(50)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return [SessionOut.model_validate(r) for r in rows]
 
 
@@ -175,9 +182,7 @@ async def request_email_change(
 
 
 @router.post("/me/email/confirm", response_model=UserOut)
-async def confirm_email_change(
-    payload: EmailChangeConfirm, db: DBSession
-) -> UserOut:
+async def confirm_email_change(payload: EmailChangeConfirm, db: DBSession) -> UserOut:
     """Step 2: token from the email link → applies the change, revokes
     all refresh tokens so any parallel session has to re-authenticate
     with the new credentials.

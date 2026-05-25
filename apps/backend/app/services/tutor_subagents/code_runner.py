@@ -86,7 +86,7 @@ class CodeRunResult(BaseModel):
 
 def _build_safe_globals(
     captured_print: list[str],
-) -> tuple[dict[str, Any], "_CapturingPrintCollector"]:
+) -> tuple[dict[str, Any], _CapturingPrintCollector]:
     """Compose the ``globals`` dict handed to the sandboxed code.
 
     Returns ``(globals, printer)``. The printer's accumulated text
@@ -117,9 +117,7 @@ def _build_safe_globals(
     ) -> Any:
         del globals_, locals_, level
         if name not in _SAFE_MODULES:
-            raise ImportError(
-                f"import of {name!r} is not allowed in the tutor sandbox"
-            )
+            raise ImportError(f"import of {name!r} is not allowed in the tutor sandbox")
         import importlib
 
         module = importlib.import_module(name)
@@ -129,6 +127,7 @@ def _build_safe_globals(
 
     builtins = dict(safe_builtins)
     builtins["__import__"] = _safe_import
+
     # Re-add print to the safe builtins so RestrictedPython falls
     # back to a regular function call (write-through to our
     # collector) when the compiled bytecode hits ``print(...)``.
@@ -242,7 +241,7 @@ def _execute(code: str, *, timeout: int) -> CodeRunResult:
             exit_code=2,
             error_msg=f"compile error: {exc.msg} at line {exc.lineno}",
         )
-    except Exception as exc:  # noqa: BLE001 — surface anything else
+    except Exception as exc:
         return CodeRunResult(
             stdout="",
             exit_code=2,
@@ -257,7 +256,7 @@ def _execute(code: str, *, timeout: int) -> CodeRunResult:
         # bandit S102 warning below is suppressed because the input is
         # NOT raw user code, it's the compiled-and-guarded bytecode.
         exec(compiled, safe_globals, safe_globals)  # noqa: S102
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         # Surface the runtime error so the synthesiser can adapt.
         runtime_msg = f"runtime error: {type(exc).__name__}: {exc}"
         stdout = "".join(captured)
@@ -322,7 +321,7 @@ async def run(
             asyncio.to_thread(_execute, code, timeout=timeout_seconds),
             timeout=timeout_seconds,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         result = CodeRunResult(
             stdout="",
             exit_code=1,
@@ -355,8 +354,8 @@ async def run(
 
 
 __all__ = [
-    "CodeRunResult",
     "DEFAULT_TIMEOUT_SECONDS",
     "MAX_STDOUT_CHARS",
+    "CodeRunResult",
     "run",
 ]

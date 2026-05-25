@@ -259,8 +259,7 @@ async def generate_outline(
         raise ValidationAppError("Brief must not be empty", code="ai.brief_empty")
     target_modules = max(2, min(int(target_modules), 8))
     user_msg = (
-        f"Brief: {brief}\n\n"
-        f"Please generate an outline with approximately {target_modules} modules."
+        f"Brief: {brief}\n\nPlease generate an outline with approximately {target_modules} modules."
     )
     return await _chat_with_retry(
         system=_OUTLINE_SYSTEM,
@@ -289,9 +288,7 @@ async def generate_lesson_body(
     """
     lesson_title = lesson_title.strip()
     if not lesson_title:
-        raise ValidationAppError(
-            "Lesson title must not be empty", code="ai.lesson_title_empty"
-        )
+        raise ValidationAppError("Lesson title must not be empty", code="ai.lesson_title_empty")
     user_msg = (
         f"Course context: {course_context.strip() or '(none provided)'}\n\n"
         f"Lesson title: {lesson_title}"
@@ -326,9 +323,7 @@ async def generate_quiz(
     """Return ``n`` MCQ questions for a quiz lesson."""
     lesson_title = lesson_title.strip()
     if not lesson_title:
-        raise ValidationAppError(
-            "Lesson title must not be empty", code="ai.lesson_title_empty"
-        )
+        raise ValidationAppError("Lesson title must not be empty", code="ai.lesson_title_empty")
     n = max(1, min(int(n), 10))
     user_msg = (
         f"Course context: {course_context.strip() or '(none provided)'}\n\n"
@@ -522,8 +517,12 @@ async def _chat_with_retry[M: BaseModel](
         llm_service.ChatMessage(role="user", content=user),
     ]
     raw = await _chat_one(
-        provider, messages, temperature=temperature,
-        session=session, user_id=user_id, feature=feature,
+        provider,
+        messages,
+        temperature=temperature,
+        session=session,
+        user_id=user_id,
+        feature=feature,
     )
     parsed, err = _try_parse(raw, model)
     if parsed is not None:
@@ -545,8 +544,12 @@ async def _chat_with_retry[M: BaseModel](
         ]
     )
     raw2 = await _chat_one(
-        provider, messages, temperature=max(0.2, temperature - 0.3),
-        session=session, user_id=user_id, feature=feature,
+        provider,
+        messages,
+        temperature=max(0.2, temperature - 0.3),
+        session=session,
+        user_id=user_id,
+        feature=feature,
     )
     parsed, err = _try_parse(raw2, model)
     if parsed is not None:
@@ -564,9 +567,7 @@ async def _chat_with_retry[M: BaseModel](
     )
 
 
-def _try_parse[M: BaseModel](
-    raw: str, model: type[M]
-) -> tuple[M | None, str | None]:
+def _try_parse[M: BaseModel](raw: str, model: type[M]) -> tuple[M | None, str | None]:
     """Parse ``raw`` as JSON + validate against ``model``.
 
     Returns ``(model_instance, None)`` on success, ``(None, message)``

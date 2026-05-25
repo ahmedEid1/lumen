@@ -107,9 +107,7 @@ async def find_relevant_chunks(
             .options(selectinload(LessonChunk.lesson))
         )
         rows = (await db.execute(stmt)).all()
-        chunks_with_scores: list[tuple[LessonChunk, float]] = [
-            (r[0], float(r[1])) for r in rows
-        ]
+        chunks_with_scores: list[tuple[LessonChunk, float]] = [(r[0], float(r[1])) for r in rows]
         chunks = [c for c, _ in chunks_with_scores]
 
         await _persist_audit(

@@ -45,9 +45,7 @@ class _ScriptedProvider:
         del temperature
         self.calls.append(messages)
         if not self._replies:
-            raise AssertionError(
-                "ScriptedProvider queue exhausted — test under-scripted the LLM."
-            )
+            raise AssertionError("ScriptedProvider queue exhausted — test under-scripted the LLM.")
         return self._replies.pop(0)
 
 
@@ -221,9 +219,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _create_course(
-    client: AsyncClient, headers: dict[str, str], subject_id: str
-) -> str:
+async def _create_course(client: AsyncClient, headers: dict[str, str], subject_id: str) -> str:
     r = await client.post(
         "/api/v1/courses",
         json={"title": "AI Draft", "subject_id": subject_id, "overview": "stub"},
@@ -336,21 +332,13 @@ async def test_commit_outline_persists_modules_and_lessons(
     from sqlalchemy import select
 
     mods = (
-        (
-            await db_session.execute(
-                select(Module).where(Module.course_id == course_id)
-            )
-        )
+        (await db_session.execute(select(Module).where(Module.course_id == course_id)))
         .scalars()
         .all()
     )
     assert len(mods) == 2
     lessons = (
-        (
-            await db_session.execute(
-                select(Lesson).where(Lesson.module_id == mods[0].id)
-            )
-        )
+        (await db_session.execute(select(Lesson).where(Lesson.module_id == mods[0].id)))
         .scalars()
         .all()
     )

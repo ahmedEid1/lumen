@@ -40,9 +40,7 @@ def _coerce_dispatch(value: Any) -> NotificationDispatch:
         return DEFAULT_DISPATCH
 
 
-def resolve_dispatch(
-    user: User, kind: NotificationKind | str
-) -> NotificationDispatch:
+def resolve_dispatch(user: User, kind: NotificationKind | str) -> NotificationDispatch:
     """Return the dispatch mode for ``user`` × ``kind`` with defaults applied.
 
     Accepts both the :class:`NotificationKind` enum (the original

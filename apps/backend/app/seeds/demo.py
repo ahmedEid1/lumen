@@ -173,7 +173,7 @@ INTRO_PYTHON_MODULES: list[dict[str, Any]] = [
                 "type": LessonType.text,
                 "data": _text(
                     "Create a file `hello.py` containing:\n\n"
-                    "```python\nprint(\"Hello, Lumen!\")\n```\n\n"
+                    '```python\nprint("Hello, Lumen!")\n```\n\n'
                     "Run it with `python hello.py`. The `print` builtin writes "
                     "to standard output; the string is a literal. Notice there's "
                     "no main() boilerplate — top-level statements just run."
@@ -183,7 +183,7 @@ INTRO_PYTHON_MODULES: list[dict[str, Any]] = [
                 "title": "Quick check: First script",
                 "type": LessonType.quiz,
                 "data": _quiz(
-                    "What does `print(\"Hello, Lumen!\")` write?",
+                    'What does `print("Hello, Lumen!")` write?',
                     [
                         ("a", "Hello, Lumen! to stdout"),
                         ("b", "Nothing — print is not a builtin"),
@@ -204,7 +204,7 @@ INTRO_PYTHON_MODULES: list[dict[str, Any]] = [
                 "data": _text(
                     "Python variables are *names* bound to *values*. Assignment "
                     "with `=` binds a name to whatever's on the right:\n\n"
-                    "```python\nx = 42\nname = \"Lumen\"\nactive = True\n```\n\n"
+                    '```python\nx = 42\nname = "Lumen"\nactive = True\n```\n\n'
                     "Names can be rebound to a different type later — Python is "
                     "dynamically typed."
                 ),
@@ -516,9 +516,7 @@ async def run() -> None:
         ]
         tags: dict[str, Tag] = {}
         for name, slug in tag_data:
-            tag, _ = await _get_or_create(
-                db, Tag, lookup={"slug": slug}, defaults={"name": name}
-            )
+            tag, _ = await _get_or_create(db, Tag, lookup={"slug": slug}, defaults={"name": name})
             tags[slug] = tag
 
         # Reuse the base-seed instructor if it exists, otherwise create
@@ -637,9 +635,7 @@ async def run() -> None:
             )
             first_module = first_module_res.scalar_one()
             first_lessons_res = await db.execute(
-                select(Lesson)
-                .where(Lesson.module_id == first_module.id)
-                .order_by(Lesson.order)
+                select(Lesson).where(Lesson.module_id == first_module.id).order_by(Lesson.order)
             )
             for lesson in first_lessons_res.scalars().all():
                 db.add(

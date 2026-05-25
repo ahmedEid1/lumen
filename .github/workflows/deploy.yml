@@ -7,50 +7,69 @@ name: Deploy to AWS
 # the `/api/v1/health/live` smokes to come back 200 before reporting
 # success.
 #
-# Triggers:
-#   1. workflow_dispatch — the safe default. Operator clicks "Run
-#      workflow" on the GitHub Actions tab and (optionally) picks an
-#      image tag (defaults to :latest, which `ci.yml`'s build-images
-#      job moves on every push to Rewrite).
-#   2. workflow_run on CI / E2E / Accessibility, scoped to Rewrite —
-#      auto-rolls the box once every gate is green for that commit.
-#      Defensive: requires the triggering run to have `conclusion ==
-#      success` AND `head_branch == "Rewrite"`. If any gate is red,
-#      this never fires.
+# Triggers: **workflow_dispatch only.**
 #
-# Required repo secrets (settings → secrets and variables → actions):
-#   AWS_SSH_HOST       hostname or IP of the box (e.g. "lumen.ahmedhobeishy.tech")
-#   AWS_SSH_USER       linux account to ssh as (e.g. "lumen")
+# An earlier draft of this file also wired a `workflow_run` trigger
+# against CI / E2E / Accessibility on Rewrite for auto-deploy. Two
+# reviewer-caught problems killed that path:
+#
+#   1. `workflow_run` fires once per listed upstream workflow, not
+#      after an AND of all three completing. A single Rewrite push
+#      where all three eventually pass would queue 3 sequential
+#      deploys (each idempotent but each pulling images and re-running
+#      smokes), and the first deploy could fire before E2E had
+#      finished — defeating the whole "all gates green before
+#      shipping" invariant.
+#   2. `workflow_run` only triggers from a workflow file that lives on
+#      the repository's *default branch*. The default here is `master`
+#      (per `gh remote show origin`), and Rewrite hasn't been merged
+#      to master in 358+ commits — so the trigger would have silently
+#      never fired even if (1) were solved.
+#
+# The right fix for both is to consolidate CI / E2E / Accessibility
+# into one workflow whose final job is a single deploy trigger. That's
+# a separate piece of work (see docs/ci-cd.md "Future enhancements").
+# Until then, deploys are explicit operator clicks — pair with branch
+# protection that requires all gates green before merging to Rewrite
+# and the loss of "auto-deploy" is mostly cosmetic.
+#
+# To deploy after a green CI run:
+#   gh workflow run deploy.yml                              # defaults: :latest, run migrations
+#   gh workflow run deploy.yml -f image_tag=<sha>           # rollback / pin
+#   gh workflow run deploy.yml -f run_migrations=false      # skip alembic
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   AWS_SSH_HOST         hostname or IP of the box (e.g. "lumen.ahmedhobeishy.tech")
+#   AWS_SSH_USER         linux account to ssh as (e.g. "lumen")
 #   AWS_SSH_PRIVATE_KEY  full PEM contents of the operator's deploy key
-#   AWS_KNOWN_HOSTS    output of `ssh-keyscan -H <host>` for that host
-#                      (lock down the StrictHostKeyChecking path so a
-#                      MITM can't impersonate the box on first deploy)
-#   GHCR_PULL_TOKEN    classic PAT with `read:packages` scope. Set this
-#                      ONLY if the ghcr images aren't public. The
-#                      bootstrap recommends keeping them private — the
-#                      token is the cheapest way to support that.
-#   APP_DOMAIN         e.g. "lumen.ahmedhobeishy.tech". Used for the
-#                      post-deploy smoke (curl https://${APP_DOMAIN}/…)
-#                      so we test what users actually hit, not the
-#                      internal compose network.
+#   AWS_KNOWN_HOSTS      output of `ssh-keyscan -H <host>` for that host
+#                        (locks down StrictHostKeyChecking so a MITM
+#                        can't impersonate the box on first deploy)
+#   GHCR_PULL_TOKEN      classic PAT with `read:packages` scope. Set this
+#                        ONLY if the ghcr images aren't public. Cheapest
+#                        way to support private packages.
+#   APP_DOMAIN           e.g. "lumen.ahmedhobeishy.tech". Used for the
+#                        post-deploy smoke (`curl https://${APP_DOMAIN}/…`)
+#                        so we test what users actually hit, not the
+#                        internal compose network.
 
 on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Image tag to deploy (default: latest)"
+        description: "Image tag to deploy (default: latest, e.g. :rewrite, :<sha>, :vX.Y.Z)"
         required: false
         default: "latest"
+      commit_sha:
+        description: "Commit to check out on the box (default: tip of Rewrite). Set on rollback so compose + alembic match the image tag."
+        required: false
+        default: ""
       run_migrations:
         description: "Run alembic upgrade head after pull?"
         required: false
         default: "true"
         type: choice
         options: ["true", "false"]
-  workflow_run:
-    workflows: ["CI", "E2E (Playwright)", "Accessibility (WCAG 2.2 AA)"]
-    types: [completed]
-    branches: [Rewrite]
 
 # Don't run two deploys in parallel — the latter would race the
 # former's `docker compose up -d`. `cancel-in-progress: false` means
@@ -68,14 +87,15 @@ jobs:
     name: Roll AWS
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    # Gate the workflow_run trigger on the upstream succeeding. The
-    # event fires for both success and failure ("types: [completed]")
-    # so we filter here. Manual workflow_dispatch always runs.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    # Surface secrets that step-level `if` conditions need as env vars
+    # at the job level — the `secrets` context is not available in
+    # step-level `if` expressions (GitHub Actions limitation), but
+    # `env.X` is. Step-level env on the conditional step wouldn't work
+    # either; the if is evaluated before step env is materialised.
     env:
-      IMAGE_TAG: ${{ github.event.inputs.image_tag || 'latest' }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      COMMIT_SHA: ${{ inputs.commit_sha }}
+      GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
     steps:
       - name: Verify required secrets are present
         # Fail loud and early with a readable message instead of letting
@@ -108,9 +128,9 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
 
       - name: Authenticate box to ghcr (if pulling private images)
-        if: ${{ secrets.GHCR_PULL_TOKEN != '' }}
-        env:
-          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        # `secrets` context isn't allowed in step-level `if`; the token
+        # was hoisted to job-level env above so this comparison works.
+        if: ${{ env.GHCR_PULL_TOKEN != '' }}
         # Pipe the token over stdin into a remote `docker login` so it
         # never lands in process listings or the GH log. The PAT only
         # needs `read:packages` scope; rotate it on a calendar tick.
@@ -123,17 +143,38 @@ jobs:
         # Keep the box's git checkout aligned with the commit we're
         # rolling out. The compose file + bootstrap script come from
         # here, so a stale repo could pull new images against an old
-        # compose anchor. Tag the deploy SHA so a later `git log` on
-        # the box shows the exact commit serving traffic.
+        # compose anchor.
+        #
+        # If `commit_sha` was passed (rollback case), reset to that
+        # exact commit so the compose file matches the image we're
+        # pinning. Otherwise track the tip of `Rewrite`. The previous
+        # version unconditionally reset to `origin/Rewrite`, which
+        # quietly broke rollbacks: an old image was launched against
+        # a current compose definition with potentially different
+        # services / env vars.
+        env:
+          # Pass through to the heredoc so it's available in the
+          # remote shell. Empty string ⇒ "use Rewrite tip".
+          COMMIT_SHA: ${{ env.COMMIT_SHA }}
         run: |
           set -euxo pipefail
           ssh -o StrictHostKeyChecking=yes \
-              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} bash -se <<'REMOTE'
+              -o SendEnv=COMMIT_SHA \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
+              "COMMIT_SHA='${COMMIT_SHA}' bash -se" <<'REMOTE'
             set -euo pipefail
             cd ~/lumen
             git fetch --depth=50 origin Rewrite
-            git checkout Rewrite
-            git reset --hard origin/Rewrite
+            if [ -n "${COMMIT_SHA}" ]; then
+              echo "Rolling out specific commit: ${COMMIT_SHA}"
+              git fetch --depth=50 origin "${COMMIT_SHA}" || true
+              git -c advice.detachedHead=false checkout "${COMMIT_SHA}"
+            else
+              echo "Rolling out Rewrite tip"
+              git checkout Rewrite
+              git reset --hard origin/Rewrite
+            fi
+            git --no-pager log -1 --pretty=format:'deploy commit: %H %s%n'
           REMOTE
 
       - name: Pull new images

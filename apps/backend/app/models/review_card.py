@@ -76,9 +76,7 @@ class ReviewCard(IdMixin, TimestampMixin, Base):
         Index("ix_review_cards_lesson_id", "lesson_id"),
     )
 
-    user_id: Mapped[str] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     lesson_id: Mapped[str] = mapped_column(
         ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False
     )

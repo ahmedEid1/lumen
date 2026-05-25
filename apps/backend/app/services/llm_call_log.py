@@ -92,9 +92,7 @@ async def _user_cost_last_24h(session: AsyncSession, user_id: str):
     per-user cap. ``COALESCE`` to zero so an empty window returns a
     valid number we can compare directly.
     """
-    stmt = select(
-        func.coalesce(func.sum(LLMCall.cost_usd), 0)
-    ).where(
+    stmt = select(func.coalesce(func.sum(LLMCall.cost_usd), 0)).where(
         LLMCall.user_id == user_id,
         LLMCall.created_at
         > func.now() - func.make_interval(0, 0, 0, 0, 0, 0, _BUDGET_WINDOW_SECONDS),
@@ -163,10 +161,10 @@ async def _persist_row(
 
 
 async def _invoke_provider(
-    provider: "LLMProvider",
-    messages: "list[ChatMessage]",
+    provider: LLMProvider,
+    messages: list[ChatMessage],
     temperature: float,
-) -> "ChatResponse":
+) -> ChatResponse:
     """Call the provider and normalise the result to a ``ChatResponse``.
 
     The real Anthropic / OpenAI / Noop providers all expose
@@ -197,14 +195,14 @@ async def _invoke_provider(
 
 
 async def call_logged(
-    provider: "LLMProvider",
-    messages: "list[ChatMessage]",
+    provider: LLMProvider,
+    messages: list[ChatMessage],
     *,
     user_id: str,
     feature: str,
     session: AsyncSession,
     temperature: float = 0.2,
-) -> "ChatResponse":
+) -> ChatResponse:
     """Invoke ``provider`` and record a metered row.
 
     Parameters mirror :meth:`LLMProvider.chat_with_usage` plus the
@@ -289,9 +287,7 @@ async def call_logged(
         raise
 
     latency_ms = int((time.perf_counter() - started) * 1000)
-    cost = compute_cost_usd(
-        response.model, response.prompt_tokens, response.completion_tokens
-    )
+    cost = compute_cost_usd(response.model, response.prompt_tokens, response.completion_tokens)
     await _persist_row(
         session,
         user_id=user_id,

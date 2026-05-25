@@ -45,27 +45,20 @@ log = get_logger(__name__)
 STALE_AFTER_DAYS = 30
 
 
-async def _stale_user_ids(
-    db: AsyncSession, *, cutoff: datetime
-) -> list[str]:
+async def _stale_user_ids(db: AsyncSession, *, cutoff: datetime) -> list[str]:
     """Return user ids whose active path has not been re-planned recently.
 
     Reads from the partial-unique-indexed ``status='active'`` rows
     so we only return at most one ``user_id`` per learner.
     """
-    stmt = (
-        select(LearningPath.user_id)
-        .where(
-            LearningPath.status == PATH_STATUS_ACTIVE,
-            LearningPath.replanned_at < cutoff,
-        )
+    stmt = select(LearningPath.user_id).where(
+        LearningPath.status == PATH_STATUS_ACTIVE,
+        LearningPath.replanned_at < cutoff,
     )
     return [row[0] for row in (await db.execute(stmt)).all()]
 
 
-async def _replan_one(
-    db: AsyncSession, *, user_id: str
-) -> bool:
+async def _replan_one(db: AsyncSession, *, user_id: str) -> bool:
     """Replan one learner. Returns True on success, False on swallowed error.
 
     We catch every exception (not just AppError) because the failure
@@ -74,9 +67,7 @@ async def _replan_one(
     everyone else.
     """
     try:
-        path = await learning_path_service.replan_for_user(
-            db, user_id=user_id
-        )
+        path = await learning_path_service.replan_for_user(db, user_id=user_id)
         if path is None:
             log.info("replan_skipped_no_active", user_id=user_id)
             return False
@@ -88,7 +79,7 @@ async def _replan_one(
             step_count=len(path.steps),
         )
         return True
-    except Exception:  # noqa: BLE001 - we intentionally swallow per-user
+    except Exception:
         await db.rollback()
         log.exception("replan_failed", user_id=user_id)
         return False

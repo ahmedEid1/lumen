@@ -29,7 +29,9 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _publish(client: AsyncClient, headers: dict, subject_id: str, title: str, overview: str, seed_lesson) -> str:
+async def _publish(
+    client: AsyncClient, headers: dict, subject_id: str, title: str, overview: str, seed_lesson
+) -> str:
     create = await client.post(
         "/api/v1/courses",
         json={"title": title, "subject_id": subject_id, "overview": overview},
@@ -37,14 +39,20 @@ async def _publish(client: AsyncClient, headers: dict, subject_id: str, title: s
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, headers)
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers
+    )
     return course_id
 
 
-async def test_search_finds_by_title(client: AsyncClient, auth_headers, db_session, seed_lesson) -> None:
+async def test_search_finds_by_title(
+    client: AsyncClient, auth_headers, db_session, seed_lesson
+) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    await _publish(client, teacher, subject.id, "Async Python deep dive", "Coroutines.", seed_lesson)
+    await _publish(
+        client, teacher, subject.id, "Async Python deep dive", "Coroutines.", seed_lesson
+    )
     await _publish(client, teacher, subject.id, "JavaScript essentials", "Closures.", seed_lesson)
 
     r = await client.get("/api/v1/search/courses?q=Python")
@@ -56,7 +64,9 @@ async def test_search_finds_by_title(client: AsyncClient, auth_headers, db_sessi
     assert all("JavaScript" not in t for t in titles)
 
 
-async def test_search_filters_difficulty(client: AsyncClient, auth_headers, db_session, seed_lesson) -> None:
+async def test_search_filters_difficulty(
+    client: AsyncClient, auth_headers, db_session, seed_lesson
+) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
     await _publish(client, teacher, subject.id, "Easy course", "intro stuff", seed_lesson)

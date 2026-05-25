@@ -25,7 +25,9 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _publish(client: AsyncClient, teacher: dict, subject_id: str, title: str, seed_lesson) -> str:
+async def _publish(
+    client: AsyncClient, teacher: dict, subject_id: str, title: str, seed_lesson
+) -> str:
     create = await client.post(
         "/api/v1/courses",
         json={"title": title, "subject_id": subject_id, "overview": "x"},

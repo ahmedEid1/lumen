@@ -25,7 +25,9 @@ from app.services import password_reset as reset_service
 router = APIRouter()
 
 
-def _set_auth_cookies(response: Response, *, access: str, refresh: str, access_exp: int, refresh_exp: int) -> None:
+def _set_auth_cookies(
+    response: Response, *, access: str, refresh: str, access_exp: int, refresh_exp: int
+) -> None:
     is_prod = get_settings().is_prod
     response.set_cookie(
         key="__Host-access" if is_prod else "access",
@@ -58,7 +60,9 @@ def _clear_auth_cookies(response: Response) -> None:
 async def register(
     payload: RegisterRequest, db: DBSession, request: Request, response: Response
 ) -> UserOut:
-    user = await auth_service.register(db, payload, ip=client_ip(request), user_agent=user_agent(request))
+    user = await auth_service.register(
+        db, payload, ip=client_ip(request), user_agent=user_agent(request)
+    )
     verify_service.queue_verification_email(user=user)
     return UserOut.model_validate(user)
 
@@ -170,9 +174,7 @@ async def password_reset_request(
         except Exception:  # dev path without broker shouldn't 500 the API
             from app.core.logging import get_logger
 
-            get_logger(__name__).info(
-                "password_reset_email_skipped", email=user.email, token=token
-            )
+            get_logger(__name__).info("password_reset_email_skipped", email=user.email, token=token)
     return OkResponse()
 
 

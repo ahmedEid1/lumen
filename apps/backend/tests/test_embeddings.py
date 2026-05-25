@@ -69,7 +69,10 @@ def test_noop_provider_empty_input_short_circuits() -> None:
 
 
 def _make_lesson(
-    *, title: str = "Lesson", lesson_type: str = "text", body_markdown: str = "",
+    *,
+    title: str = "Lesson",
+    lesson_type: str = "text",
+    body_markdown: str = "",
     data: dict | None = None,
 ) -> Lesson:
     """Build a non-persisted Lesson for chunker tests."""
@@ -131,10 +134,20 @@ def test_chunk_lesson_quiz_concats_question_prompts() -> None:
             "type": "quiz",
             "pass_score": 60,
             "questions": [
-                {"id": "q1", "prompt": "What is gradient descent?", "kind": "short",
-                 "choices": [], "answer_keys": []},
-                {"id": "q2", "prompt": "Define overfitting.", "kind": "short",
-                 "choices": [], "answer_keys": []},
+                {
+                    "id": "q1",
+                    "prompt": "What is gradient descent?",
+                    "kind": "short",
+                    "choices": [],
+                    "answer_keys": [],
+                },
+                {
+                    "id": "q2",
+                    "prompt": "Define overfitting.",
+                    "kind": "short",
+                    "choices": [],
+                    "answer_keys": [],
+                },
             ],
         },
     )
@@ -235,10 +248,15 @@ async def test_ingest_lesson_writes_chunks_with_correct_dim(
     assert written >= 1
 
     rows = (
-        (await db_session.execute(
-            select(LessonChunk).where(LessonChunk.lesson_id == lesson.id)
-            .order_by(LessonChunk.chunk_index)
-        )).scalars().all()
+        (
+            await db_session.execute(
+                select(LessonChunk)
+                .where(LessonChunk.lesson_id == lesson.id)
+                .order_by(LessonChunk.chunk_index)
+            )
+        )
+        .scalars()
+        .all()
     )
     assert len(rows) == written
     for i, row in enumerate(rows):
@@ -250,9 +268,7 @@ async def test_ingest_lesson_writes_chunks_with_correct_dim(
 
 
 async def test_ingest_lesson_is_idempotent(db_session: AsyncSession) -> None:
-    await _seed_course_with_lessons(
-        db_session, bodies=["Re-ingest test body. " * 30]
-    )
+    await _seed_course_with_lessons(db_session, bodies=["Re-ingest test body. " * 30])
     res = await db_session.execute(select(Lesson))
     lesson = res.scalars().first()
     assert lesson is not None
@@ -265,9 +281,11 @@ async def test_ingest_lesson_is_idempotent(db_session: AsyncSession) -> None:
     assert first == again > 0
     # Same count after the second pass — re-ingest deletes the old rows
     # rather than appending duplicates.
-    total = (await db_session.execute(
-        select(LessonChunk).where(LessonChunk.lesson_id == lesson.id)
-    )).scalars().all()
+    total = (
+        (await db_session.execute(select(LessonChunk).where(LessonChunk.lesson_id == lesson.id)))
+        .scalars()
+        .all()
+    )
     assert len(total) == again
 
 
@@ -320,7 +338,8 @@ async def test_find_relevant_chunks_orders_by_cosine_distance(
     # provider's exact-text hash.
     stored = (
         await db_session.execute(
-            select(LessonChunk).join(Lesson, Lesson.id == LessonChunk.lesson_id)
+            select(LessonChunk)
+            .join(Lesson, Lesson.id == LessonChunk.lesson_id)
             .where(Lesson.id == "lsn_1")
         )
     ).scalar_one()
@@ -354,7 +373,10 @@ async def test_find_relevant_chunks_respects_top_k(
     )
     await ingest_course(db_session, "crs_x")
     results = await find_relevant_chunks(
-        db_session, course_id="crs_x", query="topic A", top_k=2,
+        db_session,
+        course_id="crs_x",
+        query="topic A",
+        top_k=2,
         provider=NoopEmbeddingProvider(),
     )
     assert len(results) == 2
@@ -365,7 +387,10 @@ async def test_find_relevant_chunks_blank_query_returns_empty(
 ) -> None:
     assert (
         await find_relevant_chunks(
-            db_session, course_id="crs_x", query="   ", top_k=5,
+            db_session,
+            course_id="crs_x",
+            query="   ",
+            top_k=5,
             provider=NoopEmbeddingProvider(),
         )
         == []

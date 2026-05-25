@@ -60,7 +60,9 @@ async def list_my_enrollments(user: CurrentUser, db: DBSession) -> list[Enrollme
     ]
 
 
-@router.post("/enrollments/{course_id}", response_model=EnrollmentOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/enrollments/{course_id}", response_model=EnrollmentOut, status_code=status.HTTP_201_CREATED
+)
 async def enroll(course_id: str, user: CurrentUser, db: DBSession) -> EnrollmentOut:
     course = await _get_course_or_404(db, course_id)
     enrollment = await enrollment_service.enroll(db, user=user, course=course)
@@ -150,22 +152,24 @@ async def list_my_quiz_attempts(
     mod = await courses_repo.get_module(db, lesson.module_id)
     if not mod:
         raise NotFoundError("Module not found", code="module.not_found")
-    enrollment = await courses_repo.get_enrollment(
-        db, user_id=user.id, course_id=mod.course_id
-    )
+    enrollment = await courses_repo.get_enrollment(db, user_id=user.id, course_id=mod.course_id)
     if not enrollment:
         return []
     rows = (
-        await db.execute(
-            select(QuizAttempt)
-            .where(
-                QuizAttempt.enrollment_id == enrollment.id,
-                QuizAttempt.lesson_id == lesson_id,
+        (
+            await db.execute(
+                select(QuizAttempt)
+                .where(
+                    QuizAttempt.enrollment_id == enrollment.id,
+                    QuizAttempt.lesson_id == lesson_id,
+                )
+                .order_by(desc(QuizAttempt.created_at))
+                .limit(50)
             )
-            .order_by(desc(QuizAttempt.created_at))
-            .limit(50)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return [
         QuizAttemptOut(
             id=a.id,

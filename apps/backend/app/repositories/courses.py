@@ -74,7 +74,9 @@ def _course_with_relations(*, with_modules: bool = False) -> Select[tuple[Course
     return stmt
 
 
-async def get_course(db: AsyncSession, course_id: str, *, with_modules: bool = False) -> Course | None:
+async def get_course(
+    db: AsyncSession, course_id: str, *, with_modules: bool = False
+) -> Course | None:
     res = await db.execute(
         _course_with_relations(with_modules=with_modules).where(
             Course.id == course_id, Course.deleted_at.is_(None)
@@ -92,7 +94,9 @@ async def get_courses_by_ids(db: AsyncSession, ids: list[str]) -> list[Course]:
     return list(res.scalars().unique().all())
 
 
-async def get_course_by_slug(db: AsyncSession, slug: str, *, with_modules: bool = False) -> Course | None:
+async def get_course_by_slug(
+    db: AsyncSession, slug: str, *, with_modules: bool = False
+) -> Course | None:
     res = await db.execute(
         _course_with_relations(with_modules=with_modules).where(
             Course.slug == slug, Course.deleted_at.is_(None)
@@ -202,7 +206,9 @@ async def list_tags_by_ids(db: AsyncSession, tag_ids: list[str]) -> list[Tag]:
     return list(res.scalars().all())
 
 
-async def stats_for_courses(db: AsyncSession, course_ids: list[str]) -> dict[str, dict[str, float | int]]:
+async def stats_for_courses(
+    db: AsyncSession, course_ids: list[str]
+) -> dict[str, dict[str, float | int]]:
     if not course_ids:
         return {}
 
@@ -241,19 +247,26 @@ async def stats_for_courses(db: AsyncSession, course_ids: list[str]) -> dict[str
 
 
 async def get_module(db: AsyncSession, module_id: str) -> Module | None:
-    res = await db.execute(select(Module).options(selectinload(Module.lessons)).where(Module.id == module_id))
+    res = await db.execute(
+        select(Module).options(selectinload(Module.lessons)).where(Module.id == module_id)
+    )
     return res.scalar_one_or_none()
 
 
 async def list_modules_for_course(db: AsyncSession, course_id: str) -> list[Module]:
     res = await db.execute(
-        select(Module).options(selectinload(Module.lessons)).where(Module.course_id == course_id).order_by(Module.order)
+        select(Module)
+        .options(selectinload(Module.lessons))
+        .where(Module.course_id == course_id)
+        .order_by(Module.order)
     )
     return list(res.scalars().all())
 
 
 async def next_module_order(db: AsyncSession, course_id: str) -> int:
-    res = await db.execute(select(func.coalesce(func.max(Module.order), -1)).where(Module.course_id == course_id))
+    res = await db.execute(
+        select(func.coalesce(func.max(Module.order), -1)).where(Module.course_id == course_id)
+    )
     return int(res.scalar_one()) + 1
 
 
@@ -265,7 +278,9 @@ async def get_lesson(db: AsyncSession, lesson_id: str) -> Lesson | None:
 
 
 async def next_lesson_order(db: AsyncSession, module_id: str) -> int:
-    res = await db.execute(select(func.coalesce(func.max(Lesson.order), -1)).where(Lesson.module_id == module_id))
+    res = await db.execute(
+        select(func.coalesce(func.max(Lesson.order), -1)).where(Lesson.module_id == module_id)
+    )
     return int(res.scalar_one()) + 1
 
 
@@ -422,13 +437,17 @@ async def mark_completed(db: AsyncSession, lp: LessonProgress) -> None:
 async def get_review(db: AsyncSession, *, author_id: str, course_id: str) -> Review | None:
     res = await db.execute(
         select(Review).where(
-            Review.author_id == author_id, Review.course_id == course_id, Review.deleted_at.is_(None)
+            Review.author_id == author_id,
+            Review.course_id == course_id,
+            Review.deleted_at.is_(None),
         )
     )
     return res.scalar_one_or_none()
 
 
-async def list_reviews_for_course(db: AsyncSession, course_id: str, *, limit: int = 20, offset: int = 0) -> list[Review]:
+async def list_reviews_for_course(
+    db: AsyncSession, course_id: str, *, limit: int = 20, offset: int = 0
+) -> list[Review]:
     res = await db.execute(
         select(Review)
         .options(selectinload(Review.author))

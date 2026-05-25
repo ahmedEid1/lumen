@@ -27,9 +27,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _quiz_lesson(
-    client: AsyncClient, teacher: dict, subject_id: str
-) -> tuple[str, str]:
+async def _quiz_lesson(client: AsyncClient, teacher: dict, subject_id: str) -> tuple[str, str]:
     create = await client.post(
         "/api/v1/courses",
         json={"title": "Q", "subject_id": subject_id, "overview": "x"},
@@ -96,12 +94,16 @@ async def test_each_submission_records_a_new_attempt_row(
         assert r.status_code == 200, r.text
 
     rows = (
-        await db_session.execute(
-            select(QuizAttempt)
-            .where(QuizAttempt.lesson_id == lesson_id)
-            .order_by(QuizAttempt.created_at.asc())
+        (
+            await db_session.execute(
+                select(QuizAttempt)
+                .where(QuizAttempt.lesson_id == lesson_id)
+                .order_by(QuizAttempt.created_at.asc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(rows) == 3
     assert [a.passed for a in rows] == [False, False, True]
     # answers JSONB must hold the verbatim submission so a future
@@ -164,12 +166,8 @@ async def test_attempts_empty_when_never_enrolled(
     assert r.json() == []
 
 
-async def test_attempts_404_for_unknown_lesson(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_attempts_404_for_unknown_lesson(client: AsyncClient, auth_headers) -> None:
     h = await auth_headers()
-    r = await client.get(
-        "/api/v1/me/progress/lessons/nope/quiz/attempts", headers=h
-    )
+    r = await client.get("/api/v1/me/progress/lessons/nope/quiz/attempts", headers=h)
     assert r.status_code == 404
     assert r.json()["error"]["code"] == "lesson.not_found"

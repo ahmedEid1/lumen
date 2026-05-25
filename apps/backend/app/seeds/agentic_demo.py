@@ -348,9 +348,7 @@ async def _ensure_completed_enrollment(
         return enrolment
 
     existing_progress_res = await db.execute(
-        select(LessonProgress.lesson_id).where(
-            LessonProgress.enrollment_id == enrolment.id
-        )
+        select(LessonProgress.lesson_id).where(LessonProgress.enrollment_id == enrolment.id)
     )
     completed_ids = set(existing_progress_res.scalars().all())
     for lesson in lessons:
@@ -372,7 +370,9 @@ async def _ensure_completed_enrollment(
     # Best-effort OB3 — same posture as the live enrollment service.
     try:
         enrolment.badge_credential = badges_service.issue_for_enrollment(
-            enrollment=enrolment, user=student, course=course,
+            enrollment=enrolment,
+            user=student,
+            course=course,
         )
     except Exception:  # pragma: no cover — defensive
         enrolment.badge_credential = None
@@ -411,9 +411,7 @@ async def _ensure_in_flight_enrollment(
     cutoff = max(1, int(len(lessons) * progress_fraction))
 
     existing_res = await db.execute(
-        select(LessonProgress.lesson_id).where(
-            LessonProgress.enrollment_id == enrolment.id
-        )
+        select(LessonProgress.lesson_id).where(LessonProgress.enrollment_id == enrolment.id)
     )
     completed_ids = set(existing_res.scalars().all())
     for lesson in lessons[:cutoff]:
@@ -595,18 +593,22 @@ async def _ensure_tutor_turn(
     await db.flush()
 
     # Retrieval audit — what the retriever sub-agent actually pulled.
-    audit_chunks = [
-        {
-            "chunk_id": f"chunk_{i}",
-            "lesson_id": lesson.id,
-            "score": round(0.18 + i * 0.05, 3),
-            "snippet": (
-                f"{lesson.title}: FastAPI dependencies compose into a "
-                "per-request graph that resolves once and is reused..."
-            )[:120],
-        }
-        for i, lesson in enumerate(cited_lessons[:3])
-    ] if cited_lessons else []
+    audit_chunks = (
+        [
+            {
+                "chunk_id": f"chunk_{i}",
+                "lesson_id": lesson.id,
+                "score": round(0.18 + i * 0.05, 3),
+                "snippet": (
+                    f"{lesson.title}: FastAPI dependencies compose into a "
+                    "per-request graph that resolves once and is reused..."
+                )[:120],
+            }
+            for i, lesson in enumerate(cited_lessons[:3])
+        ]
+        if cited_lessons
+        else []
+    )
     audit = RetrievalAudit(
         user_id=student.id,
         # Match what the live ``retriever`` sub-agent stamps: the base
@@ -652,8 +654,7 @@ async def _ensure_tutor_turn(
                         "carry the bulk of the answer."
                     ),
                     "result_summary": (
-                        f"Retrieved {len(audit_chunks)} relevant lesson "
-                        "chunk(s); top score 0.18."
+                        f"Retrieved {len(audit_chunks)} relevant lesson chunk(s); top score 0.18."
                     ),
                     "result_details": {"chunks": audit_chunks},
                 },
@@ -669,13 +670,9 @@ async def _ensure_tutor_turn(
                         "snippets": [
                             {
                                 "title": (
-                                    "SQLAlchemy 2 async session — "
-                                    "MissingGreenlet on lazy attribute"
+                                    "SQLAlchemy 2 async session — MissingGreenlet on lazy attribute"
                                 ),
-                                "url": (
-                                    "https://docs.sqlalchemy.org/en/20/"
-                                    "errors.html#error-xd2s"
-                                ),
+                                "url": ("https://docs.sqlalchemy.org/en/20/errors.html#error-xd2s"),
                                 "content_first_240": (
                                     "Attribute access on a relationship "
                                     "that was not loaded inside the "
@@ -819,9 +816,7 @@ async def _ensure_draft_trace(
         )
         db.add(module)
         await db.flush()
-        for l_idx, l_title in enumerate(
-            ["Single-prompt tutor", "Retrieval-augmented tutor"]
-        ):
+        for l_idx, l_title in enumerate(["Single-prompt tutor", "Retrieval-augmented tutor"]):
             db.add(
                 Lesson(
                     module_id=module.id,
@@ -875,8 +870,7 @@ async def _ensure_draft_trace(
                     "self-critique loop."
                 ),
                 "response_summary": (
-                    "3 web snippet(s); 2 catalog neighbour(s); "
-                    "note='enough coverage to outline'."
+                    "3 web snippet(s); 2 catalog neighbour(s); note='enough coverage to outline'."
                 ),
                 "web_snippets": [
                     {
@@ -908,9 +902,7 @@ async def _ensure_draft_trace(
             step=DRAFT_STEP_OUTLINER,
             step_index=1,
             payload={
-                "prompt_summary": (
-                    "Brief: AI-tutor design patterns + self-critique."
-                ),
+                "prompt_summary": ("Brief: AI-tutor design patterns + self-critique."),
                 "response_summary": (
                     "Outline v1: 3 modules, 6 lessons total (Patterns, "
                     "Retrieval shapes, Critic-revise loops)."
@@ -1147,9 +1139,7 @@ async def apply(
     for name, slug in extra_tag_data:
         if slug in tags:
             continue
-        existing_tag = (
-            await db.execute(select(Tag).where(Tag.slug == slug))
-        ).scalar_one_or_none()
+        existing_tag = (await db.execute(select(Tag).where(Tag.slug == slug))).scalar_one_or_none()
         if existing_tag is None:
             existing_tag = Tag(name=name, slug=slug)
             db.add(existing_tag)
@@ -1185,9 +1175,7 @@ async def apply(
 
     # ---- Enrollments ----
     if fastapi_course is not None:
-        await _ensure_completed_enrollment(
-            db, student=student, course=fastapi_course
-        )
+        await _ensure_completed_enrollment(db, student=student, course=fastapi_course)
     # Pick the data-engineering course for an in-flight enrollment.
     data_eng = next(
         (c for c in new_courses if c.slug == "data-engineering-foundations"),
@@ -1204,17 +1192,13 @@ async def apply(
     # ---- Tutor turn (agent trace) ----
     if fastapi_course is not None:
         try:
-            await _ensure_tutor_turn(
-                db, student=student, course=fastapi_course
-            )
+            await _ensure_tutor_turn(db, student=student, course=fastapi_course)
         except Exception as exc:  # pragma: no cover — defensive
             console.print(f"[yellow]tutor-turn seed skipped: {exc}[/yellow]")
 
     # ---- Draft trace (self-critique) ----
     try:
-        await _ensure_draft_trace(
-            db, instructor=instructor, subjects=subjects, tags=tags
-        )
+        await _ensure_draft_trace(db, instructor=instructor, subjects=subjects, tags=tags)
     except Exception as exc:  # pragma: no cover — defensive
         console.print(f"[yellow]draft-trace seed skipped: {exc}[/yellow]")
 

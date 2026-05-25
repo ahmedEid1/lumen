@@ -203,9 +203,7 @@ async def test_lesson_reorder_skips_soft_deleted_and_avoids_collision(
     assert lessons[1].order >= 2
 
 
-async def test_lesson_reorder_partial_mapping_rejected(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_lesson_reorder_partial_mapping_rejected(db_session: AsyncSession, make_user) -> None:
     teacher = await make_user(role=Role.instructor)
     subject = Subject(title="P", slug=f"p-{uuid.uuid4().hex[:6]}")
     db_session.add(subject)

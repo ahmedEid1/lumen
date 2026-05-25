@@ -19,12 +19,11 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
 
-from app.evals.golden import SUITES, SuiteName
+from app.evals.golden import SUITES
 from app.evals.runner import run_suite
 
 cli = typer.Typer(no_args_is_help=True, add_completion=False)
@@ -86,15 +85,15 @@ def _preflight_provider() -> None:
 @cli.command()
 def run(
     suite: str = typer.Option(..., "--suite", help=f"One of {list(SUITES)}"),
-    limit: Optional[int] = typer.Option(
+    limit: int | None = typer.Option(
         None, "--limit", help="Run only the first N items (smoke-test mode)"
     ),
-    out: Optional[Path] = typer.Option(
+    out: Path | None = typer.Option(
         None,
         "--out",
         help="Path to write the JSONL report (default: evals/reports/<suite>-<ISO>.jsonl)",
     ),
-    judge_model: Optional[str] = typer.Option(
+    judge_model: str | None = typer.Option(
         None,
         "--judge-model",
         help="Override the model name recorded on the report summary. The "

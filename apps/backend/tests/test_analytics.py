@@ -29,7 +29,9 @@ async def _full_course(
     )
     course_id = create.json()["id"]
     m = (
-        await client.post(f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=headers)
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=headers
+        )
     ).json()
     lesson = (
         await client.post(
@@ -38,7 +40,9 @@ async def _full_course(
             headers=headers,
         )
     ).json()
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers
+    )
     return course_id, lesson["id"]
 
 
@@ -77,7 +81,9 @@ async def test_analytics_reflects_enrollment_and_completion(
         f"/api/v1/me/progress/lessons/{lesson_id}", json={"completed": True}, headers=student_a
     )
     await client.put(
-        f"/api/v1/courses/{course_id}/reviews", json={"rating": 5, "body": "great"}, headers=student_a
+        f"/api/v1/courses/{course_id}/reviews",
+        json={"rating": 5, "body": "great"},
+        headers=student_a,
     )
     # one enrollment with no completion
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student_b)

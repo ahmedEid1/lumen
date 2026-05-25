@@ -44,7 +44,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, IdMixin
 
-
 # Max snippet length captured per chunk. 120 chars is enough for an
 # admin to recognise the source paragraph without re-storing the
 # full chunk text (already in ``lesson_chunks.text``).
@@ -73,9 +72,7 @@ class RetrievalAudit(IdMixin, Base):
         ),
     )
 
-    user_id: Mapped[str] = mapped_column(
-        String(64), nullable=False, index=False
-    )
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=False)
     feature: Mapped[str] = mapped_column(String(64), nullable=False)
     query: Mapped[str] = mapped_column(Text, nullable=False)
     course_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

@@ -218,11 +218,7 @@ async def get_llm_call_trace(
     "show the admin enough to debug" and "don't add a column the
     other agents haven't asked for yet".
     """
-    call_row = (
-        await db.execute(
-            select(LLMCall).where(LLMCall.id == call_id)
-        )
-    ).scalar_one_or_none()
+    call_row = (await db.execute(select(LLMCall).where(LLMCall.id == call_id))).scalar_one_or_none()
     if call_row is None:
         raise NotFoundError(
             f"LLM call {call_id} not found",
@@ -238,17 +234,21 @@ async def get_llm_call_trace(
     # pulling in unrelated activity from the same user.
     audit_window_start = call_row.created_at - timedelta(seconds=60)
     audit_rows = (
-        await db.execute(
-            select(RetrievalAudit)
-            .where(
-                RetrievalAudit.user_id == call_row.user_id,
-                RetrievalAudit.created_at >= audit_window_start,
-                RetrievalAudit.created_at <= call_row.created_at,
+        (
+            await db.execute(
+                select(RetrievalAudit)
+                .where(
+                    RetrievalAudit.user_id == call_row.user_id,
+                    RetrievalAudit.created_at >= audit_window_start,
+                    RetrievalAudit.created_at <= call_row.created_at,
+                )
+                .order_by(desc(RetrievalAudit.created_at))
+                .limit(5)
             )
-            .order_by(desc(RetrievalAudit.created_at))
-            .limit(5)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     return LLMCallTraceOut(
         call=_llm_call_to_summary(call_row),
@@ -276,11 +276,7 @@ async def list_retrieval_audits(
     call passes ``since=now-24h``. ``user_id`` accepts the
     ``"__system__"`` sentinel for eval-suite traffic.
     """
-    stmt = (
-        select(RetrievalAudit)
-        .order_by(desc(RetrievalAudit.created_at))
-        .limit(limit)
-    )
+    stmt = select(RetrievalAudit).order_by(desc(RetrievalAudit.created_at)).limit(limit)
     if since is not None:
         stmt = stmt.where(RetrievalAudit.created_at >= since)
     if user_id is not None:

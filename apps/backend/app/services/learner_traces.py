@@ -44,6 +44,7 @@ FK lookup with no API surface change.
 
 from __future__ import annotations
 
+import contextlib
 from datetime import timedelta
 from decimal import Decimal
 
@@ -172,36 +173,44 @@ async def fetch_tutor_turn_trace(
     #    ``ix_agent_traces_user_created`` composite index makes
     #    this an index range scan.
     trace_rows = (
-        await db.execute(
-            select(AgentTrace)
-            .where(
-                AgentTrace.user_id == user_id,
-                AgentTrace.feature.startswith(_TUTOR_FEATURE_PREFIX),
-                AgentTrace.created_at >= window_start,
-                AgentTrace.created_at <= window_end,
-            )
-            .order_by(
-                AgentTrace.created_at.asc(),
-                AgentTrace.step_index.asc(),
+        (
+            await db.execute(
+                select(AgentTrace)
+                .where(
+                    AgentTrace.user_id == user_id,
+                    AgentTrace.feature.startswith(_TUTOR_FEATURE_PREFIX),
+                    AgentTrace.created_at >= window_start,
+                    AgentTrace.created_at <= window_end,
+                )
+                .order_by(
+                    AgentTrace.created_at.asc(),
+                    AgentTrace.step_index.asc(),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # 2. Pull every LLM call for this user in the same window with
     #    a tutor-multi-agent feature slug. We need the slim
     #    summary plus the totals roll-up.
     llm_rows = (
-        await db.execute(
-            select(LLMCall)
-            .where(
-                LLMCall.user_id == user_id,
-                LLMCall.feature.startswith(_TUTOR_FEATURE_PREFIX),
-                LLMCall.created_at >= window_start,
-                LLMCall.created_at <= window_end,
+        (
+            await db.execute(
+                select(LLMCall)
+                .where(
+                    LLMCall.user_id == user_id,
+                    LLMCall.feature.startswith(_TUTOR_FEATURE_PREFIX),
+                    LLMCall.created_at >= window_start,
+                    LLMCall.created_at <= window_end,
+                )
+                .order_by(LLMCall.created_at.asc())
             )
-            .order_by(LLMCall.created_at.asc())
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # 3. Pull retrieval audits in the same window for this user.
     #    Tutor retrievals are written by the retriever sub-agent
@@ -209,17 +218,21 @@ async def fetch_tutor_turn_trace(
     #    ``tutor_subagents.run_retriever``), so a prefix filter
     #    catches them without listing every sub-agent slug.
     audit_rows = (
-        await db.execute(
-            select(RetrievalAudit)
-            .where(
-                RetrievalAudit.user_id == user_id,
-                RetrievalAudit.created_at >= window_start,
-                RetrievalAudit.created_at <= window_end,
+        (
+            await db.execute(
+                select(RetrievalAudit)
+                .where(
+                    RetrievalAudit.user_id == user_id,
+                    RetrievalAudit.created_at >= window_start,
+                    RetrievalAudit.created_at <= window_end,
+                )
+                .order_by(desc(RetrievalAudit.created_at))
+                .limit(_AUDIT_LIMIT)
             )
-            .order_by(desc(RetrievalAudit.created_at))
-            .limit(_AUDIT_LIMIT)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # ---------- Project to DTOs ----------
 
@@ -259,17 +272,13 @@ async def fetch_tutor_turn_trace(
     for row in trace_rows:
         payload = row.payload or {}
         if row.step == "plan":
-            try:
+            with contextlib.suppress(TypeError, ValueError):
                 confidence = int(payload.get("confidence_after_plan", confidence))
-            except (TypeError, ValueError):
-                pass
         elif row.step == "replan":
             decoded = payload.get("decoded") if isinstance(payload, dict) else None
             if isinstance(decoded, dict):
-                try:
+                with contextlib.suppress(TypeError, ValueError):
                     confidence = int(decoded.get("confidence_now", confidence))
-                except (TypeError, ValueError):
-                    pass
 
     log.info(
         "learner_trace_fetched",
@@ -301,9 +310,7 @@ async def fetch_tutor_turn_trace(
 # ---------- Draft replay ----------
 
 
-async def fetch_draft_replay(
-    db: AsyncSession, *, course_id: str
-) -> DraftReplayOut:
+async def fetch_draft_replay(db: AsyncSession, *, course_id: str) -> DraftReplayOut:
     """Return the replay payload for the latest draft of ``course_id``.
 
     Reuses I3's :func:`authoring_orchestrator.list_traces_for_course`
@@ -315,9 +322,7 @@ async def fetch_draft_replay(
     "instructor owns the course OR is admin" rule and the API
     layer is the natural place for that.
     """
-    rows = await authoring_orchestrator.list_traces_for_course(
-        db, course_id=course_id
-    )
+    rows = await authoring_orchestrator.list_traces_for_course(db, course_id=course_id)
 
     steps_out = [_draft_to_out(r) for r in rows]
     total_duration = sum(int(r.duration_ms) for r in rows)

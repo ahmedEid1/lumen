@@ -132,9 +132,7 @@ async def test_missing_credential_returns_404(client: AsyncClient) -> None:
     assert body["error"]["code"] == "badge.not_found"
 
 
-async def test_issue_endpoint_returns_jsonld(
-    client: AsyncClient, db_session: AsyncSession
-) -> None:
+async def test_issue_endpoint_returns_jsonld(client: AsyncClient, db_session: AsyncSession) -> None:
     """GET /credentials/{id} returns the signed JSON-LD payload."""
     user, course, enrollment = await _seed_completed_enrollment(db_session)
     # Populate the stored credential as the enrollment service would.
@@ -251,11 +249,7 @@ async def test_credential_minted_on_lesson_completion(
     )
 
     # The enrollment row should now carry both artifacts.
-    row = (
-        await db_session.execute(
-            __import_select_for_course(course_id)
-        )
-    ).scalar_one()
+    row = (await db_session.execute(__import_select_for_course(course_id))).scalar_one()
     assert row.certificate_id is not None
     assert row.badge_credential is not None
     assert badges_service.verify(row.badge_credential) is True

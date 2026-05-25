@@ -19,9 +19,7 @@ from __future__ import annotations
 from httpx import AsyncClient
 
 
-async def test_presign_returns_post_method_and_fields(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_presign_returns_post_method_and_fields(client: AsyncClient, auth_headers) -> None:
     h = await auth_headers()
     r = await client.post(
         "/api/v1/uploads/sign",
@@ -44,9 +42,7 @@ async def test_presign_returns_post_method_and_fields(
     assert body["max_bytes"] == 5 * 1024 * 1024  # avatar cap
 
 
-async def test_presign_max_bytes_matches_per_kind_cap(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_presign_max_bytes_matches_per_kind_cap(client: AsyncClient, auth_headers) -> None:
     h = await auth_headers()
     # Same request shape across kinds — only ``max_bytes`` should change.
     cases = {

@@ -54,9 +54,7 @@ async def test_before_cursor_returns_strictly_older_events(
     ids = await _seed_events(db_session, actor_id=actor.id, n=8)
 
     # Page 1: head, limit 3 → newest three.
-    head = await client.get(
-        "/api/v1/admin/audit?limit=3&action=test.seeded", headers=admin
-    )
+    head = await client.get("/api/v1/admin/audit?limit=3&action=test.seeded", headers=admin)
     assert head.status_code == 200
     head_ids = [e["id"] for e in head.json()]
     assert head_ids == ids[:3]
@@ -91,9 +89,7 @@ async def test_unknown_before_cursor_returns_unfiltered_page(
     assert len(r.json()) == 3
 
 
-async def test_audit_requires_admin(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_audit_requires_admin(client: AsyncClient, auth_headers) -> None:
     """Sanity: the cursor work didn't accidentally relax the admin gate."""
     instructor = await auth_headers(role=Role.instructor)
     r = await client.get("/api/v1/admin/audit", headers=instructor)

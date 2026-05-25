@@ -18,9 +18,7 @@ from httpx import AsyncClient
 from app.services import email_change as email_change_service
 
 
-async def test_request_rejects_wrong_password(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_request_rejects_wrong_password(client: AsyncClient, auth_headers) -> None:
     h = await auth_headers()
     r = await client.post(
         "/api/v1/users/me/email/request",
@@ -31,9 +29,7 @@ async def test_request_rejects_wrong_password(
     assert r.json()["error"]["code"] == "auth.invalid_credentials"
 
 
-async def test_request_rejects_taken_email(
-    client: AsyncClient, auth_headers, make_user
-) -> None:
+async def test_request_rejects_taken_email(client: AsyncClient, auth_headers, make_user) -> None:
     await make_user(email="taken@lumen.test")
     h = await auth_headers()
     r = await client.post(
@@ -45,9 +41,7 @@ async def test_request_rejects_taken_email(
     assert r.json()["error"]["code"] == "auth.email_taken"
 
 
-async def test_request_same_email_is_noop_ok(
-    client: AsyncClient, auth_headers, make_user
-) -> None:
+async def test_request_same_email_is_noop_ok(client: AsyncClient, auth_headers, make_user) -> None:
     """Requesting a change to the address you already have is a no-op
     success — the UI shouldn't have to special-case it."""
     user = await make_user(email="me@lumen.test", password="Password!1234")
@@ -64,15 +58,11 @@ async def test_request_same_email_is_noop_ok(
     assert r.status_code == 200
 
 
-async def test_request_and_confirm_round_trip(
-    client: AsyncClient, make_user, db_session
-) -> None:
+async def test_request_and_confirm_round_trip(client: AsyncClient, make_user, db_session) -> None:
     user = await make_user(email="before@lumen.test", password="Password!1234")
     token = email_change_service.make_token(user, new_email="after@lumen.test")
 
-    r = await client.post(
-        "/api/v1/users/me/email/confirm", json={"token": token}
-    )
+    r = await client.post("/api/v1/users/me/email/confirm", json={"token": token})
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["email"] == "after@lumen.test"
@@ -91,9 +81,7 @@ async def test_request_and_confirm_round_trip(
     assert ok.status_code == 200
 
 
-async def test_confirm_after_password_rotation_is_stale(
-    client: AsyncClient, make_user
-) -> None:
+async def test_confirm_after_password_rotation_is_stale(client: AsyncClient, make_user) -> None:
     user = await make_user(email="rot@lumen.test", password="Password!1234")
     token = email_change_service.make_token(user, new_email="dst@lumen.test")
 
@@ -111,9 +99,7 @@ async def test_confirm_after_password_rotation_is_stale(
     assert chg.status_code == 200
 
     # Now the email-change token (bound to the OLD password hash) is stale.
-    r = await client.post(
-        "/api/v1/users/me/email/confirm", json={"token": token}
-    )
+    r = await client.post("/api/v1/users/me/email/confirm", json={"token": token})
     assert r.status_code == 401
     assert r.json()["error"]["code"] == "email_change.stale"
 
@@ -129,9 +115,7 @@ async def test_confirm_clashes_if_someone_grabbed_the_address(
     # Someone else grabs it.
     await make_user(email="contested@lumen.test")
 
-    r = await client.post(
-        "/api/v1/users/me/email/confirm", json={"token": token}
-    )
+    r = await client.post("/api/v1/users/me/email/confirm", json={"token": token})
     assert r.status_code == 409
     assert r.json()["error"]["code"] == "auth.email_taken"
 
@@ -144,9 +128,7 @@ async def test_confirm_garbage_token_rejected(client: AsyncClient) -> None:
     assert r.json()["error"]["code"] == "email_change.invalid"
 
 
-async def test_confirm_revokes_all_refresh_tokens(
-    client: AsyncClient, make_user
-) -> None:
+async def test_confirm_revokes_all_refresh_tokens(client: AsyncClient, make_user) -> None:
     """An email change is a significant security event — every parallel
     session must be booted so the user re-authenticates with the new
     credentials."""
@@ -158,9 +140,7 @@ async def test_confirm_revokes_all_refresh_tokens(
     assert login.status_code == 200
     # AsyncClient persists the refresh cookie from /login.
     token = email_change_service.make_token(user, new_email="moved@lumen.test")
-    confirm = await client.post(
-        "/api/v1/users/me/email/confirm", json={"token": token}
-    )
+    confirm = await client.post("/api/v1/users/me/email/confirm", json={"token": token})
     assert confirm.status_code == 200
 
     # The old refresh cookie no longer works.

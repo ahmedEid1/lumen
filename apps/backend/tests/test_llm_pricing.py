@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 from decimal import Decimal
 
 import pytest
 
 from app.services.llm_pricing import MODEL_PRICING, compute_cost_usd
-
 
 # ---------- Known models ----------
 

@@ -83,9 +83,7 @@ class TutorConversation(IdMixin, Base):
         Index("ix_tutor_conversations_course_id", "course_id"),
     )
 
-    user_id: Mapped[str] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     course_id: Mapped[str] = mapped_column(
         ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
     )
@@ -124,9 +122,7 @@ class TutorMessage(IdMixin, Base):
         ForeignKey("tutor_conversations.id", ondelete="CASCADE"),
         nullable=False,
     )
-    role: Mapped[TutorMessageRole] = mapped_column(
-        String(16), nullable=False
-    )
+    role: Mapped[TutorMessageRole] = mapped_column(String(16), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     # List of ``{lesson_id, lesson_title, chunk_excerpt}`` dicts —
     # always ``[]`` on user-role messages, populated on assistant
@@ -141,9 +137,7 @@ class TutorMessage(IdMixin, Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    conversation: Mapped[TutorConversation] = relationship(
-        back_populates="messages"
-    )
+    conversation: Mapped[TutorConversation] = relationship(back_populates="messages")
 
 
 __all__ = [

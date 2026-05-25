@@ -58,11 +58,7 @@ def _identity_key(request: Request) -> str:
                 return f"user:{sub}"
         except jwt.PyJWTError:
             pass
-    cookie = (
-        request.cookies.get("__Host-access")
-        or request.cookies.get("access")
-        or ""
-    )
+    cookie = request.cookies.get("__Host-access") or request.cookies.get("access") or ""
     if cookie:
         return "sess:" + hashlib.sha256(cookie.encode()).hexdigest()[:16]
     return f"ip:{get_remote_address(request)}"

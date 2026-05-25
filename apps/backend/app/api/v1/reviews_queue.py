@@ -119,11 +119,7 @@ async def _load_with_context(db, card_id: str) -> ReviewCard | None:
     """Fetch a card with its lesson + module + course pre-loaded."""
     res = await db.execute(
         select(ReviewCard)
-        .options(
-            joinedload(ReviewCard.lesson)
-            .joinedload(Lesson.module)
-            .joinedload(Module.course)
-        )
+        .options(joinedload(ReviewCard.lesson).joinedload(Lesson.module).joinedload(Module.course))
         .where(ReviewCard.id == card_id)
     )
     return res.scalar_one_or_none()
@@ -155,9 +151,7 @@ async def get_stats(user: CurrentUser, db: DBSession) -> ReviewStatsOut:
     return ReviewStatsOut(**counts)
 
 
-@router.post(
-    "/{card_id}/grade", response_model=ReviewCardOut, status_code=status.HTTP_200_OK
-)
+@router.post("/{card_id}/grade", response_model=ReviewCardOut, status_code=status.HTTP_200_OK)
 async def grade_card(
     card_id: str,
     payload: GradeRequest,

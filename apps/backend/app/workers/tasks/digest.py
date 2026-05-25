@@ -18,8 +18,8 @@ exist in ``notifications`` from the original write).
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import Iterable
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,7 +56,7 @@ def _render_digest(user: User, notifications: list[Notification]) -> tuple[str, 
     text = "\n".join(lines)
 
     rows_html = "\n".join(
-        f'<li><strong>[{n.kind}]</strong> {n.title}'
+        f"<li><strong>[{n.kind}]</strong> {n.title}"
         + (f'<br/><span style="color:#475569;">{n.body}</span>' if n.body else "")
         + "</li>"
         for n in notifications
@@ -65,7 +65,7 @@ def _render_digest(user: User, notifications: list[Notification]) -> tuple[str, 
         f"<p>Hi {name},</p>"
         f"<p>You have {count} new notification(s):</p>"
         f"<ul>{rows_html}</ul>"
-        '<p>Open Lumen to act on these.</p>'
+        "<p>Open Lumen to act on these.</p>"
     )
     return subject, text, html
 

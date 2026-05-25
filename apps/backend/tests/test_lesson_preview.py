@@ -31,7 +31,9 @@ async def test_preview_lesson_accessible_anonymously(
     )
     course_id = create.json()["id"]
     m = (
-        await client.post(f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher)
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher
+        )
     ).json()
     preview = (
         await client.post(
@@ -56,7 +58,9 @@ async def test_preview_lesson_accessible_anonymously(
             headers=teacher,
         )
     ).json()
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    )
 
     # clear the httpx cookie jar so "anonymous" requests
     # below aren't auto-authed by the teacher login cookie sticky
@@ -91,7 +95,9 @@ async def test_preview_hidden_on_draft_courses(
     )
     course_id = create.json()["id"]
     m = (
-        await client.post(f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher)
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher
+        )
     ).json()
     preview = (
         await client.post(

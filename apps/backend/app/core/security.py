@@ -63,7 +63,9 @@ def create_access_token(
 
 def decode_token(token: str) -> dict[str, Any]:
     s = get_settings()
-    return jwt.decode(token, s.jwt_secret.get_secret_value(), algorithms=[s.jwt_algorithm], issuer="lumen")
+    return jwt.decode(
+        token, s.jwt_secret.get_secret_value(), algorithms=[s.jwt_algorithm], issuer="lumen"
+    )
 
 
 def new_refresh_token() -> tuple[str, str]:

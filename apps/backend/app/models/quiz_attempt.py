@@ -53,9 +53,7 @@ class QuizAttempt(IdMixin, TimestampMixin, Base):
     # Verbatim graded answers so we can later show "you answered X,
     # the correct answer was Y" in an attempt-detail view.
     answers: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
-    submitted_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     enrollment: Mapped[Enrollment] = relationship()
     lesson: Mapped[Lesson] = relationship()

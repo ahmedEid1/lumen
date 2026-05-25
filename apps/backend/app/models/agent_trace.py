@@ -112,14 +112,10 @@ class AgentTrace(IdMixin, Base):
         ForeignKey("llm_calls.id", ondelete="SET NULL"),
         nullable=True,
     )
-    user_id: Mapped[str] = mapped_column(
-        String(64), nullable=False, index=False
-    )
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=False)
     feature: Mapped[str] = mapped_column(String(64), nullable=False)
     step: Mapped[str] = mapped_column(String(64), nullable=False)
-    step_index: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
+    step_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     parent_trace_id: Mapped[str | None] = mapped_column(
         # Self-referential FK for the tree. ``ondelete="CASCADE"`` so
         # if we ever do prune a top-level trace (TTL, GDPR, etc.) its
@@ -131,9 +127,7 @@ class AgentTrace(IdMixin, Base):
     payload: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
     )
-    duration_ms: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     status: Mapped[str] = mapped_column(String(24), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -141,7 +135,7 @@ class AgentTrace(IdMixin, Base):
 
 
 __all__ = [
-    "AgentTrace",
     "TRACE_STATUS_ERROR",
     "TRACE_STATUS_OK",
+    "AgentTrace",
 ]

@@ -25,12 +25,8 @@ os.environ.setdefault("ENV", "test")
 # `setdefault` would leave it in place. We unconditionally swap
 # in a 64-byte fixture secret so the test suite doesn't fight
 # RFC 7518 §3.2 — production keys still come from the real env.
-os.environ["JWT_SECRET"] = (
-    "test-secret-please-change-this-is-a-long-enough-key-for-rfc7518"
-)
-os.environ["SECRET_KEY"] = (
-    "test-secret-please-change-this-is-a-long-enough-key-for-rfc7518"
-)
+os.environ["JWT_SECRET"] = "test-secret-please-change-this-is-a-long-enough-key-for-rfc7518"
+os.environ["SECRET_KEY"] = "test-secret-please-change-this-is-a-long-enough-key-for-rfc7518"
 
 from app.core.config import get_settings
 from app.core.security import hash_password
@@ -96,14 +92,16 @@ async def _engine():
 async def db_session(_engine) -> AsyncIterator[AsyncSession]:
     async with db_base.get_sessionmaker()() as session:
         # Clean tables between tests (fast for our small set).
-        await session.execute(text(
-            "TRUNCATE assets, audit_events, notifications, reviews, quiz_attempts, "
-            "review_cards, discussion_replies, discussions, lesson_chunks, "
-            "llm_calls, "
-            "tutor_messages, tutor_conversations, "
-            "lesson_progress, enrollments, lessons, modules, course_tags, courses, "
-            "tags, subjects, auth_refresh_tokens, users RESTART IDENTITY CASCADE"
-        ))
+        await session.execute(
+            text(
+                "TRUNCATE assets, audit_events, notifications, reviews, quiz_attempts, "
+                "review_cards, discussion_replies, discussions, lesson_chunks, "
+                "llm_calls, "
+                "tutor_messages, tutor_conversations, "
+                "lesson_progress, enrollments, lessons, modules, course_tags, courses, "
+                "tags, subjects, auth_refresh_tokens, users RESTART IDENTITY CASCADE"
+            )
+        )
         await session.commit()
         yield session
 
@@ -148,9 +146,7 @@ async def client(app) -> AsyncIterator[AsyncClient]:
     # fixture does this) bypasses the CSRF check entirely. The
     # remaining cookie-only tests still need Origin per-call —
     # that's intentional, the middleware is doing its job.
-    os.environ["CORS_ORIGINS"] = (
-        '["http://localhost:3000","http://web:3000","http://testserver"]'
-    )
+    os.environ["CORS_ORIGINS"] = '["http://localhost:3000","http://web:3000","http://testserver"]'
     get_settings.cache_clear()  # type: ignore[attr-defined]
     async with AsyncClient(
         transport=transport,

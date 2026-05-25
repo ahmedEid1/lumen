@@ -8,7 +8,12 @@ from httpx import AsyncClient
 async def test_sign_requires_auth(client: AsyncClient) -> None:
     r = await client.post(
         "/api/v1/uploads/sign",
-        json={"filename": "a.png", "content_type": "image/png", "kind": "avatar", "size_bytes": 1024},
+        json={
+            "filename": "a.png",
+            "content_type": "image/png",
+            "kind": "avatar",
+            "size_bytes": 1024,
+        },
     )
     assert r.status_code == 401
 

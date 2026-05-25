@@ -105,9 +105,7 @@ async def get_draft_replay(
     if not (user.is_admin() or course.owner_id == user.id):
         raise ForbiddenError("Not your course", code="course.forbidden")
 
-    return await learner_traces_service.fetch_draft_replay(
-        db, course_id=course.id
-    )
+    return await learner_traces_service.fetch_draft_replay(db, course_id=course.id)
 
 
 # Orchestrator follow-up: register this router in

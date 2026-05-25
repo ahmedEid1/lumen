@@ -27,7 +27,9 @@ async def _full_course(client: AsyncClient, headers: dict, subject_id: str) -> t
     )
     course_id = create.json()["id"]
     m = (
-        await client.post(f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=headers)
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=headers
+        )
     ).json()
     lesson = (
         await client.post(
@@ -36,7 +38,9 @@ async def _full_course(client: AsyncClient, headers: dict, subject_id: str) -> t
             headers=headers,
         )
     ).json()
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers
+    )
     return course_id, lesson["id"]
 
 

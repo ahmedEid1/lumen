@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from typing import Iterable
+from collections.abc import Iterable
 
 # Hard upper bound on the buffer size. At one 429 per second sustained
 # that's a ~2.8h history; under normal load the time-window filter
@@ -58,7 +58,11 @@ def counts_since(since_epoch_seconds: float | None = None) -> dict[str, int]:
     Defaults to a 1-hour rolling window. Returns an empty dict when the
     buffer is empty so the JSON envelope stays stable for the admin UI.
     """
-    cutoff = since_epoch_seconds if since_epoch_seconds is not None else time.time() - _DEFAULT_WINDOW_SECONDS
+    cutoff = (
+        since_epoch_seconds
+        if since_epoch_seconds is not None
+        else time.time() - _DEFAULT_WINDOW_SECONDS
+    )
     out: dict[str, int] = {}
     # Snapshot the deque so a concurrent append doesn't tweak the
     # iteration. ``list(deque)`` is the cheapest way to do that and is

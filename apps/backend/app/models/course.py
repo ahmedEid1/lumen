@@ -99,8 +99,12 @@ class Course(IdMixin, TimestampMixin, Base):
         ),
     )
 
-    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
-    subject_id: Mapped[str] = mapped_column(ForeignKey("subjects.id", ondelete="RESTRICT"), nullable=False, index=True)
+    owner_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    subject_id: Mapped[str] = mapped_column(
+        ForeignKey("subjects.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
 
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     slug: Mapped[str] = mapped_column(String(220), nullable=False, index=True)
@@ -114,8 +118,12 @@ class Course(IdMixin, TimestampMixin, Base):
         JSONB, nullable=False, server_default="[]", default=list
     )
     cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    difficulty: Mapped[Difficulty] = mapped_column(String(20), nullable=False, default=Difficulty.beginner)
-    status: Mapped[CourseStatus] = mapped_column(String(20), nullable=False, default=CourseStatus.draft, index=True)
+    difficulty: Mapped[Difficulty] = mapped_column(
+        String(20), nullable=False, default=Difficulty.beginner
+    )
+    status: Mapped[CourseStatus] = mapped_column(
+        String(20), nullable=False, default=CourseStatus.draft, index=True
+    )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -139,8 +147,12 @@ class Course(IdMixin, TimestampMixin, Base):
     modules: Mapped[list[Module]] = relationship(
         back_populates="course", cascade="all, delete-orphan", order_by="Module.order"
     )
-    enrollments: Mapped[list[Enrollment]] = relationship(back_populates="course", cascade="all, delete-orphan")
-    reviews: Mapped[list[Review]] = relationship(back_populates="course", cascade="all, delete-orphan")
+    enrollments: Mapped[list[Enrollment]] = relationship(
+        back_populates="course", cascade="all, delete-orphan"
+    )
+    reviews: Mapped[list[Review]] = relationship(
+        back_populates="course", cascade="all, delete-orphan"
+    )
 
 
 class Module(IdMixin, TimestampMixin, Base):
@@ -150,7 +162,9 @@ class Module(IdMixin, TimestampMixin, Base):
         Index("ix_modules_course_id_order", "course_id", "order"),
     )
 
-    course_id: Mapped[str] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    course_id: Mapped[str] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -168,7 +182,9 @@ class Lesson(IdMixin, TimestampMixin, Base):
         Index("ix_lessons_module_id_order", "module_id", "order"),
     )
 
-    module_id: Mapped[str] = mapped_column(ForeignKey("modules.id", ondelete="CASCADE"), nullable=False)
+    module_id: Mapped[str] = mapped_column(
+        ForeignKey("modules.id", ondelete="CASCADE"), nullable=False
+    )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     type: Mapped[LessonType] = mapped_column(String(20), nullable=False)
@@ -178,7 +194,9 @@ class Lesson(IdMixin, TimestampMixin, Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     module: Mapped[Module] = relationship(back_populates="lessons")
-    progress: Mapped[list[LessonProgress]] = relationship(back_populates="lesson", cascade="all, delete-orphan")
+    progress: Mapped[list[LessonProgress]] = relationship(
+        back_populates="lesson", cascade="all, delete-orphan"
+    )
 
 
 class Enrollment(IdMixin, TimestampMixin, Base):
@@ -189,7 +207,9 @@ class Enrollment(IdMixin, TimestampMixin, Base):
     )
 
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    course_id: Mapped[str] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    course_id: Mapped[str] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     certificate_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Signed Open Badges 3.0 / W3C VC credential — populated at the
@@ -197,9 +217,7 @@ class Enrollment(IdMixin, TimestampMixin, Base):
     # ``app.services.enrollment._maybe_issue_certificate``. Nullable
     # because soft-historical rows from before Phase E5 don't have one
     # (the service can re-mint on demand).
-    badge_credential: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB, nullable=True
-    )
+    badge_credential: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     user: Mapped[User] = relationship(back_populates="enrollments")
     course: Mapped[Course] = relationship(back_populates="enrollments")
@@ -215,8 +233,12 @@ class LessonProgress(IdMixin, TimestampMixin, Base):
         Index("ix_lp_lesson_id", "lesson_id"),
     )
 
-    enrollment_id: Mapped[str] = mapped_column(ForeignKey("enrollments.id", ondelete="CASCADE"), nullable=False)
-    lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)
+    enrollment_id: Mapped[str] = mapped_column(
+        ForeignKey("enrollments.id", ondelete="CASCADE"), nullable=False
+    )
+    lesson_id: Mapped[str] = mapped_column(
+        ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False
+    )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
 
@@ -232,8 +254,12 @@ class Review(IdMixin, TimestampMixin, Base):
         Index("ix_reviews_course_id_rating", "course_id", "rating"),
     )
 
-    author_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    course_id: Mapped[str] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    author_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    course_id: Mapped[str] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    )
     rating: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False, default="")
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

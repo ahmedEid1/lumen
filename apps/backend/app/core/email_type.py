@@ -33,9 +33,7 @@ from pydantic_core import CoreSchema, core_schema
 
 class _Email(str):
     @classmethod
-    def __get_pydantic_core_schema__(
-        cls, _source_type: Any, _handler: Any
-    ) -> CoreSchema:
+    def __get_pydantic_core_schema__(cls, _source_type: Any, _handler: Any) -> CoreSchema:
         return core_schema.no_info_after_validator_function(
             cls._validate,
             core_schema.str_schema(min_length=3, max_length=320),

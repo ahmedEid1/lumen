@@ -33,12 +33,11 @@ def main() -> int:
     # Ensure `app/` is importable when run as a script.
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-    from app.main import app  # noqa: E402
+    from app.main import app
 
     schema = app.openapi()
     text = json.dumps(schema, indent=2 if args.pretty else None, sort_keys=True)
     Path(args.out).write_text(text + "\n", encoding="utf-8")
-    print(f"wrote {args.out} ({len(text)} bytes, {len(schema.get('paths', {}))} paths)")
     return 0
 
 

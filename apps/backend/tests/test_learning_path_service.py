@@ -45,13 +45,11 @@ from app.models.learning_path import (
     STEP_STATUS_COMPLETED,
     STEP_STATUS_PENDING,
     LearningPath,
-    LearningPathStep,
 )
 from app.models.user import Role
 from app.services import learning_path as learning_path_service
 from app.services import llm as llm_service
 from app.services.embeddings_ingest import ingest_course
-
 
 # ---------- LLM scripting ----------
 
@@ -76,9 +74,7 @@ class _ScriptedProvider:
         del temperature
         self.calls.append(list(messages))
         if not self._replies:
-            raise AssertionError(
-                "ScriptedProvider queue exhausted — test under-scripted the LLM."
-            )
+            raise AssertionError("ScriptedProvider queue exhausted — test under-scripted the LLM.")
         return self._replies.pop(0)
 
     async def chat_with_usage(self, messages, temperature: float = 0.2):
@@ -105,9 +101,7 @@ def _noop_embeddings(monkeypatch):
     get_settings.cache_clear()  # type: ignore[attr-defined]
 
 
-def _install_provider(
-    monkeypatch: pytest.MonkeyPatch, replies: list[str]
-) -> _ScriptedProvider:
+def _install_provider(monkeypatch: pytest.MonkeyPatch, replies: list[str]) -> _ScriptedProvider:
     prov = _ScriptedProvider(replies)
     monkeypatch.setattr(llm_service, "get_provider", lambda: prov)
     return prov
@@ -258,9 +252,7 @@ async def test_condense_catalog_falls_back_when_no_chunks(
         lesson_bodies=["text"],
     )
     # No ingest_course → no chunks in DB.
-    digests = await learning_path_service._condense_catalog(
-        db_session, "build something", top_k=5
-    )
+    digests = await learning_path_service._condense_catalog(db_session, "build something", top_k=5)
     slugs = {d.slug for d in digests}
     assert course.slug in slugs
 
@@ -343,12 +335,8 @@ async def test_build_path_archives_previous_active(
         ],
     )
 
-    first = await learning_path_service.build_path(
-        db_session, user_id=learner.id, goal="goal one"
-    )
-    second = await learning_path_service.build_path(
-        db_session, user_id=learner.id, goal="goal two"
-    )
+    first = await learning_path_service.build_path(db_session, user_id=learner.id, goal="goal one")
+    second = await learning_path_service.build_path(db_session, user_id=learner.id, goal="goal two")
     assert first.id != second.id
     # Re-read the first path; should be archived.
     refreshed = await db_session.get(LearningPath, first.id)
@@ -390,7 +378,8 @@ async def test_build_path_drops_unresolved_slug(
 
     async def _augmented(db, goal, *, top_k=20, embedding_provider=None):
         real = await original(db, goal, top_k=top_k)
-        return real + [
+        return [
+            *real,
             CourseDigest(
                 course_id="ghost-id",
                 slug="ghost-slug",
@@ -398,24 +387,18 @@ async def test_build_path_drops_unresolved_slug(
                 difficulty="beginner",
                 overview="not in db",
                 chunk_hits=0,
-            )
+            ),
         ]
 
     monkeypatch.setattr(learning_path_service, "_condense_catalog", _augmented)
 
-    slugs_for_prompt = surviving_slugs + ["ghost-slug"]
+    slugs_for_prompt = [*surviving_slugs, "ghost-slug"]
     _install_provider(
         monkeypatch,
-        [
-            _valid_plan_json(
-                slugs=slugs_for_prompt, next_action_slug=surviving_slugs[0]
-            )
-        ],
+        [_valid_plan_json(slugs=slugs_for_prompt, next_action_slug=surviving_slugs[0])],
     )
 
-    path = await learning_path_service.build_path(
-        db_session, user_id=learner.id, goal="goal"
-    )
+    path = await learning_path_service.build_path(db_session, user_id=learner.id, goal="goal")
     persisted_slugs = {s.course_slug for s in path.steps}
     assert "ghost-slug" not in persisted_slugs
     assert all(s in set(surviving_slugs) for s in persisted_slugs)
@@ -447,9 +430,7 @@ async def test_build_path_recovers_on_retry(
             _valid_plan_json(slugs=slugs, next_action_slug=slugs[0]),
         ],
     )
-    path = await learning_path_service.build_path(
-        db_session, user_id=learner.id, goal="goal"
-    )
+    path = await learning_path_service.build_path(db_session, user_id=learner.id, goal="goal")
     assert len(prov.calls) == 2  # one initial + one retry
     assert path.status == PATH_STATUS_ACTIVE
     assert len(path.steps) == len(slugs)
@@ -473,9 +454,7 @@ async def test_build_path_raises_on_double_failure(
         await ingest_course(db_session, c.id)
     _install_provider(monkeypatch, ["totally broken", "still broken"])
     with pytest.raises(AppError) as excinfo:
-        await learning_path_service.build_path(
-            db_session, user_id=learner.id, goal="goal"
-        )
+        await learning_path_service.build_path(db_session, user_id=learner.id, goal="goal")
     assert excinfo.value.code == "learning_path.llm_invalid_output"
 
 
@@ -521,9 +500,7 @@ async def test_build_path_rejects_invented_slug(
     )
     _install_provider(monkeypatch, [invented_plan, invented_plan])
     with pytest.raises(AppError) as excinfo:
-        await learning_path_service.build_path(
-            db_session, user_id=learner.id, goal="goal"
-        )
+        await learning_path_service.build_path(db_session, user_id=learner.id, goal="goal")
     assert excinfo.value.code == "learning_path.llm_invalid_output"
 
 
@@ -553,9 +530,7 @@ async def test_mark_step_complete_flips_status(
         monkeypatch,
         [_valid_plan_json(slugs=slugs, next_action_slug=slugs[0])],
     )
-    path = await learning_path_service.build_path(
-        db_session, user_id=learner.id, goal="goal"
-    )
+    path = await learning_path_service.build_path(db_session, user_id=learner.id, goal="goal")
     step = path.steps[0]
     flipped = await learning_path_service.mark_step_complete(
         db_session, step_id=step.id, user_id=learner.id
@@ -589,9 +564,7 @@ async def test_mark_step_complete_blocks_other_users(
         monkeypatch,
         [_valid_plan_json(slugs=slugs, next_action_slug=slugs[0])],
     )
-    path = await learning_path_service.build_path(
-        db_session, user_id=owner.id, goal="goal"
-    )
+    path = await learning_path_service.build_path(db_session, user_id=owner.id, goal="goal")
     step = path.steps[0]
     with pytest.raises(NotFoundError):
         await learning_path_service.mark_step_complete(
@@ -630,17 +603,15 @@ async def test_replan_for_user_archives_old_and_reuses_goal(
     first = await learning_path_service.build_path(
         db_session, user_id=learner.id, goal="be a great engineer"
     )
-    second = await learning_path_service.replan_for_user(
-        db_session, user_id=learner.id
-    )
+    second = await learning_path_service.replan_for_user(db_session, user_id=learner.id)
     assert second is not None
     assert second.id != first.id
     assert second.goal == first.goal == "be a great engineer"
     rows = (
-        await db_session.execute(
-            select(LearningPath).where(LearningPath.user_id == learner.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(LearningPath).where(LearningPath.user_id == learner.id)))
+        .scalars()
+        .all()
+    )
     active = [p for p in rows if p.status == PATH_STATUS_ACTIVE]
     archived = [p for p in rows if p.status == PATH_STATUS_ARCHIVED]
     assert len(active) == 1
@@ -651,9 +622,7 @@ async def test_replan_for_user_returns_none_when_no_active(
     db_session: AsyncSession, make_user
 ) -> None:
     learner = await make_user(role=Role.student)
-    result = await learning_path_service.replan_for_user(
-        db_session, user_id=learner.id
-    )
+    result = await learning_path_service.replan_for_user(db_session, user_id=learner.id)
     assert result is None
 
 
@@ -664,9 +633,7 @@ async def test_get_today_action_returns_none_without_path(
     db_session: AsyncSession, make_user
 ) -> None:
     learner = await make_user(role=Role.student)
-    out = await learning_path_service.get_today_action(
-        db_session, user_id=learner.id
-    )
+    out = await learning_path_service.get_today_action(db_session, user_id=learner.id)
     assert out is None
 
 
@@ -691,12 +658,8 @@ async def test_get_today_action_includes_due_count(
         monkeypatch,
         [_valid_plan_json(slugs=slugs, next_action_slug=slugs[0])],
     )
-    await learning_path_service.build_path(
-        db_session, user_id=learner.id, goal="goal"
-    )
-    out = await learning_path_service.get_today_action(
-        db_session, user_id=learner.id
-    )
+    await learning_path_service.build_path(db_session, user_id=learner.id, goal="goal")
+    out = await learning_path_service.get_today_action(db_session, user_id=learner.id)
     assert out is not None
     assert out["course_slug"] == slugs[0]
     assert out["kind"] == "start_lesson"

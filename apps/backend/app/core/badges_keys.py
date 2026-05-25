@@ -59,9 +59,7 @@ def _load_private_key() -> ed25519.Ed25519PrivateKey:
         # form produced by ``openssl genpkey -algorithm ed25519``.
         key = serialization.load_pem_private_key(raw.encode("utf-8"), password=None)
         if not isinstance(key, ed25519.Ed25519PrivateKey):
-            raise RuntimeError(
-                "BADGES_SIGNING_KEY must be an Ed25519 private key in PEM form"
-            )
+            raise RuntimeError("BADGES_SIGNING_KEY must be an Ed25519 private key in PEM form")
         return key
     # Dev / test fallback: derive a stable seed from the app secret.
     # Domain-separate the hash so the seed can't be confused with any
@@ -84,9 +82,13 @@ def public_key_multibase() -> str:
     same ``z``-prefix convention because the verify endpoint is the
     only consumer in v1 and it speaks our exact format).
     """
-    pub = _load_private_key().public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
+    pub = (
+        _load_private_key()
+        .public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
     )
     return "z" + _b64u(pub)
 

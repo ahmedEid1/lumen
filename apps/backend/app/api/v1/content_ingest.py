@@ -63,8 +63,8 @@ class IngestCommitResponse(BaseModel):
 async def detect_ingest_source(
     payload: IngestPreviewRequest,
     _: RequireInstructor,
-    request: Request,  # noqa: ARG001 — slowapi binds the bucket key off this
-    response: Response,  # noqa: ARG001 — slowapi injects rate-limit headers
+    request: Request,
+    response: Response,
 ) -> IngestDetectResponse:
     """Cheap regex-only source detection — separated from the heavy
     ``/preview`` call so the studio modal can render "Detected:
@@ -78,8 +78,8 @@ async def detect_ingest_source(
 async def preview_ingest(
     payload: IngestPreviewRequest,
     _: RequireInstructor,
-    request: Request,  # noqa: ARG001 — slowapi binds the bucket key off this
-    response: Response,  # noqa: ARG001 — slowapi injects rate-limit headers
+    request: Request,
+    response: Response,
 ) -> IngestPayload:
     """Fetch + parse the URL, return a draft payload. No persistence.
 
@@ -101,8 +101,8 @@ async def commit_ingest(
     payload: IngestCommitRequest,
     user: RequireInstructor,
     db: DBSession,
-    request: Request,  # noqa: ARG001 — slowapi binds the bucket key off this
-    response: Response,  # noqa: ARG001 — slowapi injects rate-limit headers
+    request: Request,
+    response: Response,
 ) -> IngestCommitResponse:
     """Materialise a previously-previewed payload into the named
     course. The caller is expected to have just reviewed and

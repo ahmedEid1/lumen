@@ -131,9 +131,7 @@ def _next_action_out(raw: dict[str, Any] | None) -> NextActionOut | None:
 
 def _path_out(path: LearningPath) -> LearningPathOut:
     """Project an ORM row + its eagerly-loaded steps to the response."""
-    steps_sorted: list[LearningPathStep] = sorted(
-        path.steps, key=lambda s: s.position
-    )
+    steps_sorted: list[LearningPathStep] = sorted(path.steps, key=lambda s: s.position)
     return LearningPathOut(
         id=path.id,
         goal=path.goal,
@@ -180,9 +178,7 @@ async def build_learning_path(
     LLM provider and may take several seconds; the rate-limit shape
     is deliberately tight to discourage hammering the agent.
     """
-    path = await learning_path_service.build_path(
-        db, user_id=user.id, goal=payload.goal
-    )
+    path = await learning_path_service.build_path(db, user_id=user.id, goal=payload.goal)
     return _path_out(path)
 
 
@@ -243,9 +239,7 @@ async def complete_step(
     response: Response,
 ) -> LearningPathStepOut:
     """Flip a step to ``completed``. Owner-scoped, raises 404 cross-user."""
-    step = await learning_path_service.mark_step_complete(
-        db, step_id=step_id, user_id=user.id
-    )
+    step = await learning_path_service.mark_step_complete(db, step_id=step_id, user_id=user.id)
     return LearningPathStepOut(
         id=step.id,
         position=step.position,

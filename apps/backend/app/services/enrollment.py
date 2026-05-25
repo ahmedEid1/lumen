@@ -66,7 +66,9 @@ async def _maybe_issue_certificate(
         # — see the comment on ``Enrollment.badge_credential``.
         try:
             enrollment.badge_credential = badges_service.issue_for_enrollment(
-                enrollment=enrollment, user=user, course=course,
+                enrollment=enrollment,
+                user=user,
+                course=course,
             )
         except Exception as exc:  # pragma: no cover - defensive
             log.exception(
@@ -146,7 +148,9 @@ async def record_quiz_attempt(
     """
     course, enrollment = await _resolve_enrollment_for_lesson(db, user=user, lesson=lesson)
 
-    lp = await courses_repo.get_or_create_progress(db, enrollment_id=enrollment.id, lesson_id=lesson.id)
+    lp = await courses_repo.get_or_create_progress(
+        db, enrollment_id=enrollment.id, lesson_id=lesson.id
+    )
     clamped_score = max(0, min(100, score))
     lp.score = clamped_score
     if passed:
@@ -197,7 +201,9 @@ async def mark_lesson(
 ) -> tuple[Enrollment, LessonProgress, float]:
     course, enrollment = await _resolve_enrollment_for_lesson(db, user=user, lesson=lesson)
 
-    lp = await courses_repo.get_or_create_progress(db, enrollment_id=enrollment.id, lesson_id=lesson.id)
+    lp = await courses_repo.get_or_create_progress(
+        db, enrollment_id=enrollment.id, lesson_id=lesson.id
+    )
     if completed:
         await courses_repo.mark_completed(db, lp)
     else:

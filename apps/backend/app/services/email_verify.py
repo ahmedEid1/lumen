@@ -43,7 +43,9 @@ async def confirm(db: AsyncSession, *, token: str) -> User:
             token, s.jwt_secret.get_secret_value(), algorithms=[s.jwt_algorithm], issuer="lumen"
         )
     except jwt.PyJWTError as exc:
-        raise UnauthorizedError("Verification link is invalid or expired", code="verify.invalid") from exc
+        raise UnauthorizedError(
+            "Verification link is invalid or expired", code="verify.invalid"
+        ) from exc
     if payload.get("purpose") != _PURPOSE:
         raise UnauthorizedError("Verification link is invalid", code="verify.invalid")
 

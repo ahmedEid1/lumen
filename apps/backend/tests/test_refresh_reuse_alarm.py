@@ -28,9 +28,7 @@ from app.models.notification import Notification
 from app.models.user import Role
 
 
-async def test_refresh_reuse_notifies_admins(
-    client: AsyncClient, make_user, db_session
-) -> None:
+async def test_refresh_reuse_notifies_admins(client: AsyncClient, make_user, db_session) -> None:
     """When a refresh token is replayed, every admin sees a security.refresh_reuse row."""
     # An admin must exist before the reuse fires — otherwise the
     # alarm has nowhere to land. Two admins ensure we exercise the
@@ -63,10 +61,14 @@ async def test_refresh_reuse_notifies_admins(
     # service. ``db_session`` is a fresh session bound to the same
     # engine, so the rows must be visible by now.
     rows = (
-        await db_session.execute(
-            select(Notification).where(Notification.kind == "security.refresh_reuse")
+        (
+            await db_session.execute(
+                select(Notification).where(Notification.kind == "security.refresh_reuse")
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(rows) == 2, f"expected one notification per admin, got {len(rows)}"
 
     # The two admins must each have exactly one row — no duplicates
@@ -90,7 +92,9 @@ async def test_refresh_reuse_does_not_notify_non_admins(
 ) -> None:
     """Only admins receive the alarm; instructors / students must not."""
     await make_user(email="alarm-admin@lumen.test", password="Password!1234", role=Role.admin)
-    await make_user(email="alarm-teacher@lumen.test", password="Password!1234", role=Role.instructor)
+    await make_user(
+        email="alarm-teacher@lumen.test", password="Password!1234", role=Role.instructor
+    )
     await make_user(email="alarm-other@lumen.test", password="Password!1234")  # student
 
     victim = "alarm-victim@lumen.test"
@@ -103,10 +107,14 @@ async def test_refresh_reuse_does_not_notify_non_admins(
     await client.post("/api/v1/auth/refresh", cookies={"refresh": first})
 
     rows = (
-        await db_session.execute(
-            select(Notification).where(Notification.kind == "security.refresh_reuse")
+        (
+            await db_session.execute(
+                select(Notification).where(Notification.kind == "security.refresh_reuse")
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(rows) == 1, "only the single admin should be notified"
 
 
@@ -134,10 +142,14 @@ async def test_refresh_reuse_alarm_no_admin_still_revokes(
     # And no security.refresh_reuse notification rows exist (no admins
     # to fan out to).
     rows = (
-        await db_session.execute(
-            select(Notification).where(Notification.kind == "security.refresh_reuse")
+        (
+            await db_session.execute(
+                select(Notification).where(Notification.kind == "security.refresh_reuse")
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert rows == []
 
 
@@ -153,7 +165,7 @@ async def test_notify_admins_fail_soft(db_session, make_user, monkeypatch) -> No
 
     await make_user(email="fail-soft-admin@lumen.test", password="Password!1234", role=Role.admin)
 
-    async def _boom(*args, **kwargs):  # noqa: ARG001  pytest monkeypatch shim
+    async def _boom(*args, **kwargs):
         raise RuntimeError("simulated dispatch failure")
 
     monkeypatch.setattr(notifications_repo, "create", _boom)

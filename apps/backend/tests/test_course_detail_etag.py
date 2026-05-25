@@ -30,9 +30,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _published(
-    client: AsyncClient, teacher: dict, subject_id: str, seed_lesson
-) -> str:
+async def _published(client: AsyncClient, teacher: dict, subject_id: str, seed_lesson) -> str:
     create = await client.post(
         "/api/v1/courses",
         json={"title": "ETag", "subject_id": subject_id, "overview": "x"},
@@ -73,9 +71,7 @@ async def test_matching_if_none_match_returns_304_no_body(
     first = await client.get(f"/api/v1/courses/{course_id}")
     etag = first.headers["etag"]
 
-    second = await client.get(
-        f"/api/v1/courses/{course_id}", headers={"If-None-Match": etag}
-    )
+    second = await client.get(f"/api/v1/courses/{course_id}", headers={"If-None-Match": etag})
     assert second.status_code == 304
     assert second.content == b""
     assert second.headers.get("etag") == etag
@@ -159,9 +155,7 @@ async def test_304_response_also_carries_cache_control_and_vary(
 
     first = await client.get(f"/api/v1/courses/{course_id}")
     etag = first.headers["etag"]
-    not_mod = await client.get(
-        f"/api/v1/courses/{course_id}", headers={"If-None-Match": etag}
-    )
+    not_mod = await client.get(f"/api/v1/courses/{course_id}", headers={"If-None-Match": etag})
     assert not_mod.status_code == 304
     assert "must-revalidate" in not_mod.headers["cache-control"]
     assert "Authorization" in not_mod.headers["vary"]

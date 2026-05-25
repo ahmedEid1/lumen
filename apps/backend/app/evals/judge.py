@@ -227,14 +227,16 @@ def _coerce_scores(payload: Any, axes: tuple[str, ...]) -> tuple[dict[str, int] 
             return None, f"missing axis '{axis}'"
         raw = payload[axis]
         try:
-            score = int(round(float(raw)))
+            score = round(float(raw))
         except (TypeError, ValueError):
             return None, f"axis '{axis}' was not numeric: {raw!r}"
         out[axis] = max(0, min(5, score))
     return out, None
 
 
-def _parse_judge_reply(raw: str, axes: tuple[str, ...]) -> tuple[dict[str, int] | None, str, str | None]:
+def _parse_judge_reply(
+    raw: str, axes: tuple[str, ...]
+) -> tuple[dict[str, int] | None, str, str | None]:
     """Parse one judge reply.
 
     Returns ``(scores, rationale, error_msg)``. ``scores`` is None on
@@ -342,7 +344,7 @@ async def judge_item(
 __all__ = [
     "AUTHORING_AXES",
     "INGEST_AXES",
-    "JudgeResult",
     "TUTOR_AXES",
+    "JudgeResult",
     "judge_item",
 ]

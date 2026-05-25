@@ -19,7 +19,6 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -29,7 +28,7 @@ from app.models.course_draft_trace import (
     DRAFT_STEP_RESEARCHER,
     CourseDraftTrace,
 )
-from app.models.user import Role, User
+from app.models.user import Role
 from app.services import llm as llm_service
 
 
@@ -48,10 +47,7 @@ class _ScriptedProvider:
         del temperature
         self.calls.append(list(messages))
         if not self._replies:
-            raise AssertionError(
-                "ScriptedProvider queue exhausted — "
-                "test under-scripted the LLM."
-            )
+            raise AssertionError("ScriptedProvider queue exhausted — test under-scripted the LLM.")
         return self._replies.pop(0)
 
     async def chat_with_usage(self, messages, temperature: float = 0.2):
@@ -80,8 +76,10 @@ def _install_provider(monkeypatch, replies):
     prov = _ScriptedProvider(replies)
     monkeypatch.setattr(llm_service, "get_provider", lambda: prov)
     from app.services import authoring_orchestrator as orch_mod
+
     monkeypatch.setattr(orch_mod.llm_service, "get_provider", lambda: prov)
     from app.services import ai_authoring as ai_mod
+
     monkeypatch.setattr(ai_mod.llm_service, "get_provider", lambda: prov)
     return prov
 
@@ -383,7 +381,5 @@ async def test_trace_read_unknown_course_404(
 ) -> None:
     """Unknown course id → 404 (we don't leak existence)."""
     headers = await auth_headers(role=Role.instructor)
-    r = await client.get(
-        "/api/v1/studio/drafts/does-not-exist/trace", headers=headers
-    )
+    r = await client.get("/api/v1/studio/drafts/does-not-exist/trace", headers=headers)
     assert r.status_code == 404, r.text

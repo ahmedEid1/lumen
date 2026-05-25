@@ -180,9 +180,7 @@ def test_check_database_rejects_loopback(url: str) -> None:
 
 
 def test_check_database_accepts_real_host() -> None:
-    s = _prod_settings(
-        database_url="postgresql+asyncpg://user:pw@db.prod.example.com:5432/lumen"
-    )
+    s = _prod_settings(database_url="postgresql+asyncpg://user:pw@db.prod.example.com:5432/lumen")
     problems: list[str] = []
     check_database_not_loopback(s, problems)
     assert problems == []

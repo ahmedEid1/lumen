@@ -30,9 +30,7 @@ async def _total_lessons(db: AsyncSession, course_id: str) -> int:
     )
 
 
-async def _load_owned_course(
-    db: AsyncSession, course_id: str, viewer: User, *, forbid_code: str
-):
+async def _load_owned_course(db: AsyncSession, course_id: str, viewer: User, *, forbid_code: str):
     """Fetch course → 404 → owner-or-admin → 403, returning the row."""
     course = await courses_repo.get_course(db, course_id)
     if not course:
@@ -47,10 +45,10 @@ class CourseAnalytics:
     course_id: str
     enrollments: int
     completions: int
-    completion_rate: float          # 0..1
+    completion_rate: float  # 0..1
     avg_rating: float | None
     rating_count: int
-    avg_progress_pct: float         # mean across enrollments, 0..100
+    avg_progress_pct: float  # mean across enrollments, 0..100
     enrollments_last_7d: int
     enrollments_last_30d: int
 
@@ -70,8 +68,9 @@ async def for_course(db: AsyncSession, *, course_id: str, viewer: User) -> Cours
     )
 
     avg_rating_row = await db.execute(
-        select(func.avg(Review.rating), func.count(Review.id))
-        .where(Review.course_id == course.id, Review.deleted_at.is_(None))
+        select(func.avg(Review.rating), func.count(Review.id)).where(
+            Review.course_id == course.id, Review.deleted_at.is_(None)
+        )
     )
     avg_rating_val, rating_count = avg_rating_row.one()
     avg_rating: float | None = float(avg_rating_val) if avg_rating_val is not None else None

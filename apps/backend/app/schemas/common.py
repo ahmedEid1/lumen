@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -24,7 +24,7 @@ class ErrorEnvelope(BaseModel):
     error: ErrorBody
 
 
-class Page(BaseModel, Generic[T]):
+class Page[T](BaseModel):
     items: list[T]
     total: int
     page: int = Field(ge=1)
@@ -35,6 +35,6 @@ class Page(BaseModel, Generic[T]):
         return (self.total + self.page_size - 1) // self.page_size if self.page_size else 0
 
 
-class Cursor(BaseModel, Generic[T]):
+class Cursor[T](BaseModel):
     items: list[T]
     next_cursor: str | None = None

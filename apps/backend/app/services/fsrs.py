@@ -138,9 +138,7 @@ def _apply_fsrs(card: ReviewCard, fsrs_card: Card) -> None:
 # ---------- public API ----------
 
 
-async def ensure_card(
-    db: AsyncSession, *, user_id: str, lesson_id: str
-) -> ReviewCard:
+async def ensure_card(db: AsyncSession, *, user_id: str, lesson_id: str) -> ReviewCard:
     """Idempotently get-or-create a :class:`ReviewCard` for this learner + lesson.
 
     Called from the quiz-submission path so every completed quiz
@@ -180,9 +178,7 @@ async def ensure_card(
     return card
 
 
-async def record_review(
-    db: AsyncSession, *, card: ReviewCard, rating: Rating | str
-) -> ReviewCard:
+async def record_review(db: AsyncSession, *, card: ReviewCard, rating: Rating | str) -> ReviewCard:
     """Apply a rating to the given card and persist the updated state.
 
     Returns the same :class:`ReviewCard` instance with FSRS-updated
@@ -221,9 +217,7 @@ async def due_cards(
     return list(res.scalars().all())
 
 
-async def stats(
-    db: AsyncSession, *, user_id: str, now: datetime | None = None
-) -> dict[str, int]:
+async def stats(db: AsyncSession, *, user_id: str, now: datetime | None = None) -> dict[str, int]:
     """Per-bucket counters for the dashboard tile.
 
     Returns ``{ "due": n, "learning": n, "review": n, "next_7_days": n }``.

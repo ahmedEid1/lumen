@@ -64,7 +64,9 @@ async def create_subject(payload: SubjectIn, _: RequireAdmin, db: DBSession) -> 
 
 
 @router.patch("/subjects/{subject_id}", response_model=SubjectOut)
-async def update_subject(subject_id: str, payload: SubjectIn, _: RequireAdmin, db: DBSession) -> SubjectOut:
+async def update_subject(
+    subject_id: str, payload: SubjectIn, _: RequireAdmin, db: DBSession
+) -> SubjectOut:
     s = await db.get(Subject, subject_id)
     if not s:
         raise NotFoundError("Subject not found", code="subject.not_found")
@@ -86,9 +88,7 @@ async def delete_subject(subject_id: str, _: RequireAdmin, db: DBSession) -> OkR
     # if any course row (live OR soft-deleted) still references the subject.
     # Count all rows and refuse with a clear 409 the admin can act on,
     # rather than letting it bubble up as an IntegrityError → 500.
-    total = await _scalar_count(
-        db, select(func.count(Course.id)).where(Course.subject_id == s.id)
-    )
+    total = await _scalar_count(db, select(func.count(Course.id)).where(Course.subject_id == s.id))
     if total > 0:
         live = await _scalar_count(
             db,
@@ -200,7 +200,12 @@ async def set_user_role(
         raise ValidationAppError("Cannot demote yourself", code="user.self_demote")
     user.role = payload.role
     await audit_repo.record(
-        db, actor_id=admin.id, action="admin.user.role", target_type="user", target_id=user.id, data={"role": payload.role.value}
+        db,
+        actor_id=admin.id,
+        action="admin.user.role",
+        target_type="user",
+        target_id=user.id,
+        data={"role": payload.role.value},
     )
     return UserAdminOut.model_validate(user)
 
@@ -403,22 +408,16 @@ async def platform_stats(_: RequireAdmin, db: DBSession) -> PlatformStatsOut:
         ),
         instructors=await _scalar_count(
             db,
-            select(func.count(User.id)).where(
-                User.role.in_([Role.instructor, Role.admin])
-            ),
+            select(func.count(User.id)).where(User.role.in_([Role.instructor, Role.admin])),
         ),
         courses_total=await _scalar_count(db, select(func.count(Course.id)).where(live)),
         courses_published=await _scalar_count(
             db,
-            select(func.count(Course.id)).where(
-                live, Course.status == CourseStatus.published
-            ),
+            select(func.count(Course.id)).where(live, Course.status == CourseStatus.published),
         ),
         courses_draft=await _scalar_count(
             db,
-            select(func.count(Course.id)).where(
-                live, Course.status == CourseStatus.draft
-            ),
+            select(func.count(Course.id)).where(live, Course.status == CourseStatus.draft),
         ),
         enrollments=await _scalar_count(db, select(func.count(Enrollment.id))),
     )

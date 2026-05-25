@@ -54,9 +54,7 @@ class CredentialVerifyOut(BaseModel):
     learner_name: str | None = None
 
 
-async def _load_credential(
-    db: DBSession, certificate_id: str
-) -> tuple[Enrollment, Course, User]:
+async def _load_credential(db: DBSession, certificate_id: str) -> tuple[Enrollment, Course, User]:
     """Resolve a ``certificate_id`` to the rows that produced it."""
     row = (
         await db.execute(
@@ -93,7 +91,9 @@ async def get_credential(
         credential = dict(enrollment.badge_credential)
     else:
         credential = badges_service.issue_for_enrollment(
-            enrollment=enrollment, user=user, course=course,
+            enrollment=enrollment,
+            user=user,
+            course=course,
         )
     return Response(
         # Pydantic / FastAPI's default JSON serializer happens to emit
@@ -121,7 +121,9 @@ async def verify_credential(
     """Re-verify a stored credential server-side."""
     enrollment, course, user = await _load_credential(db, certificate_id)
     credential = enrollment.badge_credential or badges_service.issue_for_enrollment(
-        enrollment=enrollment, user=user, course=course,
+        enrollment=enrollment,
+        user=user,
+        course=course,
     )
     valid = badges_service.verify(credential)
     issuer = credential.get("issuer") if isinstance(credential, dict) else None

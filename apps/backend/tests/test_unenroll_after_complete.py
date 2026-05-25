@@ -83,9 +83,7 @@ async def test_unenroll_blocked_after_completion(
     assert pre.status_code == 200
 
     # Attempting to unenroll is refused.
-    drop = await client.delete(
-        f"/api/v1/me/enrollments/{course_id}", headers=student
-    )
+    drop = await client.delete(f"/api/v1/me/enrollments/{course_id}", headers=student)
     assert drop.status_code == 409, drop.text
     assert drop.json()["error"]["code"] == "enrollment.completed"
 
@@ -101,18 +99,14 @@ async def test_mid_progress_unenroll_still_works(
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, _ = await _publish_one_lesson_course(
-        client, teacher, subject.id, seed_lesson
-    )
+    course_id, _ = await _publish_one_lesson_course(client, teacher, subject.id, seed_lesson)
 
     # Enroll but don't complete.
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     listed = await client.get("/api/v1/me/enrollments", headers=student)
     assert any(e["course"]["id"] == course_id for e in listed.json())
 
-    drop = await client.delete(
-        f"/api/v1/me/enrollments/{course_id}", headers=student
-    )
+    drop = await client.delete(f"/api/v1/me/enrollments/{course_id}", headers=student)
     assert drop.status_code == 200
 
     # Gone from the dashboard.
@@ -131,11 +125,7 @@ async def test_unenroll_when_never_enrolled_is_idempotent_ok(
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, _ = await _publish_one_lesson_course(
-        client, teacher, subject.id, seed_lesson
-    )
+    course_id, _ = await _publish_one_lesson_course(client, teacher, subject.id, seed_lesson)
 
-    drop = await client.delete(
-        f"/api/v1/me/enrollments/{course_id}", headers=student
-    )
+    drop = await client.delete(f"/api/v1/me/enrollments/{course_id}", headers=student)
     assert drop.status_code == 200

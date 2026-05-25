@@ -135,9 +135,7 @@ class CourseDraftTrace(IdMixin, Base):
     # Not a FK — there's no parent ``drafts`` table; the draft_id is
     # just an opaque correlation token the orchestrator mints with
     # ``new_id()``. Indexed via the composite above.
-    draft_id: Mapped[str] = mapped_column(
-        String(64), nullable=False, index=False
-    )
+    draft_id: Mapped[str] = mapped_column(String(64), nullable=False, index=False)
     # Nullable because the researcher + first outliner + early
     # critic steps run before the course row exists. Once the
     # orchestrator persists the course, every subsequent step is
@@ -158,9 +156,7 @@ class CourseDraftTrace(IdMixin, Base):
         nullable=False,
     )
     step: Mapped[str] = mapped_column(String(64), nullable=False)
-    step_index: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
+    step_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     parent_call_id: Mapped[str | None] = mapped_column(
         ForeignKey("llm_calls.id", ondelete="SET NULL"),
         nullable=True,
@@ -172,9 +168,7 @@ class CourseDraftTrace(IdMixin, Base):
     payload: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
     )
-    duration_ms: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     status: Mapped[str] = mapped_column(String(24), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -182,7 +176,6 @@ class CourseDraftTrace(IdMixin, Base):
 
 
 __all__ = [
-    "CourseDraftTrace",
     "DRAFT_STATUS_ERROR",
     "DRAFT_STATUS_OK",
     "DRAFT_STEP_CRITIC",
@@ -191,4 +184,5 @@ __all__ = [
     "DRAFT_STEP_OUTLINER",
     "DRAFT_STEP_RESEARCHER",
     "DRAFT_STEP_REVISER",
+    "CourseDraftTrace",
 ]

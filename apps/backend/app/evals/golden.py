@@ -118,9 +118,7 @@ def _iter_jsonl(path: Path) -> list[dict[str, Any]]:
             try:
                 out.append(json.loads(stripped))
             except json.JSONDecodeError as exc:
-                raise ValueError(
-                    f"{path.name}:{lineno}: invalid JSON — {exc.msg}"
-                ) from exc
+                raise ValueError(f"{path.name}:{lineno}: invalid JSON — {exc.msg}") from exc
     return out
 
 
@@ -129,8 +127,7 @@ def _coerce_outline(payload: dict[str, Any]) -> OutlineSpec:
     modules: list[OutlineModuleSpec] = []
     for m in modules_raw:
         lessons = [
-            OutlineLessonSpec(title=str(l.get("title", "")))
-            for l in (m.get("lessons") or [])
+            OutlineLessonSpec(title=str(l.get("title", ""))) for l in (m.get("lessons") or [])
         ]
         modules.append(OutlineModuleSpec(title=str(m.get("title", "")), lessons=lessons))
     return OutlineSpec(modules=modules)

@@ -66,7 +66,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, IdMixin
 
-
 # Sentinel ``user_id`` value used for system-initiated calls (eval
 # suite, ingest pipelines). Imported by ``app.services.llm_call_log``
 # and the admin API for filtering. Kept short and obviously-not-a-
@@ -104,9 +103,7 @@ class LLMCall(IdMixin, Base):
     # expose it under the more descriptive ``call_id`` name in
     # Pydantic DTOs at the API edge so the on-the-wire shape reads
     # naturally without renaming the underlying column.
-    user_id: Mapped[str] = mapped_column(
-        String(64), nullable=False, index=False
-    )
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=False)
     feature: Mapped[str] = mapped_column(String(64), nullable=False)
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     model: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -128,10 +125,10 @@ class LLMCall(IdMixin, Base):
 
 
 __all__ = [
-    "LLMCall",
     "STATUS_BUDGET_EXCEEDED",
     "STATUS_ERROR",
     "STATUS_OK",
     "STATUS_THROTTLED",
     "SYSTEM_USER_ID",
+    "LLMCall",
 ]

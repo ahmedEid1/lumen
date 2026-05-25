@@ -452,16 +452,14 @@ def _serialise_for_synth(name: ToolName, result: BaseModel) -> str:
         if not result.chunks:
             return "RETRIEVER: (no relevant content)\n"
         body = "\n\n".join(
-            f"Lesson L{c.lesson_id}: {c.lesson_title}\n{c.text}"
-            for c in result.chunks
+            f"Lesson L{c.lesson_id}: {c.lesson_title}\n{c.text}" for c in result.chunks
         )
         return f"RETRIEVER (cite these with [L:<lesson_id>]):\n{body}\n"
     if isinstance(result, WebSearchResult):
         if not result.snippets:
             return f"WEB_SEARCHER: {result.note or '(no results)'}\n"
         body = "\n\n".join(
-            f"- {s.title} ({s.url})\n  {s.content_first_240}"
-            for s in result.snippets
+            f"- {s.title} ({s.url})\n  {s.content_first_240}" for s in result.snippets
         )
         return f"WEB_SEARCHER (prefix facts with 'Web context (not from the course):'):\n{body}\n"
     if isinstance(result, CodeRunResult):
@@ -557,8 +555,7 @@ async def _dispatch_tool(
     for r in retrieved:
         if isinstance(r, RetrieverResult):
             context_block = "\n\n".join(
-                f"Lesson L{c.lesson_id}: {c.lesson_title}\n{c.text}"
-                for c in r.chunks
+                f"Lesson L{c.lesson_id}: {c.lesson_title}\n{c.text}" for c in r.chunks
             )
             break
 
@@ -740,7 +737,7 @@ async def orchestrate(
                 parent_trace_id=tool_step_id,
                 parent_call_id=planner_call_id,
             )
-        except Exception as exc:  # noqa: BLE001 — sub-agent contract: never raise
+        except Exception as exc:
             kind = type(exc).__name__
             log.warning(
                 "tutor_subagent_failed",
@@ -827,9 +824,7 @@ async def orchestrate(
                     parent_call_id=replan_call_id,
                 )
                 sub_agent_results.append(result)
-                summary_text, details = _summarise_result(
-                    replan_extra.tool_name, result
-                )
+                summary_text, details = _summarise_result(replan_extra.tool_name, result)
                 tool_summaries.append(
                     ToolCallSummary(
                         tool_name=replan_extra.tool_name,
@@ -839,7 +834,7 @@ async def orchestrate(
                         result_details=details,
                     )
                 )
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 kind = type(exc).__name__
                 log.warning(
                     "tutor_replan_subagent_failed",
@@ -926,9 +921,7 @@ async def orchestrate(
 # ---------- LLM call helpers (planner / re-planner / synthesiser) ----------
 
 
-def _build_planner_user_prompt(
-    *, question: str, history: list[dict[str, Any]] | None
-) -> str:
+def _build_planner_user_prompt(*, question: str, history: list[dict[str, Any]] | None) -> str:
     """Compose the planner's user-turn prompt."""
     history_block = ""
     if history:
@@ -967,7 +960,7 @@ async def _call_planner(
             session=db,
             temperature=0.2,
         )
-    except Exception as exc:  # noqa: BLE001 — surface as trace, not exception
+    except Exception as exc:
         kind = type(exc).__name__
         log.warning(
             "tutor_planner_failed",
@@ -1057,11 +1050,9 @@ async def _maybe_replan(
             session=db,
             temperature=0.2,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         kind = type(exc).__name__
-        log.warning(
-            "tutor_replanner_failed", user_id=user_id, error_kind=kind
-        )
+        log.warning("tutor_replanner_failed", user_id=user_id, error_kind=kind)
         await agent_tracer.record_step(
             db,
             user_id=user_id,
@@ -1156,10 +1147,7 @@ async def _call_synthesiser(
         results_block = "(no tool results — the retriever returned nothing.)"
     hint = f"\n\nHINT FROM PLANNER:\n{plan_hint}\n" if plan_hint else ""
 
-    system_content = (
-        f"{_SYNTHESISER_SYSTEM_PROMPT}\n\n"
-        f"--- TOOL RESULTS ---\n{results_block}{hint}"
-    )
+    system_content = f"{_SYNTHESISER_SYSTEM_PROMPT}\n\n--- TOOL RESULTS ---\n{results_block}{hint}"
     messages: list[llm_service.ChatMessage] = [
         llm_service.ChatMessage(role="system", content=system_content),
     ]
@@ -1186,7 +1174,7 @@ async def _call_synthesiser(
             session=db,
             temperature=0.2,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         kind = type(exc).__name__
         log.warning(
             "tutor_synthesiser_failed",

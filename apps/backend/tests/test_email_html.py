@@ -82,9 +82,7 @@ async def test_password_reset_request_now_sends_multipart(
 ) -> None:
     email = f"r-{uuid.uuid4().hex[:6]}@lumen.test"
     await make_user(email=email, password="Password!1234")
-    r = await client.post(
-        "/api/v1/auth/password-reset/request", json={"email": email}
-    )
+    r = await client.post("/api/v1/auth/password-reset/request", json={"email": email})
     assert r.status_code == 200
     assert _capture_email, "no email queued"
     msg = _capture_email[0]

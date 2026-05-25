@@ -29,9 +29,7 @@ if TYPE_CHECKING:
     )
 
 
-def _validate_complete_order(
-    mapping: dict[str, int], *, present_ids: set[str], kind: str
-) -> None:
+def _validate_complete_order(mapping: dict[str, int], *, present_ids: set[str], kind: str) -> None:
     """Reject reorder payloads that would leave rows in an inconsistent state.
 
     Both reorder paths set every row's order to a negative temp value to
@@ -140,9 +138,7 @@ _VALID_STATUS_TRANSITIONS: dict[CourseStatus, set[CourseStatus]] = {
 }
 
 
-async def _transition_status(
-    db: AsyncSession, course: Course, target: CourseStatus
-) -> None:
+async def _transition_status(db: AsyncSession, course: Course, target: CourseStatus) -> None:
     if course.status == target:
         return
     if target not in _VALID_STATUS_TRANSITIONS[course.status]:
@@ -246,10 +242,14 @@ async def _flush_course_with_slug_retry(
 # ---------- Modules ----------
 
 
-async def create_module(db: AsyncSession, *, course_id: str, owner: User, payload: ModuleCreate) -> Module:
+async def create_module(
+    db: AsyncSession, *, course_id: str, owner: User, payload: ModuleCreate
+) -> Module:
     course = await _owned_course(db, course_id, owner)
     order = await courses_repo.next_module_order(db, course.id)
-    mod = Module(course_id=course.id, title=payload.title, description=payload.description, order=order)
+    mod = Module(
+        course_id=course.id, title=payload.title, description=payload.description, order=order
+    )
     db.add(mod)
     await db.flush()
     return mod
@@ -271,13 +271,13 @@ async def delete_module(db: AsyncSession, *, module_id: str, owner: User) -> Non
     await db.delete(mod)
 
 
-async def reorder_modules(db: AsyncSession, *, course_id: str, owner: User, mapping: dict[str, int]) -> None:
+async def reorder_modules(
+    db: AsyncSession, *, course_id: str, owner: User, mapping: dict[str, int]
+) -> None:
     course = await _owned_course(db, course_id, owner)
     modules = await courses_repo.list_modules_for_course(db, course.id)
     by_id = {m.id: m for m in modules}
-    _validate_complete_order(
-        mapping, present_ids=set(by_id.keys()), kind="modules"
-    )
+    _validate_complete_order(mapping, present_ids=set(by_id.keys()), kind="modules")
     # Two-phase update to avoid uq constraint conflicts.
     for m in modules:
         m.order = -1 - m.order  # temp negative
@@ -294,7 +294,9 @@ async def create_lesson(
 ) -> Lesson:
     mod = await _owned_module(db, module_id, owner)
     if payload.data.type != payload.type.value:
-        raise ValidationAppError("Lesson type and payload type mismatch", code="lesson.type_mismatch")
+        raise ValidationAppError(
+            "Lesson type and payload type mismatch", code="lesson.type_mismatch"
+        )
     order = await courses_repo.next_lesson_order(db, mod.id)
     lesson = Lesson(
         module_id=mod.id,
@@ -324,7 +326,9 @@ async def update_lesson(
         # `lesson.type` is a String column (Mapped[LessonType]
         # without a TypeDecorator) → str at read time, no .value.
         if payload.data.type != str(lesson.type):
-            raise ValidationAppError("Cannot change lesson type via update", code="lesson.type_immutable")
+            raise ValidationAppError(
+                "Cannot change lesson type via update", code="lesson.type_immutable"
+            )
         lesson.data = payload.data.model_dump()
     return lesson
 
@@ -346,9 +350,7 @@ async def reorder_lessons(
     all_lessons = list(mod.lessons)
     live = [lesson for lesson in all_lessons if lesson.deleted_at is None]
     by_id = {lesson.id: lesson for lesson in live}
-    _validate_complete_order(
-        mapping, present_ids=set(by_id.keys()), kind="lessons"
-    )
+    _validate_complete_order(mapping, present_ids=set(by_id.keys()), kind="lessons")
     for lesson in all_lessons:
         lesson.order = -1 - lesson.order  # temp negative
     await db.flush()
@@ -419,9 +421,7 @@ async def slug_or_id(db: AsyncSession, key: str, *, with_modules: bool = False) 
     return course
 
 
-async def can_view_course(
-    db: AsyncSession, course: Course, viewer: User | None
-) -> bool:
+async def can_view_course(db: AsyncSession, course: Course, viewer: User | None) -> bool:
     """Authoritative visibility check for the course detail endpoint.
 
     Returns True for published courses, owners, admins, OR for learners who
@@ -435,7 +435,5 @@ async def can_view_course(
         return False
     if viewer.is_admin() or course.owner_id == viewer.id:
         return True
-    enrollment = await courses_repo.get_enrollment(
-        db, user_id=viewer.id, course_id=course.id
-    )
+    enrollment = await courses_repo.get_enrollment(db, user_id=viewer.id, course_id=course.id)
     return enrollment is not None

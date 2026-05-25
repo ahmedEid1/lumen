@@ -140,12 +140,8 @@ async def update_discussion(
 
 
 @router.delete("/discussions/{discussion_id}", response_model=OkResponse)
-async def delete_discussion(
-    discussion_id: str, user: CurrentUser, db: DBSession
-) -> OkResponse:
-    await discussions_service.delete_discussion(
-        db, discussion_id=discussion_id, user=user
-    )
+async def delete_discussion(discussion_id: str, user: CurrentUser, db: DBSession) -> OkResponse:
+    await discussions_service.delete_discussion(db, discussion_id=discussion_id, user=user)
     return OkResponse()
 
 
@@ -163,15 +159,11 @@ async def reply_to_discussion(
     request: Request,
     response: Response,
 ) -> DiscussionReplyOut:
-    r = await discussions_service.reply(
-        db, discussion_id=discussion_id, user=user, payload=payload
-    )
+    r = await discussions_service.reply(db, discussion_id=discussion_id, user=user, payload=payload)
     return _to_reply(r, author=user)
 
 
 @router.delete("/discussions/replies/{reply_id}", response_model=OkResponse)
-async def delete_reply(
-    reply_id: str, user: CurrentUser, db: DBSession
-) -> OkResponse:
+async def delete_reply(reply_id: str, user: CurrentUser, db: DBSession) -> OkResponse:
     await discussions_service.delete_reply(db, reply_id=reply_id, user=user)
     return OkResponse()

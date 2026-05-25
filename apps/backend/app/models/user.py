@@ -26,7 +26,9 @@ class User(IdMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
     email: Mapped[str] = mapped_column(CITEXT(), unique=True, nullable=False, index=True)
-    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -71,9 +73,7 @@ class User(IdMixin, TimestampMixin, Base):
 
 class RefreshToken(IdMixin, Base):
     __tablename__ = "auth_refresh_tokens"
-    __table_args__ = (
-        Index("ix_auth_refresh_tokens_user_id_revoked", "user_id", "revoked_at"),
-    )
+    __table_args__ = (Index("ix_auth_refresh_tokens_user_id_revoked", "user_id", "revoked_at"),)
 
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     token_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)

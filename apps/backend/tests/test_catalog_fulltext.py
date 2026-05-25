@@ -80,13 +80,17 @@ async def test_title_hit_ranks_above_body_hit(
     # Two courses — the one with "Python" in the title should rank
     # above the one that only mentions Python in the overview.
     body_hit = await _publish(
-        client, teacher, subject.id,
+        client,
+        teacher,
+        subject.id,
         "Web fundamentals",
         "An intro covering HTML, CSS, JavaScript and a touch of Python.",
         seed_lesson,
     )
     title_hit = await _publish(
-        client, teacher, subject.id,
+        client,
+        teacher,
+        subject.id,
         "Python for beginners",
         "Variables, loops, functions.",
         seed_lesson,
@@ -109,7 +113,9 @@ async def test_partial_word_still_matches_via_ilike_fallback(
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
     await _publish(
-        client, teacher, subject.id,
+        client,
+        teacher,
+        subject.id,
         "JavaScript essentials",
         "Closures, promises, the event loop.",
         seed_lesson,
@@ -129,7 +135,9 @@ async def test_word_stem_matches_via_fts(
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
     await _publish(
-        client, teacher, subject.id,
+        client,
+        teacher,
+        subject.id,
         "Running benchmarks",
         "Measuring throughput properly.",
         seed_lesson,

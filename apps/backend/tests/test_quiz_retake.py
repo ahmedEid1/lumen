@@ -44,7 +44,9 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _enroll_in_quiz_course(client: AsyncClient, headers_t: dict, headers_s: dict, subject_id: str) -> str:
+async def _enroll_in_quiz_course(
+    client: AsyncClient, headers_t: dict, headers_s: dict, subject_id: str
+) -> str:
     create = await client.post(
         "/api/v1/courses",
         json={"title": "Quizland", "subject_id": subject_id, "overview": "x"},
@@ -52,7 +54,9 @@ async def _enroll_in_quiz_course(client: AsyncClient, headers_t: dict, headers_s
     )
     course_id = create.json()["id"]
     m = (
-        await client.post(f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=headers_t)
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=headers_t
+        )
     ).json()
     lesson = (
         await client.post(
@@ -61,7 +65,9 @@ async def _enroll_in_quiz_course(client: AsyncClient, headers_t: dict, headers_s
             headers=headers_t,
         )
     ).json()
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers_t)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers_t
+    )
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=headers_s)
     return lesson["id"]
 

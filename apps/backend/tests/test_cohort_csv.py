@@ -62,9 +62,7 @@ async def test_csv_emits_header_row_and_one_row_per_student(
     )
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student_b)
 
-    r = await client.get(
-        f"/api/v1/courses/{course_id}/students.csv", headers=teacher
-    )
+    r = await client.get(f"/api/v1/courses/{course_id}/students.csv", headers=teacher)
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/csv")
     assert "attachment" in r.headers["content-disposition"]
@@ -102,9 +100,7 @@ async def test_csv_requires_owner_or_admin(
     subject = await _make_subject(db_session)
     course_id, _ = await _published_with_lesson(client, teacher, subject.id, seed_lesson)
 
-    r = await client.get(
-        f"/api/v1/courses/{course_id}/students.csv", headers=other_teacher
-    )
+    r = await client.get(f"/api/v1/courses/{course_id}/students.csv", headers=other_teacher)
     assert r.status_code == 403
     assert r.json()["error"]["code"] == "cohort.forbidden"
 
@@ -128,9 +124,7 @@ async def test_csv_handles_special_chars_in_names(
     h = {"Authorization": f"Bearer {login.json()['access_token']}"}
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=h)
 
-    r = await client.get(
-        f"/api/v1/courses/{course_id}/students.csv", headers=teacher
-    )
+    r = await client.get(f"/api/v1/courses/{course_id}/students.csv", headers=teacher)
     assert r.status_code == 200
     reader = csv.DictReader(io.StringIO(r.text))
     rows = list(reader)

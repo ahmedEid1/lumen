@@ -14,20 +14,17 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification, NotificationKind
-from app.models.user import Role, User
+from app.models.user import Role
 from app.repositories import notifications as notifications_repo
 from app.schemas.notification_prefs import NotificationDispatch
 
 
-async def test_get_prefs_returns_all_kinds_with_defaults(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_get_prefs_returns_all_kinds_with_defaults(client: AsyncClient, auth_headers) -> None:
     headers = await auth_headers(role=Role.student)
     r = await client.get("/api/v1/me/notifications/prefs", headers=headers)
     assert r.status_code == 200, r.text
@@ -41,9 +38,7 @@ async def test_get_prefs_returns_all_kinds_with_defaults(
     assert set(prefs.values()) == {"in_app"}
 
 
-async def test_update_prefs_partial_merge(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_update_prefs_partial_merge(client: AsyncClient, auth_headers) -> None:
     headers = await auth_headers(role=Role.student)
     # First update: opt one kind into digest_daily.
     payload = {"prefs": {"enrolled": "digest_daily"}}
@@ -64,18 +59,14 @@ async def test_update_prefs_partial_merge(
     assert prefs2["review_received"] == "email_immediate"
 
 
-async def test_update_prefs_rejects_invalid_kind(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_update_prefs_rejects_invalid_kind(client: AsyncClient, auth_headers) -> None:
     headers = await auth_headers(role=Role.student)
     payload = {"prefs": {"not_a_kind": "in_app"}}
     r = await client.put("/api/v1/me/notifications/prefs", headers=headers, json=payload)
     assert r.status_code == 422, r.text
 
 
-async def test_update_prefs_rejects_invalid_dispatch(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_update_prefs_rejects_invalid_dispatch(client: AsyncClient, auth_headers) -> None:
     headers = await auth_headers(role=Role.student)
     payload = {"prefs": {"enrolled": "carrier_pigeon"}}
     r = await client.put("/api/v1/me/notifications/prefs", headers=headers, json=payload)
@@ -87,9 +78,7 @@ async def test_update_prefs_requires_auth(client: AsyncClient) -> None:
     assert r.status_code == 401
 
 
-async def test_notifications_repo_create_off_skips_row(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_notifications_repo_create_off_skips_row(db_session: AsyncSession, make_user) -> None:
     """``off`` prefs must drop the notification entirely."""
     user = await make_user()
     user.notification_prefs = {"enrolled": NotificationDispatch.off.value}
@@ -107,10 +96,10 @@ async def test_notifications_repo_create_off_skips_row(
     assert result is None
 
     rows = (
-        await db_session.execute(
-            select(Notification).where(Notification.user_id == user.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(Notification).where(Notification.user_id == user.id)))
+        .scalars()
+        .all()
+    )
     assert rows == []
 
 
@@ -137,9 +126,7 @@ async def test_notifications_repo_create_email_immediate_enqueues(
 ) -> None:
     """``email_immediate`` writes the row and fires off the email task."""
     user = await make_user()
-    user.notification_prefs = {
-        "review_received": NotificationDispatch.email_immediate.value
-    }
+    user.notification_prefs = {"review_received": NotificationDispatch.email_immediate.value}
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -155,10 +142,10 @@ async def test_notifications_repo_create_email_immediate_enqueues(
     enqueue_mock.assert_called_once()
     # The notification row must exist regardless of enqueue outcome.
     rows = (
-        await db_session.execute(
-            select(Notification).where(Notification.user_id == user.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(Notification).where(Notification.user_id == user.id)))
+        .scalars()
+        .all()
+    )
     assert len(rows) == 1
 
 
@@ -167,9 +154,7 @@ async def test_notifications_repo_create_digest_daily_writes_but_no_email(
 ) -> None:
     """``digest_daily`` writes the row; the digest worker handles email later."""
     user = await make_user()
-    user.notification_prefs = {
-        "discussion_reply": NotificationDispatch.digest_daily.value
-    }
+    user.notification_prefs = {"discussion_reply": NotificationDispatch.digest_daily.value}
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)

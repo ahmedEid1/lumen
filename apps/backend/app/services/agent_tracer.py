@@ -116,9 +116,7 @@ async def record_step(
         return None
 
 
-async def list_traces_for_call(
-    db: AsyncSession, call_id: str
-) -> list[AgentTrace]:
+async def list_traces_for_call(db: AsyncSession, call_id: str) -> list[AgentTrace]:
     """Return every trace row tied to ``call_id`` — flat, in tree order.
 
     The list is ordered ``created_at ASC, step_index ASC`` so a

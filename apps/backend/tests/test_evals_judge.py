@@ -43,9 +43,7 @@ class _ScriptedProvider:
         del temperature
         self.calls.append(messages)
         if not self._replies:
-            raise AssertionError(
-                "scripted provider exhausted — test under-scripted the judge"
-            )
+            raise AssertionError("scripted provider exhausted — test under-scripted the judge")
         return self._replies.pop(0)
 
 

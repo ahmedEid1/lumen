@@ -65,7 +65,7 @@ class LLMCallOut(BaseModel):
     created_at: datetime
 
     @classmethod
-    def from_orm_row(cls, row: LLMCall) -> "LLMCallOut":
+    def from_orm_row(cls, row: LLMCall) -> LLMCallOut:
         return cls(
             call_id=row.id,
             user_id=row.user_id,
@@ -126,12 +126,7 @@ async def list_llm_calls(
     — the dashboard's typical "last 24h" call passes
     ``since=now-24h`` and omits ``until``.
     """
-    stmt = (
-        select(LLMCall)
-        .order_by(desc(LLMCall.created_at))
-        .limit(limit)
-        .offset(offset)
-    )
+    stmt = select(LLMCall).order_by(desc(LLMCall.created_at)).limit(limit).offset(offset)
     if user_id is not None:
         stmt = stmt.where(LLMCall.user_id == user_id)
     if feature is not None:

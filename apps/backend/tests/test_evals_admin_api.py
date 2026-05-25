@@ -37,9 +37,7 @@ def _wire_admin_evals_router(app: FastAPI) -> None:
     # fires per-test, but the same ``app`` instance is reused).
     paths = {r.path for r in app.routes}  # type: ignore[attr-defined]
     if "/api/v1/admin/evals/suites" not in paths:
-        app.include_router(
-            admin_evals.router, prefix="/api/v1/admin", tags=["admin-evals"]
-        )
+        app.include_router(admin_evals.router, prefix="/api/v1/admin", tags=["admin-evals"])
 
 
 @pytest.mark.asyncio
@@ -123,7 +121,11 @@ async def test_get_report_detail_returns_items_and_summary(
         "suite": "tutor",
         "status": "ok",
         "actual": {"answer": "Based on the course content, FastAPI is..."},
-        "judge": {"scores": {"faithfulness": 4, "citation_correctness": 4, "helpfulness": 4}, "rationale": "ok", "judge_error": False},
+        "judge": {
+            "scores": {"faithfulness": 4, "citation_correctness": 4, "helpfulness": 4},
+            "rationale": "ok",
+            "judge_error": False,
+        },
     }
     summary_row = {
         reports_mod.SUMMARY_KEY: True,
@@ -145,9 +147,7 @@ async def test_get_report_detail_returns_items_and_summary(
     )
 
     admin = await auth_headers(role=Role.admin)
-    r = await client.get(
-        "/api/v1/admin/evals/reports/tutor-20260522T103100Z", headers=admin
-    )
+    r = await client.get("/api/v1/admin/evals/reports/tutor-20260522T103100Z", headers=admin)
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["report_id"] == "tutor-20260522T103100Z"
@@ -166,30 +166,22 @@ async def test_get_report_404_for_missing(
     (tmp_path / "reports").mkdir(parents=True, exist_ok=True)
 
     admin = await auth_headers(role=Role.admin)
-    r = await client.get(
-        "/api/v1/admin/evals/reports/tutor-doesnotexist", headers=admin
-    )
+    r = await client.get("/api/v1/admin/evals/reports/tutor-doesnotexist", headers=admin)
     assert r.status_code == 404
     assert r.json()["error"]["code"] == "evals.report_not_found"
 
 
 @pytest.mark.asyncio
-async def test_get_report_rejects_path_traversal(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_get_report_rejects_path_traversal(client: AsyncClient, auth_headers) -> None:
     admin = await auth_headers(role=Role.admin)
-    r = await client.get(
-        "/api/v1/admin/evals/reports/..%2Fsecret", headers=admin
-    )
+    r = await client.get("/api/v1/admin/evals/reports/..%2Fsecret", headers=admin)
     # Either a 422 from path validation or a 422 from our explicit
     # validator — both lock down the traversal. We accept either.
     assert r.status_code in (400, 404, 422)
 
 
 @pytest.mark.asyncio
-async def test_non_admin_blocked_on_reports(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_non_admin_blocked_on_reports(client: AsyncClient, auth_headers) -> None:
     student = await auth_headers(role=Role.student)
     r = await client.get("/api/v1/admin/evals/reports", headers=student)
     assert r.status_code == 403

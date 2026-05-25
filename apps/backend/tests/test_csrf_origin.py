@@ -30,9 +30,7 @@ async def _login_set_cookie(client: AsyncClient, make_user) -> str:
     return cookie
 
 
-async def test_cookie_post_without_origin_is_rejected(
-    client: AsyncClient, make_user
-) -> None:
+async def test_cookie_post_without_origin_is_rejected(client: AsyncClient, make_user) -> None:
     cookie = await _login_set_cookie(client, make_user)
     # conftest sets a default `Origin: http://testserver`
     # so most tests don't trip CSRF. Pop it for this one so the
@@ -61,9 +59,7 @@ async def test_cookie_post_with_untrusted_origin_is_rejected(
     assert r.json()["error"]["code"] == "csrf.bad_origin"
 
 
-async def test_cookie_post_with_trusted_origin_passes(
-    client: AsyncClient, make_user
-) -> None:
+async def test_cookie_post_with_trusted_origin_passes(client: AsyncClient, make_user) -> None:
     cookie = await _login_set_cookie(client, make_user)
     r = await client.post(
         "/api/v1/users/me/change-password",
@@ -77,9 +73,7 @@ async def test_cookie_post_with_trusted_origin_passes(
     assert r.status_code != 403 or r.json()["error"]["code"] != "csrf.bad_origin"
 
 
-async def test_bearer_post_without_origin_passes(
-    client: AsyncClient, auth_headers
-) -> None:
+async def test_bearer_post_without_origin_passes(client: AsyncClient, auth_headers) -> None:
     """Bearer-token requests skip the CSRF check entirely — no cookie,
     no CSRF surface. This matches how mobile / Postman / SDKs use the API."""
     h = await auth_headers()
@@ -91,9 +85,7 @@ async def test_bearer_post_without_origin_passes(
     assert r.status_code == 200, r.text
 
 
-async def test_get_with_cookie_is_not_csrf_checked(
-    client: AsyncClient, make_user
-) -> None:
+async def test_get_with_cookie_is_not_csrf_checked(client: AsyncClient, make_user) -> None:
     """Read methods can't mutate state, so the check only applies to
     POST/PUT/PATCH/DELETE. A GET with the cookie and a bad Origin
     must still succeed."""
@@ -106,9 +98,7 @@ async def test_get_with_cookie_is_not_csrf_checked(
     assert r.status_code == 200
 
 
-async def test_referer_fallback_when_origin_missing(
-    client: AsyncClient, make_user
-) -> None:
+async def test_referer_fallback_when_origin_missing(client: AsyncClient, make_user) -> None:
     """Some browsers omit Origin on same-origin POSTs; the middleware
     falls back to the Referer's scheme://host."""
     cookie = await _login_set_cookie(client, make_user)

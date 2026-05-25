@@ -177,7 +177,7 @@ async def run(
             session=db,
             temperature=0.4,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         kind = type(exc).__name__
         log.warning(
             "quiz_generator_llm_failed",
@@ -247,7 +247,7 @@ async def run(
             session=db,
             temperature=0.4,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         kind = type(exc).__name__
         log.warning(
             "quiz_generator_llm_failed_retry",

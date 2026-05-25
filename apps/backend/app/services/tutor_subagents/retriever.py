@@ -49,9 +49,7 @@ class RetrieverChunk(BaseModel):
     lesson_id: str
     lesson_title: str
     text: str
-    score: float = Field(
-        description="pgvector cosine distance (lower = more similar)."
-    )
+    score: float = Field(description="pgvector cosine distance (lower = more similar).")
 
 
 class RetrieverResult(BaseModel):

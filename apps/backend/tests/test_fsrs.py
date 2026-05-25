@@ -25,7 +25,6 @@ from app.models.review_card import ReviewCard, ReviewCardState
 from app.models.user import Role
 from app.services import fsrs as fsrs_service
 
-
 # ---------- helpers ----------
 
 
@@ -93,9 +92,7 @@ async def _quiz_course(client: AsyncClient, teacher: dict, subject_id: str) -> t
 # ---------- service unit tests ----------
 
 
-async def test_ensure_card_creates_with_sane_defaults(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_ensure_card_creates_with_sane_defaults(db_session: AsyncSession, make_user) -> None:
     user = await make_user()
     # Build a minimal subject/course/module/lesson tree directly so we
     # don't depend on the HTTP layer for a pure service test.
@@ -163,18 +160,20 @@ async def test_ensure_card_is_idempotent(db_session: AsyncSession, make_user) ->
 
     # Single row per (user, lesson).
     count = (
-        await db_session.execute(
-            select(ReviewCard).where(
-                ReviewCard.user_id == user.id, ReviewCard.lesson_id == lesson.id
+        (
+            await db_session.execute(
+                select(ReviewCard).where(
+                    ReviewCard.user_id == user.id, ReviewCard.lesson_id == lesson.id
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(count) == 1
 
 
-async def test_record_review_advances_state_and_due(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_record_review_advances_state_and_due(db_session: AsyncSession, make_user) -> None:
     """Grading a 'good' rating should bump total_reviews and push due_at into the future."""
     user = await make_user()
     from app.models.course import Course, CourseStatus, Lesson, LessonType, Module
@@ -217,9 +216,7 @@ async def test_record_review_advances_state_and_due(
     assert updated.stability > 0.0
 
 
-async def test_record_review_rejects_invalid_rating(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_record_review_rejects_invalid_rating(db_session: AsyncSession, make_user) -> None:
     user = await make_user()
     from app.models.course import Course, CourseStatus, Lesson, LessonType, Module
 
@@ -266,18 +263,12 @@ async def test_due_cards_filters_by_due_at(db_session: AsyncSession, make_user) 
     db_session.add(module)
     await db_session.flush()
     l_due = Lesson(module_id=module.id, title="Due", order=0, type=LessonType.quiz, data={})
-    l_future = Lesson(
-        module_id=module.id, title="Future", order=1, type=LessonType.quiz, data={}
-    )
+    l_future = Lesson(module_id=module.id, title="Future", order=1, type=LessonType.quiz, data={})
     db_session.add_all([l_due, l_future])
     await db_session.commit()
 
-    due_card = await fsrs_service.ensure_card(
-        db_session, user_id=user.id, lesson_id=l_due.id
-    )
-    future_card = await fsrs_service.ensure_card(
-        db_session, user_id=user.id, lesson_id=l_future.id
-    )
+    due_card = await fsrs_service.ensure_card(db_session, user_id=user.id, lesson_id=l_due.id)
+    future_card = await fsrs_service.ensure_card(db_session, user_id=user.id, lesson_id=l_future.id)
     future_card.due_at = datetime.now(UTC) + timedelta(days=14)
     await db_session.commit()
 
@@ -434,9 +425,7 @@ async def test_grade_other_users_card_404(
     assert forbidden.status_code == 404
 
 
-async def test_stats_endpoint(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
-) -> None:
+async def test_stats_endpoint(client: AsyncClient, auth_headers, db_session: AsyncSession) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student_headers = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)

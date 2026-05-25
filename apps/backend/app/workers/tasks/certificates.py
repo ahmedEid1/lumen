@@ -49,9 +49,7 @@ def render(*, learner_name: str, course_title: str, certificate_id: str) -> byte
     today = datetime.now(UTC).strftime("%B %d, %Y")
     pdf.drawCentredString(width / 2, 90, f"Issued {today}")
     pdf.drawCentredString(width / 2, 70, f"Certificate ID: {certificate_id}")
-    pdf.drawCentredString(
-        width / 2, 50, f"Lumen — verify at {VERIFY_PATH}/{certificate_id}"
-    )
+    pdf.drawCentredString(width / 2, 50, f"Lumen — verify at {VERIFY_PATH}/{certificate_id}")
 
     pdf.showPage()
     pdf.save()

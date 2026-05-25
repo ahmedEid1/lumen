@@ -97,7 +97,9 @@ async def test_soft_delete_hides_from_catalog(
     )
     course_id = r.json()["id"]
     await seed_lesson(course_id, teacher)
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher)
+    await client.patch(
+        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    )
 
     catalog = await client.get("/api/v1/courses?page=1&page_size=50")
     assert any(c["id"] == course_id for c in catalog.json()["items"])

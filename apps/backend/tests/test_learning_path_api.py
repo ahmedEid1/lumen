@@ -37,10 +37,8 @@ from app.models.course import (
     Subject,
 )
 from app.models.user import Role
-from app.services import learning_path as learning_path_service
 from app.services import llm as llm_service
 from app.services.embeddings_ingest import ingest_course
-
 
 # ---------- Scripted provider (mirrors service tests) ----------
 
@@ -90,9 +88,7 @@ def app_with_learning_path(app):
     test (no shared state) so the include is idempotent at the
     suite level.
     """
-    app.include_router(
-        learning_path_api.router, prefix="/api/v1/me", tags=["learning-path"]
-    )
+    app.include_router(learning_path_api.router, prefix="/api/v1/me", tags=["learning-path"])
     return app
 
 
@@ -102,9 +98,7 @@ async def http(app_with_learning_path, client: AsyncClient):
     yield client
 
 
-def _install_provider(
-    monkeypatch: pytest.MonkeyPatch, replies: list[str]
-) -> _ScriptedProvider:
+def _install_provider(monkeypatch: pytest.MonkeyPatch, replies: list[str]) -> _ScriptedProvider:
     prov = _ScriptedProvider(replies)
     monkeypatch.setattr(llm_service, "get_provider", lambda: prov)
     return prov
@@ -113,9 +107,7 @@ def _install_provider(
 # ---------- Catalog seeding ----------
 
 
-async def _seed_catalog(
-    db: AsyncSession, *, owner_id: str, n: int = 3
-) -> list[str]:
+async def _seed_catalog(db: AsyncSession, *, owner_id: str, n: int = 3) -> list[str]:
     """Create N published courses with one text lesson each; return their slugs."""
     slugs: list[str] = []
     for i in range(n):
@@ -183,9 +175,7 @@ def _valid_plan(slugs: list[str], *, next_action_slug: str | None = None) -> str
 
 async def test_endpoints_require_authentication(http: AsyncClient) -> None:
     """Every endpoint 401s without a bearer token."""
-    r = await http.post(
-        "/api/v1/me/learning-path", json={"goal": "be a backend engineer"}
-    )
+    r = await http.post("/api/v1/me/learning-path", json={"goal": "be a backend engineer"})
     assert r.status_code == 401
     r = await http.get("/api/v1/me/learning-path")
     assert r.status_code == 401
@@ -209,9 +199,7 @@ async def test_build_returns_201_with_full_path(
 ) -> None:
     teacher = await make_user(role=Role.instructor)
     slugs = await _seed_catalog(db_session, owner_id=teacher.id, n=3)
-    _install_provider(
-        monkeypatch, [_valid_plan(slugs, next_action_slug=slugs[0])]
-    )
+    _install_provider(monkeypatch, [_valid_plan(slugs, next_action_slug=slugs[0])])
     headers = await auth_headers(role=Role.student)
     r = await http.post(
         "/api/v1/me/learning-path",
@@ -231,23 +219,17 @@ async def test_build_returns_201_with_full_path(
     assert first["status"] == "pending"
 
 
-async def test_build_validates_request_body(
-    http: AsyncClient, auth_headers
-) -> None:
+async def test_build_validates_request_body(http: AsyncClient, auth_headers) -> None:
     """Empty / overly-short goal is a 422."""
     headers = await auth_headers(role=Role.student)
-    r = await http.post(
-        "/api/v1/me/learning-path", json={"goal": ""}, headers=headers
-    )
+    r = await http.post("/api/v1/me/learning-path", json={"goal": ""}, headers=headers)
     assert r.status_code == 422
 
 
 # ---------- Get / 404 / cross-user ----------
 
 
-async def test_get_returns_404_without_active(
-    http: AsyncClient, auth_headers
-) -> None:
+async def test_get_returns_404_without_active(http: AsyncClient, auth_headers) -> None:
     headers = await auth_headers(role=Role.student)
     r = await http.get("/api/v1/me/learning-path", headers=headers)
     assert r.status_code == 404
@@ -285,9 +267,7 @@ async def test_get_returns_caller_path_only(
 # ---------- Today widget ----------
 
 
-async def test_today_empty_state(
-    http: AsyncClient, auth_headers
-) -> None:
+async def test_today_empty_state(http: AsyncClient, auth_headers) -> None:
     """No active path → 200 with all-null fields."""
     headers = await auth_headers(role=Role.student)
     r = await http.get("/api/v1/me/learning-path/today", headers=headers)
@@ -307,9 +287,7 @@ async def test_today_returns_action_after_build(
 ) -> None:
     teacher = await make_user(role=Role.instructor)
     slugs = await _seed_catalog(db_session, owner_id=teacher.id, n=3)
-    _install_provider(
-        monkeypatch, [_valid_plan(slugs, next_action_slug=slugs[1])]
-    )
+    _install_provider(monkeypatch, [_valid_plan(slugs, next_action_slug=slugs[1])])
     headers = await auth_headers(role=Role.student)
     build = await http.post(
         "/api/v1/me/learning-path",
@@ -383,9 +361,7 @@ async def test_complete_step_cross_user_returns_404(
 # ---------- Manual replan ----------
 
 
-async def test_manual_replan_returns_404_without_active(
-    http: AsyncClient, auth_headers
-) -> None:
+async def test_manual_replan_returns_404_without_active(http: AsyncClient, auth_headers) -> None:
     headers = await auth_headers(role=Role.student)
     r = await http.post("/api/v1/me/learning-path/replan", headers=headers)
     assert r.status_code == 404
@@ -400,9 +376,7 @@ async def test_manual_replan_builds_new_active(
 ) -> None:
     teacher = await make_user(role=Role.instructor)
     slugs = await _seed_catalog(db_session, owner_id=teacher.id, n=3)
-    _install_provider(
-        monkeypatch, [_valid_plan(slugs), _valid_plan(slugs)]
-    )
+    _install_provider(monkeypatch, [_valid_plan(slugs), _valid_plan(slugs)])
     headers = await auth_headers(role=Role.student)
     build = await http.post(
         "/api/v1/me/learning-path",
@@ -410,9 +384,7 @@ async def test_manual_replan_builds_new_active(
         headers=headers,
     )
     original_id = build.json()["id"]
-    r = await http.post(
-        "/api/v1/me/learning-path/replan", headers=headers
-    )
+    r = await http.post("/api/v1/me/learning-path/replan", headers=headers)
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "active"
     # The replan produces a new path id.

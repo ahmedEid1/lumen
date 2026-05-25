@@ -20,9 +20,7 @@ from app.schemas.notification_prefs import NotificationDispatch
 from app.workers.tasks import digest as digest_task
 
 
-async def test_digest_bundles_unread_into_one_email(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_digest_bundles_unread_into_one_email(db_session: AsyncSession, make_user) -> None:
     user = await make_user()
     user.notification_prefs = {
         "discussion_reply": NotificationDispatch.digest_daily.value,
@@ -83,10 +81,10 @@ async def test_digest_bundles_unread_into_one_email(
 
     # Every row stamped with digested_at.
     rows = (
-        await db_session.execute(
-            select(Notification).where(Notification.user_id == user.id)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(Notification).where(Notification.user_id == user.id)))
+        .scalars()
+        .all()
+    )
     assert len(rows) == 3
     assert all(n.digested_at is not None for n in rows)
 
@@ -101,9 +99,7 @@ async def test_digest_bundles_unread_into_one_email(
     email_mock.delay.assert_not_called()
 
 
-async def test_digest_skips_users_with_no_digest_kinds(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_digest_skips_users_with_no_digest_kinds(db_session: AsyncSession, make_user) -> None:
     """Users with prefs but no ``digest_daily`` selection get no email."""
     user = await make_user()
     user.notification_prefs = {
@@ -132,16 +128,12 @@ async def test_digest_skips_users_with_no_digest_kinds(
     email_mock.delay.assert_not_called()
 
 
-async def test_digest_skips_read_notifications(
-    db_session: AsyncSession, make_user
-) -> None:
+async def test_digest_skips_read_notifications(db_session: AsyncSession, make_user) -> None:
     """Read rows never enter the bundle even if their kind is digest_daily."""
     from datetime import UTC, datetime
 
     user = await make_user()
-    user.notification_prefs = {
-        "discussion_reply": NotificationDispatch.digest_daily.value
-    }
+    user.notification_prefs = {"discussion_reply": NotificationDispatch.digest_daily.value}
     db_session.add(user)
     n = Notification(
         user_id=user.id,

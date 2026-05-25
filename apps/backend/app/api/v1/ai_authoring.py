@@ -31,7 +31,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, DBSession, RequireInstructor
 from app.core.errors import ForbiddenError, NotFoundError
@@ -375,9 +374,7 @@ async def get_draft_trace(
     if not (user.is_admin() or course.owner_id == user.id):
         raise ForbiddenError("Not your course", code="course.forbidden")
 
-    rows = await authoring_orchestrator.list_traces_for_course(
-        db, course_id=course.id
-    )
+    rows = await authoring_orchestrator.list_traces_for_course(db, course_id=course.id)
     steps = [
         DraftTraceStepOut(
             id=r.id,
@@ -393,6 +390,4 @@ async def get_draft_trace(
         for r in rows
     ]
     draft_id = steps[0].draft_id if steps else None
-    return DraftTraceResponse(
-        course_id=course.id, draft_id=draft_id, steps=steps
-    )
+    return DraftTraceResponse(course_id=course.id, draft_id=draft_id, steps=steps)

@@ -41,4 +41,7 @@ async def ready(db: DBSession) -> Any:
         checks["redis"] = f"error: {exc.__class__.__name__}"
         overall = status.HTTP_503_SERVICE_UNAVAILABLE
 
-    return JSONResponse(status_code=overall, content={"status": "ok" if overall == 200 else "degraded", "checks": checks})
+    return JSONResponse(
+        status_code=overall,
+        content={"status": "ok" if overall == 200 else "degraded", "checks": checks},
+    )

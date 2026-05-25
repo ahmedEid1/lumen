@@ -132,9 +132,7 @@ class OpenAIEmbeddingProvider:
         if not texts:
             return []
         if not self._api_key:
-            raise RuntimeError(
-                "OpenAI embedding provider selected but OPENAI_API_KEY is unset"
-            )
+            raise RuntimeError("OpenAI embedding provider selected but OPENAI_API_KEY is unset")
         # Synchronous httpx — this provider runs inside Celery worker
         # contexts (and the retrieval helper's sync bridge), not the
         # FastAPI request loop, so blocking I/O here is fine.

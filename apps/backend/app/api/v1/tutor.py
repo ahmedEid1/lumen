@@ -176,9 +176,7 @@ async def _get_course_or_404(db, course_id: str) -> Course:
     return course
 
 
-async def _get_my_conversation_or_404(
-    db, conversation_id: str, user_id: str
-) -> TutorConversation:
+async def _get_my_conversation_or_404(db, conversation_id: str, user_id: str) -> TutorConversation:
     """Fetch a conversation owned by ``user_id`` or raise 404.
 
     We collapse "not yours" to 404 (rather than 403) so the endpoint
@@ -187,9 +185,7 @@ async def _get_my_conversation_or_404(
     """
     conv = await db.get(TutorConversation, conversation_id)
     if conv is None or conv.user_id != user_id:
-        raise NotFoundError(
-            "Conversation not found", code="tutor.conversation_not_found"
-        )
+        raise NotFoundError("Conversation not found", code="tutor.conversation_not_found")
     return conv
 
 
@@ -262,17 +258,21 @@ async def list_my_conversations(
     # listing endpoint — the panel only needs the preview + count.
     # Two cheap aggregate queries beat one heavy joinedload.
     rows = (
-        await db.execute(
-            select(TutorConversation)
-            .where(
-                TutorConversation.user_id == user.id,
-                TutorConversation.course_id == course.id,
+        (
+            await db.execute(
+                select(TutorConversation)
+                .where(
+                    TutorConversation.user_id == user.id,
+                    TutorConversation.course_id == course.id,
+                )
+                .order_by(desc(TutorConversation.last_message_at))
+                .offset((page - 1) * page_size)
+                .limit(page_size)
             )
-            .order_by(desc(TutorConversation.last_message_at))
-            .offset((page - 1) * page_size)
-            .limit(page_size)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # Last message + count per conversation. Doing this as two
     # follow-up SELECTs (instead of a window function in the main
@@ -289,11 +289,7 @@ async def list_my_conversations(
             )
         ).scalar_one_or_none()
         count_row = (
-            await db.execute(
-                select(TutorMessage.id).where(
-                    TutorMessage.conversation_id == conv.id
-                )
-            )
+            await db.execute(select(TutorMessage.id).where(TutorMessage.conversation_id == conv.id))
         ).all()
         preview = ""
         if last is not None:
@@ -337,12 +333,16 @@ async def get_conversation(
 ) -> TutorConversationDetail:
     conv = await _get_my_conversation_or_404(db, conversation_id, user.id)
     msgs = (
-        await db.execute(
-            select(TutorMessage)
-            .where(TutorMessage.conversation_id == conv.id)
-            .order_by(TutorMessage.created_at)
+        (
+            await db.execute(
+                select(TutorMessage)
+                .where(TutorMessage.conversation_id == conv.id)
+                .order_by(TutorMessage.created_at)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return TutorConversationDetail(
         id=conv.id,
         course_id=conv.course_id,
@@ -386,9 +386,7 @@ async def post_message(
     course = await _get_course_or_404(db, conv.course_id)
     content = payload.content.strip()
     if not content:
-        raise ValidationAppError(
-            "Message content cannot be empty", code="tutor.empty_message"
-        )
+        raise ValidationAppError("Message content cannot be empty", code="tutor.empty_message")
 
     # Pull the prior turns so the model has conversation context.
     # We cap to the last 20 turns to keep prompts bounded — older
@@ -397,21 +395,22 @@ async def post_message(
     # once the system prompt + 5 chunks + N turns approaches the
     # context window.
     history_rows = (
-        await db.execute(
-            select(TutorMessage)
-            .where(TutorMessage.conversation_id == conv.id)
-            .order_by(desc(TutorMessage.created_at))
-            .limit(20)
+        (
+            await db.execute(
+                select(TutorMessage)
+                .where(TutorMessage.conversation_id == conv.id)
+                .order_by(desc(TutorMessage.created_at))
+                .limit(20)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     # ``m.role`` is typed as :class:`TutorMessageRole` but Postgres
     # round-trips it as a plain string, so call ``str(...)`` rather
     # than ``.value`` — the latter explodes when SQLAlchemy hands us
     # the raw string back instead of constructing the enum.
-    history = [
-        {"role": str(m.role), "content": m.content}
-        for m in reversed(list(history_rows))
-    ]
+    history = [{"role": str(m.role), "content": m.content} for m in reversed(list(history_rows))]
 
     # 1) Persist the user turn before calling the LLM. If the model
     # call fails the audit log still shows what the learner asked.

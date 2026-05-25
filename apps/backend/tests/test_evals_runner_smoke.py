@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.evals.runner import run_suite
 from app.models.course import Course, CourseStatus, Difficulty, Lesson, LessonType, Module, Subject
-from app.models.user import Role, User
+from app.models.user import Role
 
 
 @pytest.mark.asyncio
@@ -81,9 +81,7 @@ async def test_tutor_smoke_writes_well_formed_report(
     assert written == out_path
     assert out_path.exists()
 
-    lines = [
-        json.loads(l) for l in out_path.read_text(encoding="utf-8").splitlines() if l.strip()
-    ]
+    lines = [json.loads(l) for l in out_path.read_text(encoding="utf-8").splitlines() if l.strip()]
     # Exactly one item row + one summary row.
     assert len(lines) == 2
 

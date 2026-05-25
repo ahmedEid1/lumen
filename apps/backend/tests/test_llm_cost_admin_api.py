@@ -12,7 +12,6 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +25,6 @@ from app.models.llm_call import (
 )
 from app.models.user import Role
 
-
 # ---------- Fixtures ----------
 
 
@@ -38,9 +36,7 @@ async def admin_app(app):
     wave-1 returns. We attach it directly here so the test doesn't
     depend on that step landing.
     """
-    app.include_router(
-        admin_llm_calls.router, prefix="/api/v1/admin", tags=["admin"]
-    )
+    app.include_router(admin_llm_calls.router, prefix="/api/v1/admin", tags=["admin"])
     return app
 
 
@@ -88,27 +84,19 @@ async def _seed_call(
 # ---------- RBAC ----------
 
 
-async def test_non_admin_forbidden_from_list(
-    admin_client: AsyncClient, auth_headers
-) -> None:
+async def test_non_admin_forbidden_from_list(admin_client: AsyncClient, auth_headers) -> None:
     student = await auth_headers(role=Role.student)
     r = await admin_client.get("/api/v1/admin/llm-calls", headers=student)
     assert r.status_code == 403
 
 
-async def test_non_admin_forbidden_from_summary(
-    admin_client: AsyncClient, auth_headers
-) -> None:
+async def test_non_admin_forbidden_from_summary(admin_client: AsyncClient, auth_headers) -> None:
     student = await auth_headers(role=Role.student)
-    r = await admin_client.get(
-        "/api/v1/admin/llm-calls/summary", headers=student
-    )
+    r = await admin_client.get("/api/v1/admin/llm-calls/summary", headers=student)
     assert r.status_code == 403
 
 
-async def test_instructor_forbidden_from_list(
-    admin_client: AsyncClient, auth_headers
-) -> None:
+async def test_instructor_forbidden_from_list(admin_client: AsyncClient, auth_headers) -> None:
     """Instructor is not admin — must 403 same as student."""
     instructor = await auth_headers(role=Role.instructor)
     r = await admin_client.get("/api/v1/admin/llm-calls", headers=instructor)
@@ -143,9 +131,7 @@ async def test_list_filters_by_user_id(
     await _seed_call(db_session, user_id=user_b, feature="tutor")
 
     admin = await auth_headers(role=Role.admin)
-    r = await admin_client.get(
-        f"/api/v1/admin/llm-calls?user_id={user_a}", headers=admin
-    )
+    r = await admin_client.get(f"/api/v1/admin/llm-calls?user_id={user_a}", headers=admin)
     assert r.status_code == 200
     rows = r.json()
     assert all(row["user_id"] == user_a for row in rows)
@@ -160,9 +146,7 @@ async def test_list_filters_by_feature(
     await _seed_call(db_session, user_id=user_id, feature="eval.judge")
 
     admin = await auth_headers(role=Role.admin)
-    r = await admin_client.get(
-        "/api/v1/admin/llm-calls?feature=eval.judge", headers=admin
-    )
+    r = await admin_client.get("/api/v1/admin/llm-calls?feature=eval.judge", headers=admin)
     assert r.status_code == 200
     rows = r.json()
     assert all(row["feature"] == "eval.judge" for row in rows)
@@ -174,9 +158,7 @@ async def test_list_filters_by_status(
     user_id = f"u-{uuid.uuid4().hex[:16]}"
     await _seed_call(db_session, user_id=user_id, status=STATUS_OK)
     await _seed_call(db_session, user_id=user_id, status=STATUS_ERROR)
-    await _seed_call(
-        db_session, user_id=user_id, status=STATUS_BUDGET_EXCEEDED, cost=Decimal("0")
-    )
+    await _seed_call(db_session, user_id=user_id, status=STATUS_BUDGET_EXCEEDED, cost=Decimal("0"))
 
     admin = await auth_headers(role=Role.admin)
     r = await admin_client.get(
@@ -197,12 +179,8 @@ async def test_summary_aggregates_total_and_by_feature(
 ) -> None:
     """Seed two features → summary shows them both with correct totals."""
     user_id = f"u-{uuid.uuid4().hex[:16]}"
-    await _seed_call(
-        db_session, user_id=user_id, feature="tutor", cost=Decimal("0.010000")
-    )
-    await _seed_call(
-        db_session, user_id=user_id, feature="tutor", cost=Decimal("0.020000")
-    )
+    await _seed_call(db_session, user_id=user_id, feature="tutor", cost=Decimal("0.010000"))
+    await _seed_call(db_session, user_id=user_id, feature="tutor", cost=Decimal("0.020000"))
     await _seed_call(
         db_session,
         user_id=user_id,
@@ -211,9 +189,7 @@ async def test_summary_aggregates_total_and_by_feature(
     )
 
     admin = await auth_headers(role=Role.admin)
-    r = await admin_client.get(
-        "/api/v1/admin/llm-calls/summary", headers=admin
-    )
+    r = await admin_client.get("/api/v1/admin/llm-calls/summary", headers=admin)
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["total_calls"] >= 3
@@ -234,17 +210,11 @@ async def test_summary_includes_by_day_buckets(
     user_id = f"u-{uuid.uuid4().hex[:16]}"
     today = datetime.now(UTC)
     yesterday = today - timedelta(days=1)
-    await _seed_call(
-        db_session, user_id=user_id, cost=Decimal("0.001000"), when=today
-    )
-    await _seed_call(
-        db_session, user_id=user_id, cost=Decimal("0.002000"), when=yesterday
-    )
+    await _seed_call(db_session, user_id=user_id, cost=Decimal("0.001000"), when=today)
+    await _seed_call(db_session, user_id=user_id, cost=Decimal("0.002000"), when=yesterday)
 
     admin = await auth_headers(role=Role.admin)
-    r = await admin_client.get(
-        "/api/v1/admin/llm-calls/summary?days=7", headers=admin
-    )
+    r = await admin_client.get("/api/v1/admin/llm-calls/summary?days=7", headers=admin)
     assert r.status_code == 200
     by_day = r.json()["by_day"]
     days_returned = {b["day"] for b in by_day}
@@ -259,14 +229,15 @@ async def test_summary_window_excludes_old_data(
     user_id = f"u-{uuid.uuid4().hex[:16]}"
     old = datetime.now(UTC) - timedelta(days=30)
     await _seed_call(
-        db_session, user_id=user_id, cost=Decimal("999.000000"), when=old,
+        db_session,
+        user_id=user_id,
+        cost=Decimal("999.000000"),
+        when=old,
         feature="ancient.feature",
     )
 
     admin = await auth_headers(role=Role.admin)
-    r = await admin_client.get(
-        "/api/v1/admin/llm-calls/summary?days=7", headers=admin
-    )
+    r = await admin_client.get("/api/v1/admin/llm-calls/summary?days=7", headers=admin)
     assert r.status_code == 200
     body = r.json()
     by_feature_names = {b["feature"] for b in body["by_feature"]}
