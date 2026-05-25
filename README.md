@@ -7,7 +7,8 @@ Lumen — an open-source, AI-first LMS built as a portfolio anchor for agentic-A
 
 [![CI](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml)
 [![tutor eval: TBD/5 (n=30)](https://img.shields.io/badge/tutor%20eval-TBD%2F5%20(n%3D30)-lightgrey)](apps/backend/evals/reports/)
-[![MCP registry](https://img.shields.io/badge/MCP%20registry-pending%20I1-lightgrey)](#use-lumen-from-claude-desktop)
+[![MCP registry](https://img.shields.io/badge/MCP%20registry-io.github.ahmedeid1%2Flumen-blue)](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.ahmedeid1/lumen)
+<!-- badge goes live after: mcp-publisher publish apps/backend/app/mcp/registry_metadata.json (see docs/mcp-registry-submission.md) -->
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 [Watch the 90-second walkthrough →](#)
