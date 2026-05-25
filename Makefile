@@ -62,7 +62,7 @@ seed: ## Load demo data.
 	$(COMPOSE) exec api python -m app.cli seed
 
 .PHONY: demo-seed
-demo-seed: ## Load the H4 free-tier demo bundle (3 courses + demo learner).
+demo-seed: ## Load the agentic-demo bundle (3 courses + demo learner + tutor turn + draft).
 	$(COMPOSE) exec api python -m app.cli demo-seed
 
 .PHONY: reset
@@ -170,28 +170,6 @@ openapi.local: ## Same as `openapi` but runs on the host (requires deps installe
 .PHONY: precommit
 precommit: ## Run pre-commit on all files.
 	pre-commit run --all-files
-
-# ----- free-tier deploy (H4) -----
-# These targets assume the operator has already run `flyctl auth login`
-# locally. The full first-deploy runbook lives in
-# docs/deployment/free-tier.md.
-
-.PHONY: deploy.fly
-deploy.fly: deploy.fly.api deploy.fly.worker ## Deploy api + worker to Fly.io.
-
-.PHONY: deploy.fly.api
-deploy.fly.api: ## Deploy api to Fly.io.
-	flyctl deploy --config infra/fly/fly.api.toml --dockerfile infra/fly/Dockerfile.fly --remote-only
-
-.PHONY: deploy.fly.worker
-deploy.fly.worker: ## Deploy worker to Fly.io.
-	flyctl deploy --config infra/fly/fly.worker.toml --dockerfile infra/fly/Dockerfile.fly --remote-only
-
-.PHONY: deploy.demo-seed
-deploy.demo-seed: ## Run the demo seed on the deployed api (via flyctl ssh).
-	flyctl ssh console --app lumen-api --command "python -m app.cli seed"
-	flyctl ssh console --app lumen-api --command "python -m app.cli demo-seed"
-	flyctl ssh console --app lumen-api --command "python -m app.cli reindex"
 
 # ----- MCP (I1) -----
 # Mint a new MCP OAuth client + print its secret once. Pass the
