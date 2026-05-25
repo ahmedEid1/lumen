@@ -64,31 +64,31 @@ const BEATS: Beat[] = [
       await page.click('button[type="submit"]');
       await page.waitForURL(/dashboard|\/$/, { timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(800);
-      await page.goto(`${BASE}/dashboard/tutor/${CONVERSATION_ID}`);
+      // Open the learn surface for the seeded FastAPI course
+      await page.goto(`${BASE}/learn/${FASTAPI_COURSE_SLUG}`);
       await page.waitForLoadState("domcontentloaded");
+      await page.waitForTimeout(1200);
+      // Toggle the tutor sidebar open so the camera sees lesson + tutor together
+      const askBtn = page.getByRole("button", { name: /ask the tutor/i }).first();
+      if (await askBtn.count()) {
+        await askBtn.click().catch(() => {});
+        await page.waitForTimeout(800);
+      }
     },
   },
   {
     title: "Multi-agent planner-orchestrator",
     caption:
-      "Planner over 5 sub-agents: retriever, web-searcher, code-runner, quiz-gen, concept-explainer. The reasoning panel shows which fired.",
+      "Planner over 5 sub-agents: retriever, web-searcher, code-runner, quiz-gen, concept-explainer. The trace surface shows what fired.",
     duration: 15000,
     go: async (page) => {
-      // Try to expand AgentReasoningPanel — multiple possible selectors
-      const expanders = [
-        'button:has-text("Show reasoning")',
-        'button:has-text("Agent reasoning")',
-        '[data-testid="agent-reasoning-panel-toggle"]',
-        'button[aria-controls*="reasoning"]',
-      ];
-      for (const sel of expanders) {
-        const el = page.locator(sel).first();
-        if (await el.count()) {
-          await el.click().catch(() => {});
-          break;
-        }
-      }
-      await page.waitForTimeout(800);
+      // Trace surface — top of the page shows the planner + tool calls (which
+      // is exactly what this caption describes). Beat 4 scrolls down to the
+      // retrieval audit so the visual changes even though it's the same page.
+      await page.goto(`${BASE}/dashboard/tutor/${CONVERSATION_ID}/turn/${MESSAGE_ID}`);
+      await page.waitForLoadState("domcontentloaded");
+      await page.waitForTimeout(500);
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
     },
   },
   {
@@ -97,9 +97,22 @@ const BEATS: Beat[] = [
       "Every turn writes a first-class trace — tokens, USD cost, latency, planner tool-calls, retrieval audit. Built in, not bolted on.",
     duration: 15000,
     go: async (page) => {
-      await page.goto(`${BASE}/dashboard/tutor/${CONVERSATION_ID}/turn/${MESSAGE_ID}`);
-      await page.waitForLoadState("domcontentloaded");
-      await page.waitForTimeout(500);
+      // Scroll down to the retrieval-audit / step breakdown so beat 4 reads
+      // visually different from beat 3's framing of the same trace page.
+      await page.evaluate(() => {
+        // Try to scroll to a retrieval-audit landmark; fall back to a fixed offset.
+        const target =
+          document.querySelector('[data-testid="retrieval-audit"]') ||
+          Array.from(document.querySelectorAll("h2,h3"))
+            .find((el) => /retrieval|audit/i.test(el.textContent || "")) ||
+          null;
+        if (target) {
+          (target as HTMLElement).scrollIntoView({ behavior: "instant" as ScrollBehavior, block: "start" });
+        } else {
+          window.scrollTo({ top: 600, behavior: "instant" as ScrollBehavior });
+        }
+      });
+      await page.waitForTimeout(400);
     },
   },
   {
