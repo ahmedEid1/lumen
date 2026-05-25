@@ -6,7 +6,7 @@ Lumen — an open-source, AI-first LMS built as a portfolio anchor for agentic-A
 <!-- LIVE_DEMO_URL_TBD: H4's free-tier runbook (docs/deployment/free-tier.md) ships the real URL -->
 
 [![CI](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml)
-[![tutor eval: TBD/5 (n=30)](https://img.shields.io/badge/tutor%20eval-TBD%2F5%20(n%3D30)-lightgrey)](apps/backend/evals/reports/)
+[![tutor eval: harness ready (n=30)](https://img.shields.io/badge/tutor%20eval-harness%20ready%20(n%3D30)-blue)](docs/eval/)
 [![MCP registry](https://img.shields.io/badge/MCP%20registry-io.github.ahmedEid1%2Flumen-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.ahmedEid1%2Flumen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -149,15 +149,17 @@ The resume bullets, with links to the code. Every item below is on the release b
 
 ## Eval scores
 
-Latest tutor eval (n=30): **TBD/5** — judge: Llama 3.3 70B (Groq). [See full report →](apps/backend/evals/reports/)
-
-Run yourself:
+**Status:** the eval **harness** is shipped and structurally working — see [`docs/eval/tutor-smoke-n3.jsonl`](docs/eval/tutor-smoke-n3.jsonl) for a 3-item smoke run that exercises the full loader → executor → judge → reporter chain end-to-end ([context](docs/eval/README.md)). A real score (n=30) requires two things this repo intentionally doesn't ship pre-built: (1) an LLM provider key for the judge — Groq's free Llama 3.3 70B is the recommended choice; (2) `sentence-transformers` in the API image for the retriever's local embedding model (or an OpenAI embeddings key as a swap). Once both are wired in, the same `python -m app.evals --suite tutor` command emits a numbered JSONL report under `apps/backend/evals/reports/` and the badge above flips to the real mean.
 
 ```bash
-python -m app.evals run --suite tutor
+# 3-item smoke run, no provider needed (use this to verify the harness):
+docker compose exec api python -m app.evals --suite tutor --limit 3
+
+# full n=30 (needs LLM key + sentence-transformers in the image):
+make eval suite=tutor
 ```
 
-The harness writes a JSONL report under `apps/backend/evals/reports/` containing per-item scores on `faithfulness`, `citation_correctness`, and `helpfulness`, the mean across the suite, and a regression diff against the previous run. `--suite authoring` and `--suite ingest` cover the other two golden datasets. CI runs a 3-item smoke on every PR via [`.github/workflows/pnpm-eval-smoke.yml`](.github/workflows/pnpm-eval-smoke.yml).
+Each item is scored 0–5 by an LLM-as-judge on suite-specific axes (`faithfulness`, `citation_correctness`, `helpfulness` for tutor; `outline_quality`, `lesson_coverage` for authoring; `chunking_quality`, `metadata_completeness` for ingest). The report carries per-axis means, an overall mean, and a regression diff vs. the previous run. CI gates a 3-item smoke on every PR via [`.github/workflows/pnpm-eval-smoke.yml`](.github/workflows/pnpm-eval-smoke.yml).
 
 ---
 
