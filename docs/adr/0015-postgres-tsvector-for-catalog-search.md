@@ -12,7 +12,7 @@ ADR-0003 picked Meilisearch v1.10 as a dedicated search service for the public c
 - **Operational footprint** — second service in `docker-compose.yml`, second healthcheck, second port to expose, second secret to rotate. For a single-VM demo deploy (AWS t4g.small, 2 GB RAM — see `docs/deployment/aws-vps.md`) the marginal RAM was real.
 - **Reindex coordination** — the Celery `reindex` task had to keep Meili and Postgres in sync. Every publish/unpublish/delete added a moving piece that could drift.
 
-The catalog itself is small (thousands of rows, not millions) and Postgres already had a `vector(384)` column for embeddings (lesson chunks, RAG retrieval). Adding a `tsvector` column on the same row is essentially free.
+The catalog itself is small (thousands of rows, not millions). Postgres is already in the stack and already running pgvector for RAG retrieval (the `vector(384)` column lives on `lesson_chunks`, a separate table). Adding a `tsvector` column on `courses` is essentially free — same database, same backup, same connection pool.
 
 ## Decision
 
@@ -23,7 +23,7 @@ The `services/search.py` abstraction is gone — there's nothing to swap behind 
 ## Consequences
 
 - **Wins**: one fewer container, one fewer healthcheck, one fewer reindex code path, lower RAM ceiling on the demo VM, zero drift between catalog rows and their search index (Postgres guarantees the column is always current).
-- **Losses**: no typo tolerance (Meili's headline feature). For a catalog this small, partial-word matches via `websearch_to_tsquery`'s `:*` operator are good enough. If typo tolerance matters later we'll revisit (`pg_trgm` is the natural next step before reaching for Meili again).
+- **Losses**: no typo tolerance (Meili's headline feature). The repository code (`apps/backend/app/repositories/courses.py:140-170`) handles partial-word matches via an ILIKE-OR-branch — `websearch_to_tsquery @@ search_vector OR title ILIKE '%q%' OR overview ILIKE '%q%'`, ranked at `ts_rank` for FTS hits and `0.0` for ILIKE-only — so "java" still finds "javascript" that the English stemmer would otherwise miss. If typo tolerance matters later we'll revisit (`pg_trgm` is the natural next step before reaching for Meili again).
 - **Migration impact**: the `MEILI_*` env vars are dropped from `Settings` and `.env.example`; any test fixture that still calls `monkeypatch.setenv("SEARCH_BACKEND", "postgres")` is a harmless no-op (Settings has no such field and `extra="ignore"` swallows it).
 
 ## Alternatives reconsidered
@@ -32,4 +32,4 @@ The ADR-0003 alternatives still apply. Postgres `tsvector` + `pg_trgm` was the r
 
 ## Status
 
-Implemented. See `apps/backend/app/repositories/courses.py` (the actual query), `apps/backend/alembic/versions/<migration that adds search_vector>` (the column), and `CHANGELOG.md` `[Unreleased]` "Scrubbed Meilisearch fossils" entry.
+Implemented. See `apps/backend/app/repositories/courses.py` (the actual query), `apps/backend/alembic/versions/2026_07_05_0014-0014_courses_search_vector.py` (the column + GIN index), and `CHANGELOG.md` `[Unreleased]` "Scrubbed Meilisearch fossils" entry.

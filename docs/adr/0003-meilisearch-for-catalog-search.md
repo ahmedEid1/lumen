@@ -4,7 +4,7 @@
 - **Date:** 2026-05-21
 - **Deciders:** @ahmedEid1
 
-> **Superseded:** Meilisearch was removed from the stack during the rebuild — the operational footprint of a second service didn't pay off for a catalog of this size. Replaced with a Postgres `GENERATED ALWAYS AS` `tsvector` column on `courses` (no Celery trigger; Postgres maintains the column on every insert/update). See ADR-0019 for the swap rationale. The original decision below is preserved as historical record.
+> **Superseded:** Meilisearch was removed from the stack during the rebuild — the operational footprint of a second service didn't pay off for a catalog of this size. Replaced with a Postgres `GENERATED ALWAYS AS` `tsvector` column on `courses` (no Celery trigger; Postgres maintains the column on every insert/update). See ADR-0015 for the swap rationale. The original decision below is preserved as historical record.
 
 ## Context
 

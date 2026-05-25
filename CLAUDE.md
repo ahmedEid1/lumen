@@ -94,7 +94,7 @@ Default seeded accounts (dev only):
 - **Celery is best-effort in dev** — `_schedule_index` and the password-reset email both swallow broker errors so the API stays up without a worker
 - **Compose env on Windows hosts** logs CRLF warnings on `git add` — harmless; `.gitattributes` would silence it but isn't worth the churn
 - **Pydantic v2 + SQLAlchemy 2** — keep models and schemas separate; never expose an ORM object as a response without `UserPublic.model_validate(...)` or similar
-- **Search index** lives in a `GENERATED ALWAYS AS` Postgres `tsvector` column on `courses` — Postgres maintains it on every insert/update, no Celery trigger involved. The Celery reindex task is a separate path that rebuilds **lesson-chunk embeddings** for the RAG tutor (publish/unpublish/delete + admin reindex). There's no separate search service — the original Meilisearch wire was retired during the rebuild (see superseded ADR-0003).
+- **Search index** lives in a `GENERATED ALWAYS AS` Postgres `tsvector` column on `courses` — Postgres maintains it on every insert/update, no Celery trigger involved. The Celery reindex task is a separate path that rebuilds **lesson-chunk embeddings** for the RAG tutor (fires on publish + admin reindex only; `delete_course` is a soft-delete that doesn't enqueue). There's no separate search service — the original Meilisearch wire was retired during the rebuild (see superseded ADR-0003 / new ADR-0015).
 
 ## Where to put new things
 
