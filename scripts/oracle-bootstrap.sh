@@ -91,26 +91,57 @@ elif [[ -f /root/.ssh/authorized_keys ]]; then
   SRC_KEYS=/root/.ssh/authorized_keys
 fi
 
+ADMIN_AUTH_KEYS="/home/$ADMIN_USER/.ssh/authorized_keys"
 if [[ -n "$SRC_KEYS" ]]; then
   install -d -m 700 -o "$ADMIN_USER" -g "$ADMIN_USER" "/home/$ADMIN_USER/.ssh"
-  install -m 600 -o "$ADMIN_USER" -g "$ADMIN_USER" "$SRC_KEYS" "/home/$ADMIN_USER/.ssh/authorized_keys"
+  install -m 600 -o "$ADMIN_USER" -g "$ADMIN_USER" "$SRC_KEYS" "$ADMIN_AUTH_KEYS"
   echo "==> copied authorized_keys from $SRC_KEYS"
+elif [[ -s "$ADMIN_AUTH_KEYS" ]]; then
+  echo "==> $ADMIN_AUTH_KEYS already populated, leaving as-is"
 else
-  echo "WARNING: no source authorized_keys found — populate /home/$ADMIN_USER/.ssh/authorized_keys manually before disabling password ssh!" >&2
+  echo "WARNING: no source authorized_keys found — populate $ADMIN_AUTH_KEYS manually before disabling password ssh!" >&2
 fi
 
 # -----------------------------------------------------------------------------
 # Block 3b — sshd: disable password + root login
-# (runbook step 3)
+# (runbook step 3, sub-block 3b — see docs/deployment/oracle-vps.md)
 # -----------------------------------------------------------------------------
-echo "==> hardening sshd"
-sshd_config=/etc/ssh/sshd_config
-cp "$sshd_config" "${sshd_config}.bak.$(date +%s)"
-sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "$sshd_config"
-sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' "$sshd_config"
-sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' "$sshd_config"
-sshd -t   # bail if the edits broke the config
-systemctl restart ssh
+if [[ "${LUMEN_SKIP_SSHD_HARDENING:-0}" == "1" ]]; then
+  echo "WARNING: LUMEN_SKIP_SSHD_HARDENING=1 set — skipping sshd hardening." >&2
+  echo "         You MUST disable PasswordAuthentication and PermitRootLogin manually" >&2
+  echo "         before exposing this VM to the internet. See runbook step 3b:" >&2
+  echo "         docs/deployment/oracle-vps.md" >&2
+elif [[ ! -s "$ADMIN_AUTH_KEYS" ]]; then
+  cat >&2 <<EOF
+ERROR: Refusing to disable password SSH without a verified \`authorized_keys\`.
+       You would lose access to this VM.
+
+       No key was found at: $ADMIN_AUTH_KEYS
+       (and no source key was discovered at \$SUDO_USER's home, /home/ubuntu,
+       or /root).
+
+To recover, either:
+  (a) Add a public key to $ADMIN_AUTH_KEYS for $ADMIN_USER
+      (chmod 700 the .ssh dir, chmod 600 the file, chown to $ADMIN_USER),
+      then re-run this script — it will detect the staged key and proceed.
+  (b) Skip sshd hardening on THIS run and harden manually afterwards:
+        LUMEN_SKIP_SSHD_HARDENING=1 sudo bash scripts/oracle-bootstrap.sh
+      (NOT recommended for internet-exposed VMs.)
+
+See runbook step 3 / sub-block 3b in docs/deployment/oracle-vps.md for the
+manual hardening commands.
+EOF
+  exit 1
+else
+  echo "==> hardening sshd"
+  sshd_config=/etc/ssh/sshd_config
+  cp "$sshd_config" "${sshd_config}.bak.$(date +%s)"
+  sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "$sshd_config"
+  sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' "$sshd_config"
+  sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' "$sshd_config"
+  sshd -t   # bail if the edits broke the config
+  systemctl restart ssh
+fi
 
 # -----------------------------------------------------------------------------
 # Block 3c — ufw + fail2ban

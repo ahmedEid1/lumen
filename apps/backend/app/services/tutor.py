@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,6 +50,16 @@ from app.models.lesson_chunk import LessonChunk
 from app.models.llm_call import SYSTEM_USER_ID
 from app.services.embeddings_retrieval import find_relevant_chunks
 from app.services.llm import LLMProvider
+
+if TYPE_CHECKING:
+    # ``ask_with_trace`` returns ``tuple[TutorAnswer, OrchestratorResult]``.
+    # The runtime import is deferred to inside the function body (to
+    # break the module-level cycle: tutor_orchestrator imports the
+    # tutor sub-agents, which transitively touch this module's types).
+    # Without this TYPE_CHECKING import the forward-referenced
+    # ``"OrchestratorResult"`` annotation is unresolvable to mypy and
+    # ruff, breaking lint on a clean checkout.
+    from app.services.tutor_orchestrator import OrchestratorResult
 
 log = get_logger(__name__)
 
@@ -341,7 +351,7 @@ async def ask_with_trace(
     conversation_history: list[dict[str, Any]] | None = None,
     user_id: str | None = None,
     feature: str = "tutor.multi_agent",
-) -> tuple[TutorAnswer, "OrchestratorResult"]:
+) -> tuple[TutorAnswer, OrchestratorResult]:
     """Run the multi-agent orchestrator and project both shapes.
 
     Phase I2 — surface for callers that want the full orchestrator
