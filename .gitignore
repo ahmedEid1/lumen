@@ -20,6 +20,10 @@ out/
 coverage/
 playwright-report/
 test-results/
+# A5 — Playwright screenshot capture writes here from inside the
+# `e2e` profile container (which can't write above its /work mount).
+# The operator copies the captures into docs/screenshots/ once happy.
+.screenshots-tmp/
 .swc/
 # pnpm's local content-addressed cache — gets created when running
 # `pnpm install` on the host; large, machine-specific, never useful
