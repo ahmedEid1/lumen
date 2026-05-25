@@ -27,7 +27,13 @@
     --secondary-foreground: 220 9% 92%;
     --accent: 215 17% 57%;               /* #7C8FA8 cool blue-grey */
     --accent-foreground: 220 14% 4%;
-    --destructive: 358 76% 59%;          /* #E5484D desaturated red */
+    /* Darkened from 358 76% 59% (#E5484D) — that hue only gave 3.24:1
+       contrast against --destructive-foreground (#E8EAED), failing
+       axe-core's WCAG 1.4.3 AA gate on every route that rendered a
+       destructive button. 40% L (≈#B6181D) clears 4.5:1 with room to
+       spare while still reading as the alarm-red the destructive token
+       is meant to convey. */
+    --destructive: 358 76% 40%;
     --destructive-foreground: 220 9% 92%;
     --success: 131 41% 47%;              /* #46A758 desaturated green */
     --success-foreground: 220 9% 92%;

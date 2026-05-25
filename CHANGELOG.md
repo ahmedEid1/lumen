@@ -7,6 +7,107 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Codex + Claude cleanup loop & CI green (2026-05-25)
+
+Three rounds of parallel Codex + Claude reviewers against the post-
+deploy diff, plus a CI-failure sweep, landed across four commits
+(`ad03435`, `eb4a9b7`, `4b09651`, `<this commit>`). Both reviewers
+converged empty in round 4; CI flipped from 2-red / 2-green back to
+all-green on the same branch.
+
+**Deploy correctness**
+
+- **EIP race** in `infra/aws/`: pre-allocate `aws_eip` separately, pass
+  its `public_ip` into the `user_data.sh.tftpl` template, and associate
+  via `aws_eip_association`. cloud-init no longer polls IMDS — first-
+  boot's `/etc/lumen-deploy/deploy.env` is correct from boot 1 instead
+  of capturing the temporary auto-assigned public IP. (Codex P2)
+- **`admin_email` is now a required Terraform variable** with email-
+  shape regex validation. The hard-coded personal address is gone, so
+  a fork doesn't silently route Let's Encrypt cert-expiry mail to the
+  original author. (Claude conf-80)
+- **Dropped no-op `lifecycle { ignore_changes = [] }`** from
+  `aws_instance.lumen` — empty list is the default; the block just
+  documented intent.
+
+**Silent-failure prevention**
+
+- **Embedding-provider prod guard.** `apps/backend/app/core/prod_guards.py`
+  now has `check_embedding_provider` mirroring `check_llm_provider`;
+  `EMBEDDING_PROVIDER=noop` in production raises at boot instead of
+  silently shipping `NoopEmbeddingProvider`'s hash-derived pseudo-
+  random unit vectors and degrading RAG to arbitrary-noise rankings
+  with no error path. The `docker-compose.prod.yml` x-api-env comment
+  promising this guard is now actually true. Four new tests in
+  `tests/test_prod_guards.py`. (Claude conf-85)
+- **Redis eviction policy in production: `allkeys-lru` → `noeviction`.**
+  The same Redis backs `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND`,
+  so an LRU policy would silently evict queued jobs and results under
+  memory pressure. `noeviction` causes writes to fail loudly when full,
+  surfacing as task-enqueue errors operators can act on. (Codex P1)
+
+**Compose wiring that matches the documented tuning**
+
+- **`CELERY_CONCURRENCY` and `REDIS_MAXMEMORY` are now actually consumed**
+  by the worker and redis `command:` blocks (`docker-compose.prod.yml`).
+  Previously the runbook documented these env vars but neither service
+  read them. Defaults match the prior hard-coded values (`4` / `0`)
+  so existing deploys see no behavioural change.
+- **`.env.example`** surfaces both vars in the Redis section with the
+  t4g.small examples (`REDIS_MAXMEMORY=64mb`, `CELERY_CONCURRENCY=1`)
+  inline.
+
+**Docs that now match reality**
+
+- `infra/aws/README.md`: replaced `curl … | bash` (which broke the
+  bootstrap's interactive `read -p` prompts by occupying stdin) with
+  download-then-execute. Recovery section now sources
+  `/etc/lumen-deploy/deploy.env` on the box and uses the on-box copy
+  of the bootstrap at `/root/aws-bootstrap.sh` — the previous version
+  ran `$(terraform output -raw dns_nip_io)` which fails because
+  Terraform state lives on the workstation, not the VM. (Codex P2 ×2)
+- `docs/deployment/aws-vps.md` + `docs/release/operator-activation-
+  runbook.md`: dropped four `POSTGRES_*` env vars from the 2 GB
+  tuning block — `pgvector/pgvector:pg17` doesn't read them. The
+  surviving section documents what compose actually consumes; the
+  Postgres-tuning path now points operators at the `command:` flag
+  override pattern instead of promising env-var indirection that
+  never existed. (Codex P2)
+- `docs/deployment/aws-vps.md` split-deploy: `apps/web` →
+  `apps/frontend`, `NEXT_PUBLIC_API_BASE` → `..._API_BASE_URL`. (Codex P3)
+- `apps/backend/app/services/embeddings.py` `NoopEmbeddingProvider`
+  docstring: rewrote "mostly zeros / zero-vectors" → an accurate
+  description of the L2-normalised hash-derived unit vectors, with a
+  cross-reference to the prod-boot guard. (Claude flag)
+
+**CI back to green**
+
+- **E2E (Playwright)** was failing at the `Pre-index seeded lesson
+  chunks` step with `ModuleNotFoundError: No module named
+  'sentence_transformers'` — the package is only in the type-ignore
+  stub list, not in `pyproject.toml` deps, so the `.env.example`
+  default of `EMBEDDING_PROVIDER=local` crashed. The workflow now
+  pins `EMBEDDING_PROVIDER=noop` alongside the existing
+  `LLM_PROVIDER=noop` override; the noop embedder's deterministic
+  unit vectors are exactly what the tutor-citations spec needs.
+- **Accessibility (WCAG 2.2 AA)** was failing on student dashboard
+  + student profile. Two fixes:
+  - `apps/frontend/src/styles/globals.css`: dark-mode
+    `--destructive` darkened from `358 76% 59%` (#E5484D, 3.24:1
+    against `--destructive-foreground` #E8EAED) to `358 76% 40%`
+    (~#B41819, 5.60:1). Clears WCAG 1.4.3 with room to spare;
+    light-mode value at 49% L already passed.
+  - `apps/frontend/src/app/profile/page.tsx`: the current-email
+    `<label>` and disabled `<Input>` had no `htmlFor`/`id`
+    pairing, so axe flagged it under WCAG 4.1.2. Wired the same
+    pattern the `new_email` block one section down already uses
+    (`htmlFor="current_email"` + `id="current_email"`).
+
+**Stray artifacts**
+
+- Deleted `du.exe.stackdump` (Windows debugger artifact at repo root).
+- `.claude/worktrees/romantic-mayer-ab2e85/` orphan shell removed.
+
 ### Live deploy + post-deploy tightening (2026-05-25)
 
 The AWS t4g.small runbook landed in `lumen.ahmedhobeishy.tech` — the public demo is live with TLS, Caddy 2 fronting `docker-compose.prod.yml`, Cloudflare DNS (DNS-only, no proxy), Groq Llama 3.3 70B for LLM, and Cloudflare Workers AI (`@cf/baai/bge-small-en-v1.5`) for retrieval embeddings. `/api/v1/health/live` and `/api/v1/health/ready` both return 200. Provisioning by Terraform (commit `1dc7502` on `claude/romantic-mayer-ab2e85`); the deployer IAM access key has been rotated.

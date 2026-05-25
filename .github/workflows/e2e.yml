@@ -42,8 +42,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Prepare .env
-        # The e2e suite needs LLM_PROVIDER=noop pinned regardless of
-        # what's in .env.example, so we copy then append the override.
+        # The e2e suite needs LLM_PROVIDER=noop AND EMBEDDING_PROVIDER=noop
+        # pinned regardless of what's in .env.example. LLM noop keeps the
+        # tutor turns deterministic + free. Embedding noop avoids importing
+        # sentence-transformers — it's not in pyproject.toml's dep list
+        # (only in the type-ignore stubs), so the `local` default would
+        # crash the `Pre-index seeded lesson chunks` step with
+        # ModuleNotFoundError. NoopEmbeddingProvider returns deterministic
+        # L2-normalised unit vectors derived from SHA-256, which is exactly
+        # what the tutor-citations spec needs (a stable vector per chunk
+        # to drive retrieval ordering — semantic quality isn't asserted).
         # `>>` keeps any other tweaks the operator has made to the
         # template (e.g. SEED_DEMO=true is already on by default).
         run: |
@@ -52,6 +60,7 @@ jobs:
             echo ""
             echo "# e2e workflow overrides"
             echo "LLM_PROVIDER=noop"
+            echo "EMBEDDING_PROVIDER=noop"
           } >> .env
 
       - name: Start dev stack

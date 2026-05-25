@@ -333,10 +333,10 @@ export default function ProfilePage() {
       >
         <form className="space-y-4" onSubmit={requestEmailChange}>
           <div className="space-y-1.5">
-            <label className="font-body text-sm font-medium">
+            <label htmlFor="current_email" className="font-body text-sm font-medium">
               {t("profile.field.currentEmail")}
             </label>
-            <Input value={user.email} disabled />
+            <Input id="current_email" value={user.email} disabled />
           </div>
           <div className="space-y-1.5">
             <label htmlFor="new_email" className="font-body text-sm font-medium">
