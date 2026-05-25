@@ -76,9 +76,20 @@ waves without external credentials.
 
 **Wave 2 (parallel + sequential):**
 
-- **A1** — Snippet not produced within the 30-second wait window;
-  see commit log on this branch for any A1 diff that lands
-  separately.
+- **A1** — Brought README and a handful of stale files into agreement
+  with what 1.1.0-agentic actually shipped. Status table flipped
+  H4/H5/H7 and all five Phase-I rows from "in progress" / "queued"
+  to "shipped (1.1.0-agentic)"; "The agentic patterns I built"
+  bullets re-tagged to `*(shipped — ...)*` with code links to
+  `tutor_orchestrator`, `authoring_orchestrator`, `mcp/server`,
+  `learning_path`, and `learner_traces` + `agent_tracer`. MCP
+  registry badge swapped to the canonical
+  `io.github.ahmedeid1/lumen` blue badge (quiet HTML comment notes
+  the badge 404s until `mcp-publisher publish` runs). Dead-code
+  sweep: removed the Makefile `# free-tier deploy (H4)` block, the
+  `infra/{fly,supabase,vercel}/` trees, and the Fly-targeted
+  `.github/workflows/deploy.yml`; fixed the `.env.example` Groq
+  block to cross-reference `docs/deployment/oracle-vps.md` Step 5.
 - **C1** — Consolidated the six per-agent snippet files into this
   entry and removed the scaffolding files in the same commit.
 
