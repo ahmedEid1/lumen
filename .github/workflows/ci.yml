@@ -116,12 +116,17 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
       - name: Unit tests
-        # The `--` is required: `pnpm test --run` makes pnpm consume
-        # `--run` as its own flag ("Unknown option: 'run'"), so vitest
-        # never sees it and the test runner stays in watch mode. The
-        # double-dash tells pnpm "everything after this goes to the
-        # invoked script."
-        run: pnpm test -- --run
+        # Direct `pnpm exec vitest run` avoids the pnpm-shorthand-vs-
+        # script-flag ambiguity entirely. Earlier forms that go via
+        # the `test` script (`pnpm test --run`, even `pnpm test --
+        # --run`) have been flaky across pnpm 9.15.0 environments —
+        # the alias resolution swallows `--run` differently than the
+        # explicit `pnpm run test -- --run` form. `pnpm exec vitest
+        # run` invokes vitest's CLI directly with its built-in `run`
+        # subcommand (canonical "single-pass, no watch" mode per
+        # vitest docs) so neither pnpm's flag parsing nor vitest's
+        # CI auto-detection enters the picture.
+        run: pnpm exec vitest run
 
   build-images:
     name: Build container images

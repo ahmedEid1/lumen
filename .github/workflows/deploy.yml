@@ -67,7 +67,7 @@ on:
         required: false
         default: "latest"
       commit_sha:
-        description: "Commit to check out on the box (default: tip of Rewrite). Set on rollback so compose + alembic match the image tag. 7-40 hex chars."
+        description: "Commit to check out on the box (default: tip of Rewrite). Set on rollback. MUST be a full 40-char SHA — short SHAs aren't resolvable via `git fetch origin <sha>`."
         required: false
         default: ""
       run_migrations:
@@ -175,10 +175,14 @@ jobs:
           # remote shell. Without this, a manual dispatch with
           # `commit_sha=$(rm -rf ~)` (or just a single quote) would
           # break out of the remote-side quoting and execute on the
-          # box. Whitelist hex-only, 7-40 chars (git short to full
-          # SHA-1).
-          if [ -n "${COMMIT_SHA}" ] && ! printf '%s' "${COMMIT_SHA}" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
-            echo "::error::commit_sha must be 7-40 hex characters; got '${COMMIT_SHA}'"
+          # box. Whitelist hex-only, exactly 40 chars: `git fetch
+          # origin <sha>` doesn't resolve abbreviated object IDs
+          # over the wire (the box's shallow `--depth=50` clone
+          # would have to *already* contain a short SHA's commit
+          # for `git checkout <short>` to land, which makes the
+          # rollback unreliable). Full 40-char SHA-1 only.
+          if [ -n "${COMMIT_SHA}" ] && ! printf '%s' "${COMMIT_SHA}" | grep -qE '^[0-9a-fA-F]{40}$'; then
+            echo "::error::commit_sha must be exactly 40 hex characters (full SHA-1). Got: '${COMMIT_SHA}'"
             exit 1
           fi
 
