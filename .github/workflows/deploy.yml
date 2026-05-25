@@ -57,11 +57,17 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Image tag to deploy (default: latest, e.g. :rewrite, :<sha>, :vX.Y.Z)"
+        # No leading colon — `docker-compose.prod.yml` appends
+        # `:${IMAGE_TAG:-latest}` already. `rewrite` produces
+        # `lumen-api:rewrite`; `:rewrite` would produce
+        # `lumen-api::rewrite` and the pull 404s. Examples mirror what
+        # ci.yml:build-images publishes (latest, rewrite, the 40-char
+        # SHA, or a vX.Y.Z release tag).
+        description: "Image tag to deploy (default: latest). Examples: latest, rewrite, <40-char-sha>, vX.Y.Z"
         required: false
         default: "latest"
       commit_sha:
-        description: "Commit to check out on the box (default: tip of Rewrite). Set on rollback so compose + alembic match the image tag."
+        description: "Commit to check out on the box (default: tip of Rewrite). Set on rollback so compose + alembic match the image tag. 7-40 hex chars."
         required: false
         default: ""
       run_migrations:
@@ -87,15 +93,17 @@ jobs:
     name: Roll AWS
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    # Surface secrets that step-level `if` conditions need as env vars
-    # at the job level — the `secrets` context is not available in
-    # step-level `if` expressions (GitHub Actions limitation), but
-    # `env.X` is. Step-level env on the conditional step wouldn't work
-    # either; the if is evaluated before step env is materialised.
+    # Inputs hoisted to job-level env are non-secret. The
+    # GHCR_PULL_TOKEN secret is intentionally NOT here — exposing a
+    # PAT to every step (including third-party actions in this job)
+    # widens its blast radius for no benefit, so we keep it scoped to
+    # the docker-login step and use a separate `HAS_GHCR_TOKEN`
+    # boolean here purely to gate that step's `if:` condition (which
+    # can't see `secrets.X` directly).
     env:
       IMAGE_TAG: ${{ inputs.image_tag }}
       COMMIT_SHA: ${{ inputs.commit_sha }}
-      GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+      HAS_GHCR_TOKEN: ${{ secrets.GHCR_PULL_TOKEN != '' && 'true' || 'false' }}
     steps:
       - name: Verify required secrets are present
         # Fail loud and early with a readable message instead of letting
@@ -128,9 +136,13 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
 
       - name: Authenticate box to ghcr (if pulling private images)
-        # `secrets` context isn't allowed in step-level `if`; the token
-        # was hoisted to job-level env above so this comparison works.
-        if: ${{ env.GHCR_PULL_TOKEN != '' }}
+        # Gate on the HAS_GHCR_TOKEN boolean (job-level env above) —
+        # `secrets` context isn't readable in step-level `if`. The
+        # actual token only enters this step's env, not the job's, so
+        # other steps in the job can't read it.
+        if: ${{ env.HAS_GHCR_TOKEN == 'true' }}
+        env:
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
         # Pipe the token over stdin into a remote `docker login` so it
         # never lands in process listings or the GH log. The PAT only
         # needs `read:packages` scope; rotate it on a calendar tick.
@@ -153,16 +165,34 @@ jobs:
         # a current compose definition with potentially different
         # services / env vars.
         env:
-          # Pass through to the heredoc so it's available in the
-          # remote shell. Empty string ⇒ "use Rewrite tip".
+          # Pass through to the runner shell. Empty string ⇒ "use
+          # Rewrite tip".
           COMMIT_SHA: ${{ env.COMMIT_SHA }}
         run: |
           set -euxo pipefail
+
+          # Validate commit_sha BEFORE letting it anywhere near a
+          # remote shell. Without this, a manual dispatch with
+          # `commit_sha=$(rm -rf ~)` (or just a single quote) would
+          # break out of the remote-side quoting and execute on the
+          # box. Whitelist hex-only, 7-40 chars (git short to full
+          # SHA-1).
+          if [ -n "${COMMIT_SHA}" ] && ! printf '%s' "${COMMIT_SHA}" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
+            echo "::error::commit_sha must be 7-40 hex characters; got '${COMMIT_SHA}'"
+            exit 1
+          fi
+
+          # Send COMMIT_SHA through the SSH connection's environment
+          # rather than string-interpolating into the remote shell.
+          # `SendEnv` + the server's `AcceptEnv COMMIT_SHA` would be
+          # cleaner, but most sshd_configs don't `AcceptEnv` arbitrary
+          # names — passing it as a plain shell-arg via `bash -s --`
+          # avoids both quoting holes and server-side AcceptEnv config.
           ssh -o StrictHostKeyChecking=yes \
-              -o SendEnv=COMMIT_SHA \
               ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
-              "COMMIT_SHA='${COMMIT_SHA}' bash -se" <<'REMOTE'
+              "bash -s -- '${COMMIT_SHA}'" <<'REMOTE'
             set -euo pipefail
+            COMMIT_SHA="${1-}"
             cd ~/lumen
             git fetch --depth=50 origin Rewrite
             if [ -n "${COMMIT_SHA}" ]; then

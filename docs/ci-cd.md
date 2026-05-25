@@ -86,7 +86,10 @@ specific tag, useful for rollbacks ("redeploy `:v1.2.2`").
 `deploy.yml` ssh-es into the box (Phase 1 secrets below), runs:
 
 1. `git fetch origin Rewrite && git reset --hard origin/Rewrite` — keeps the
-   on-box compose file aligned with the rolled-out commit.
+   on-box compose file aligned with the rolled-out commit. Or, on
+   rollback (when the operator passes `commit_sha`),
+   `git checkout <sha>` in detached-HEAD mode so the compose file
+   matches the pinned image. See the "Rollback" recipe below.
 2. `docker compose pull api web worker beat` — fetches the new images
    (authenticated via `GHCR_PULL_TOKEN` if the package is private,
    anonymous if public).
@@ -159,9 +162,10 @@ re-runs `docker login` each time using `GHCR_PULL_TOKEN`.
 ## Editing the pipelines
 
 - **Add a new CI gate**: drop a new workflow file in
-  `.github/workflows/`. The deploy auto-trigger (`workflow_run` in
-  `deploy.yml`) lists the workflows by name — add yours there if it
-  should also gate deploys.
+  `.github/workflows/`. Since deploys are manual
+  (`workflow_dispatch`), there's no auto-trigger to update — but
+  consider listing the new gate as a required check in branch
+  protection so it actually blocks merges to Rewrite.
 - **Change the canonical branch**: search `.github/workflows/` for
   `Rewrite` and update. Also update the `:latest` tag conditional in
   `ci.yml:build-images`.

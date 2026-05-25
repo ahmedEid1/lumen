@@ -116,7 +116,12 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
       - name: Unit tests
-        run: pnpm test --run
+        # The `--` is required: `pnpm test --run` makes pnpm consume
+        # `--run` as its own flag ("Unknown option: 'run'"), so vitest
+        # never sees it and the test runner stays in watch mode. The
+        # double-dash tells pnpm "everything after this goes to the
+        # invoked script."
+        run: pnpm test -- --run
 
   build-images:
     name: Build container images
