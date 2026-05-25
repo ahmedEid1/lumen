@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# cloud-init user_data — runs once as root at first boot.
+# Templated by Terraform: ${admin_email} is interpolated; the bootstrap
+# script is embedded verbatim from scripts/aws-bootstrap.sh.
+set -eux
+exec > >(tee -a /var/log/lumen-first-boot.log) 2>&1
+
+echo "=== lumen first-boot: $(date -u +%FT%TZ) ==="
+
+# Resolve the public IP for the nip.io APP_DOMAIN. Use IMDSv2 (the
+# instance metadata service v2) since we required token auth in Terraform.
+TOKEN=$(curl -fsSL -X PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
+PUBLIC_IP=$(curl -fsSL -H "X-aws-ec2-metadata-token: $TOKEN" \
+  http://169.254.169.254/latest/meta-data/public-ipv4)
+echo "resolved public IP: $PUBLIC_IP"
+
+# Pre-stage a relaxed fail2ban jail BEFORE installing fail2ban, so when
+# the bootstrap installs+starts the service it reads our config first.
+# 20 retries in 5m, 5m ban — stops brute-force without eating deploy bursts.
+mkdir -p /etc/fail2ban/jail.d
+cat >/etc/fail2ban/jail.d/sshd-relaxed.local <<'EOF'
+[sshd]
+enabled  = true
+findtime = 5m
+maxretry = 20
+bantime  = 5m
+EOF
+
+# Pre-create lumen user with passwordless sudo so subsequent `ssh lumen@`
+# + `sudo` works for the deploy without a tty (bootstrap relies on this).
+if ! id lumen &>/dev/null; then
+  adduser --disabled-password --gecos "" lumen
+  usermod -aG sudo lumen
+  mkdir -p /home/lumen/.ssh
+  cp /home/ubuntu/.ssh/authorized_keys /home/lumen/.ssh/authorized_keys
+  chown -R lumen:lumen /home/lumen/.ssh
+  chmod 700 /home/lumen/.ssh
+  chmod 600 /home/lumen/.ssh/authorized_keys
+fi
+echo 'lumen ALL=(ALL) NOPASSWD:ALL' >/etc/sudoers.d/90-lumen-nopasswd
+chmod 0440 /etc/sudoers.d/90-lumen-nopasswd
+
+# Write the bootstrap script to disk
+cat >/root/aws-bootstrap.sh <<'BOOTSTRAP_EOF'
+${bootstrap_script}
+BOOTSTRAP_EOF
+chmod +x /root/aws-bootstrap.sh
+
+# Run it non-interactively. Errors stream to /var/log/lumen-first-boot.log.
+LUMEN_BOOTSTRAP_NONINTERACTIVE=1 \
+  ADMIN_USER=lumen \
+  APP_DOMAIN="$${PUBLIC_IP}.nip.io" \
+  ADMIN_EMAIL="${admin_email}" \
+  bash /root/aws-bootstrap.sh
+
+echo "=== first-boot complete: $(date -u +%FT%TZ) ==="

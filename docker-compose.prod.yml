@@ -1,14 +1,22 @@
 name: lumen-prod
 
 x-api-env: &api-env
-  ENV: production
+  # ENV is overridable so an operator can stage a deploy before the LLM key
+  # is in .env.production (the H6 prod guard rejects LLM_PROVIDER=noop in
+  # production). Defaults to production so a complete .env.production
+  # behaves like before.
+  ENV: ${ENV:-production}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   TZ: ${TZ:-UTC}
   SECRET_KEY: ${SECRET_KEY}
   JWT_SECRET: ${JWT_SECRET}
   ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-900}
   REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-1209600}
-  CORS_ORIGINS: https://${APP_DOMAIN}
+  # pydantic-settings parses list[str] env vars as JSON before our @field_validator
+  # runs, so this must be a JSON array — not the plain URL it used to be.
+  CORS_ORIGINS: '["https://${APP_DOMAIN}"]'
+  WEB_BASE_URL: ${WEB_BASE_URL:-https://${APP_DOMAIN}}
+  API_BASE_URL: ${API_BASE_URL:-https://${APP_DOMAIN}}
   DATABASE_URL: ${DATABASE_URL}
   DATABASE_URL_SYNC: ${DATABASE_URL_SYNC}
   REDIS_URL: ${REDIS_URL}
@@ -29,6 +37,30 @@ x-api-env: &api-env
   SMTP_TLS: "true"
   SENTRY_DSN: ${SENTRY_DSN:-}
   PROMETHEUS_ENABLED: "true"
+  # Embedding + LLM pass-through. Defaults to noop so the stack boots even
+  # without a paid LLM credential; in production ENV the prod-boot guard
+  # will refuse noop and force a real provider.
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-noop}
+  EMBEDDING_MODEL_LOCAL: ${EMBEDDING_MODEL_LOCAL:-sentence-transformers/all-MiniLM-L6-v2}
+  EMBEDDING_MODEL_OPENAI: ${EMBEDDING_MODEL_OPENAI:-text-embedding-3-small}
+  LLM_PROVIDER: ${LLM_PROVIDER:-noop}
+  LLM_MODEL: ${LLM_MODEL:-}
+  LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-1024}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ANTHROPIC_API_BASE: ${ANTHROPIC_API_BASE:-}
+  # Open Badges 3.0 issuer + key. ISSUER_URL must dereference; the prod-boot
+  # guard rejects localhost defaults in production. SIGNING_KEY is an
+  # Ed25519 PEM — when empty the app derives one from SECRET_KEY in
+  # non-production envs but the prod guard refuses derivation.
+  BADGES_ISSUER_URL: ${BADGES_ISSUER_URL:-https://${APP_DOMAIN}}
+  BADGES_SIGNING_KEY: ${BADGES_SIGNING_KEY:-}
+  NOTION_TOKEN: ${NOTION_TOKEN:-}
+  HIBP_ENABLED: ${HIBP_ENABLED:-false}
+  RATE_LIMIT_ANON_PER_MINUTE: ${RATE_LIMIT_ANON_PER_MINUTE:-60}
+  RATE_LIMIT_AUTH_PER_MINUTE: ${RATE_LIMIT_AUTH_PER_MINUTE:-10}
+  RATE_LIMIT_USER_PER_MINUTE: ${RATE_LIMIT_USER_PER_MINUTE:-240}
 
 services:
   proxy:

@@ -1,0 +1,18 @@
+# Terraform state — local backend only. Don't commit state (contains
+# resource attributes, sometimes secrets), don't commit the lock file
+# providers since they're re-downloaded on init.
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfplan
+crash.log
+
+# Generated SSH keys — these are credentials. The pubkey *could* be
+# committed in principle, but ignoring the whole keys/ dir is safer.
+keys/
+
+# Local overrides (e.g., narrower SSH CIDR). Operator-private.
+*.auto.tfvars
+*.auto.tfvars.json
+terraform.tfvars
