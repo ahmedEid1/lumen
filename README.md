@@ -254,4 +254,4 @@ Once installed, ask Claude `'list my Lumen courses'` and watch the MCP tool call
 
 MIT — see [LICENSE](LICENSE).
 
-Status: actively built. Phase H wave-1 shipped 2026-05-22; Phase H wave-2 (live demo + this README + agent-trace dashboard) in flight; Phase I (MCP server, multi-agent tutor, self-critique authoring, learning-path agent) queued.
+Status: actively built. 1.1.0-agentic shipped 2026-05-22 (Phase H + all five Phase I items — MCP server, multi-agent tutor, self-critique authoring, learner-trace surface, learning-path agent). Wave 2 portfolio-activation prep completed 2026-05-25 (eval harness wiring + agentic-demo seed + screenshot pack + Oracle Always-Free deploy runbook + MCP registry metadata + README truthing). Remaining work is operator-side: provision the Oracle VM and run the deploy runbook, mint the live tutor-eval score against Groq, record the 90-second Loom, then publish the MCP server to `registry.modelcontextprotocol.io` and start applying.
