@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ============================================================================
-# scripts/oracle-bootstrap.sh — idempotent first-boot setup for a fresh
-# Oracle Cloud Always-Free Ampere A1 VM (Ubuntu 24.04 LTS, ARM64).
+# scripts/aws-bootstrap.sh — idempotent first-boot setup for a fresh
+# AWS EC2 t4g.small VM (Ubuntu 24.04 LTS, ARM64 / Graviton2).
 #
-# Mirrors steps 3 + 4 of docs/deployment/oracle-vps.md (plus a non-destructive
-# nudge towards step 6/7). Re-running it is safe — every block checks state
+# Mirrors steps 3 + 4 of docs/deployment/aws-vps.md, plus a non-destructive
+# nudge toward steps 6/7. Re-running it is safe — every block checks state
 # before mutating.
 #
 # Usage (as root, via sudo):
-#   curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/master/scripts/oracle-bootstrap.sh -o bootstrap.sh
+#   curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/master/scripts/aws-bootstrap.sh -o bootstrap.sh
 #   chmod +x bootstrap.sh
 #   sudo ./bootstrap.sh
 #
@@ -21,6 +21,13 @@
 # stack — those are deliberate manual steps so secrets aren't auto-generated
 # into the wrong place. The script prints the exact next commands at the
 # end.
+#
+# Differences from the retired oracle-bootstrap.sh:
+#   - Creates a 4 GB swapfile (t4g.small only has 2 GB RAM; Lumen needs
+#     headroom for Celery + Postgres bursts).
+#   - Detects EC2 user (ubuntu@) — same as Oracle's Ubuntu image, but
+#     SSH key delivery is via the EC2 keypair, not console paste.
+#   - No A1.Flex shape-config check; the AMI guarantees aarch64.
 # ============================================================================
 
 set -euo pipefail
@@ -43,7 +50,7 @@ fi
 ARCH="$(uname -m)"
 if [[ "$ARCH" != "aarch64" ]]; then
   echo "WARNING: expected ARM64 (aarch64) — detected $ARCH." >&2
-  echo "The Always-Free A1 VM is ARM; x86_64 means you picked the wrong shape." >&2
+  echo "t4g.small is Graviton2 (ARM). x86_64 means you picked the wrong instance type." >&2
   read -r -p "Continue anyway? [y/N] " ok
   [[ "$ok" =~ ^[Yy]$ ]] || exit 1
 fi
@@ -69,8 +76,34 @@ read -r -p "OK? [y/N] " ok
 [[ "$ok" =~ ^[Yy]$ ]] || { echo "aborted"; exit 1; }
 
 # -----------------------------------------------------------------------------
+# Block A — 4 GB swap file (t4g.small only has 2 GB RAM; Postgres + Celery
+# bursts blow past it under tutor load). Idempotent.
+# -----------------------------------------------------------------------------
+SWAPFILE=/swapfile
+if swapon --show=NAME --noheadings | grep -qx "$SWAPFILE"; then
+  echo "==> swap already enabled on $SWAPFILE, skipping"
+else
+  echo "==> creating 4 GB swap file at $SWAPFILE"
+  if [[ ! -f $SWAPFILE ]]; then
+    fallocate -l 4G "$SWAPFILE" || dd if=/dev/zero of="$SWAPFILE" bs=1M count=4096
+  fi
+  chmod 600 "$SWAPFILE"
+  mkswap "$SWAPFILE"
+  swapon "$SWAPFILE"
+  if ! grep -q "$SWAPFILE" /etc/fstab; then
+    echo "$SWAPFILE none swap sw 0 0" >> /etc/fstab
+  fi
+  # tune for low-RAM box: don't swap unless we have to
+  sysctl -w vm.swappiness=10 >/dev/null
+  sysctl -w vm.vfs_cache_pressure=50 >/dev/null
+  cat >/etc/sysctl.d/99-lumen-low-ram.conf <<EOF
+vm.swappiness=10
+vm.vfs_cache_pressure=50
+EOF
+fi
+
+# -----------------------------------------------------------------------------
 # Block 3a — non-root admin user with the same authorized_keys as ubuntu@
-# (runbook step 3)
 # -----------------------------------------------------------------------------
 if id "$ADMIN_USER" &>/dev/null; then
   echo "==> user $ADMIN_USER already exists, skipping creation"
@@ -80,8 +113,8 @@ else
   usermod -aG sudo "$ADMIN_USER"
 fi
 
-# copy ssh keys from the invoking sudoer (or from /home/ubuntu if invoked
-# directly as root from cloud-init)
+# copy ssh keys from the invoking sudoer (or from /home/ubuntu — the default
+# EC2 user for Canonical Ubuntu AMIs)
 SRC_KEYS=""
 if [[ -n "${SUDO_USER:-}" && -f "/home/$SUDO_USER/.ssh/authorized_keys" ]]; then
   SRC_KEYS="/home/$SUDO_USER/.ssh/authorized_keys"
@@ -104,13 +137,12 @@ fi
 
 # -----------------------------------------------------------------------------
 # Block 3b — sshd: disable password + root login
-# (runbook step 3, sub-block 3b — see docs/deployment/oracle-vps.md)
 # -----------------------------------------------------------------------------
 if [[ "${LUMEN_SKIP_SSHD_HARDENING:-0}" == "1" ]]; then
   echo "WARNING: LUMEN_SKIP_SSHD_HARDENING=1 set — skipping sshd hardening." >&2
   echo "         You MUST disable PasswordAuthentication and PermitRootLogin manually" >&2
   echo "         before exposing this VM to the internet. See runbook step 3b:" >&2
-  echo "         docs/deployment/oracle-vps.md" >&2
+  echo "         docs/deployment/aws-vps.md" >&2
 elif [[ ! -s "$ADMIN_AUTH_KEYS" ]]; then
   cat >&2 <<EOF
 ERROR: Refusing to disable password SSH without a verified \`authorized_keys\`.
@@ -125,10 +157,10 @@ To recover, either:
       (chmod 700 the .ssh dir, chmod 600 the file, chown to $ADMIN_USER),
       then re-run this script — it will detect the staged key and proceed.
   (b) Skip sshd hardening on THIS run and harden manually afterwards:
-        LUMEN_SKIP_SSHD_HARDENING=1 sudo bash scripts/oracle-bootstrap.sh
+        LUMEN_SKIP_SSHD_HARDENING=1 sudo bash scripts/aws-bootstrap.sh
       (NOT recommended for internet-exposed VMs.)
 
-See runbook step 3 / sub-block 3b in docs/deployment/oracle-vps.md for the
+See runbook step 3 / sub-block 3b in docs/deployment/aws-vps.md for the
 manual hardening commands.
 EOF
   exit 1
@@ -145,7 +177,6 @@ fi
 
 # -----------------------------------------------------------------------------
 # Block 3c — ufw + fail2ban
-# (runbook step 3)
 # -----------------------------------------------------------------------------
 echo "==> installing ufw + fail2ban"
 apt-get update -qq
@@ -160,7 +191,6 @@ systemctl enable --now fail2ban
 
 # -----------------------------------------------------------------------------
 # Block 4 — Docker Engine + Compose v2 plugin (ARM64)
-# (runbook step 4)
 # -----------------------------------------------------------------------------
 if command -v docker &>/dev/null && docker compose version &>/dev/null; then
   echo "==> docker + compose v2 already installed, skipping"
@@ -175,18 +205,16 @@ systemctl enable --now docker
 
 # -----------------------------------------------------------------------------
 # Block 5 — install repo prereqs
-# (runbook step 5)
 # -----------------------------------------------------------------------------
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git make jq openssl
 
 # -----------------------------------------------------------------------------
-# Block 7 — drop the chosen domain + LE email into /etc/lumen-deploy.env so
-# the operator can `source` it when filling .env.production
-# (runbook step 7)
+# Block 7 — drop the chosen domain + LE email into /etc/lumen-deploy/deploy.env
+# so the operator can `source` it when filling .env.production
 # -----------------------------------------------------------------------------
 install -d -m 750 -o "$ADMIN_USER" -g "$ADMIN_USER" /etc/lumen-deploy
 cat >/etc/lumen-deploy/deploy.env <<EOF
-# Generated by oracle-bootstrap.sh — used by Caddy ({\$APP_DOMAIN}) and the
+# Generated by aws-bootstrap.sh — used by Caddy ({\$APP_DOMAIN}) and the
 # H6 prod-boot guard. Mirror these into your .env.production.
 APP_DOMAIN=$APP_DOMAIN
 ACME_EMAIL=$ADMIN_EMAIL
@@ -197,18 +225,22 @@ chmod 640 /etc/lumen-deploy/deploy.env
 # -----------------------------------------------------------------------------
 # Done — print next steps
 # -----------------------------------------------------------------------------
+PUBLIC_IP="$(curl -s --max-time 3 http://169.254.169.254/latest/meta-data/public-ipv4 || curl -s ifconfig.me || echo '<your-elastic-ip>')"
 cat <<EOF
 
 ============================================================================
 Bootstrap complete.
 
+Memory snapshot (t4g.small budget — keep an eye on this):
+$(free -h | awk 'NR==1 || NR==2 || NR==3')
+
 Next (as $ADMIN_USER — log out and back in so docker group takes effect):
 
-  ssh $ADMIN_USER@\$(curl -s ifconfig.me)
+  ssh $ADMIN_USER@$PUBLIC_IP
   git clone https://github.com/ahmedEid1/E-Learning-Platform.git lumen
   cd lumen
   cp .env.example .env.production
-  # edit .env.production — see Step 5 of docs/deployment/oracle-vps.md
+  # edit .env.production — see Step 5 of docs/deployment/aws-vps.md
   # APP_DOMAIN should be: $APP_DOMAIN
 
   docker compose -f docker-compose.prod.yml --env-file .env.production pull
@@ -217,9 +249,9 @@ Next (as $ADMIN_USER — log out and back in so docker group takes effect):
   docker compose -f docker-compose.prod.yml exec api python -m app.cli seed
   docker compose -f docker-compose.prod.yml exec api python -m app.cli demo-seed
 
-Then point an A record for $APP_DOMAIN at this VM's public IP and Caddy
+Then point an A record for $APP_DOMAIN at this VM's Elastic IP and Caddy
 will obtain the Let's Encrypt cert on the first HTTPS request.
 
-Full runbook: docs/deployment/oracle-vps.md
+Full runbook: docs/deployment/aws-vps.md
 ============================================================================
 EOF

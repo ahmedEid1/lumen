@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deploy target pivot: Oracle Always Free → AWS t4g.small (2026-05-25)
+
+The Oracle Always Free single-VM runbook landed by Wave 1 / A4 was retired
+the same day. Frankfurt A1 capacity stayed `out of host capacity` across
+24 h of polite retries on a v3 60s-cadence loop, and a PAYG upgrade
+unblocked the Always-Free core limit (4 → 16 cores) but a residual
+`TenantCapacityExceeded` on the region-subscription cap blocked the
+Stockholm fallback. Replacement target is **AWS EC2 t4g.small** (2 vCPU +
+2 GB Graviton2 ARM) covered by AWS's t4g.small free-trial promo through
+Dec 31 2026 and absorbed by the new-account Free Plan credits ($100 +
+up to $100 more) for the first 6 months.
+
+**What changed:**
+
+- New `docs/deployment/aws-vps.md` (10-step runbook: signup → t4g.small
+  launch → Elastic IP → hardening → Docker → secrets → boot → TLS → DNS
+  → smokes → day-2 ops). Adds a 2 GB RAM tuning block (swap + Postgres
+  shared_buffers + Redis maxmemory + Celery concurrency=1) and a
+  "split deploy" appendix that pushes the Next.js frontend to Vercel
+  free if the box gets tight.
+- New `scripts/aws-bootstrap.sh` — idempotent first-boot installer for
+  4 GB swapfile, non-root admin user, hardened sshd (with the same
+  authorized_keys safety guard the Oracle script had), ufw + fail2ban,
+  Docker Engine + Compose v2 (ARM64). Mirrors `aws-vps.md` Steps 3–4.
+- Deleted `docs/deployment/oracle-vps.md` and
+  `scripts/oracle-bootstrap.sh`.
+- README "Deploy it" section rewritten for the AWS path with explicit
+  cost callout and migration-off-AWS path (Oracle / Hetzner CAX11).
+- `docs/release/operator-activation-runbook.md` rewrote Steps 1–3 for
+  AWS Free Plan signup + t4g.small launch + `aws-bootstrap.sh`, marked
+  Step 5 (MCP publish, done 2026-05-25) and Step 6 (silent captioned
+  walkthrough at `docs/screencast/walkthrough.mp4`, done 2026-05-25)
+  as ✅ DONE so the remaining live-fire work is Steps 1–4 + 7.
+
+**What stays:** the unmodified `docker-compose.prod.yml` (FastAPI +
+Celery worker + beat + Postgres-pgvector + Redis + MinIO + Caddy 2)
+runs identically on t4g.small with the swapfile and tuning block, and
+on Oracle A1 / Hetzner CAX11 without them. Migration off AWS at end of
+trial is "rerun the same runbook against the new ARM64 Ubuntu 24.04
+box" — no Docker image rebuild, no code change.
+
+The operator's personal Oracle journey (PAYG upgrade waiting for a
+region-subscription cap increase + Frankfurt retry loop still hunting
+out-of-band) continues separately and may eventually free up an A1 VM;
+if it does, this same project will deploy there with zero further
+code work.
+
 ### Activation (Wave 1+2, portfolio publish prep — 2026-05-25)
 
 Portfolio activation team passed: branch is push-ready for the
@@ -39,15 +86,17 @@ waves without external credentials.
   and the README badge swap. No submission performed.
 - **A4** — Replaced the multi-provider free-tier deploy story with a
   single-VM Oracle Cloud Always-Free runbook. New
-  `docs/deployment/oracle-vps.md` walks Oracle signup → A1 Ampere VM
-  (4 OCPU / 24 GB RAM / 200 GB block, ARM64 Ubuntu 24.04) →
-  hardened-host setup → unmodified `docker-compose.prod.yml` stack →
-  TLS via the already-containerised Caddy 2 against Let's Encrypt.
-  Added `scripts/oracle-bootstrap.sh` — idempotent first-boot
-  installer for non-root admin user, hardened sshd, ufw + fail2ban,
-  Docker Engine + Compose v2 (ARM64). Deleted the old
-  `docs/deployment/free-tier.md` and rewrote the README "Deploy it"
-  section. Target steady-state cost: **$0/mo, forever**.
+  `docs/deployment/oracle-vps.md` (later replaced by
+  `docs/deployment/aws-vps.md` — see "Deploy target pivot" entry
+  above) walks Oracle signup → A1 Ampere VM (4 OCPU / 24 GB RAM /
+  200 GB block, ARM64 Ubuntu 24.04) → hardened-host setup →
+  unmodified `docker-compose.prod.yml` stack → TLS via the
+  already-containerised Caddy 2 against Let's Encrypt. Added
+  `scripts/oracle-bootstrap.sh` (later replaced by
+  `scripts/aws-bootstrap.sh`) — idempotent first-boot installer for
+  non-root admin user, hardened sshd, ufw + fail2ban, Docker Engine
+  + Compose v2 (ARM64). Deleted the old `docs/deployment/free-tier.md`
+  and rewrote the README "Deploy it" section.
 - **A5** — Built out the demo seed so `make seed` produces a
   recruiter-legible dataset, then captured the five-PNG portfolio
   screenshot pack against it. New `app/seeds/agentic_demo.py` adds
@@ -89,24 +138,26 @@ waves without external credentials.
   sweep: removed the Makefile `# free-tier deploy (H4)` block, the
   `infra/{fly,supabase,vercel}/` trees, and the Fly-targeted
   `.github/workflows/deploy.yml`; fixed the `.env.example` Groq
-  block to cross-reference `docs/deployment/oracle-vps.md` Step 5.
+  block to cross-reference `docs/deployment/oracle-vps.md` Step 5
+  (now `aws-vps.md` Step 5 after the deploy target pivot).
 - **C1** — Consolidated the six per-agent snippet files into this
   entry and removed the scaffolding files in the same commit.
 
-**Operator runbook (next steps, no agent intervention required):**
+**Operator runbook (next steps, no agent intervention required) — superseded by the AWS pivot above:**
 
-1. Provision Oracle Always Free ARM A1 VM and run
-   `scripts/oracle-bootstrap.sh` — see
-   `docs/deployment/oracle-vps.md`.
+1. Provision AWS EC2 t4g.small and run `scripts/aws-bootstrap.sh` —
+   see `docs/deployment/aws-vps.md` (replaces the Oracle path).
 2. Set `LLM_PROVIDER=openai` + Groq endpoint + `OPENAI_API_KEY` in
    `.env.production` (free Groq key from
    <https://console.groq.com>); restart the stack.
 3. Run `make eval` to populate the real tutor-eval score in the
    README badge.
-4. Run `mcp-publisher publish apps/backend/app/mcp/registry_metadata.json`
-   — see `docs/mcp-registry-submission.md`.
-5. Capture the 90-second Loom against the live demo; paste URL into
-   the `LOOM_URL_TBD` placeholder in `README.md`.
+4. ~~Run `mcp-publisher publish ...`~~ — already done 2026-05-25,
+   `io.github.ahmedEid1/lumen` v1.1.0 live in the public registry.
+5. ~~Capture the 90-second Loom against the live demo~~ — silent
+   captioned walkthrough already shipped at
+   `docs/screencast/walkthrough.mp4`. A voiced Loom against the live
+   URL is optional.
 6. Run `make publish-rewrite` to push `Rewrite` to origin and open
    the PR.
 
