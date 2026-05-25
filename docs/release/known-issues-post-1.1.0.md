@@ -8,7 +8,12 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 
 ## Operator decisions required
 
-### KI-1 — Default embedding provider is `local`, but `sentence-transformers` is not in deps
+### KI-1 — Default embedding provider is `local`, but `sentence-transformers` is not in deps — ⚠️ MOOTED 2026-05-25
+
+> The live demo no longer hits this codepath: a Cloudflare Workers AI key
+> (`EMBEDDING_PROVIDER=openai` against `https://api.cloudflare.com/.../ai/v1`, model `@cf/baai/bge-small-en-v1.5`) is set in `.env` / `.env.production` and on the AWS box.
+> The "wrong default" still exists in source for a fresh `make up` against an unconfigured `.env`, so this is mooted rather than fully resolved. The "Suggested action" below (flip default to `noop` and add the `embeddings-local` extra) still earns its keep for first-run operator-friendliness — keeping the KI open as a polish follow-up.
+
 
 **Source:** Codex P1 review of pre-existing 1.1.0-agentic code.
 
@@ -64,33 +69,25 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 
 ## MCP server hygiene
 
-### KI-4 — `app/mcp/__main__.py` writes a structlog text line to stdout before FastMCP takes over
+### KI-4 — `app/mcp/__main__.py` writes a structlog text line to stdout before FastMCP takes over — ✅ RESOLVED 2026-05-25
 
 **Source:** Agent T discovery while fixing the stdio framing test (commit `b4bca55`).
 
-**Where:** `apps/backend/app/mcp/__main__.py` — `log.info("mcp_server_starting", transport="stdio")` fires before `app.main.configure_logging()` runs; the MCP subprocess inherits structlog's default `PrintLoggerFactory()` and writes a plain-text line to **stdout**.
+**Where:** `apps/backend/app/mcp/__main__.py` — `log.info("mcp_server_starting", transport="stdio")` fires before `app.main.configure_logging()` runs; the MCP subprocess inherited structlog's default `PrintLoggerFactory()` and wrote a plain-text line to **stdout**.
 
-**Why deferred:** Technically violates MCP spec ("server MUST NOT write anything to its stdout that is not a valid MCP message") but happens to not break real MCP clients (Claude Desktop, etc. ignore unparseable lines). The smoke test is now defensive against it.
-
-**Suggested action:** Move the startup log to `stderr` (which IS spec-compliant for stdio MCP servers), or move it after `configure_logging()` so structlog routes it through whatever JSON-to-stderr sink production uses.
-
-**Estimated effort:** 10 min.
+**Resolution:** `app.core.logging.configure_logging` gained an `stderr: bool = False` flag that wires both `logging.basicConfig(stream=…)` and `structlog.PrintLoggerFactory(file=…)` to `sys.stderr`. `app/mcp/__main__.py` now calls `configure_logging(stderr=args.transport == "stdio")` before any log emission, so the stdio transport's startup log and every subsequent record route to stderr. The HTTP transport keeps the default stdout sink for container-log aggregation parity with the API service.
 
 ---
 
 ## Doc / comment drift (cosmetic)
 
-### KI-5 — Seed comment claims a 60-second look-back window; actual service uses 120s
+### KI-5 — Seed comment claims a 60-second look-back window; actual service uses 120s — ✅ RESOLVED 2026-05-25
 
 **Source:** Claude review M4.
 
-**Where:** `apps/backend/app/seeds/agentic_demo.py:485-486` says `"we keep every linked row inside [anchor - 60s, anchor]"`. The actual constant in `apps/backend/app/services/learner_traces.py:83` is `_TRACE_WINDOW_SECONDS = 120`.
+**Where:** `apps/backend/app/seeds/agentic_demo.py:485-486` used to say `"we keep every linked row inside [anchor - 60s, anchor]"`. The actual constant in `apps/backend/app/services/learner_traces.py:83` is `_TRACE_WINDOW_SECONDS = 120`.
 
-**Impact:** Behaviour is correct (all seeded timestamps fit in the real 120s window); only the comment is wrong. Future developer reading only the seed would assume less headroom.
-
-**Suggested action:** One-word edit — `60 seconds` → `120 seconds` in the seed module-level docstring and the inline comment.
-
-**Estimated effort:** 30 sec.
+**Resolution:** The inline comment now reads `120s (_TRACE_WINDOW_SECONDS in services/learner_traces), so we keep every linked row inside [anchor - 120s, anchor]` and explicitly cross-references the service-layer constant.
 
 ---
 
@@ -109,29 +106,23 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 
 ---
 
-### KI-7 — Seed uses fine-grained `feature` slugs the orchestrator never emits
+### KI-7 — Seed uses fine-grained `feature` slugs the orchestrator never emits — ✅ RESOLVED 2026-05-25
 
 **Source:** Claude review m4 (minor).
 
-**Where:** `apps/backend/app/seeds/agentic_demo.py:611,624,694,719,737` use `feature="tutor.multi_agent.retriever"`, `feature="tutor.multi_agent.web_searcher"`, `feature="tutor.multi_agent.synth"`. The real orchestrator at `apps/backend/app/services/tutor_orchestrator.py:91` uses a single `FEATURE = "tutor.multi_agent"`.
+**Where:** `apps/backend/app/seeds/agentic_demo.py` — the RetrievalAudit row and three of the four AgentTrace rows previously carried `feature="tutor.multi_agent.{retriever,web_searcher,synth}"`. The real orchestrator at `apps/backend/app/services/tutor_orchestrator.py:91` uses a single `FEATURE = "tutor.multi_agent"` (and the sub-agents inherit `feature=feature` from it for every `record_step` + `RetrievalAudit` call).
 
-**Impact:** The learner_traces I4 surface joins on `(user_id, time-window)` not `feature`, so the drill-down works. But admin "rows by feature" filtering on seeded data shows four buckets where prod data shows one.
-
-**Suggested action:** Standardise the seed's `feature` to a single `"tutor.multi_agent"` slug across plan/retriever/web/synth.
-
-**Estimated effort:** 5 min.
+**Resolution:** All four rows now use the base `tutor.multi_agent` slug — admin "rows by feature" filtering shows the same single bucket on seeded data that it shows on live data. The two seeded LLM-call rows still use `tutor.multi_agent.plan` / `.synth` because that's also what the orchestrator's `call_logged` invocations emit (`tutor_orchestrator.py` docstring line 32 spells this out).
 
 ---
 
-### KI-8 — Bootstrap script writes `/etc/lumen-deploy/deploy.env` but the runbook never reads it
+### KI-8 — Bootstrap script writes `/etc/lumen-deploy/deploy.env` but the runbook never reads it — ✅ RESOLVED 2026-05-25
 
 **Source:** Claude review m2 (minor).
 
-**Where:** `scripts/aws-bootstrap.sh` (Block 7) writes `APP_DOMAIN` + `ACME_EMAIL` to `/etc/lumen-deploy/deploy.env`. Runbook step 5 of `docs/deployment/aws-vps.md` tells the operator to "mirror these into your .env.production" — manual re-entry. The file is written but never consumed. (Inherited from the retired `oracle-bootstrap.sh`; same problem, same fix.)
+**Where:** `scripts/aws-bootstrap.sh` (Block 7) writes `APP_DOMAIN` + `ACME_EMAIL` to `/etc/lumen-deploy/deploy.env`. Runbook step 5 of `docs/deployment/aws-vps.md` used to tell the operator to "mirror these into your .env.production" — manual re-entry.
 
-**Suggested action:** Either drop the `/etc/lumen-deploy/deploy.env` write (dead data) or update the runbook to `source /etc/lumen-deploy/deploy.env` before the secret-generation loop.
-
-**Estimated effort:** 5 min for either path.
+**Resolution:** The bootstrap exit summary and `aws-vps.md` Step 5 both now instruct the operator to `source /etc/lumen-deploy/deploy.env` before editing `.env.production`, so the file's values populate the shell that fills the production env. The write-then-ignore drift is gone.
 
 ---
 
@@ -147,27 +138,23 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 
 ---
 
-### KI-10 — `aws-bootstrap.sh` exit message recommends `python -m app.cli demo-seed` alongside `seed`
+### KI-10 — `aws-bootstrap.sh` exit message recommends `python -m app.cli demo-seed` alongside `seed` — ✅ RESOLVED 2026-05-25
 
 **Source:** Claude review m5 (minor).
 
 **Where:** `scripts/aws-bootstrap.sh` exit-summary block + `docs/deployment/aws-vps.md` step 6. (Inherited from the retired `oracle-bootstrap.sh`.)
 
-**Impact:** Both `seed` and `demo-seed` exist in the CLI. The Wave-1 A5 work moved the agentic-demo dataset into `agentic_demo.apply()` which is invoked from the regular `_seed()` function in `cli.py`. So running both yields the agentic demo + the older H4 demo bundle (still at `apps/backend/app/seeds/demo.py`), producing six published courses plus the demo learner. Not wrong, but more demo surface than the operator may want.
-
-**Suggested action:** Either drop the `demo-seed` recommendation from the script's exit message and runbook step 6, or document explicitly what each command adds and let the operator pick.
-
-**Estimated effort:** 10 min.
+**Resolution:** Both surfaces now show `python -m app.cli demo-seed` as a commented-out optional extra ("adds 3 browse-only courses on top of the curated multi-agent tutor demo that `seed` already lays down") rather than a default recommendation. Default deploy = curated multi-agent demo; richer catalog = opt-in.
 
 ---
 
 ## Recommended order if you do a "1.1.0-agentic.1" cleanup pass
 
-1. **KI-1** (embedding default) — affects deploy correctness on first use
-2. **KI-4** (MCP stdout log) — quick spec compliance
-3. **KI-5** (60s/120s comment) — 30-second polish
-4. **KI-7** (seed feature slug) — 5-minute consistency
-5. ~~**KI-6** (free-tier comments) — 15-minute drift cleanup~~ ✅ done in `996a6ed`
-6. **KI-8** + **KI-10** (bootstrap script polish) — 15-minute total
+1. ~~**KI-1** (embedding default) — affects deploy correctness on first use~~ ⚠️ mooted post-deploy by Cloudflare Workers AI wire-up (`56e49d2`); flipping the default to `noop` still recommended for first-run operator friendliness.
+2. ~~**KI-4** (MCP stdout log) — quick spec compliance~~ ✅ done in the post-deploy cleanup commit.
+3. ~~**KI-5** (60s/120s comment) — 30-second polish~~ ✅ done in the post-deploy cleanup commit.
+4. ~~**KI-7** (seed feature slug) — 5-minute consistency~~ ✅ done in the post-deploy cleanup commit.
+5. ~~**KI-6** (free-tier comments) — 15-minute drift cleanup~~ ✅ done in `996a6ed`.
+6. ~~**KI-8** + **KI-10** (bootstrap script polish) — 15-minute total~~ ✅ done in the post-deploy cleanup commit.
 
-That's roughly **2 hours of focused work** to land all the cleanup as a follow-up patch release. KI-2 (code_runner sandbox) and KI-3 (traceloop bloat) are Phase-J-scoped.
+**What remains:** KI-2 (code_runner sandbox) and KI-3 (traceloop bloat) are Phase-J-scoped. KI-9 (hero screenshot label) is a follow-up tied to a future live-fire re-capture. The rest of the original deferral list is closed.

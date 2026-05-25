@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Live deploy + post-deploy tightening (2026-05-25)
+
+The AWS t4g.small runbook landed in `lumen.ahmedhobeishy.tech` — the public demo is live with TLS, Caddy 2 fronting `docker-compose.prod.yml`, Cloudflare DNS (DNS-only, no proxy), Groq Llama 3.3 70B for LLM, and Cloudflare Workers AI (`@cf/baai/bge-small-en-v1.5`) for retrieval embeddings. `/api/v1/health/live` and `/api/v1/health/ready` both return 200. Provisioning by Terraform (commit `1dc7502` on `claude/romantic-mayer-ab2e85`); the deployer IAM access key has been rotated.
+
+Post-deploy housekeeping commits (this entry):
+
+- **README badge** flipped from "live demo: provisioning" → green `live demo: lumen.ahmedhobeishy.tech` with a one-line "what's running there" paragraph (Caddy, t4g.small specs, Groq+Cloudflare backends, runbook cross-ref). The `LIVE_DEMO_URL_TBD` placeholder is gone.
+- **Operator activation runbook** got a "✅ LIVE 2026-05-25" status banner at the top, the Step 3.7 🛑 marker carries a ✅ done note pointing at the URL, and the "Where Claude takes over" checklist marks items 1–3 + 5–6 as done. The remaining stretch items (Step 4 tutor-eval re-run against the live VM, Step 7 voiced Loom) are flagged but not blocking.
+- **Known issues KI-4 / KI-5 / KI-7 / KI-8 / KI-10 resolved** (`docs/release/known-issues-post-1.1.0.md`):
+  - **KI-4** — `app/mcp/__main__.py` now calls `configure_logging(stderr=True)` on the stdio path so the startup `mcp_server_starting` log and everything after it routes to stderr. `app/core/logging.configure_logging` gains an `stderr: bool = False` flag that wires both `logging.basicConfig(stream=…)` and `structlog.PrintLoggerFactory(file=…)` to `sys.stderr`. HTTP transport keeps the default stdout sink for container-log parity.
+  - **KI-5** — `app/seeds/agentic_demo.py` trace-window comment now reads "120s (`_TRACE_WINDOW_SECONDS` in `services/learner_traces`)" instead of the stale `60s`. Behaviour was already correct.
+  - **KI-7** — the four AgentTrace + RetrievalAudit rows in the seeded multi-agent tutor turn now use `feature="tutor.multi_agent"` (matching what the orchestrator emits at runtime), not the fine-grained `tutor.multi_agent.{retriever,web_searcher,synth}` slugs that no live code path stamps. The two seeded LLM-call rows still use `tutor.multi_agent.plan` / `.synth` because that's also what the orchestrator's `call_logged` invocations emit — so admin "rows by feature" filtering now shows the same shape on seeded and live data.
+  - **KI-8** — `scripts/aws-bootstrap.sh` exit summary now tells the operator to `source /etc/lumen-deploy/deploy.env` before editing `.env.production`, and `docs/deployment/aws-vps.md` Step 5 mirrors the same line. The dead-data write is now wired into the flow it was always meant for.
+  - **KI-10** — `aws-bootstrap.sh` and `docs/deployment/aws-vps.md` Step 6 now treat `python -m app.cli demo-seed` as an explicit optional extra ("adds 3 browse-only courses on top of the curated multi-agent tutor demo that `seed` already lays down") instead of a default recommendation. The default flow produces just the curated demo; richer catalogue is opt-in.
+
 ### Repo cleanup: delete `legacy/` Django snapshot + stale-state scrub (2026-05-25)
 
 - **Deleted `legacy/`** — 160 MB Django prototype that earned its keep through v1.0.0 as a read-only reference for the rewrite, but has been untouched since the rewrite shipped. The tree is recoverable from git history (`git log -- legacy/`) at any pre-deletion commit; nothing currently in the repo depends on it.

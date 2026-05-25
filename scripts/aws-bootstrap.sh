@@ -43,37 +43,50 @@ fi
 if ! grep -q "Ubuntu 24" /etc/os-release; then
   echo "WARNING: this script is tested on Ubuntu 24.04. Detected:" >&2
   grep PRETTY_NAME /etc/os-release >&2
-  read -r -p "Continue anyway? [y/N] " ok
-  [[ "$ok" =~ ^[Yy]$ ]] || exit 1
+  if [[ "${LUMEN_BOOTSTRAP_NONINTERACTIVE:-0}" != "1" ]]; then
+    read -r -p "Continue anyway? [y/N] " ok
+    [[ "$ok" =~ ^[Yy]$ ]] || exit 1
+  fi
 fi
 
 ARCH="$(uname -m)"
 if [[ "$ARCH" != "aarch64" ]]; then
   echo "WARNING: expected ARM64 (aarch64) — detected $ARCH." >&2
   echo "t4g.small is Graviton2 (ARM). x86_64 means you picked the wrong instance type." >&2
-  read -r -p "Continue anyway? [y/N] " ok
-  [[ "$ok" =~ ^[Yy]$ ]] || exit 1
+  if [[ "${LUMEN_BOOTSTRAP_NONINTERACTIVE:-0}" != "1" ]]; then
+    read -r -p "Continue anyway? [y/N] " ok
+    [[ "$ok" =~ ^[Yy]$ ]] || exit 1
+  fi
 fi
 
 # -----------------------------------------------------------------------------
-# Prompts
+# Inputs — interactive prompts by default, or env-var driven if
+# LUMEN_BOOTSTRAP_NONINTERACTIVE=1 is set (used by Terraform / CI / Claude).
+# Required env vars in non-interactive mode: ADMIN_USER, APP_DOMAIN, ADMIN_EMAIL.
 # -----------------------------------------------------------------------------
-read -r -p "Admin Linux user to create [lumen]: " ADMIN_USER
-ADMIN_USER="${ADMIN_USER:-lumen}"
+if [[ "${LUMEN_BOOTSTRAP_NONINTERACTIVE:-0}" == "1" ]]; then
+  [[ -n "${ADMIN_USER:-}" ]]  || { echo "ADMIN_USER env var required in non-interactive mode" >&2; exit 1; }
+  [[ -n "${APP_DOMAIN:-}" ]]  || { echo "APP_DOMAIN env var required in non-interactive mode" >&2; exit 1; }
+  [[ -n "${ADMIN_EMAIL:-}" ]] || { echo "ADMIN_EMAIL env var required in non-interactive mode" >&2; exit 1; }
+  echo "==> non-interactive mode: ADMIN_USER=$ADMIN_USER, APP_DOMAIN=$APP_DOMAIN, ADMIN_EMAIL=$ADMIN_EMAIL"
+else
+  read -r -p "Admin Linux user to create [lumen]: " ADMIN_USER
+  ADMIN_USER="${ADMIN_USER:-lumen}"
 
-read -r -p "Public domain for the demo (e.g. lumen.example.com): " APP_DOMAIN
-[[ -n "$APP_DOMAIN" ]] || { echo "domain is required" >&2; exit 1; }
+  read -r -p "Public domain for the demo (e.g. lumen.example.com): " APP_DOMAIN
+  [[ -n "$APP_DOMAIN" ]] || { echo "domain is required" >&2; exit 1; }
 
-read -r -p "Admin email for Let's Encrypt expiry notices: " ADMIN_EMAIL
-[[ -n "$ADMIN_EMAIL" ]] || { echo "email is required" >&2; exit 1; }
+  read -r -p "Admin email for Let's Encrypt expiry notices: " ADMIN_EMAIL
+  [[ -n "$ADMIN_EMAIL" ]] || { echo "email is required" >&2; exit 1; }
 
-echo
-echo "==> About to bootstrap with:"
-echo "    admin user : $ADMIN_USER"
-echo "    domain     : $APP_DOMAIN"
-echo "    email      : $ADMIN_EMAIL"
-read -r -p "OK? [y/N] " ok
-[[ "$ok" =~ ^[Yy]$ ]] || { echo "aborted"; exit 1; }
+  echo
+  echo "==> About to bootstrap with:"
+  echo "    admin user : $ADMIN_USER"
+  echo "    domain     : $APP_DOMAIN"
+  echo "    email      : $ADMIN_EMAIL"
+  read -r -p "OK? [y/N] " ok
+  [[ "$ok" =~ ^[Yy]$ ]] || { echo "aborted"; exit 1; }
+fi
 
 # -----------------------------------------------------------------------------
 # Block A — 4 GB swap file (t4g.small only has 2 GB RAM; Postgres + Celery
@@ -171,12 +184,23 @@ else
   sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' "$sshd_config"
   sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' "$sshd_config"
   sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' "$sshd_config"
+  # `sshd -t` needs /run/sshd (the privilege-separation chroot). It's
+  # normally created by the systemd unit's RuntimeDirectory= directive,
+  # but during cloud-init's user_data we may run before that fires, so
+  # create it explicitly. Idempotent.
+  mkdir -p /run/sshd
   sshd -t   # bail if the edits broke the config
   systemctl restart ssh
 fi
 
 # -----------------------------------------------------------------------------
 # Block 3c — ufw + fail2ban
+# Default fail2ban sshd jail bans after 5 failed auths in 10m for 10m. That's
+# too aggressive for an automated deploy that opens many short SSH connections
+# in quick succession (rsync + scp + iterative deploy commands). We relax to
+# 20 retries / 5m findtime / 5m bantime — still protects against brute-force,
+# stops eating our own deploy traffic. Use SSH connection multiplexing
+# (ControlMaster) on the client side to stay polite anyway.
 # -----------------------------------------------------------------------------
 echo "==> installing ufw + fail2ban"
 apt-get update -qq
@@ -187,7 +211,20 @@ ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
+
+mkdir -p /etc/fail2ban/jail.d
+cat >/etc/fail2ban/jail.d/sshd-relaxed.local <<'EOF'
+# Deploy-friendly sshd jail. Still protects against credential-stuffing
+# (20 failed auths in 5 minutes is well past anything automated), but no
+# longer bans bursty deploy traffic that opens many short connections.
+[sshd]
+enabled  = true
+findtime = 5m
+maxretry = 20
+bantime  = 5m
+EOF
 systemctl enable --now fail2ban
+systemctl reload fail2ban || systemctl restart fail2ban
 
 # -----------------------------------------------------------------------------
 # Block 4 — Docker Engine + Compose v2 plugin (ARM64)
@@ -240,6 +277,9 @@ Next (as $ADMIN_USER — log out and back in so docker group takes effect):
   git clone https://github.com/ahmedEid1/E-Learning-Platform.git lumen
   cd lumen
   cp .env.example .env.production
+  # Source the values this script just generated so APP_DOMAIN +
+  # ACME_EMAIL are in your shell while you edit .env.production:
+  source /etc/lumen-deploy/deploy.env
   # edit .env.production — see Step 5 of docs/deployment/aws-vps.md
   # APP_DOMAIN should be: $APP_DOMAIN
 
@@ -247,7 +287,9 @@ Next (as $ADMIN_USER — log out and back in so docker group takes effect):
   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
   docker compose -f docker-compose.prod.yml exec api alembic upgrade head
   docker compose -f docker-compose.prod.yml exec api python -m app.cli seed
-  docker compose -f docker-compose.prod.yml exec api python -m app.cli demo-seed
+  # Optional — adds 3 extra browse-only courses on top of the curated
+  # multi-agent tutor demo that 'seed' already lays down:
+  #   docker compose -f docker-compose.prod.yml exec api python -m app.cli demo-seed
 
 Then point an A record for $APP_DOMAIN at this VM's Elastic IP and Caddy
 will obtain the Let's Encrypt cert on the first HTTPS request.

@@ -35,11 +35,19 @@ def _redact(_, __, event_dict: dict[str, Any]) -> dict[str, Any]:
     return event_dict
 
 
-def configure_logging(level: str = "INFO", *, json: bool = True) -> None:
-    """Install structlog as the project logger."""
+def configure_logging(level: str = "INFO", *, json: bool = True, stderr: bool = False) -> None:
+    """Install structlog as the project logger.
+
+    Set ``stderr=True`` when stdout is reserved for a wire protocol —
+    e.g. the MCP stdio transport, which requires that the only thing
+    written to stdout be valid JSON-RPC frames. With ``stderr=True``
+    both stdlib logging and structlog's ``PrintLoggerFactory`` route
+    everything to ``sys.stderr``.
+    """
+    stream = sys.stderr if stderr else sys.stdout
     logging.basicConfig(
         format="%(message)s",
-        stream=sys.stdout,
+        stream=stream,
         level=getattr(logging, level.upper(), logging.INFO),
     )
 
@@ -65,7 +73,7 @@ def configure_logging(level: str = "INFO", *, json: bool = True) -> None:
         processors=[*shared_processors, JSONRenderer() if json else structlog.dev.ConsoleRenderer()],
         wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, level.upper(), logging.INFO)),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=structlog.PrintLoggerFactory(file=stream),
         cache_logger_on_first_use=True,
     )
 

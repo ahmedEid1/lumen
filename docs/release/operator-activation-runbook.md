@@ -1,5 +1,7 @@
 # Operator activation runbook — Lumen 1.1.0-agentic
 
+> **Status (2026-05-25):** ✅ **LIVE.** The demo is reachable at <https://lumen.ahmedhobeishy.tech>. Steps 1–3 (AWS signup, t4g.small launch, deploy) are complete; Step 5 (MCP publish) and Step 6 (captioned screencast) shipped earlier in the day. Real LLM via Groq Llama 3.3 70B, real retrieval via Cloudflare Workers AI embeddings, the README badge now resolves green. Step 4 (tutor-eval re-run against the live VM) and Step 7 (PR open + voiced Loom) are the remaining stretch items. The runbook below is kept as a reproducible record of how the deploy landed — re-runnable verbatim if you ever need to stand the box up again on a new account or in a different region.
+
 This is the single, ordered runbook for getting Lumen from "the code is on a branch in your worktree" to "a recruiter can click your live demo, see the MCP server in the public registry, watch a 90-second Loom, and the PR is open on GitHub." Everything below is **operator-driven** — Claude prepared every artifact but cannot run external accounts on your behalf.
 
 **Time budget:** ~2 hours of focused work in one sitting. AWS Free Plan signup is instant (no async approval). Steps 5 (MCP publish) and 6 (screencast) are already complete; only Steps 1–4 + 7 remain.
@@ -264,6 +266,8 @@ https://<DOMAIN_NAME>
 
 🛑 Ping Claude: "Demo live at https://`<DOMAIN_NAME>`, login works." Claude updates the README's `LIVE_DEMO_URL_TBD` placeholder with the real URL.
 
+✅ **Done 2026-05-25.** Live at <https://lumen.ahmedhobeishy.tech>. README badge resolves green at the live URL; the placeholder is gone.
+
 ---
 
 ## Step 4 — Run the eval suite for a real tutor score (~5 min)
@@ -369,10 +373,10 @@ Reference the README's "Built by" section and link the Loom in your cover paragr
 
 ## Where Claude takes over (the 🛑 moments)
 
-1. After Step 1 — Claude acknowledges AWS Free Plan is active.
-2. After Step 2 — Claude acknowledges EC2 is up.
-3. After Step 3.7 — Claude updates `LIVE_DEMO_URL_TBD` → real URL in README + commits.
-4. After Step 4 — Claude updates the tutor-eval badge in README + commits the report JSONL.
+1. After Step 1 — Claude acknowledges AWS Free Plan is active. ✅ done.
+2. After Step 2 — Claude acknowledges EC2 is up. ✅ done.
+3. After Step 3.7 — Claude updates `LIVE_DEMO_URL_TBD` → real URL in README + commits. ✅ done 2026-05-25 → <https://lumen.ahmedhobeishy.tech>.
+4. After Step 4 — Claude updates the tutor-eval badge in README + commits the report JSONL. (Authoring badge already at 3.85/5; tutor re-run against the live VM remains the stretch follow-up.)
 5. Step 5 (MCP publish) — already done; no action.
 6. Step 6 (screencast) — already done as `docs/screencast/walkthrough.mp4`; the optional voiced Loom against the live URL is a stretch goal.
 7. After Step 7 — Claude logs the PR URL for the session record.

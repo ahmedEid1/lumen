@@ -2,8 +2,9 @@
 
 Lumen — an open-source, AI-first LMS built as a portfolio anchor for agentic-AI engineering work.
 
-[![Live demo: provisioning](https://img.shields.io/badge/live%20demo-provisioning-lightgrey?style=for-the-badge)](docs/deployment/aws-vps.md)
-<!-- LIVE_DEMO_URL_TBD: replace with the public URL once the AWS t4g.small VM is up (docs/deployment/aws-vps.md). -->
+[![Live demo: lumen.ahmedhobeishy.tech](https://img.shields.io/badge/live%20demo-lumen.ahmedhobeishy.tech-2ea44f?style=for-the-badge&logo=amazonaws&logoColor=white)](https://lumen.ahmedhobeishy.tech)
+
+Public deploy on AWS t4g.small (Graviton2 ARM, 2 vCPU + 2 GB RAM) — Caddy 2 fronts a single `docker-compose.prod.yml` running FastAPI + Celery + Postgres 17 (pgvector) + Redis 7 + MinIO. Real LLM calls via Groq Llama 3.3 70B; retrieval embeddings via Cloudflare Workers AI (`@cf/baai/bge-small-en-v1.5`). Runbook: [`docs/deployment/aws-vps.md`](docs/deployment/aws-vps.md).
 
 [![CI](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml)
 [![authoring eval: 3.85/5 (n=10)](https://img.shields.io/badge/authoring%20eval-3.85%2F5%20(n%3D10)-success)](docs/eval/authoring-n10-groq-20260525.jsonl)
