@@ -90,12 +90,22 @@ jobs:
       # the WCAG suite only needs Chromium, but the install also
       # pulls system deps via apt. Re-running the install when the
       # cache hits is a no-op.
+      - name: Get Playwright version
+        id: playwright-version
+        working-directory: apps/frontend
+        # Bake the Playwright version into the cache key so a lockfile-
+        # hash hit on stale binaries can't poison the run. See e2e.yml
+        # for the full rationale.
+        run: |
+          v=$(jq -r '.devDependencies["@playwright/test"] // .dependencies["@playwright/test"]' package.json)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
       - name: Cache Playwright browsers
         id: pw-cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-pw-${{ hashFiles('apps/frontend/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pw-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('apps/frontend/pnpm-lock.yaml') }}
 
       - name: Install Playwright browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'

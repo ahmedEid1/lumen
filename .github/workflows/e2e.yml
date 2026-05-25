@@ -160,12 +160,26 @@ jobs:
         working-directory: apps/frontend
         run: pnpm install --frozen-lockfile || pnpm install
 
+      - name: Get Playwright version
+        id: playwright-version
+        working-directory: apps/frontend
+        # Cache key changes when @playwright/test version changes — the
+        # browser binary directory name (e.g. ms-playwright/webkit-2104)
+        # is keyed off the Playwright version, so a stale cache that
+        # matches the lockfile hash but ships old binaries would have
+        # `playwright install-deps` go down the cache-hit branch (system
+        # deps only, no binary install) and the run blows up with
+        # `Executable doesn't exist at .../webkit-2104/pw_run.sh`.
+        run: |
+          v=$(jq -r '.devDependencies["@playwright/test"] // .dependencies["@playwright/test"]' package.json)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
       - name: Cache Playwright browsers
         id: pw-cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-pw-${{ hashFiles('apps/frontend/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pw-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('apps/frontend/pnpm-lock.yaml') }}
 
       - name: Install Playwright browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'
