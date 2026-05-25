@@ -93,7 +93,13 @@ jobs:
         continue-on-error: true
         run: uv run mypy app
       - name: Pytest
-        run: uv run pytest -q
+        # No `-q` — pytest's pyproject.toml addopts pins `-v --durations=10
+        # --timeout=60 -n auto --dist=loadfile`. Quiet mode would
+        # suppress the live test-name stream, which is what kept the
+        # previous "hung suite" diagnosis blind for 34 minutes. With
+        # the streaming verbose output a future hang surfaces in the
+        # CI log within seconds of the offending test starting.
+        run: uv run pytest
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4

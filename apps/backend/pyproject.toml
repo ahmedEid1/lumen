@@ -125,6 +125,24 @@ dev = [
   "pytest-asyncio>=0.24",
   "pytest-cov>=6.0",
   "pytest-httpx>=0.34",
+  # pytest-xdist — process-level test parallelism. With 608 tests on a
+  # session-scoped asyncio loop the serial wall time is ~40min (see
+  # CI run 26421524850 which sat at the Pytest step for 34min before
+  # manual cancel). xdist gives us N worker processes; each one runs
+  # its own session-scoped loop and gets its own UUID-suffixed test DB
+  # via the `_engine` fixture, so there's zero cross-worker DB
+  # collision. `--dist=loadfile` (set in `addopts` below) pins all
+  # tests in one file to one worker — that matters for the rare
+  # within-file ordering assumptions (e.g. test_slug_*.py creating
+  # pre-seeded slugs that a later test in the same file expects to
+  # collide against).
+  "pytest-xdist>=3.6",
+  # pytest-timeout — per-test wall-clock cap. If a single test hangs
+  # (asyncio deadlock, runaway httpx retry, postgres lock contention)
+  # it fails loud at 60s rather than dragging the whole suite to the
+  # 25min job timeout. Caught the original hang the *next* time the
+  # bug recurs in <2min instead of <34min.
+  "pytest-timeout>=2.3",
   "anyio>=4.6",
   "ruff>=0.8.3",
   "mypy>=1.13",
@@ -260,7 +278,48 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
-addopts = "-ra --strict-markers --cov=app --cov-report=term-missing --cov-fail-under=70"
+# addopts is a single string fed to pytest's CLI parser. Order matters
+# only for the `-n` / `--dist` / `--timeout` triplet (xdist + timeout
+# plugins read these at collection time, before tests run).
+#
+#  -ra                          show short summary of (a)ll non-pass outcomes
+#  --strict-markers             unknown @pytest.mark.* fails — catches typos
+#  --cov=app + reports          keep the 70% coverage gate from Phase H2
+#  -n 4                         pytest-xdist: four worker processes. We
+#                               pin a number rather than ``auto`` because
+#                               each worker spins up its own postgres
+#                               database (CREATE DATABASE + CREATE
+#                               EXTENSION vector + create_all on 28
+#                               tables) during session setup. With
+#                               ``auto`` on a 12-core dev box that's 12
+#                               concurrent CREATE DATABASE statements,
+#                               which has been observed to crash workers
+#                               with ``KeyError: <WorkerController gwN>``
+#                               (postgres serializes the operations,
+#                               individual workers time out waiting). 4
+#                               matches CI's ubuntu-24.04 vCPU count and
+#                               drops the serial 30-40min suite to ~3-7
+#                               min wall time without overloading either
+#                               environment.
+#  --dist=loadfile              keep all tests in one .py file on the same
+#                               worker. Most tests are independent, but
+#                               test_slug_*.py + a few others have
+#                               within-file ordering assumptions; loadfile
+#                               keeps them honest without us having to
+#                               audit 107 files.
+#  --timeout=60 + thread method per-test hard cap. 60s is well over the slowest
+#                               legitimate test (longest observed ~12s for
+#                               test_certificate_pdf*); a real hang fails
+#                               loud in <2min instead of dragging the job.
+#                               `thread` method (vs `signal`) is required
+#                               for asyncio tests — SIGALRM interacts
+#                               badly with the asyncio loop's selector.
+#  -v + --durations=10          stream test names as they run (no more
+#                               apparent-hang while pytest's progress bar
+#                               buffers 100s of lines) + surface the 10
+#                               slowest tests at the end so we can keep
+#                               attacking wall-time hot-spots.
+addopts = "-ra --strict-markers --cov=app --cov-report=term-missing --cov-fail-under=70 -n 4 --dist=loadfile --timeout=60 --timeout-method=thread -v --durations=10"
 filterwarnings = [
   # dropped strict "error" mode. The Python ecosystem
   # upgraded faster than the code (starlette 1, httpx 0.28+,

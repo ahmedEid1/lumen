@@ -99,7 +99,12 @@ test: test.api test.web ## Run all tests.
 
 .PHONY: test.api
 test.api: ## Backend tests.
-	$(COMPOSE) exec api pytest -q
+	# Drop the historical ``-q``: pyproject.toml addopts now pin
+	# ``-v --durations=10 --timeout=60 -n 4 --dist=loadfile``
+	# (streaming output + parallel workers + per-test timeout). A
+	# leading ``-q`` on the CLI would override that and silently
+	# regress us to the old serial behaviour.
+	$(COMPOSE) exec api pytest
 
 .PHONY: test.web
 test.web: ## Frontend unit tests.

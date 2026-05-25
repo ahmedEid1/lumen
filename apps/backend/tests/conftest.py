@@ -17,7 +17,21 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Ensure test env is set before app modules read config.
-os.environ.setdefault("ENV", "test")
+#
+# Unconditional assignment, not ``setdefault``: the local
+# ``docker-compose.yml`` ships the api container with
+# ``ENV=development`` baked in. ``setdefault`` was a no-op there,
+# which meant ``app.core.ratelimit`` picked the ``redis_url`` storage
+# backend instead of ``memory://`` and every pytest-xdist worker
+# shared one Redis bucket. The per-test ``reset_for_tests()`` call
+# raced with other workers' ongoing tests, so any test that drained a
+# bucket past its limit could see the limiter quietly reset mid-run
+# and the expected ``429`` never fired. Forcing ``ENV=test`` here
+# gives each worker its own in-process memory limiter and the
+# rate-limit suite runs deterministic under ``-n 4`` (CI's
+# ``ENV: test`` env already had this right; the bug was local-only,
+# but pinning it here matches CI behaviour everywhere).
+os.environ["ENV"] = "test"  # see comment above; xdist+memory limiter
 # PyJWT raises `InsecureKeyLengthWarning` for HS256 keys
 # under 32 bytes (and `filterwarnings = ["error"]` promotes that
 # to a test failure). FORCE-overwrite the value: the dev `.env`
@@ -48,8 +62,15 @@ def event_loop():  # type: ignore[override]
 async def _engine():
     settings = get_settings()
     base_url = settings.database_url
-    # Switch to a transient DB name to isolate test runs.
-    test_db = f"lumen_test_{uuid.uuid4().hex[:8]}"
+    # Switch to a transient DB name to isolate test runs. Each
+    # pytest-xdist worker is a separate process with its own session,
+    # so it gets its own DB — but we prefix the UUID with the
+    # xdist worker id (e.g. ``gw0``, ``gw1``) so a hung `pg_stat_activity`
+    # query during CI debugging immediately tells us which worker is
+    # stuck. When pytest runs without xdist the env var is missing
+    # and the prefix collapses to ``main``.
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "main")
+    test_db = f"lumen_test_{worker_id}_{uuid.uuid4().hex[:8]}"
     admin_url = base_url.rsplit("/", 1)[0] + "/postgres"
     admin_engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT")
     async with admin_engine.connect() as conn:
@@ -88,19 +109,35 @@ async def _engine():
         await admin_engine.dispose()
 
 
+def _all_table_names() -> str:
+    """Comma-separated list of every table in the metadata, suitable for
+    splicing into a ``TRUNCATE`` statement.
+
+    Originally the TRUNCATE list was a hand-maintained literal. That
+    drifted: by the time we hit Phase I, six tables (``course_draft_traces``,
+    ``learning_paths``, ``learning_path_steps``, ``agent_traces``,
+    ``retrieval_audits``, ``mcp_clients``) had been added to the model
+    layer but never added here. Most weren't load-bearing for isolation
+    (CASCADE cleared them via FK), but ``course_draft_traces`` (FK
+    ``SET NULL`` on courses) and ``agent_traces`` (no FK) survived
+    cleanup and could leak state into the next test. Building the list
+    from ``Base.metadata.tables`` means new tables join the truncate
+    set automatically the moment they're declared.
+    """
+    return ", ".join(f'"{t}"' for t in db_base.Base.metadata.tables.keys())
+
+
 @pytest_asyncio.fixture
 async def db_session(_engine) -> AsyncIterator[AsyncSession]:
     async with db_base.get_sessionmaker()() as session:
-        # Clean tables between tests (fast for our small set).
+        # Clean every table between tests. ``RESTART IDENTITY CASCADE``
+        # resets sequences and follows FKs, so even tables not listed
+        # by name would still get cleared — but listing them explicitly
+        # via the metadata catches the case where a new table has no
+        # FK to anything we *do* list (e.g. ``agent_traces``) and would
+        # otherwise quietly accumulate rows across tests.
         await session.execute(
-            text(
-                "TRUNCATE assets, audit_events, notifications, reviews, quiz_attempts, "
-                "review_cards, discussion_replies, discussions, lesson_chunks, "
-                "llm_calls, "
-                "tutor_messages, tutor_conversations, "
-                "lesson_progress, enrollments, lessons, modules, course_tags, courses, "
-                "tags, subjects, auth_refresh_tokens, users RESTART IDENTITY CASCADE"
-            )
+            text(f"TRUNCATE {_all_table_names()} RESTART IDENTITY CASCADE")
         )
         await session.commit()
         yield session
