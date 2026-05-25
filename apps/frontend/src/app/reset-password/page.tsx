@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -40,6 +40,9 @@ function ResetForm() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Hydration gate — see /login/page.tsx for the rationale.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -116,7 +119,7 @@ function ResetForm() {
               ) : null}
             </div>
 
-            <Button type="submit" className="w-full" disabled={submitting}>
+            <Button type="submit" className="w-full" disabled={submitting || !mounted}>
               {submitting ? t("auth.reset.submitting") : t("auth.reset.submit")}
             </Button>
           </form>

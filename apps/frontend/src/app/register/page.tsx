@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -26,6 +26,13 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Hydration gate — see /login/page.tsx for the full rationale. tl;dr:
+  // gates submit on a useEffect-flipped flag so Playwright's .click()
+  // waits for the React handler to bind, otherwise the native form GET
+  // races ahead with empty fields (Inputs carry no `name` attr) and
+  // hits the API as a 422.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -108,7 +115,7 @@ export default function RegisterPage() {
             ) : null}
           </div>
 
-          <Button type="submit" className="w-full" disabled={submitting}>
+          <Button type="submit" className="w-full" disabled={submitting || !mounted}>
             {submitting ? t("auth.register.submitting") : t("auth.register.submit")}
           </Button>
 

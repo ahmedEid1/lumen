@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -44,6 +44,18 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Hydration gate. The form is wrapped in <Suspense>, so the `onSubmit`
+  // handler doesn't bind until React hydrates the LoginForm boundary —
+  // which can take a beat on a cold dev server. Without this gate,
+  // Playwright (and a fast human) could click "Sign in" before
+  // hydration; the native form-submit fallback then fires a GET to
+  // `/login?` with empty fields (the Inputs have no `name` attr), the
+  // API returns 422, and the URL never advances to /dashboard. Gating
+  // the submit button on `mounted` makes Playwright's click() auto-wait
+  // for `disabled=false`, which only flips true post-hydration when the
+  // handler is bound.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -111,7 +123,7 @@ function LoginForm() {
             ) : null}
           </div>
 
-          <Button type="submit" className="w-full" disabled={submitting}>
+          <Button type="submit" className="w-full" disabled={submitting || !mounted}>
             {submitting ? t("auth.login.submitting") : t("auth.login.submit")}
           </Button>
 

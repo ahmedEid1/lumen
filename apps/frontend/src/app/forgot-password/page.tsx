@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,12 @@ export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Hydration gate — see /login/page.tsx for the rationale. The
+  // password-reset E2E spec waits 20 s for the reset mail; if the form's
+  // native GET fallback fires before hydration the API never sees the
+  // POST body, no mail goes out, and the spec times out.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   async function submitRequest() {
     setSubmitting(true);
@@ -114,7 +120,7 @@ export default function ForgotPasswordPage() {
               {submitting ? t("auth.forgot.submitting") : t("auth.forgot.sendAgain")}
             </Button>
           ) : (
-            <Button type="submit" className="w-full" disabled={submitting}>
+            <Button type="submit" className="w-full" disabled={submitting || !mounted}>
               {submitting ? t("auth.forgot.submitting") : t("auth.forgot.submit")}
             </Button>
           )}
