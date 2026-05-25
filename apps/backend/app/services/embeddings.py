@@ -163,17 +163,22 @@ class OpenAIEmbeddingProvider:
 class NoopEmbeddingProvider:
     """Deterministic, network-free embedding stub for tests.
 
-    Returns a 384-dim vector that's mostly zeros but seeded from a
-    SHA-256 of the input string so different texts get *different*
-    zero-vectors (otherwise every cosine distance would be undefined
-    and retrieval-ordering tests couldn't assert anything).
+    Returns a 384-dim hash-derived unit vector: each input's SHA-256 digest
+    seeds 384 values in ``[0, 1]`` (via ``seed[i % 16] / 255.0``), then the
+    vector is L2-normalised so cosine distance stays well-defined. The
+    values carry no semantic signal — they're deterministic pseudo-random
+    noise — which is exactly what tests need (a stable, distinct vector per
+    input) and exactly why ``apps/backend/app/core/prod_guards.py`` refuses
+    to boot production with ``EMBEDDING_PROVIDER=noop``: real retrieval
+    rankings would collapse into arbitrary noise with no error.
 
     Determinism rules:
 
     * Same text → same vector across processes.
     * Different text → different vector.
-    * All vectors are L2-normalised so cosine distance is well-defined
-      (no NaN from a literal-zero vector).
+    * All vectors are L2-normalised so cosine distance never divides by
+      zero — this is what makes the stub usable for retrieval-ordering
+      tests rather than just producing NaN everywhere.
     """
 
     dim: int = EMBEDDING_DIM
@@ -183,14 +188,16 @@ class NoopEmbeddingProvider:
             return []
         out: list[list[float]] = []
         for text in texts:
-            # Hash → 32 bytes → take first 16 bytes, expand to 384
-            # floats by repetition. The repetition is fine for a stub:
-            # we only need each input to map to a *distinct* unit
-            # vector, not to a high-quality embedding.
+            # Hash → 32 bytes → take first 16 bytes, expand to 384 floats
+            # by repetition. The repetition is fine for a stub: we only
+            # need each input to map to a *distinct* unit vector, not to
+            # a high-quality embedding — every value lands in [0, 1] with
+            # ~0.5 mean, then L2-normalise pulls it onto the unit sphere.
             digest = hashlib.sha256(text.encode("utf-8")).digest()
             seed = list(digest[:16])
             vec = [(seed[i % 16] / 255.0) for i in range(EMBEDDING_DIM)]
-            # L2-normalise so cosine distance never divides by zero.
+            # L2-normalise so cosine distance stays well-defined; the `or
+            # 1.0` guards the impossible case where every byte was zero.
             norm = sum(v * v for v in vec) ** 0.5 or 1.0
             out.append([v / norm for v in vec])
         return out

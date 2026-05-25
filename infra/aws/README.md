@@ -56,11 +56,14 @@ a fallback for the case where you've manually re-imaged the box.
 
 ```bash
 # Primary (the script is already on the box from cloud-init).
-# Non-interactive form — no prompts, env vars carry every input:
+# Source the values the first-boot already persisted to recover
+# APP_DOMAIN + ACME_EMAIL without needing the Terraform CLI / state,
+# which lives on your workstation, not the VM.
+source /etc/lumen-deploy/deploy.env
 sudo LUMEN_BOOTSTRAP_NONINTERACTIVE=1 \
      ADMIN_USER=lumen \
-     APP_DOMAIN=$(terraform output -raw dns_nip_io) \
-     ADMIN_EMAIL=you@example.com \
+     APP_DOMAIN="$APP_DOMAIN" \
+     ADMIN_EMAIL="$ACME_EMAIL" \
   bash /root/aws-bootstrap.sh
 
 # Fallback (script not on box — e.g. you re-imaged and skipped cloud-init).
