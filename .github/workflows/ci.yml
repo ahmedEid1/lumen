@@ -22,6 +22,15 @@ jobs:
   backend:
     name: Backend (lint + test)
     runs-on: ubuntu-24.04
+    # Hard cap of 25 minutes. Backend pytest with the postgres+redis
+    # service containers normally finishes in 10-15 min. Anything
+    # past 20 min is almost certainly a hung test — recent run
+    # 26421524850 sat at the Pytest step for 34 min before manual
+    # cancel, and the postgres log showed a uq_courses_slug_live
+    # constraint trip mid-run (test-isolation bug between course
+    # soft-delete tests). Failing loud at 25 min is much better than
+    # silently grinding for the default 6-hour job timeout.
+    timeout-minutes: 25
     services:
       postgres:
         # pgvector/pgvector:pg17 ships the ``vector`` extension that
