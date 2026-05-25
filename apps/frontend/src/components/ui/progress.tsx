@@ -14,9 +14,15 @@ import { cn } from "@/lib/utils";
 export const Progress = React.forwardRef<
   React.ElementRef<typeof ProgressPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root>
->(({ className, value, ...props }, ref) => (
+>(({ className, value, "aria-label": ariaLabel, "aria-labelledby": ariaLabelledBy, ...props }, ref) => (
+  // axe-core's `aria-progressbar-name` (WCAG 1.1.1) needs an accessible
+  // name on every role="progressbar". Default to "progress" so call
+  // sites that don't specify one still pass screen-reader / axe gates;
+  // call sites that DO pass aria-label/aria-labelledby keep their value.
   <ProgressPrimitive.Root
     ref={ref}
+    aria-label={ariaLabel ?? (ariaLabelledBy ? undefined : "progress")}
+    aria-labelledby={ariaLabelledBy}
     className={cn(
       "relative h-1 w-full overflow-hidden rounded-sm bg-muted",
       className,
