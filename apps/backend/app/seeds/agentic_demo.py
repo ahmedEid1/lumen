@@ -482,7 +482,8 @@ async def _ensure_tutor_turn(
         return None
 
     # Anchor the turn ~5 minutes ago — the trace look-back window is
-    # 120s, so we keep every linked row inside [anchor - 60s, anchor].
+    # 120s (``_TRACE_WINDOW_SECONDS`` in ``services/learner_traces``),
+    # so we keep every linked row inside [anchor - 120s, anchor].
     anchor = datetime.now(UTC) - timedelta(minutes=5)
     user_ts = anchor - timedelta(seconds=90)
     plan_ts = anchor - timedelta(seconds=55)
@@ -608,7 +609,11 @@ async def _ensure_tutor_turn(
     ] if cited_lessons else []
     audit = RetrievalAudit(
         user_id=student.id,
-        feature="tutor.multi_agent.retriever",
+        # Match what the live ``retriever`` sub-agent stamps: the base
+        # orchestrator slug (``FEATURE`` in ``tutor_orchestrator``), not
+        # a per-tool refinement. See KI-7 in
+        # ``docs/release/known-issues-post-1.1.0.md``.
+        feature="tutor.multi_agent",
         query="dependency injection async session lifetime",
         course_id=course.id,
         chunks=audit_chunks,
@@ -691,7 +696,7 @@ async def _ensure_tutor_turn(
 
     retriever_trace = AgentTrace(
         user_id=student.id,
-        feature="tutor.multi_agent.retriever",
+        feature="tutor.multi_agent",
         step="sub_agent.retriever",
         step_index=1,
         parent_trace_id=plan_trace.id,
@@ -716,7 +721,7 @@ async def _ensure_tutor_turn(
 
     web_trace = AgentTrace(
         user_id=student.id,
-        feature="tutor.multi_agent.web_searcher",
+        feature="tutor.multi_agent",
         step="sub_agent.web_searcher",
         step_index=2,
         parent_trace_id=plan_trace.id,
@@ -734,7 +739,7 @@ async def _ensure_tutor_turn(
 
     synth_trace = AgentTrace(
         user_id=student.id,
-        feature="tutor.multi_agent.synth",
+        feature="tutor.multi_agent",
         step="synth",
         step_index=3,
         parent_trace_id=None,

@@ -38,7 +38,7 @@ import os
 import sys
 
 from app.core.config import get_settings
-from app.core.logging import get_logger
+from app.core.logging import configure_logging, get_logger
 from app.mcp.server import run_http, run_stdio
 
 log = get_logger(__name__)
@@ -91,6 +91,14 @@ def _apply_db_override(args: argparse.Namespace) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     _apply_db_override(args)
+
+    # MCP stdio reserves stdout for the JSON-RPC wire — any non-frame
+    # byte on stdout is a spec violation that real clients (Claude
+    # Desktop, Cursor) will ignore but stricter parsers will reject.
+    # Route ALL logging to stderr for the duration of the process.
+    # HTTP transport keeps the default stdout sink for container-log
+    # aggregation parity with the API service.
+    configure_logging(stderr=args.transport == "stdio")
 
     if args.transport == "stdio":
         log.info("mcp_server_starting", transport="stdio")

@@ -240,6 +240,9 @@ Next (as $ADMIN_USER — log out and back in so docker group takes effect):
   git clone https://github.com/ahmedEid1/E-Learning-Platform.git lumen
   cd lumen
   cp .env.example .env.production
+  # Source the values this script just generated so APP_DOMAIN +
+  # ACME_EMAIL are in your shell while you edit .env.production:
+  source /etc/lumen-deploy/deploy.env
   # edit .env.production — see Step 5 of docs/deployment/aws-vps.md
   # APP_DOMAIN should be: $APP_DOMAIN
 
@@ -247,7 +250,9 @@ Next (as $ADMIN_USER — log out and back in so docker group takes effect):
   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
   docker compose -f docker-compose.prod.yml exec api alembic upgrade head
   docker compose -f docker-compose.prod.yml exec api python -m app.cli seed
-  docker compose -f docker-compose.prod.yml exec api python -m app.cli demo-seed
+  # Optional — adds 3 extra browse-only courses on top of the curated
+  # multi-agent tutor demo that 'seed' already lays down:
+  #   docker compose -f docker-compose.prod.yml exec api python -m app.cli demo-seed
 
 Then point an A record for $APP_DOMAIN at this VM's Elastic IP and Caddy
 will obtain the Let's Encrypt cert on the first HTTPS request.

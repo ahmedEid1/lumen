@@ -157,6 +157,11 @@ sudo apt install -y git make
 git clone https://github.com/ahmedEid1/E-Learning-Platform.git lumen
 cd lumen
 cp .env.example .env.production
+
+# If you ran scripts/aws-bootstrap.sh in Step 3, source the values
+# it persisted so APP_DOMAIN + ACME_EMAIL are available in your shell
+# while you fill in .env.production:
+source /etc/lumen-deploy/deploy.env
 ```
 
 Edit `.env.production` and replace **every** placeholder below. The H6 prod-boot guard refuses to start if any of these is the example value, too short (<32 chars for `SECRET_KEY` / `JWT_SECRET`), or points at `localhost`.
@@ -208,7 +213,10 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 docker compose -f docker-compose.prod.yml ps          # all healthy?
 docker compose -f docker-compose.prod.yml exec api alembic upgrade head
 docker compose -f docker-compose.prod.yml exec api python -m app.cli seed
-docker compose -f docker-compose.prod.yml exec api python -m app.cli demo-seed
+# Optional: 'demo-seed' adds 3 extra browse-only courses on top of
+# the curated multi-agent tutor turn that 'seed' already lays down.
+# Skip it unless you specifically want a fuller catalog to click through.
+#   docker compose -f docker-compose.prod.yml exec api python -m app.cli demo-seed
 ```
 
 The `api` healthcheck takes ~30 s to flip green on first boot (model warmup + first DB connection). Watch `free -h` and `htop` the first time — if you see swap usage climb above 1 GB sustained, drop `CELERY_CONCURRENCY` lower or skip MinIO and switch to S3 (see "split deploy" below).
