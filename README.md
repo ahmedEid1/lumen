@@ -13,8 +13,7 @@ Lumen — an open-source, AI-first LMS built as a portfolio anchor for agentic-A
 [Watch the 90-second walkthrough →](#)
 <!-- LOOM_URL_TBD: paste the Loom URL once the H4 demo is up and the screencast is recorded -->
 
-![Lumen hero](docs/screenshots/hero.png)
-<!-- HERO_SCREENSHOT_TBD: operator screenshots the live demo's tutor surface with the trace expanded -->
+![Lumen tutor with agent reasoning trace](docs/screenshots/hero.png)
 
 ---
 
