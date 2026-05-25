@@ -10,8 +10,10 @@ Lumen — an open-source, AI-first LMS built as a portfolio anchor for agentic-A
 [![MCP registry](https://img.shields.io/badge/MCP%20registry-io.github.ahmedEid1%2Flumen-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.ahmedEid1%2Flumen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[Watch the 90-second walkthrough →](#)
-<!-- LOOM_URL_TBD: paste the Loom URL once the H4 demo is up and the screencast is recorded -->
+[![Watch the captioned walkthrough →](docs/screencast/walkthrough-poster.jpg)](docs/screencast/walkthrough.mp4)
+
+*Silent 1:50 captioned walkthrough — landing → multi-agent tutor → agent reasoning panel → observable trace → self-critique authoring replay → admin observability. A voiced Loom is queued for re-record once the live demo lands; script at [`docs/release/loom-recording-script.md`](docs/release/loom-recording-script.md).*
+<!-- LOOM_URL_TBD: replace this captioned-walkthrough block with a Loom URL once the voiced version is recorded against the live demo -->
 
 ![Lumen tutor with agent reasoning trace](docs/screenshots/hero.png)
 

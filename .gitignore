@@ -91,3 +91,6 @@ apps/backend/evals/reports/*.jsonl
 
 # ---- legacy wheel ----
 Twisted-20.3.0-cp39-cp39-win_amd64.whl
+
+# ---- Playwright recording intermediates ----
+apps/frontend/tests/e2e/output/
