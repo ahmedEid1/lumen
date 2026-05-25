@@ -186,6 +186,22 @@ async def _seed() -> None:
 
             db.add(Enrollment(user_id=student.id, course_id=course.id))
 
+        # ---- Agentic demo enrichments (A5 activation) ----
+        # Layered on top of the base seed: extra published courses,
+        # a completed enrollment + certificate, a tutor turn with a
+        # populated agent_trace, and a course draft with a
+        # self-critique trace. Lives in its own module to keep this
+        # file a one-screen read. Idempotent on re-run.
+        from app.seeds import agentic_demo
+
+        await agentic_demo.apply(
+            db,
+            subjects=subjects,
+            tags=tags,
+            instructor=instructor,
+            student=student,
+        )
+
         await db.commit()
         console.print("[green]Seeded demo data[/green]")
 
