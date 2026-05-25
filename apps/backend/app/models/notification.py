@@ -28,7 +28,7 @@ class NotificationKind(StrEnum):
 
 class Notification(IdMixin, TimestampMixin, Base):
     __tablename__ = "notifications"
-    __table_args__ = (Index("ix_notifications_user_id_read", "user_id", "read_at"),)
+    __table_args__ = (Index("ix_notifications_user_id_created", "user_id", "created_at"),)
 
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     kind: Mapped[NotificationKind] = mapped_column(String(40), nullable=False)
@@ -36,5 +36,9 @@ class Notification(IdMixin, TimestampMixin, Base):
     body: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When the daily digest worker (:mod:`app.workers.tasks.digest`) has
+    # included this row in a bundled email. Set on send so subsequent
+    # runs don't double-deliver the same item.
+    digested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship()

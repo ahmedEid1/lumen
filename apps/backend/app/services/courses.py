@@ -11,9 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.ids import new_id
+from app.core.logging import get_logger
 from app.models.course import Course, CourseStatus, Lesson, LessonType, Module
 from app.models.user import User
 from app.repositories import courses as courses_repo
+
+log = get_logger(__name__)
 
 if TYPE_CHECKING:
     from app.schemas.course import (
@@ -113,10 +116,7 @@ async def update_course(
     if payload.learning_outcomes is not None:
         course.learning_outcomes = list(payload.learning_outcomes)
     if payload.status is not None:
-        prev = course.status
         await _transition_status(db, course, payload.status)
-        if prev != course.status:
-            _schedule_index(course.id)
     # When the title changed we minted a new slug via _unique_slug, but
     # that check is racy — a concurrent rename could have just claimed
     # the same candidate. Flush the slug update inside a savepoint with
@@ -131,90 +131,6 @@ async def update_course(
 async def delete_course(db: AsyncSession, *, course_id: str, owner: User) -> None:
     course = await _owned_course(db, course_id, owner)
     course.deleted_at = datetime.now(UTC)
-    _schedule_index(course.id)
-
-
-def _schedule_index(course_id: str) -> None:
-    """Best-effort: enqueue a search reindex. Tolerates broker being down in dev/tests."""
-    try:
-        from app.workers.tasks.search import index_course
-
-        index_course.delay(course_id)
-    except Exception:
-        from app.core.logging import get_logger
-
-        get_logger(__name__).info("search_index_skipped", course_id=course_id)
-
-
-async def duplicate_course(db: AsyncSession, *, source_id: str, owner: User) -> Course:
-    """Clone a course (modules + lessons) as a draft owned by ``owner``.
-
-    The caller does not need to own the source — instructors can copy any
-    *published* course to remix it. Drafts and archived courses are
-    private to their owner/admins; duplicating them from another account
-    would exfiltrate unreleased content based on knowing the course id.
-    """
-    if not owner.is_instructor_or_admin():
-        raise ForbiddenError("Only instructors can duplicate courses", code="courses.forbidden")
-
-    source = await courses_repo.get_course(db, source_id, with_modules=True)
-    if not source:
-        raise NotFoundError("Course not found", code="course.not_found")
-    # A non-owner can only duplicate a published source. Anything else is
-    # the source author's private working material — surfacing it via
-    # duplicate would defeat the visibility rules enforced by every other
-    # course endpoint. Admins can duplicate anything; owners can
-    # duplicate their own draft/archived material as a remixing workflow.
-    if source.status != CourseStatus.published and not (
-        owner.is_admin() or source.owner_id == owner.id
-    ):
-        # 404 (not 403) to avoid confirming the course exists at all to
-        # a caller who shouldn't see it.
-        raise NotFoundError("Course not found", code="course.not_found")
-
-    new_title = f"{source.title} (copy)"
-    slug = await _unique_slug(db, new_title)
-    cloned = Course(
-        owner_id=owner.id,
-        subject_id=source.subject_id,
-        title=new_title,
-        slug=slug,
-        overview=source.overview,
-        cover_url=source.cover_url,
-        difficulty=source.difficulty,
-        status=CourseStatus.draft,
-        is_featured=False,
-    )
-    # tags are shared; the relationship is many-to-many so we can re-attach by reference.
-    cloned.tags = list(source.tags)
-    db.add(cloned)
-    await _flush_course_with_slug_retry(db, cloned, title=new_title)
-
-    for src_module in sorted(source.modules, key=lambda m: m.order):
-        mod = Module(
-            course_id=cloned.id,
-            title=src_module.title,
-            description=src_module.description,
-            order=src_module.order,
-        )
-        db.add(mod)
-        await db.flush()
-        for src_lesson in sorted(src_module.lessons, key=lambda lesson: lesson.order):
-            if src_lesson.deleted_at is not None:
-                continue
-            db.add(
-                Lesson(
-                    module_id=mod.id,
-                    title=src_lesson.title,
-                    type=src_lesson.type,
-                    order=src_lesson.order,
-                    duration_seconds=src_lesson.duration_seconds,
-                    is_preview=src_lesson.is_preview,
-                    data=dict(src_lesson.data or {}),
-                )
-            )
-    await db.flush()
-    return cloned
 
 
 _VALID_STATUS_TRANSITIONS: dict[CourseStatus, set[CourseStatus]] = {
@@ -251,6 +167,31 @@ async def _transition_status(
             )
         course.published_at = datetime.now(UTC)
     course.status = target
+    if target == CourseStatus.published:
+        _schedule_embedding_index(course.id)
+
+
+def _schedule_embedding_index(course_id: str) -> None:
+    """Best-effort enqueue of the embedding-index task on publish.
+
+    Phase E0 wires every publish/re-publish through Celery so the
+    course's lesson chunks land in ``lesson_chunks`` before the
+    learner has a chance to ask the tutor anything. The send is
+    best-effort by design: if the broker is unreachable (the dev
+    stack ships without a worker by default, and Redis can blip in
+    prod), we log a warning and move on. The same defensive shape
+    that A9 removed when search was reindex-on-publish — we never
+    let a downstream subsystem block a successful publish.
+    """
+    try:
+        # Deferred import so importing this module from a context
+        # without Celery installed (alembic, migrations CLI, etc.)
+        # still works.
+        from app.workers.tasks.embeddings import index_course_embeddings
+
+        index_course_embeddings.delay(course_id)
+    except Exception:  # pragma: no cover — broker may be down
+        log.warning("embedding_index_enqueue_failed", course_id=course_id)
 
 
 async def _unique_slug(db: AsyncSession, title: str, *, exclude_id: str | None = None) -> str:

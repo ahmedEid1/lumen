@@ -56,7 +56,6 @@ def detail(
     stats: dict[str, Any] | None = None,
     *,
     is_enrolled: bool = False,
-    is_bookmarked: bool = False,
     progress_pct: float = 0.0,
     completed_lesson_ids: set[str] | None = None,
 ) -> CourseDetail:
@@ -79,7 +78,6 @@ def detail(
             for m in modules
         ],
         is_enrolled=is_enrolled,
-        is_bookmarked=is_bookmarked,
         progress_pct=progress_pct,
         learning_outcomes=list(course.learning_outcomes or []),
     )

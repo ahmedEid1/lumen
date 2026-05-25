@@ -52,6 +52,10 @@ def test_production_with_real_values_passes() -> None:
         # production; provide a real one so the test reaches the
         # green path.
         web_base_url="https://lumen.example.com",
+        # Phase E5 added a parallel guard for the OB3 issuer URL —
+        # localhost in production would make issued credentials
+        # unverifiable externally. Provide a real one.
+        badges_issuer_url="https://lumen.example.com",
     )
     # Should not raise.
     s.assert_production_ready()

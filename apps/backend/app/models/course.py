@@ -10,6 +10,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Column,
+    Computed,
     DateTime,
     ForeignKey,
     Index,
@@ -19,14 +20,14 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.chat import ChatMessage
     from app.models.user import User
 
 
@@ -77,16 +78,32 @@ course_tags = Table(
 
 class Course(IdMixin, TimestampMixin, Base):
     __tablename__ = "courses"
+    # `slug` uniqueness is enforced via a *partial* unique index that
+    # only considers live rows (`deleted_at IS NULL`). Soft-deleted
+    # courses keep their slug, but a fresh course (or restored one)
+    # can reclaim a freed slug without colliding. See migration 0008
+    # and the rebuild Fix B3 regression test.
     __table_args__ = (
         Index("ix_courses_status_subject", "status", "subject_id"),
         Index("ix_courses_published_at", "published_at"),
+        Index(
+            "uq_courses_slug_live",
+            "slug",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
+        Index(
+            "ix_courses_search_vector",
+            "search_vector",
+            postgresql_using="gin",
+        ),
     )
 
     owner_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     subject_id: Mapped[str] = mapped_column(ForeignKey("subjects.id", ondelete="RESTRICT"), nullable=False, index=True)
 
     title: Mapped[str] = mapped_column(String(200), nullable=False)
-    slug: Mapped[str] = mapped_column(String(220), unique=True, nullable=False, index=True)
+    slug: Mapped[str] = mapped_column(String(220), nullable=False, index=True)
     overview: Mapped[str] = mapped_column(Text, nullable=False, default="")
     # Bullet list of "what you'll learn" outcomes shown above the
     # syllabus on the detail page. Stored as JSONB so the API can
@@ -102,6 +119,18 @@ class Course(IdMixin, TimestampMixin, Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Postgres GENERATED ALWAYS AS STORED tsvector over title + overview.
+    # Read-only at the ORM level; populated and refreshed by the DB on
+    # every insert/update. Search queries hit this column via the
+    # ix_courses_search_vector GIN index (Alembic 0014).
+    search_vector: Mapped[str | None] = mapped_column(
+        TSVECTOR,
+        Computed(
+            "to_tsvector('english', coalesce(title, '') || ' ' || coalesce(overview, ''))",
+            persisted=True,
+        ),
+        nullable=True,
+    )
 
     owner: Mapped[User] = relationship(back_populates="courses_owned", foreign_keys=[owner_id])
     subject: Mapped[Subject] = relationship(back_populates="courses")
@@ -112,7 +141,6 @@ class Course(IdMixin, TimestampMixin, Base):
     )
     enrollments: Mapped[list[Enrollment]] = relationship(back_populates="course", cascade="all, delete-orphan")
     reviews: Mapped[list[Review]] = relationship(back_populates="course", cascade="all, delete-orphan")
-    chat_messages: Mapped[list[ChatMessage]] = relationship(back_populates="course", cascade="all, delete-orphan")
 
 
 class Module(IdMixin, TimestampMixin, Base):
@@ -164,6 +192,14 @@ class Enrollment(IdMixin, TimestampMixin, Base):
     course_id: Mapped[str] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     certificate_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Signed Open Badges 3.0 / W3C VC credential — populated at the
+    # same instant ``certificate_id`` is minted, by
+    # ``app.services.enrollment._maybe_issue_certificate``. Nullable
+    # because soft-historical rows from before Phase E5 don't have one
+    # (the service can re-mint on demand).
+    badge_credential: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
 
     user: Mapped[User] = relationship(back_populates="enrollments")
     course: Mapped[Course] = relationship(back_populates="enrollments")
@@ -183,7 +219,6 @@ class LessonProgress(IdMixin, TimestampMixin, Base):
     lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
     enrollment: Mapped[Enrollment] = relationship(back_populates="lesson_progress")
     lesson: Mapped[Lesson] = relationship(back_populates="progress")

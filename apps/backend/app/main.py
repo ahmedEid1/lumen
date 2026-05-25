@@ -26,9 +26,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.errors import install_handlers
-from app.core.idempotency import IdempotencyMiddleware
 from app.core.logging import configure_logging, get_logger
+from app.core.prod_guards import assert_production_safe
 from app.core.ratelimit import limiter
+from app.core.rate_limit_metrics import record_rate_limited
 from app.core.tracing import init_tracing
 from app.db.base import dispose_engine
 
@@ -211,9 +212,60 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         return response
 
 
+# ---------- CORS filter (H6) ----------
+
+
+def _filter_prod_cors_origins(origins: list[str], *, is_prod: bool) -> list[str]:
+    """Strip loopback / .test origins from the allowed list in production.
+
+    In dev / test / staging we keep everything as-is so the test suite's
+    ``http://testserver`` and the docker-compose ``http://web:3000``
+    keep working. In production a stray ``http://localhost:3000`` in
+    the env var would let any origin running on a developer's laptop
+    talk to the live API once a browser is tricked into making the
+    request — defense in depth on top of the cookie ``__Host-*`` prefix.
+
+    Returns the filtered list; never mutates the input.
+    """
+    if not is_prod:
+        return list(origins)
+    keep: list[str] = []
+    for raw in origins:
+        o = (raw or "").strip().rstrip("/")
+        if not o:
+            continue
+        lower = o.lower()
+        # Substring match catches scheme + port + path variants:
+        # http://localhost, https://127.0.0.1:8443, http://api.foo.test, …
+        if any(host in lower for host in ("localhost", "127.0.0.1", "0.0.0.0", "::1")):
+            continue
+        # The ``.test`` TLD is reserved for local development (RFC 2606)
+        # and must never be a production origin. Match the *host* part
+        # only so a real prod domain that happens to contain ``test``
+        # in a path or query string survives.
+        try:
+            host = lower.split("://", 1)[1] if "://" in lower else lower
+            host = host.split("/", 1)[0]
+            host = host.rsplit(":", 1)[0]
+            if host.endswith(".test"):
+                continue
+        except IndexError:
+            continue
+        keep.append(o)
+    return keep
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings.assert_production_ready()
+    # H6 — extra production boot guards beyond the Settings-level checks:
+    # noop LLM provider, short secrets, loopback DATABASE_URL, suspicious
+    # OPENAI_API_BASE. The guard raises on hard problems and returns
+    # soft warnings we route through structlog so the operator sees them
+    # even when the boot succeeds.
+    warnings = assert_production_safe(settings)
+    for msg in warnings:
+        log.warning("prod_guard_warning", message=msg)
     log.info("startup", env=settings.env.value, app=settings.app_name)
     try:
         yield
@@ -225,7 +277,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
-        version="1.0.0",
+        version="1.0.0-rebuild",
         default_response_class=ORJSONResponse,
         docs_url="/docs",
         redoc_url=None,
@@ -241,6 +293,14 @@ def create_app() -> FastAPI:
     @app.exception_handler(RateLimitExceeded)
     async def _rate_limited(request: Request, exc: RateLimitExceeded):
         rid = request.headers.get("x-request-id") or getattr(request.state, "request_id", None)
+        # H6 — feed the rate-limit-stats endpoint. Best-effort; a busted
+        # counter must not turn a 429 into a 500.
+        try:
+            route = request.scope.get("route")
+            path = route.path if route else request.url.path
+            record_rate_limited(path)
+        except Exception as e:  # pragma: no cover — counter is in-memory
+            log.debug("rate_limit_metric_failed", error=str(e))
         return ORJSONResponse(
             status_code=429,
             content={
@@ -254,9 +314,18 @@ def create_app() -> FastAPI:
             headers={"Retry-After": "60"},
         )
 
+    # H6 — strip loopback / .test origins in production. Configured here
+    # rather than in Settings so the filter only runs at app-build time
+    # (not at every ``get_settings()`` call) and so tests can exercise
+    # ``_filter_prod_cors_origins`` directly.
+    allowed_origins = _filter_prod_cors_origins(settings.cors_origins, is_prod=settings.is_prod)
+    if settings.is_prod and not allowed_origins:
+        raise RuntimeError(
+            "Production CORS_ORIGINS must include at least one non-loopback origin"
+        )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -265,7 +334,6 @@ def create_app() -> FastAPI:
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(RequestIdMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
-    app.add_middleware(IdempotencyMiddleware)
     app.add_middleware(CSRFOriginMiddleware)
     app.add_middleware(AccessLogMiddleware)
 
@@ -280,7 +348,7 @@ def create_app() -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     async def root() -> dict[str, str]:
-        return {"name": settings.app_name, "version": "1.0.0", "docs": "/docs"}
+        return {"name": settings.app_name, "version": "1.0.0-rebuild", "docs": "/docs"}
 
     if settings.sentry_dsn:  # pragma: no cover - depends on env
         import sentry_sdk

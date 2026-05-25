@@ -6,7 +6,6 @@ from app.schemas.auth import (
     RegisterRequest,
     TokenResponse,
 )
-from app.schemas.chat import ChatHistoryPage, ChatMessageOut
 from app.schemas.common import Cursor, ErrorBody, ErrorEnvelope, OkResponse, Page
 from app.schemas.course import (
     CourseCreate,
@@ -33,8 +32,6 @@ from app.schemas.upload import PresignRequest, PresignResponse
 from app.schemas.user import UserOut, UserPublic, UserUpdate
 
 __all__ = [
-    "ChatHistoryPage",
-    "ChatMessageOut",
     "CourseCreate",
     "CourseDetail",
     "CourseListItem",

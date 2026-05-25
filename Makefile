@@ -61,6 +61,10 @@ downgrade: ## Downgrade one revision.
 seed: ## Load demo data.
 	$(COMPOSE) exec api python -m app.cli seed
 
+.PHONY: demo-seed
+demo-seed: ## Load the agentic-demo bundle (3 courses + demo learner + tutor turn + draft).
+	$(COMPOSE) exec api python -m app.cli demo-seed
+
 .PHONY: reset
 reset: ## Drop volumes and rebuild. Destroys local data!
 	$(COMPOSE) down -v
@@ -106,6 +110,24 @@ test.web: ## Frontend unit tests.
 test.e2e: ## Playwright end-to-end tests against the live stack (uses the e2e profile).
 	$(COMPOSE) --profile e2e run --rm e2e
 
+.PHONY: a11y
+a11y: ## WCAG 2.2 AA axe-core gate (requires `make up` first; chromium only).
+	$(COMPOSE) --profile e2e run --rm e2e tests/e2e/accessibility.spec.ts --project=chromium
+
+# ----- evals (H2) -----
+# Run a golden eval suite against the live api container. Default
+# suite is `tutor` (30 items); override with e.g. `make eval suite=authoring`
+# or `make eval suite=ingest`. Pass `limit=3` to truncate (smoke run).
+#
+# Provider selection is via env on the api container — see the
+# operator runbook in docs/release/_activation_a2.md. The default
+# .env / docker-compose path gives you the noop provider, which is
+# free, deterministic, and good enough to prove the harness wiring;
+# point LLM_PROVIDER=openai + OPENAI_API_BASE at Groq for a real run.
+.PHONY: eval
+eval: ## Run an eval suite. Override: suite=authoring|ingest, limit=N.
+	$(COMPOSE) exec api python -m app.evals run --suite $(or $(suite),tutor) $(if $(limit),--limit $(limit),)
+
 # ----- shells -----
 .PHONY: shell.api
 shell.api: ## Shell into the API container.
@@ -148,3 +170,39 @@ openapi.local: ## Same as `openapi` but runs on the host (requires deps installe
 .PHONY: precommit
 precommit: ## Run pre-commit on all files.
 	pre-commit run --all-files
+
+# ----- MCP (I1) -----
+# Mint a new MCP OAuth client + print its secret once. Pass the
+# owner email via OWNER (defaults to the seeded instructor).
+#
+#     make mcp-token OWNER=teacher@lumen.test
+#
+# Save the `client_secret` line — Lumen only stores an argon2 hash;
+# if you lose the plaintext you mint a new one.
+.PHONY: mcp-token
+mcp-token: ## Mint a new MCP OAuth client + print its secret once.
+	$(COMPOSE) exec api python -m app.cli mcp-token --owner-email "$(or $(OWNER),teacher@lumen.test)" --name "$(or $(NAME),Local MCP client)" --scopes "$(or $(SCOPES),*)"
+
+# ----- release publish (A6) -----
+# Push the local `Rewrite` branch to `origin/Rewrite` and open the
+# release PR against `master`. Previews the commits that would land
+# and prompts before doing anything destructive. The PR body is
+# pre-written at docs/release/1.1.0-agentic-pr-body.md.
+#
+# Requires: `gh` authenticated (`gh auth status`) and write access
+# to the origin remote. The push is a fast-forward (origin/Rewrite
+# is an ancestor of local Rewrite), so no --force is needed.
+.PHONY: publish-rewrite
+publish-rewrite: ## Push Rewrite to origin and open the release PR.
+	@echo ""
+	@echo "  Publishing local Rewrite to origin/Rewrite + opening PR vs master."
+	@echo "  PR body source: docs/release/1.1.0-agentic-pr-body.md"
+	@echo ""
+	@echo "  Commits that will be pushed (origin/Rewrite..Rewrite):"
+	@echo "  ---------------------------------------------------------------"
+	@git log origin/Rewrite..Rewrite --oneline | head -25
+	@echo "  ---------------------------------------------------------------"
+	@echo ""
+	@read -p "  Confirm push Rewrite to origin and open PR? [y/N] " ans && [ "$$ans" = "y" ] || (echo "  aborted"; exit 1)
+	git push origin Rewrite
+	gh pr create --base master --head Rewrite --title "release: 1.1.0-agentic — Phase H + Phase I shipped" --body-file docs/release/1.1.0-agentic-pr-body.md

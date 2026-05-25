@@ -30,10 +30,6 @@ x-api-env: &api-env
   S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
   S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
   S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE}
-  SEARCH_BACKEND: ${SEARCH_BACKEND:-meilisearch}
-  MEILI_URL: ${MEILI_URL}
-  MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
-  MEILI_INDEX_COURSES: ${MEILI_INDEX_COURSES:-courses}
   SMTP_HOST: ${SMTP_HOST}
   SMTP_PORT: ${SMTP_PORT}
   SMTP_FROM: ${SMTP_FROM}
@@ -41,6 +37,26 @@ x-api-env: &api-env
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
   PROMETHEUS_ENABLED: ${PROMETHEUS_ENABLED:-true}
   SEED_DEMO: ${SEED_DEMO:-true}
+  # LLM + embedding provider selection. The e2e workflow appends
+  # ``LLM_PROVIDER=noop`` to the root .env to keep AI-touching paths
+  # deterministic + free; without these explicit pass-throughs the
+  # api / worker / beat containers would ignore the override and fall
+  # back to the ``anthropic`` default (failing on missing API key).
+  # Same posture for ``EMBEDDING_PROVIDER`` so the local CPU embedder
+  # stays selectable in CI. Other LLM knobs (model, api base, keys)
+  # come along for the ride so an operator who flips to Groq /
+  # Anthropic in .env doesn't have to also edit this anchor.
+  LLM_PROVIDER: ${LLM_PROVIDER:-noop}
+  LLM_MODEL: ${LLM_MODEL:-}
+  LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-1024}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
+  EMBEDDING_MODEL_LOCAL: ${EMBEDDING_MODEL_LOCAL:-sentence-transformers/all-MiniLM-L6-v2}
+  EMBEDDING_MODEL_OPENAI: ${EMBEDDING_MODEL_OPENAI:-text-embedding-3-small}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ANTHROPIC_API_BASE: ${ANTHROPIC_API_BASE:-}
+  NOTION_TOKEN: ${NOTION_TOKEN:-}
 
 x-healthcheck-defaults: &healthcheck-defaults
   interval: 10s
@@ -50,7 +66,13 @@ x-healthcheck-defaults: &healthcheck-defaults
 
 services:
   db:
-    image: postgres:17-alpine
+    # pgvector/pgvector ships the upstream Postgres image with the
+    # ``vector`` extension pre-installed — required by Phase E0's
+    # embedding pipeline. ``pgvector/pgvector:pg17`` tracks the same
+    # 17.x line as the prior ``postgres:17-alpine`` so existing dev
+    # volumes upgrade in place (debian-based vs alpine, no data
+    # format change).
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-lumen}
@@ -121,30 +143,6 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-lumen-secret}
     restart: "no"
 
-  search:
-    image: getmeili/meilisearch:v1.10
-    restart: unless-stopped
-    environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-lumen-search-key}
-      MEILI_ENV: development
-    volumes:
-      - search-data:/meili_data
-    healthcheck:
-      <<: *healthcheck-defaults
-      # Force IPv4 — meilisearch listens on 0.0.0.0 only; the
-      # busybox wget in the image resolves ``localhost`` to ::1
-      # (IPv6) first which then refuses the connection.
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7700/health"]
-    # Host-side 7700 binding intentionally omitted — Windows / WSL2
-    # reserves 7681-7780 on common installs
-    # (``netsh interface ipv4 show excludedportrange``). The API
-    # container reaches search via the internal docker network at
-    # ``http://search:7700`` so the host binding only matters for
-    # direct curl / web-UI debugging. Re-enable locally on a free
-    # port if you need it:
-    #   ports:
-    #     - "7780:7700"
-
   mail:
     image: axllent/mailpit:v1.20
     restart: unless-stopped
@@ -165,7 +163,6 @@ services:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
       s3: { condition: service_healthy }
-      search: { condition: service_healthy }
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "app"]
     healthcheck:
       <<: *healthcheck-defaults
@@ -270,7 +267,6 @@ volumes:
   db-data:
   redis-data:
   s3-data:
-  search-data:
   web-node-modules:
   web-next-cache:
 

@@ -99,3 +99,80 @@ async def test_delete_account(client: AsyncClient, make_user) -> None:
         "/api/v1/auth/login", json={"email": "bye@lumen.test", "password": "Password!1234"}
     )
     assert fail.status_code == 401
+
+
+async def test_delete_account_kills_outstanding_access_token(
+    client: AsyncClient, make_user
+) -> None:
+    """Rebuild Fix B5 invariant: the access token issued *before* the
+    delete must not be usable after the delete commits. Otherwise a
+    stolen token (or a tab the user just closed) still hits /me-like
+    endpoints for up to access-token TTL.
+
+    The implementation flips ``user.is_active`` to False as part of the
+    delete; ``get_current_user_optional`` returns None for inactive
+    users, which the auth dep escalates to 401. This test pins the
+    behaviour so a future refactor that drops the ``is_active`` check
+    fails loudly.
+    """
+    await make_user(email="kill-access@lumen.test", password="Password!1234")
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "kill-access@lumen.test", "password": "Password!1234"},
+    )
+    access = login.json()["access_token"]
+    h = {"Authorization": f"Bearer {access}"}
+
+    pre = await client.get("/api/v1/users/me", headers=h)
+    assert pre.status_code == 200
+
+    await client.request(
+        "DELETE",
+        "/api/v1/users/me",
+        headers=h,
+        json={"password": "Password!1234"},
+    )
+
+    # Same access token, post-delete: must be rejected.
+    post = await client.get("/api/v1/users/me", headers=h)
+    assert post.status_code == 401
+
+
+async def test_delete_account_revokes_refresh_token(
+    client: AsyncClient, make_user
+) -> None:
+    """Rebuild Fix B5 invariant: refresh tokens issued before the
+    delete must be unusable afterwards.
+
+    The implementation calls ``revoke_all_refresh_tokens(user.id)``
+    inside the delete handler, which bulk-updates ``revoked_at`` on
+    every active row. The refresh endpoint rejects revoked tokens
+    with 401. Pinned here so a refactor that skips the bulk-revoke
+    leaves a regression test instead of a stale audit finding.
+    """
+    await make_user(
+        email="kill-refresh@lumen.test", password="Password!1234"
+    )
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "kill-refresh@lumen.test", "password": "Password!1234"},
+    )
+    refresh_cookie = login.cookies.get("refresh") or login.cookies.get(
+        "__Host-refresh"
+    )
+    assert refresh_cookie, "login must set a refresh cookie"
+    access = login.json()["access_token"]
+    h = {"Authorization": f"Bearer {access}"}
+
+    await client.request(
+        "DELETE",
+        "/api/v1/users/me",
+        headers=h,
+        json={"password": "Password!1234"},
+    )
+
+    # The same refresh cookie must no longer mint an access token.
+    refresh_response = await client.post(
+        "/api/v1/auth/refresh", cookies={"refresh": refresh_cookie}
+    )
+    assert refresh_response.status_code == 401

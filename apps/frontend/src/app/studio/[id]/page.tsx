@@ -17,28 +17,39 @@ import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { CohortCard } from "@/components/course/cohort-card";
 import { ApiError } from "@/lib/api/client";
 import { Courses } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import type { ModuleOut } from "@/lib/api/types";
+import { useT } from "@/lib/i18n/provider";
+import { cn } from "@/lib/utils";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
-const PUBLISH_REJECTION_MSGS: Record<string, string> = {
-  "course.no_lessons": "Add at least one lesson before publishing.",
-  "course.missing_fields": "A title and overview are required to publish.",
-  "course.invalid_transition": "That status change isn't allowed from the current state.",
+/**
+ * Studio course editor — Workbench repaint.
+ *
+ * Header is a left-aligned label + status badge + small toolbar of
+ * actions (preview-as-student + publish/unpublish). Sections are flat
+ * blocks separated by `border-t border-border` rather than nested
+ * cards. Analytics tiles are mono+tabular-nums. Modules render as
+ * bordered rows with a left-side drag handle and a right-side gear.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
+
+const PUBLISH_REJECTION_KEYS: Record<string, MessageKey> = {
+  "course.no_lessons": "studioEdit.publish.noLessons",
+  "course.missing_fields": "studioEdit.publish.missingFields",
+  "course.invalid_transition": "studioEdit.publish.invalidTransition",
 };
-
-/** Standard onError factory — shows the server's message or a fallback. */
-function toastErr(fallback: string) {
-  return (e: Error) => toast.error(e?.message ?? fallback);
-}
 
 export default function StudioCoursePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const qc = useQueryClient();
+  const t = useT();
   const courseQ = useQuery({ queryKey: qk.course(id), queryFn: () => Courses.get(id) });
   const analyticsQ = useQuery({
     queryKey: ["course", id, "analytics"],
@@ -49,31 +60,16 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
   const publish = useMutation({
     mutationFn: (next: "published" | "draft" | "archived") => Courses.patch(id, { status: next }),
     onSuccess: () => {
-      toast.success("Status updated");
+      toast.success(t("studioEdit.statusToast"));
       qc.invalidateQueries({ queryKey: qk.course(id) });
     },
     onError: (e: Error) => {
-      // Server can refuse the transition for a few reasons (missing
-      // fields, invalid transition, no lessons). Without this toast the
-      // instructor would see no feedback at all and assume the click
-      // didn't register.
       const code = e instanceof ApiError ? e.code : undefined;
+      const keyed = code ? PUBLISH_REJECTION_KEYS[code] : undefined;
       toast.error(
-        (code ? PUBLISH_REJECTION_MSGS[code] : undefined) ??
-          e?.message ??
-          "Could not update status",
+        (keyed ? t(keyed) : undefined) ?? e?.message ?? t("studioEdit.statusError"),
       );
     },
-  });
-
-  const duplicate = useMutation({
-    mutationFn: () => Courses.duplicate(id),
-    onSuccess: (c) => {
-      toast.success("Course duplicated");
-      qc.invalidateQueries({ queryKey: qk.myCourses });
-      window.location.href = `/studio/${c.id}`;
-    },
-    onError: toastErr("Could not duplicate"),
   });
 
   const createModule = useMutation({
@@ -95,8 +91,20 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  if (courseQ.isLoading) return <div className="container mx-auto px-4 py-10">Loading…</div>;
-  if (!courseQ.data) return <div className="container mx-auto px-4 py-10">Course not found.</div>;
+  if (courseQ.isLoading)
+    return (
+      <div className="container mx-auto px-6 py-14 font-body text-sm text-muted-foreground">
+        {t("common.loading")}
+      </div>
+    );
+  if (!courseQ.data)
+    return (
+      <div className="container mx-auto flex flex-col items-start gap-3 px-6 py-20">
+        <p className="font-display text-xl leading-tight tracking-tight text-muted-foreground">
+          {t("courseDetail.notFound")}
+        </p>
+      </div>
+    );
 
   const course = courseQ.data;
   const modules = [...course.modules].sort((a, b) => a.order - b.order);
@@ -111,133 +119,150 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
   }
 
   return (
-    <div className="container mx-auto px-4 py-10">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <Badge variant={course.status === "published" ? "default" : "muted"}>{course.status}</Badge>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">{course.title}</h1>
-          <p className="text-muted-foreground">Manage modules and lessons.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href={`/courses/${course.slug}`} target="_blank">
-            <Button variant="outline">Preview as student</Button>
-          </Link>
-          <Button variant="outline" onClick={() => duplicate.mutate()} disabled={duplicate.isPending}>
-            {duplicate.isPending ? "Duplicating…" : "Duplicate"}
-          </Button>
-          {course.status !== "published" && (
-            <Button onClick={() => publish.mutate("published")}>Publish</Button>
-          )}
-          {course.status === "published" && (
-            <Button variant="outline" onClick={() => publish.mutate("draft")}>
-              Unpublish
-            </Button>
-          )}
+    <div className="container mx-auto px-6 py-14">
+      {/* Header + toolbar */}
+      <header className="mb-10 flex flex-col gap-3">
+        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          {t("studioEdit.cartouche")}
+        </p>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <Badge
+              variant={
+                course.status === "published"
+                  ? "default"
+                  : course.status === "archived"
+                    ? "muted"
+                    : "secondary"
+              }
+            >
+              {t(`studio.filter.${course.status}` as MessageKey)}
+            </Badge>
+            <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+              {course.title}
+            </h1>
+            <p className="font-body text-sm text-muted-foreground">{t("studioEdit.subtitle")}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/courses/${course.slug}`} target="_blank">
+              <Button variant="outline">{t("studioEdit.previewAsStudent")}</Button>
+            </Link>
+            {course.status !== "published" && (
+              <Button onClick={() => publish.mutate("published")}>{t("studioEdit.publish")}</Button>
+            )}
+            {course.status === "published" && (
+              <Button variant="outline" onClick={() => publish.mutate("draft")}>
+                {t("studioEdit.unpublish")}
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
+      {/* Analytics — mono, tabular-nums, no card chrome */}
       {analyticsQ.data && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Analytics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-              <StatTile label="Enrollments" value={analyticsQ.data.enrollments} />
-              <StatTile
-                label="Completions"
-                value={`${analyticsQ.data.completions} (${Math.round(
-                  analyticsQ.data.completion_rate * 100,
-                )}%)`}
-              />
-              <StatTile
-                label="Avg rating"
-                value={
-                  analyticsQ.data.avg_rating != null
-                    ? `${analyticsQ.data.avg_rating.toFixed(1)} (${analyticsQ.data.rating_count})`
-                    : "—"
-                }
-              />
-              <StatTile label="Avg progress" value={`${analyticsQ.data.avg_progress_pct}%`} />
-              <StatTile label="New (7d)" value={analyticsQ.data.enrollments_last_7d} />
-              <StatTile label="New (30d)" value={analyticsQ.data.enrollments_last_30d} />
-            </div>
-          </CardContent>
-        </Card>
+        <section className="mb-10 border-t border-border pt-8">
+          <h2 className="mb-5 font-display text-lg leading-tight tracking-tight">
+            {t("studioEdit.analytics")}
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <StatTile label={t("studioEdit.stat.enrollments")} value={analyticsQ.data.enrollments} />
+            <StatTile
+              label={t("studioEdit.stat.completions")}
+              value={`${analyticsQ.data.completions} (${Math.round(
+                analyticsQ.data.completion_rate * 100,
+              )}%)`}
+            />
+            <StatTile
+              label={t("studioEdit.stat.avgRating")}
+              value={
+                analyticsQ.data.avg_rating != null
+                  ? `${analyticsQ.data.avg_rating.toFixed(1)} (${analyticsQ.data.rating_count})`
+                  : "—"
+              }
+            />
+            <StatTile
+              label={t("studioEdit.stat.avgProgress")}
+              value={`${analyticsQ.data.avg_progress_pct}%`}
+            />
+            <StatTile
+              label={t("studioEdit.stat.new7d")}
+              value={analyticsQ.data.enrollments_last_7d}
+            />
+            <StatTile
+              label={t("studioEdit.stat.new30d")}
+              value={analyticsQ.data.enrollments_last_30d}
+            />
+          </div>
+        </section>
       )}
 
-      <div className="mb-6">
+      {/* Cohort — keeps its existing card; aligned to the surface utility */}
+      <section className="mb-10 border-t border-border pt-8">
         <CohortCard courseId={id} />
-      </div>
+      </section>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Course details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CourseDetailsEditor
-            courseId={id}
-            initial={{
-              title: course.title,
-              overview: course.overview,
-              difficulty: course.difficulty,
-              cover_url: course.cover_url ?? null,
-            }}
+      {/* Details */}
+      <section className="mb-10 border-t border-border pt-8">
+        <h2 className="mb-5 font-display text-lg leading-tight tracking-tight">
+          {t("studioEdit.detailsCard")}
+        </h2>
+        <CourseDetailsEditor
+          courseId={id}
+          initial={{
+            title: course.title,
+            overview: course.overview,
+            difficulty: course.difficulty,
+            cover_url: course.cover_url ?? null,
+          }}
+        />
+      </section>
+
+      {/* Learning outcomes */}
+      <section className="mb-10 border-t border-border pt-8">
+        <h2 className="mb-5 font-display text-lg leading-tight tracking-tight">
+          {t("course.whatYoullLearn")}
+        </h2>
+        <LearningOutcomesEditor courseId={id} initial={course.learning_outcomes ?? []} />
+      </section>
+
+      {/* Modules */}
+      <section className="border-t border-border pt-8">
+        <h2 className="mb-5 font-display text-lg leading-tight tracking-tight">
+          {t("studioEdit.modulesCard")}
+        </h2>
+        <div className="mb-4 flex gap-2">
+          <Input
+            placeholder={t("studioEdit.newModulePlaceholder")}
+            value={newModuleTitle}
+            onChange={(e) => setNewModuleTitle(e.target.value)}
           />
-        </CardContent>
-      </Card>
+          <Button
+            onClick={() => createModule.mutate()}
+            disabled={!newModuleTitle.trim() || createModule.isPending}
+          >
+            <Plus className="me-1 h-4 w-4" /> {t("studioEdit.addModule")}
+          </Button>
+        </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>What you&apos;ll learn</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <LearningOutcomesEditor
-            courseId={id}
-            initial={course.learning_outcomes ?? []}
-          />
-        </CardContent>
-      </Card>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={modules.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+            <ul className="divide-y divide-border border-y border-border">
+              {modules.map((m) => (
+                <SortableModule key={m.id} module={m} courseId={id} />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Modules</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder="New module title"
-              value={newModuleTitle}
-              onChange={(e) => setNewModuleTitle(e.target.value)}
-            />
-            <Button
-              onClick={() => createModule.mutate()}
-              disabled={!newModuleTitle.trim() || createModule.isPending}
-            >
-              <Plus className="me-1 h-4 w-4" /> Add module
-            </Button>
-          </div>
-
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-            <SortableContext items={modules.map((m) => m.id)} strategy={verticalListSortingStrategy}>
-              <ul className="space-y-2">
-                {modules.map((m) => (
-                  <SortableModule key={m.id} module={m} courseId={id} />
-                ))}
-              </ul>
-            </SortableContext>
-          </DndContext>
-        </CardContent>
-      </Card>
-
-      <p className="mt-6 text-xs text-muted-foreground">
-        Tip: drag the handle to reorder modules. Click the gear to edit a module&apos;s lessons.
-      </p>
+        <p className="mt-4 font-body text-xs text-muted-foreground">{t("studioEdit.dragTip")}</p>
+      </section>
     </div>
   );
 }
 
 function SortableModule({ module: m, courseId }: { module: ModuleOut; courseId: string }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: m.id,
   });
@@ -250,25 +275,34 @@ function SortableModule({ module: m, courseId }: { module: ModuleOut; courseId: 
     <li
       ref={setNodeRef}
       style={style}
-      className="flex items-center justify-between rounded-md border bg-background p-3"
+      className="flex items-center justify-between gap-3 px-1 py-3 transition-colors duration-[160ms] hover:bg-muted/30"
     >
-      <div className="flex items-center gap-3">
-        <button {...attributes} {...listeners} className="cursor-grab" aria-label="Drag handle">
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
+      <div className="flex min-w-0 items-center gap-3">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab text-muted-foreground transition-colors duration-[160ms] hover:text-foreground"
+          aria-label={t("studioEdit.dragHandle")}
+        >
+          <GripVertical className="h-4 w-4" />
         </button>
-        <div>
-          <div className="text-xs text-muted-foreground">Module {m.order + 1}</div>
-          <div className="font-medium">{m.title}</div>
+        <div className="min-w-0">
+          <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+            {t("courseDetail.module", { n: m.order + 1 })}
+          </p>
+          <p className="truncate font-body text-sm font-medium text-foreground">{m.title}</p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <Badge variant="muted">{m.lessons.length} lessons</Badge>
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+          {t("studioEdit.lessonCount", { n: m.lessons.length })}
+        </span>
         <Link
           href={`/studio/${courseId}/modules/${m.id}`}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted"
-          aria-label="Edit lessons"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors duration-[160ms] hover:bg-muted hover:text-foreground"
+          aria-label={t("studioEdit.editLessons")}
         >
-          <Settings2 className="h-4 w-4 text-muted-foreground" />
+          <Settings2 className="h-4 w-4" />
         </Link>
       </div>
     </li>
@@ -277,9 +311,9 @@ function SortableModule({ module: m, courseId }: { module: ModuleOut; courseId: 
 
 function StatTile({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-md border bg-background p-3">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+    <div className="surface p-4">
+      <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-2 font-mono text-xl tabular-nums text-foreground">{value}</p>
     </div>
   );
 }
@@ -299,6 +333,7 @@ function CourseDetailsEditor({
   initial: DetailsInitial;
 }) {
   const qc = useQueryClient();
+  const t = useT();
   const [draft, setDraft] = useState<DetailsInitial>(initial);
   const dirty =
     draft.title !== initial.title ||
@@ -315,17 +350,20 @@ function CourseDetailsEditor({
         cover_url: draft.cover_url || null,
       }),
     onSuccess: () => {
-      toast.success("Details saved");
+      toast.success(t("studioEdit.detailsToast"));
       qc.invalidateQueries({ queryKey: qk.course(courseId) });
     },
-    onError: toastErr("Could not save"),
+    onError: (e: Error) => toast.error(e?.message ?? t("studioEdit.saveError")),
   });
+
+  const selectClass =
+    "flex h-9 w-full rounded-md border border-border bg-muted px-3 py-2 font-body text-sm text-foreground transition-colors duration-[160ms] focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none";
 
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <label className="text-sm font-medium" htmlFor="course-title-edit">
-          Title
+        <label className="font-body text-sm font-medium" htmlFor="course-title-edit">
+          {t("studioNew.field.title")}
         </label>
         <Input
           id="course-title-edit"
@@ -333,43 +371,39 @@ function CourseDetailsEditor({
           maxLength={200}
           onChange={(e) => setDraft({ ...draft, title: e.target.value })}
         />
-        <p className="text-xs text-muted-foreground">
-          Renaming regenerates the URL slug — old links to this course
-          will redirect.
-        </p>
+        <p className="font-body text-xs text-muted-foreground">{t("studioEdit.renameNotice")}</p>
       </div>
       <div className="space-y-1.5">
-        <label className="text-sm font-medium" htmlFor="course-overview-edit">
-          Overview
+        <label className="font-body text-sm font-medium" htmlFor="course-overview-edit">
+          {t("studioNew.field.overview")}
         </label>
-        <textarea
+        <Textarea
           id="course-overview-edit"
           value={draft.overview}
           maxLength={10000}
           rows={4}
           onChange={(e) => setDraft({ ...draft, overview: e.target.value })}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <label className="text-sm font-medium" htmlFor="course-difficulty-edit">
-            Difficulty
+          <label className="font-body text-sm font-medium" htmlFor="course-difficulty-edit">
+            {t("studioNew.field.difficulty")}
           </label>
           <select
             id="course-difficulty-edit"
             value={draft.difficulty}
             onChange={(e) => setDraft({ ...draft, difficulty: e.target.value })}
-            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            className={selectClass}
           >
-            <option value="beginner">Beginner</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
+            <option value="beginner">{t("studioNew.diff.beginner")}</option>
+            <option value="intermediate">{t("studioNew.diff.intermediate")}</option>
+            <option value="advanced">{t("studioNew.diff.advanced")}</option>
           </select>
         </div>
         <div className="space-y-1.5">
-          <label className="text-sm font-medium" htmlFor="course-cover-edit">
-            Cover URL
+          <label className="font-body text-sm font-medium" htmlFor="course-cover-edit">
+            {t("studioEdit.coverUrl")}
           </label>
           <Input
             id="course-cover-edit"
@@ -381,7 +415,7 @@ function CourseDetailsEditor({
         </div>
       </div>
       <Button size="sm" onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
-        {save.isPending ? "Saving…" : "Save"}
+        {save.isPending ? t("common.saving") : t("common.save")}
       </Button>
     </div>
   );
@@ -395,6 +429,7 @@ function LearningOutcomesEditor({
   initial: string[];
 }) {
   const qc = useQueryClient();
+  const t = useT();
   const [items, setItems] = useState<string[]>(initial);
   const dirty = JSON.stringify(items) !== JSON.stringify(initial);
 
@@ -404,34 +439,31 @@ function LearningOutcomesEditor({
         learning_outcomes: items.map((s) => s.trim()).filter(Boolean),
       }),
     onSuccess: () => {
-      toast.success("Outcomes saved");
+      toast.success(t("studioEdit.outcomesToast"));
       qc.invalidateQueries({ queryKey: qk.course(courseId) });
     },
-    onError: toastErr("Could not save"),
+    onError: (e: Error) => toast.error(e?.message ?? t("studioEdit.saveError")),
   });
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Up to 12 short phrases (each ≤240 chars). Shows above the syllabus
-        on the course detail page as a checkmark grid.
-      </p>
+      <p className="font-body text-xs text-muted-foreground">{t("studioEdit.outcomesHelp")}</p>
       <ul className="space-y-2">
         {items.map((s, i) => (
-          <li key={i} className="flex gap-2">
+          <li key={i} className={cn("flex gap-2")}>
             <Input
               value={s}
               maxLength={240}
               onChange={(e) =>
                 setItems((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
               }
-              placeholder={`Outcome #${i + 1}`}
+              placeholder={t("studioEdit.outcomePlaceholder", { n: i + 1 })}
             />
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setItems((prev) => prev.filter((_, j) => j !== i))}
-              aria-label="Remove"
+              aria-label={t("studioEdit.remove")}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -445,10 +477,10 @@ function LearningOutcomesEditor({
           onClick={() => setItems((prev) => [...prev, ""])}
           disabled={items.length >= 12}
         >
-          <Plus className="me-1 h-4 w-4" /> Add outcome
+          <Plus className="me-1 h-4 w-4" /> {t("studioEdit.addOutcome")}
         </Button>
         <Button size="sm" onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
-          {save.isPending ? "Saving…" : "Save"}
+          {save.isPending ? t("common.saving") : t("common.save")}
         </Button>
       </div>
     </div>

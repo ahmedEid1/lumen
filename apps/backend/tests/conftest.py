@@ -69,6 +69,14 @@ async def _engine():
     engine = create_async_engine(test_url, future=True)
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS citext"))
+        # Phase E0 — ``lesson_chunks`` declares a ``vector(384)`` column,
+        # which requires the pgvector extension. Tests run against the
+        # same ``db`` service as dev (``pgvector/pgvector:pg17``) so
+        # this should always succeed in CI / make test. We split it
+        # into its own statement so a missing extension surfaces here
+        # with the real Postgres error, not as a cryptic create_all
+        # failure half a screen later.
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(db_base.Base.metadata.create_all)
 
     db_base._engine = engine
@@ -89,10 +97,12 @@ async def db_session(_engine) -> AsyncIterator[AsyncSession]:
     async with db_base.get_sessionmaker()() as session:
         # Clean tables between tests (fast for our small set).
         await session.execute(text(
-            "TRUNCATE assets, audit_events, notifications, chat_messages, reviews, quiz_attempts, "
-            "discussion_subscriptions, discussion_replies, discussions, lesson_progress, "
-            "enrollments, lessons, modules, course_tags, courses, tags, subjects, "
-            "auth_refresh_tokens, users RESTART IDENTITY CASCADE"
+            "TRUNCATE assets, audit_events, notifications, reviews, quiz_attempts, "
+            "review_cards, discussion_replies, discussions, lesson_chunks, "
+            "llm_calls, "
+            "tutor_messages, tutor_conversations, "
+            "lesson_progress, enrollments, lessons, modules, course_tags, courses, "
+            "tags, subjects, auth_refresh_tokens, users RESTART IDENTITY CASCADE"
         ))
         await session.commit()
         yield session

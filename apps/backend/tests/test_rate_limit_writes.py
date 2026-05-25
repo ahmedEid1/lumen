@@ -1,19 +1,22 @@
 """Rate limits on the heavier write endpoints.
 
-The auth endpoints alone are not enough; two write paths each
-present a DOS surface for an authenticated user:
+The auth endpoints alone are not enough; two authenticated write
+paths each present a DOS surface that the per-user bucket has to
+defend:
 
 * ``/me/progress/lessons/{id}/quiz`` — grading walks the full question
   list and writes ``LessonProgress`` rows / can issue certificates.
   A 50-question quiz replayed in a tight loop burns CPU + DB writes.
 
-* ``/chat/courses/{id}/messages`` — every POST inserts a row, fans
-  out via Redis pub/sub, and broadcasts to every WS subscriber. An
-  enrolled bad actor could trivially flood a course's chat.
+* ``/discussions/{id}/replies`` — every POST inserts a row and (when
+  the thread author still exists) fans out a notification. An
+  enrolled bad actor could trivially flood a discussion thread.
+  This took over from the per-course WebSocket chat endpoint
+  (removed in rebuild Cut A8), which had its own 30/minute cap.
 
-The current limits are 20/minute on quiz submit and 30/minute on
-chat POST. The autouse limiter-reset fixture in conftest ensures
-these tests start with fresh buckets.
+The current limits are 20/minute on quiz submit and 20/minute on
+discussion reply. The autouse limiter-reset fixture in conftest
+ensures these tests start with fresh buckets.
 """
 
 from __future__ import annotations
@@ -107,9 +110,13 @@ async def test_quiz_submit_rate_limited(
     assert last.json()["error"]["code"] == "rate_limited"
 
 
-async def test_chat_post_rate_limited(
+async def test_discussion_reply_rate_limited(
     client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
 ) -> None:
+    """Discussion-reply spam is the post-A8 stand-in for the old
+    per-course chat flood: cheap DB write + notification fanout,
+    one HTTP call per message, and easy for an enrolled bad
+    actor to drive in a tight loop. 20/minute should gate it."""
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
@@ -126,14 +133,23 @@ async def test_chat_post_rate_limited(
         headers=teacher,
     )
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
+    # Open the thread under the teacher so the student's per-user
+    # reply bucket is the only one we're draining. The discussion-
+    # create endpoint is itself 10/minute but we only hit it once.
+    thread = await client.post(
+        f"/api/v1/courses/{course_id}/discussions",
+        json={"title": "Flood me", "body": "ping"},
+        headers=teacher,
+    )
+    thread_id = thread.json()["id"]
 
-    # 30/minute — burst 32. Each POST publishes to Redis but with no
-    # WS subscriber that's a fast no-op; we're verifying the *gate*,
-    # not chat correctness.
+    # 20/minute — burst 22. Each POST is a row + a notification
+    # write to the teacher; we're verifying the *gate*, not the
+    # fanout (covered by test_discussion_reply_notifies).
     last = None
-    for i in range(32):
+    for i in range(22):
         last = await client.post(
-            f"/api/v1/chat/courses/{course_id}/messages",
+            f"/api/v1/discussions/{thread_id}/replies",
             json={"body": f"flood {i}"},
             headers=student,
         )

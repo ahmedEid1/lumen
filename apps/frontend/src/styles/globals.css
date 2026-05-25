@@ -1,68 +1,139 @@
 @import "tailwindcss";
 
+/*
+ * Lumen — Workbench visual.
+ *
+ * Linear / Raycast / Vercel-dashboard density. Dark-first. One
+ * electric-lime accent per screen, never twice. Borders do the
+ * elevation work — no shadows, no glass blur, no gradients. Inter
+ * for chrome + headlines, JetBrains Mono for IDs / durations /
+ * timestamps. 8px grid, religious adherence.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
+
 @layer base {
   :root {
-    --background: 250 250% 99%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --primary: 222 89% 56%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --accent: 250 90% 65%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 222 89% 56%;
-    --radius: 0.75rem;
+    /* ── Dark (default) ──────────────────────────────────────────── */
+    --background: 220 14% 4%;            /* #0A0B0D */
+    --foreground: 220 9% 92%;            /* #E8EAED */
+    --card: 220 14% 7%;                  /* #111316 */
+    --card-foreground: 220 9% 92%;
+    --muted: 220 14% 11%;                /* #171A1F */
+    --muted-foreground: 213 8% 64%;      /* #9BA1AA */
+    --primary: 72 100% 50%;              /* #C8FF00 electric lime */
+    --primary-foreground: 220 14% 4%;
+    --secondary: 220 14% 14%;            /* #1E2228 */
+    --secondary-foreground: 220 9% 92%;
+    --accent: 215 17% 57%;               /* #7C8FA8 cool blue-grey */
+    --accent-foreground: 220 14% 4%;
+    --destructive: 358 76% 59%;          /* #E5484D desaturated red */
+    --destructive-foreground: 220 9% 92%;
+    --success: 131 41% 47%;              /* #46A758 desaturated green */
+    --success-foreground: 220 9% 92%;
+    --warning: 38 91% 55%;               /* #F5A524 amber */
+    --warning-foreground: 220 14% 4%;
+    --border: 220 14% 14%;               /* #1E2228 — border = surface-2 */
+    --input: 220 14% 14%;
+    --ring: 72 100% 50%;                 /* lime focus ring */
+    --radius: 0.375rem;                  /* 6px — tight, mechanical */
+
+    /* Surface ramp for layered chrome (overlays, popovers, side panels) */
+    --surface-1: 220 14% 7%;             /* #111316 */
+    --surface-2: 220 14% 11%;            /* #171A1F */
+    --surface-3: 220 14% 14%;            /* #1E2228 */
   }
 
-  .dark {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 9%;
-    --card-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --primary: 222 89% 65%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --accent: 250 90% 70%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 63% 45%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 222 89% 65%;
+  .light {
+    /* ── Light (explicit opt-in, not the default) ────────────────── */
+    --background: 60 9% 98%;             /* #FAFAF9 */
+    --foreground: 220 14% 4%;
+    --card: 0 0% 100%;                   /* #FFFFFF */
+    --card-foreground: 220 14% 4%;
+    --muted: 60 5% 96%;                  /* #F4F4F2 */
+    --muted-foreground: 213 7% 40%;      /* #5E646C */
+    /* AA-contrast lime sibling. Dark mode keeps hsl(72 100% 50%) as the
+       signature electric lime; light mode needs a much deeper green so
+       text-primary clears WCAG 2.2 AA 4.5:1 against #FAFAF9, #FFFFFF,
+       and #F4F4F2 (the three light surfaces). hsl(75 80% 25%) = #59730D
+       gives 5.21 / 5.42 / 4.98 against those surfaces respectively, and
+       still reads as the Lumen lime family — just deeper. The old
+       hsl(72 80% 38%) hit 2.44 / 2.54 / 2.33 and failed every route. */
+    --primary: 75 80% 25%;               /* #59730D — deeper lime for AA contrast */
+    --primary-foreground: 60 9% 98%;     /* white-on-green: 5.21:1 (near-black flips to white) */
+    --secondary: 60 5% 96%;
+    --secondary-foreground: 220 14% 4%;
+    --accent: 215 17% 47%;
+    --accent-foreground: 60 9% 98%;
+    --destructive: 358 76% 49%;
+    --destructive-foreground: 60 9% 98%;
+    --success: 131 41% 37%;
+    --warning: 38 91% 45%;
+    --border: 60 5% 90%;
+    --input: 60 5% 90%;
+    --ring: 75 80% 25%;                  /* matches --primary */
+
+    --surface-1: 0 0% 100%;
+    --surface-2: 60 5% 96%;
+    --surface-3: 60 5% 92%;
   }
 
   * {
     border-color: hsl(var(--border));
   }
   html {
-    color-scheme: light dark;
+    color-scheme: dark;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  html.light {
+    color-scheme: light;
   }
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-feature-settings: "rlig" 1, "calt" 1;
-    -webkit-font-smoothing: antialiased;
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    letter-spacing: -0.01em;
+  }
+  ::selection {
+    background-color: hsl(var(--primary) / 0.35);
+    color: hsl(var(--primary-foreground));
   }
   *:focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Display face on h1-h4. Workbench tracks them tight — the
+     headline is a label for the page, not a flourish. */
+  h1, h2, h3, h4 {
+    font-family: var(--font-inter-display), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  /* Tabular numerics on any element that primarily holds numbers
+     (durations, counts, percentages, IDs). Components opt-in by
+     class; this is the floor so machine-emitted values never wobble. */
+  .mono,
+  code,
+  kbd,
+  samp,
+  pre,
+  time,
+  [data-numeric] {
+    font-family: var(--font-jetbrains-mono), ui-monospace, "JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
   }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.001ms !important;
       transition-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
     }
   }
 }
@@ -82,10 +153,90 @@
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
+
+  --color-surface-1: hsl(var(--surface-1));
+  --color-surface-2: hsl(var(--surface-2));
+  --color-surface-3: hsl(var(--surface-3));
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --font-display: var(--font-inter-display), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "JetBrains Mono", monospace;
+
+  /* Motion: cubic-bezier(0.16, 1, 0.3, 1), durations 80 / 160 / 240ms.
+     Components reference these via Tailwind's transition utilities;
+     the variable form keeps them swappable per-theme later. */
+  --ease-out-quart: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 80ms;
+  --duration-base: 160ms;
+  --duration-slow: 240ms;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Subtle pulse for skeletons — single fade, no metallic shimmer. */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+/* Scroll-driven reveal — kept but tightened. Workbench doesn't do
+   big entrance animations; this is a 160ms settle for content as it
+   enters the viewport, not a marketing flourish. */
+@supports (animation-timeline: view()) {
+  .reveal {
+    animation: rise var(--duration-slow, 240ms) var(--ease-out-quart, cubic-bezier(0.16, 1, 0.3, 1)) both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 20%;
+  }
+}
+@supports not (animation-timeline: view()) {
+  .reveal {
+    animation: rise var(--duration-slow, 240ms) var(--ease-out-quart, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  }
+}
+
+/* ── Utilities ──────────────────────────────────────────────────── */
+
+/* Card surface — single border, no shadow. Borders do the elevation
+   work in Workbench; if a card needs more lift, raise it via the
+   surface-{1,2,3} ramp instead of stacking shadows. */
+@utility surface {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+}
+
+/* Hairline divider — 1px, adapts to the surrounding surface. */
+@utility hairline {
+  border: 0;
+  height: 1px;
+  background: hsl(var(--border));
+}
+
+/* Skeleton loader — single subtle fade, no shimmer sweep. */
+@utility skeleton {
+  background-color: hsl(var(--muted));
+  border-radius: calc(var(--radius) - 2px);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
 }

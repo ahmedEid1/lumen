@@ -9,12 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.core.ids import new_id
+from app.core.logging import get_logger
 from app.models.course import Course, CourseStatus, Enrollment, Lesson, LessonProgress
 from app.models.notification import NotificationKind
 from app.models.quiz_attempt import QuizAttempt
 from app.models.user import User
 from app.repositories import courses as courses_repo
 from app.repositories import notifications as notifications_repo
+from app.services import badges as badges_service
+from app.services import fsrs as fsrs_service
+
+log = get_logger(__name__)
 
 
 async def _resolve_enrollment_for_lesson(
@@ -42,10 +47,34 @@ async def _maybe_issue_certificate(
     total: int,
     done: int,
 ) -> None:
-    """Mint a certificate + notification when every lesson is complete."""
+    """Mint a certificate + notification when every lesson is complete.
+
+    Phase E5 also mints a signed Open Badges 3.0 / W3C VC credential
+    next to the legacy ``certificate_id``. The credential is durably
+    stored as JSONB on the enrollment so the public ``/credentials/
+    {id}`` and ``/verify`` endpoints can serve it without re-signing
+    per request — re-signing on every fetch would mean the issuer's
+    private key is in the request path, and a future key rotation
+    would also invalidate already-shipped credentials.
+    """
     if total and done == total and not enrollment.completed_at:
         enrollment.completed_at = datetime.now(UTC)
         enrollment.certificate_id = f"cert_{new_id()}"
+        # Best-effort: if signing fails for any reason we still mint
+        # the legacy cert + ship the in-app notification. The OB3
+        # credential can be re-issued later by re-calling the service
+        # — see the comment on ``Enrollment.badge_credential``.
+        try:
+            enrollment.badge_credential = badges_service.issue_for_enrollment(
+                enrollment=enrollment, user=user, course=course,
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            log.exception(
+                "badges.issue_failed",
+                certificate_id=enrollment.certificate_id,
+                error=str(exc),
+            )
+            enrollment.badge_credential = None
         await notifications_repo.create(
             db,
             user_id=user.id,
@@ -103,24 +132,25 @@ async def record_quiz_attempt(
     lesson: Lesson,
     score: int,
     passed: bool,
-    payload: dict[str, Any] | None = None,
+    answers: dict[str, Any] | None = None,
 ) -> tuple[Enrollment, LessonProgress, float]:
     """Persist a quiz attempt.
 
     Unlike :func:`mark_lesson`, a failing retake never clears a previously
     earned ``completed_at`` — once a learner has passed a quiz, the lesson
     stays complete regardless of subsequent attempts. The latest score is
-    always stored on ``LessonProgress.score``.
+    always stored on ``LessonProgress.score``; the verbatim ``answers`` go
+    on the append-only ``QuizAttempt`` row, which is the single source of
+    truth for attempt history (rebuild Cut A3 dropped the redundant
+    ``LessonProgress.payload`` JSONB mirror).
     """
     course, enrollment = await _resolve_enrollment_for_lesson(db, user=user, lesson=lesson)
 
     lp = await courses_repo.get_or_create_progress(db, enrollment_id=enrollment.id, lesson_id=lesson.id)
     clamped_score = max(0, min(100, score))
     lp.score = clamped_score
-    if payload:
-        lp.payload = {**(lp.payload or {}), **payload}
     if passed:
-        await courses_repo.mark_completed(db, lp, payload=None)
+        await courses_repo.mark_completed(db, lp)
 
     # Append-only attempt history. Captures the verbatim
     # answers so a future "review your attempt" UI can highlight
@@ -131,11 +161,21 @@ async def record_quiz_attempt(
         lesson_id=lesson.id,
         score=clamped_score,
         passed=passed,
-        answers=(payload or {}).get("answers", {}),
+        answers=answers or {},
         submitted_at=datetime.now(UTC),
     )
     db.add(attempt)
     await db.flush()
+
+    # Phase E4 — every completed quiz (pass *or* fail) joins the
+    # learner's FSRS-6 review queue. ``ensure_card`` is idempotent so
+    # repeat submissions don't churn the schedule; the card's state +
+    # due-at only change when the learner actually grades themselves
+    # via :func:`app.services.fsrs.record_review`. We deliberately
+    # add cards on fail too — a failed quiz is exactly the material a
+    # learner needs to revisit, and the alternative ("only enroll on
+    # pass") punishes the case the queue exists to help with.
+    await fsrs_service.ensure_card(db, user_id=user.id, lesson_id=lesson.id)
 
     total = await courses_repo.count_lessons_in_course(db, course.id)
     done = await courses_repo.count_completed_lessons(db, enrollment.id)
@@ -154,13 +194,12 @@ async def mark_lesson(
     user: User,
     lesson: Lesson,
     completed: bool,
-    payload: dict[str, Any] | None = None,
 ) -> tuple[Enrollment, LessonProgress, float]:
     course, enrollment = await _resolve_enrollment_for_lesson(db, user=user, lesson=lesson)
 
     lp = await courses_repo.get_or_create_progress(db, enrollment_id=enrollment.id, lesson_id=lesson.id)
     if completed:
-        await courses_repo.mark_completed(db, lp, payload=payload)
+        await courses_repo.mark_completed(db, lp)
     else:
         lp.completed_at = None
     # the app's sessionmaker has `autoflush=False`, so the

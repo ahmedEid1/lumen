@@ -6,29 +6,35 @@ import { AuthProvider } from "@/lib/auth/store";
 import { LocaleProvider } from "@/lib/i18n/provider";
 import { SiteHeader } from "@/components/shared/site-header";
 import { SiteFooter } from "@/components/shared/site-footer";
+import { interDisplay, interBody, jetbrainsMono } from "@/lib/fonts";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Lumen — Learn anything", template: "%s · Lumen" },
-  description: "A modern, self-hostable e-learning platform.",
+  title: { default: "Lumen — Learn what you actually use.", template: "%s · Lumen" },
+  description:
+    "AI-first learning platform with a tutor grounded in the course itself, multi-modal authoring, and verifiable credentials.",
   applicationName: "Lumen",
-  authors: [{ name: "Lumen Maintainers" }],
+  authors: [{ name: "Lumen" }],
   openGraph: { title: "Lumen", siteName: "Lumen", type: "website" },
   twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0f1a" },
+    { media: "(prefers-color-scheme: light)", color: "#FAFAF9" },
+    { media: "(prefers-color-scheme: dark)", color: "#0A0B0D" },
   ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${interBody.variable} ${interDisplay.variable} ${jetbrainsMono.variable}`}
+    >
       <body className="min-h-screen bg-background text-foreground antialiased">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <LocaleProvider>
             <QueryProvider>
               <AuthProvider>

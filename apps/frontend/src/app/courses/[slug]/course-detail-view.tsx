@@ -1,9 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Bookmark, BookmarkCheck, Check, Layers, MessageSquare, Star, Users, Award } from "lucide-react";
+import {
+  Award,
+  Check,
+  Layers,
+  MessageSquare,
+  Sparkles,
+  Star,
+  Users,
+  ArrowRight,
+  X,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,13 +22,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Courses, Me, Reviews } from "@/lib/api/endpoints";
 import { MyReviewEditor } from "@/components/course/my-review-editor";
+import { TutorPanel } from "@/components/tutor/tutor-panel";
 import type { CourseDetail } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/store";
+import { useT } from "@/lib/i18n/provider";
 import { qk } from "@/lib/query/keys";
+import { cn } from "@/lib/utils";
 
 export function CourseDetailView({ slug }: { slug: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const t = useT();
+  // Tutor opens in a modal-style overlay on the syllabus page so we
+  // don't restructure the existing two-column layout. Enrolled-only
+  // gating is enforced at render time below.
+  const [tutorOpen, setTutorOpen] = useState(false);
 
   const courseQ = useQuery({
     queryKey: qk.course(slug),
@@ -32,30 +51,26 @@ export function CourseDetailView({ slug }: { slug: string }) {
   const enroll = useMutation({
     mutationFn: () => Me.enroll(courseQ.data!.id),
     onSuccess: () => {
-      toast.success("Enrolled!");
+      toast.success(t("courseDetail.enrolled"));
       qc.invalidateQueries({ queryKey: qk.course(slug) });
       qc.invalidateQueries({ queryKey: qk.enrollments });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not enroll"),
-  });
-
-  const toggleBookmark = useMutation({
-    mutationFn: () =>
-      courseQ.data!.is_bookmarked ? Me.unbookmark(courseQ.data!.id) : Me.bookmark(courseQ.data!.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.course(slug) });
-      qc.invalidateQueries({ queryKey: qk.bookmarks });
-    },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not update bookmark"),
+    onError: (e: Error) => toast.error(e?.message ?? t("courseDetail.enrollError")),
   });
 
   if (courseQ.isLoading) {
-    return <div className="container mx-auto px-4 py-10">Loading…</div>;
+    return (
+      <div className="container mx-auto px-6 py-16 text-center font-body text-sm text-muted-foreground">
+        {t("common.loading")}
+      </div>
+    );
   }
   if (courseQ.error || !courseQ.data) {
     return (
-      <div className="container mx-auto px-4 py-10 text-center text-muted-foreground">
-        Course not found.
+      <div className="container mx-auto flex flex-col items-center gap-3 px-6 py-16 text-center">
+        <p className="font-display text-2xl text-foreground">
+          {t("courseDetail.notFound")}
+        </p>
       </div>
     );
   }
@@ -64,76 +79,87 @@ export function CourseDetailView({ slug }: { slug: string }) {
   const totalLessons = course.modules.reduce((n, m) => n + m.lessons.length, 0);
 
   return (
-    <div className="container mx-auto px-4 py-10">
+    <div className="container mx-auto px-6 py-10">
       <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-6">
-          <div>
-            <div className="mb-2 flex flex-wrap gap-2">
+        <div className="space-y-8">
+          <header className="space-y-4">
+            <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+              {t("courseDetail.cartouche")}
+            </p>
+
+            <div className="flex flex-wrap gap-1.5">
               <Link
                 href={`/courses?subject=${encodeURIComponent(course.subject.slug)}`}
-                aria-label={`More ${course.subject.title} courses`}
+                aria-label={t("courseDetail.moreFromSubject", { name: course.subject.title })}
               >
-                <Badge
-                  variant="secondary"
-                  className="cursor-pointer transition-colors hover:bg-secondary/80"
-                >
+                <Badge variant="secondary" className="cursor-pointer hover:bg-muted">
                   {course.subject.title}
                 </Badge>
               </Link>
               <Link
                 href={`/courses?difficulty=${encodeURIComponent(course.difficulty)}`}
-                aria-label={`More ${course.difficulty} courses`}
+                aria-label={t("courseDetail.moreFromDifficulty", { name: course.difficulty })}
               >
                 <Badge variant="muted" className="cursor-pointer hover:bg-muted/80">
                   {course.difficulty}
                 </Badge>
               </Link>
-              {course.tags.map((t) => (
+              {course.tags.map((tag) => (
                 <Link
-                  key={t.id}
-                  href={`/courses?tag=${encodeURIComponent(t.slug)}`}
-                  aria-label={`More ${t.name} courses`}
+                  key={tag.id}
+                  href={`/courses?tag=${encodeURIComponent(tag.slug)}`}
+                  aria-label={t("courseDetail.moreFromTag", { name: tag.name })}
                 >
                   <Badge variant="outline" className="cursor-pointer hover:bg-muted">
-                    {t.name}
+                    {tag.name}
                   </Badge>
                 </Link>
               ))}
             </div>
-            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">{course.title}</h1>
-            <p className="mt-3 max-w-2xl text-muted-foreground">{course.overview}</p>
-            <div className="mt-4 flex items-center gap-3">
-              <Avatar>
+
+            <h1 className="font-display text-4xl leading-tight tracking-tight md:text-5xl">
+              {course.title}
+            </h1>
+            <p className="max-w-2xl font-body text-base leading-relaxed text-muted-foreground">
+              {course.overview}
+            </p>
+
+            <div className="flex items-center gap-3 pt-1">
+              <Avatar className="border border-border">
                 <AvatarImage src={course.owner.avatar_url ?? undefined} alt={course.owner.full_name} />
                 <AvatarFallback>{course.owner.full_name.slice(0, 1).toUpperCase()}</AvatarFallback>
               </Avatar>
-              <div className="text-sm">
-                <div className="font-medium">{course.owner.full_name}</div>
-                <div className="text-muted-foreground">Instructor</div>
+              <div className="font-body text-sm">
+                <div className="font-medium text-foreground">{course.owner.full_name}</div>
+                <div className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                  {t("courseDetail.instructor")}
+                </div>
               </div>
             </div>
-          </div>
+          </header>
 
           <div>
             <Link
               href={`/courses/${course.slug}/discussions`}
-              className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+              className="inline-flex items-center gap-2 font-body text-sm text-foreground transition-colors duration-[160ms] hover:text-primary"
             >
               <MessageSquare className="h-4 w-4" />
-              Discussion forum
+              {t("course.discussionForum")}
             </Link>
           </div>
 
           {course.learning_outcomes && course.learning_outcomes.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>What you&apos;ll learn</CardTitle>
+                <CardTitle className="font-display text-xl leading-tight">
+                  {t("course.whatYoullLearn")}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="grid gap-2 sm:grid-cols-2">
                   {course.learning_outcomes.map((outcome, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-sm">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    <li key={idx} className="flex items-start gap-2 font-body text-sm">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                       <span>{outcome}</span>
                     </li>
                   ))}
@@ -143,61 +169,92 @@ export function CourseDetailView({ slug }: { slug: string }) {
           )}
 
           <Card>
-            <CardHeader>
-              <CardTitle>Syllabus</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle className="font-display text-xl leading-tight">
+                {t("course.syllabus")}
+              </CardTitle>
+              {course.is_enrolled && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTutorOpen(true)}
+                  aria-label={t("tutor.askButton")}
+                >
+                  <Sparkles className="me-1.5 h-3.5 w-3.5" />
+                  {t("tutor.askButton")}
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {course.modules.length === 0 ? (
-                <p className="text-muted-foreground">No modules yet.</p>
+                <p className="font-body text-sm text-muted-foreground">
+                  {t("courseDetail.noModules")}
+                </p>
               ) : (
-                <ol className="space-y-4">
+                <ol className="divide-y divide-border">
                   {course.modules.map((m) => (
-                    <li key={m.id} className="rounded-lg border p-4">
+                    <li key={m.id} className="py-4 first:pt-0 last:pb-0">
                       <div className="mb-2">
-                        <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Module {m.order + 1}
+                        <div className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                          {t("courseDetail.module", { n: m.order + 1 })}
                         </div>
-                        <h3 className="font-semibold">{m.title}</h3>
+                        <h3 className="font-display text-base leading-tight">{m.title}</h3>
                         {m.description && (
-                          <p className="text-sm text-muted-foreground">{m.description}</p>
+                          <p className="mt-1 font-body text-sm text-muted-foreground">
+                            {m.description}
+                          </p>
                         )}
                       </div>
-                      <ul className="space-y-1 text-sm">
+                      <ul className="divide-y divide-border/60 text-sm">
                         {m.lessons.map((lesson) => (
                           <li
                             key={lesson.id}
-                            className="flex items-center justify-between rounded px-2 py-1 hover:bg-muted/50"
+                            className="flex items-center justify-between gap-3 py-2"
                           >
-                            <span className="flex items-center gap-2">
-                              <Badge variant="muted">{lesson.type}</Badge>
-                              {lesson.is_preview && <Badge variant="secondary">free preview</Badge>}
+                            <span className="flex min-w-0 items-center gap-2 font-body">
+                              {lesson.completed ? (
+                                <Check
+                                  aria-label={t("player.completed")}
+                                  className="h-4 w-4 shrink-0 text-primary"
+                                />
+                              ) : (
+                                <span
+                                  aria-hidden
+                                  className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-border"
+                                />
+                              )}
+                              <Badge variant="muted" className="font-mono">
+                                {lesson.type}
+                              </Badge>
+                              {lesson.is_preview && (
+                                <Badge variant="default" className="font-mono">
+                                  {t("player.freePreview")}
+                                </Badge>
+                              )}
                               <span
-                                className={lesson.completed ? "text-muted-foreground line-through" : ""}
+                                className={cn(
+                                  "truncate font-body",
+                                  lesson.completed && "text-muted-foreground",
+                                )}
                               >
                                 {lesson.title}
                               </span>
-                              {lesson.completed && (
-                                <span
-                                  aria-label="completed"
-                                  title="Completed"
-                                  className="text-emerald-600 dark:text-emerald-400"
-                                >
-                                  ✓
-                                </span>
-                              )}
                             </span>
-                            <span className="flex items-center gap-3">
+                            <span className="flex shrink-0 items-center gap-3">
                               {lesson.is_preview && course.status === "published" && (
                                 <Link
                                   href={`/courses/${course.slug}/preview/${lesson.id}`}
-                                  className="text-xs text-primary hover:underline"
+                                  className="inline-flex items-center gap-1 font-body text-xs font-medium text-primary hover:underline"
                                 >
-                                  Sample →
+                                  {t("courseDetail.sample")}{" "}
+                                  <ArrowRight className="h-3 w-3" />
                                 </Link>
                               )}
                               {lesson.duration_seconds ? (
-                                <span className="text-xs text-muted-foreground">
-                                  {Math.round(lesson.duration_seconds / 60)} min
+                                <span className="font-mono text-xs text-muted-foreground">
+                                  {t("courseDetail.minutes", {
+                                    n: Math.round(lesson.duration_seconds / 60),
+                                  })}
                                 </span>
                               ) : null}
                             </span>
@@ -213,77 +270,106 @@ export function CourseDetailView({ slug }: { slug: string }) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Reviews</CardTitle>
+              <CardTitle className="font-display text-xl leading-tight">
+                {t("course.reviews")}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {user && course.is_enrolled && user.id !== course.owner.id && (
-                // Owners can self-enroll to preview, but the backend rejects
-                // self-reviews — don't render a button that always 403s.
                 <MyReviewEditor
                   courseId={course.id}
                   myReview={reviewsQ.data?.find((r) => r.author.id === user.id) ?? null}
                 />
               )}
               {reviewsQ.data && reviewsQ.data.length > 0 ? (
-                <ul className="space-y-4">
+                <ul className="divide-y divide-border">
                   {reviewsQ.data.map((r) => (
-                    <li key={r.id} className="rounded border p-3">
+                    <li key={r.id} className="py-3 first:pt-0 last:pb-0">
                       <div className="flex items-center gap-2 text-sm">
-                        <Avatar className="h-6 w-6">
-                          <AvatarImage src={r.author.avatar_url ?? undefined} alt={r.author.full_name} />
+                        <Avatar className="h-6 w-6 border border-border">
+                          <AvatarImage
+                            src={r.author.avatar_url ?? undefined}
+                            alt={r.author.full_name}
+                          />
                           <AvatarFallback>{r.author.full_name.slice(0, 1)}</AvatarFallback>
                         </Avatar>
-                        <span className="font-medium">{r.author.full_name}</span>
+                        <span className="font-body font-medium text-foreground">
+                          {r.author.full_name}
+                        </span>
                         <span className="ms-auto inline-flex items-center gap-0.5">
-                          {Array.from({ length: r.rating }).map((_, i) => (
-                            <Star key={i} className="h-3.5 w-3.5 fill-current text-amber-500" />
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={cn(
+                                "h-3.5 w-3.5",
+                                i < r.rating
+                                  ? "fill-primary text-primary"
+                                  : "fill-none text-muted-foreground/40",
+                              )}
+                            />
                           ))}
                         </span>
                       </div>
-                      {r.body && <p className="mt-2 text-sm text-muted-foreground">{r.body}</p>}
+                      {r.body && (
+                        <p className="mt-2 font-body text-sm text-muted-foreground">{r.body}</p>
+                      )}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-muted-foreground">Be the first to review this course.</p>
+                <p className="font-body text-sm text-muted-foreground">
+                  {t("courseDetail.beFirst")}
+                </p>
               )}
             </CardContent>
           </Card>
         </div>
 
         <aside className="space-y-4">
-          <Card>
-            <CardContent className="space-y-3 pt-6">
+          <Card className="bg-surface-2 lg:sticky lg:top-20">
+            <CardContent className="space-y-4 pt-6">
               <div className="grid grid-cols-3 gap-2 text-center text-sm">
                 <div>
-                  <Layers className="mx-auto h-5 w-5 text-muted-foreground" />
-                  <div className="mt-1 font-semibold">{course.modules.length}</div>
-                  <div className="text-xs text-muted-foreground">Modules</div>
+                  <Layers className="mx-auto h-4 w-4 text-muted-foreground" aria-hidden />
+                  <div className="mt-1 font-mono text-base text-foreground">
+                    {course.modules.length}
+                  </div>
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {t("course.modules")}
+                  </div>
                 </div>
                 <div>
-                  <Users className="mx-auto h-5 w-5 text-muted-foreground" />
-                  <div className="mt-1 font-semibold">{course.enrollments_count}</div>
-                  <div className="text-xs text-muted-foreground">Students</div>
+                  <Users className="mx-auto h-4 w-4 text-muted-foreground" aria-hidden />
+                  <div className="mt-1 font-mono text-base text-foreground">
+                    {course.enrollments_count}
+                  </div>
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {t("course.students")}
+                  </div>
                 </div>
                 <div>
-                  <Star className="mx-auto h-5 w-5 text-muted-foreground" />
-                  <div className="mt-1 font-semibold">
+                  <Star className="mx-auto h-4 w-4 text-muted-foreground" aria-hidden />
+                  <div className="mt-1 font-mono text-base text-foreground">
                     {course.avg_rating != null ? course.avg_rating.toFixed(1) : "—"}
                   </div>
-                  <div className="text-xs text-muted-foreground">Rating</div>
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {t("course.rating")}
+                  </div>
                 </div>
               </div>
 
               {course.is_enrolled ? (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Progress</span>
-                    <span className="font-medium">{course.progress_pct.toFixed(0)}%</span>
+                  <div className="flex items-center justify-between font-body text-sm">
+                    <span className="text-muted-foreground">{t("course.progress")}</span>
+                    <span className="font-mono font-medium text-primary">
+                      {course.progress_pct.toFixed(0)}%
+                    </span>
                   </div>
                   <Progress value={course.progress_pct} />
                   <Link href={`/learn/${course.slug}`}>
                     <Button className="w-full">
-                      {course.progress_pct > 0 ? "Continue learning" : "Start learning"}
+                      {course.progress_pct > 0 ? t("course.continue") : t("course.start")}
                     </Button>
                   </Link>
                 </div>
@@ -299,46 +385,60 @@ export function CourseDetailView({ slug }: { slug: string }) {
                   }}
                   disabled={enroll.isPending}
                 >
-                  {enroll.isPending ? "Enrolling…" : user ? "Enroll" : "Sign in to enroll"}
-                </Button>
-              )}
-
-              {user && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => toggleBookmark.mutate()}
-                  disabled={toggleBookmark.isPending}
-                >
-                  {course.is_bookmarked ? (
-                    <>
-                      <BookmarkCheck className="me-2 h-4 w-4 fill-current" /> Bookmarked
-                    </>
-                  ) : (
-                    <>
-                      <Bookmark className="me-2 h-4 w-4" /> Bookmark
-                    </>
-                  )}
+                  {enroll.isPending
+                    ? t("courseDetail.enrolling")
+                    : user
+                      ? t("course.enroll")
+                      : t("course.signInToEnroll")}
                 </Button>
               )}
 
               {course.progress_pct === 100 && (
                 <a
                   href={`/api/v1/certificates/${course.id}.pdf`}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 font-body text-sm font-medium text-foreground transition-colors duration-[160ms] hover:bg-muted"
                 >
-                  <Award className="h-4 w-4" /> Download certificate
+                  <Award className="h-4 w-4 text-primary" />
+                  {t("courseDetail.downloadCert")}
                 </a>
               )}
 
-              <p className="text-center text-xs text-muted-foreground">
-                {totalLessons} lessons · last updated{" "}
-                {new Date(course.published_at ?? course.created_at).toLocaleDateString()}
+              <p className="text-center font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                {t("course.lessonsCount", { count: totalLessons })} ·{" "}
+                {t("course.lastUpdated", {
+                  date: new Date(course.published_at ?? course.created_at).toLocaleDateString(),
+                })}
               </p>
             </CardContent>
           </Card>
         </aside>
       </div>
+
+      {/* Tutor overlay — modal-style so we don't disrupt the existing
+          syllabus layout. Enrolled-only by gate above (the button
+          doesn't render for non-enrolled visitors). Click outside or
+          the close button to dismiss. */}
+      {tutorOpen && course.is_enrolled && (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-end bg-foreground/20 p-4 sm:items-center sm:justify-center sm:p-6"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setTutorOpen(false);
+          }}
+        >
+          <div className="relative h-[80vh] w-full max-w-xl">
+            <Button
+              variant="outline"
+              size="sm"
+              className="absolute -top-3 -right-3 z-10 h-8 w-8 rounded-full p-0"
+              onClick={() => setTutorOpen(false)}
+              aria-label={t("tutor.closeButton")}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            <TutorPanel courseId={course.id} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

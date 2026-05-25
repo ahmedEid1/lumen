@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DBSession
 from app.core.errors import ForbiddenError, NotFoundError
+from app.core.ratelimit import limiter
 from app.models.course import Course, Enrollment
 from app.models.user import User
 from app.repositories import courses as courses_repo
@@ -28,12 +29,23 @@ class CertificateVerifyOut(BaseModel):
 
 
 @router.get("/verify/{certificate_id}", response_model=CertificateVerifyOut)
-async def verify_certificate(certificate_id: str, db: DBSession) -> CertificateVerifyOut:
+@limiter.limit("20/minute")
+async def verify_certificate(
+    certificate_id: str,
+    db: DBSession,
+    request: Request,
+    response: Response,
+) -> CertificateVerifyOut:
     """Public lookup of a certificate by its opaque id.
 
     Returns the learner's *display name* and course — never the email or other
     PII. Used by the public ``/verify/[id]`` page so anyone with a certificate
     ID can confirm it was issued by this platform.
+
+    Rate-limited to 20/minute per identity (anonymous traffic keys by IP) to
+    blunt brute-force enumeration of certificate IDs. Without this cap, an
+    attacker can walk the keyspace and harvest the (learner_name, course_title)
+    roster of everyone who has ever completed a course on the platform.
     """
     row = (
         await db.execute(

@@ -54,7 +54,3 @@ class DiscussionDetail(BaseModel):
     updated_at: datetime
     author: UserPublic | None = None
     replies: list[DiscussionReplyOut] = Field(default_factory=list)
-    # is the calling viewer subscribed to this thread?
-    # Anonymous viewers always see False. Used by the UI to render
-    # Subscribe vs Unsubscribe without a second round-trip.
-    is_subscribed: bool = False

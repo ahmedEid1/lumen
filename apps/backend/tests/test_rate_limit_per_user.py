@@ -7,9 +7,13 @@ on the same gateway. The current ``_identity_key`` derives the
 bucket from the JWT ``sub`` when present, the auth cookie when
 not, and only falls back to IP for fully anonymous traffic.
 
-We assert this by exhausting the chat-post bucket (30/minute,
-53) as one user and verifying a second user — same test client,
-same "IP" from slowapi's perspective — can still post.
+We assert this by exhausting the discussion-reply bucket
+(20/minute) as one user and verifying a second user — same test
+client, same "IP" from slowapi's perspective — can still post.
+Discussion replies took over from the per-course WebSocket chat
+endpoint (removed in rebuild Cut A8); they're the closest
+remaining authenticated write that fires per-user and is easy to
+seed in a test.
 """
 
 from __future__ import annotations
@@ -31,16 +35,12 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def test_two_users_share_ip_but_not_bucket(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
-) -> None:
-    teacher = await auth_headers(role=Role.instructor)
-    noisy = await auth_headers(role=Role.student)
-    quiet = await auth_headers(role=Role.student)
-    subject = await _make_subject(db_session)
+async def _published_course(
+    client: AsyncClient, teacher: dict, subject_id: str, seed_lesson
+) -> str:
     create = await client.post(
         "/api/v1/courses",
-        json={"title": "Shared", "subject_id": subject.id, "overview": "x"},
+        json={"title": "Shared", "subject_id": subject_id, "overview": "x"},
         headers=teacher,
     )
     course_id = create.json()["id"]
@@ -50,14 +50,39 @@ async def test_two_users_share_ip_but_not_bucket(
         json={"status": "published"},
         headers=teacher,
     )
+    return course_id
+
+
+async def test_two_users_share_ip_but_not_bucket(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+) -> None:
+    teacher = await auth_headers(role=Role.instructor)
+    noisy = await auth_headers(role=Role.student)
+    quiet = await auth_headers(role=Role.student)
+    subject = await _make_subject(db_session)
+    course_id = await _published_course(client, teacher, subject.id, seed_lesson)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=noisy)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=quiet)
 
-    # Drain noisy's bucket (30/minute).
+    # Open a thread the rate-limited replies will hang off of. The
+    # teacher posts the discussion (the create endpoint is 10/minute,
+    # but we only call it once) so it doesn't contend with the
+    # 20/minute reply bucket we're testing.
+    thread = await client.post(
+        f"/api/v1/courses/{course_id}/discussions",
+        json={"title": "Anyone awake?", "body": "ping"},
+        headers=teacher,
+    )
+    assert thread.status_code == 201, thread.text
+    thread_id = thread.json()["id"]
+
+    # Drain noisy's reply bucket (20/minute). Each POST is a real DB
+    # write but with no notification fanout because the teacher is
+    # the thread author and we ignore self-notifications anyway.
     noisy_last = None
-    for i in range(32):
+    for i in range(22):
         noisy_last = await client.post(
-            f"/api/v1/chat/courses/{course_id}/messages",
+            f"/api/v1/discussions/{thread_id}/replies",
             json={"body": f"noisy {i}"},
             headers=noisy,
         )
@@ -66,7 +91,7 @@ async def test_two_users_share_ip_but_not_bucket(
 
     # quiet shares the same IP but a different identity → fresh bucket.
     quiet_r = await client.post(
-        f"/api/v1/chat/courses/{course_id}/messages",
+        f"/api/v1/discussions/{thread_id}/replies",
         json={"body": "first time"},
         headers=quiet,
     )

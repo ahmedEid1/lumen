@@ -20,6 +20,10 @@ out/
 coverage/
 playwright-report/
 test-results/
+# A5 — Playwright screenshot capture writes here from inside the
+# `e2e` profile container (which can't write above its /work mount).
+# The operator copies the captures into docs/screenshots/ once happy.
+.screenshots-tmp/
 .swc/
 # pnpm's local content-addressed cache — gets created when running
 # `pnpm install` on the host; large, machine-specific, never useful
@@ -74,5 +78,22 @@ legacy/media/
 # ---- ralph loop session state ----
 .claude/ralph-loop.local.md
 
+# ---- Playwright MCP transient state ----
+# Playwright MCP browser tooling writes per-session state here when
+# Claude drives the browser; not useful in git.
+.playwright-mcp/
+
+# ---- eval-harness reports ----
+# Per-run JSONL reports from `python -m app.evals run` / `make eval`.
+# Reproducible from the golden datasets + an LLM key; never useful to
+# commit. The latest run can be inspected via /admin/evals.
+apps/backend/evals/reports/*.jsonl
+
 # ---- legacy wheel ----
 Twisted-20.3.0-cp39-cp39-win_amd64.whl
+
+# ---- Playwright recording intermediates ----
+apps/frontend/tests/e2e/output/
+
+# ---- Walkthrough recorder verification frames (debug only) ----
+tools/recording/frames/

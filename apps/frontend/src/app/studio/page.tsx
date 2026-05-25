@@ -4,29 +4,50 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Download, Plus, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
+import { AIOutlineModal } from "@/components/studio/ai-outline-modal";
+import { IngestModal } from "@/components/studio/ingest-modal";
 import { Courses } from "@/lib/api/endpoints";
 import type { CourseListItem, CourseStatus } from "@/lib/api/types";
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
+import { useT } from "@/lib/i18n/provider";
+import { instructorSteps } from "@/lib/onboarding/steps";
+import { cn } from "@/lib/utils";
+import type { MessageKey } from "@/lib/i18n/messages/en";
+
+/**
+ * Studio root — Workbench repaint.
+ *
+ * Filter tabs use `border-b-2 border-primary` for the active state (the
+ * Linear / Vercel pattern), not pill chips. Courses render as bordered
+ * rows — not cards — for density; the title is small and label-like,
+ * meta sits in mono on the right. No `lift-3d` tilt; hover only shifts
+ * the border colour.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
 
 type FilterValue = "all" | CourseStatus;
 
-const FILTERS: { value: FilterValue; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "draft", label: "Drafts" },
-  { value: "published", label: "Published" },
-  { value: "archived", label: "Archived" },
+const FILTERS: { value: FilterValue; labelKey: MessageKey }[] = [
+  { value: "all", labelKey: "studio.filter.all" },
+  { value: "draft", labelKey: "studio.filter.draft" },
+  { value: "published", labelKey: "studio.filter.published" },
+  { value: "archived", labelKey: "studio.filter.archived" },
 ];
 
 export default function StudioPage() {
   const { user, ready } = useAuth();
   const router = useRouter();
+  const t = useT();
   const mine = useQuery({ queryKey: qk.myCourses, queryFn: () => Courses.mine(), enabled: !!user });
   const [filter, setFilter] = useState<FilterValue>("all");
+  const [importOpen, setImportOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   useEffect(() => {
     if (!ready) return;
@@ -51,20 +72,48 @@ export default function StudioPage() {
   if (!ready || !user || user.role === "student") return null;
 
   return (
-    <div className="container mx-auto px-4 py-10">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Instructor studio</h1>
-          <p className="text-muted-foreground">Manage your courses and content.</p>
+    <div className="container mx-auto px-6 py-14">
+      {(user.role === "instructor" || user.role === "admin") && (
+        <OnboardingTour
+          steps={instructorSteps(t)}
+          storageKey="lumen.onboarding.instructor.dismissed"
+        />
+      )}
+      <header className="mb-10 flex flex-col gap-3">
+        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          {t("studio.cartouche")}
+        </p>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+              {t("studio.title")}
+            </h1>
+            <p className="mt-2 font-body text-sm text-muted-foreground">{t("studio.subtitle")}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => setAiOpen(true)}>
+              <Sparkles className="me-2 h-4 w-4" /> {t("studio.aiOutline.button")}
+            </Button>
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Download className="me-2 h-4 w-4" /> {t("studio.import.button")}
+            </Button>
+            <Link href="/studio/new">
+              <Button>
+                <Plus className="me-2 h-4 w-4" /> {t("studio.newCourse")}
+              </Button>
+            </Link>
+          </div>
         </div>
-        <Link href="/studio/new">
-          <Button>
-            <Plus className="me-2 h-4 w-4" /> New course
-          </Button>
-        </Link>
       </header>
+      <IngestModal open={importOpen} onClose={() => setImportOpen(false)} />
+      {aiOpen && <AIOutlineModal onClose={() => setAiOpen(false)} />}
 
-      <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="Filter courses by status">
+      {/* Filter tabs — border-b-2 active marker, no pill chips. */}
+      <div
+        className="mb-6 flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        role="tablist"
+        aria-label={t("studio.filterAria")}
+      >
         {FILTERS.map((f) => {
           const active = filter === f.value;
           return (
@@ -73,12 +122,15 @@ export default function StudioPage() {
               role="tab"
               aria-selected={active}
               onClick={() => setFilter(f.value)}
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition-colors ${
-                active ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
-              }`}
+              className={cn(
+                "-mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-3 pb-2 pt-1 font-body text-sm font-medium transition-colors duration-[160ms]",
+                active
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
             >
-              {f.label}
-              <span className="rounded-full bg-muted px-2 text-xs tabular-nums text-muted-foreground">
+              {t(f.labelKey)}
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
                 {counts[f.value]}
               </span>
             </button>
@@ -87,41 +139,58 @@ export default function StudioPage() {
       </div>
 
       {mine.isLoading ? (
-        <p className="text-muted-foreground">Loading…</p>
+        <p className="font-body text-sm text-muted-foreground">{t("common.loading")}</p>
       ) : !mine.data || mine.data.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-muted-foreground">
-            You haven&apos;t created any courses yet.
-          </CardContent>
-        </Card>
-      ) : visible.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-muted-foreground">
-            No courses in this state.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {visible.map((c) => (
-            <Card key={c.id}>
-              <CardHeader>
-                <div className="mb-1 flex items-center gap-2">
-                  <Badge variant={c.status === "published" ? "default" : "muted"}>{c.status}</Badge>
-                  <Badge variant="secondary">{c.subject.title}</Badge>
-                </div>
-                <CardTitle>
-                  <Link href={`/studio/${c.id}`} className="hover:underline">
-                    {c.title}
-                  </Link>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>{c.modules_count} modules</span>
-                <span>{c.enrollments_count} students</span>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="surface flex flex-col items-start gap-3 p-8">
+          <p className="font-display text-base leading-tight tracking-tight">
+            {t("studio.empty.none")}
+          </p>
+          <Link href="/studio/new">
+            <Button size="sm">
+              <Plus className="me-2 h-4 w-4" /> {t("studio.newCourse")}
+            </Button>
+          </Link>
         </div>
+      ) : visible.length === 0 ? (
+        <div className="surface p-8">
+          <p className="font-body text-sm text-muted-foreground">{t("studio.empty.filter")}</p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-border border-y border-border">
+          {visible.map((c) => (
+            <li
+              key={c.id}
+              className="flex items-center justify-between gap-4 px-1 py-3 transition-colors duration-[160ms] hover:bg-muted/30"
+            >
+              <div className="flex min-w-0 flex-col gap-1">
+                <Link
+                  href={`/studio/${c.id}`}
+                  className="font-display text-base leading-tight tracking-tight text-foreground transition-colors duration-[160ms] hover:text-muted-foreground"
+                >
+                  {c.title}
+                </Link>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant={
+                      c.status === "published"
+                        ? "default"
+                        : c.status === "archived"
+                          ? "muted"
+                          : "secondary"
+                    }
+                  >
+                    {t(`studio.filter.${c.status}` as MessageKey)}
+                  </Badge>
+                  <Badge variant="outline">{c.subject.title}</Badge>
+                </div>
+              </div>
+              <div className="hidden shrink-0 items-center gap-6 font-mono text-xs tabular-nums text-muted-foreground sm:flex">
+                <span>{t("studio.moduleCount", { n: c.modules_count })}</span>
+                <span>{t("studio.studentCount", { n: c.enrollments_count })}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

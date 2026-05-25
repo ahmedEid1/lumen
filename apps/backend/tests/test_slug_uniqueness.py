@@ -1,10 +1,18 @@
-"""Regression: slug minting must collide-detect against soft-deleted rows.
+"""Regression: slug minting on the create + rename paths.
 
-Before iteration 25, ``_unique_slug`` looked up candidates through
-``get_course_by_slug``, which already filtered ``deleted_at IS NOT NULL``.
-A second course created with the same title as a soft-deleted course
-appeared free to the slug minter, then the INSERT crashed against the
-unconditional ``UNIQUE(courses.slug)`` constraint.
+Two original cases lived here; one no longer applies and the other
+still does:
+
+* ``test_recreating_a_deleted_courses_title_picks_a_fresh_slug`` was
+  written under the pre-B3 invariant: slugs were unconditionally
+  unique, so a soft-deleted course's slug had to be avoided by the
+  minter. **Rebuild Fix B3 replaced the unconditional unique index
+  with a partial unique on live rows only** (``uq_courses_slug_live``),
+  which made slug reuse-after-soft-delete a feature, not a bug. The
+  case below now locks in B3's behaviour — the second course gets the
+  same slug the soft-deleted one had, no ``-2`` suffix.
+* ``test_renaming_keeps_slug_when_unchanged`` is unchanged and still
+  guards the ``exclude_id`` shortcut in the slug minter.
 """
 
 from __future__ import annotations
@@ -29,6 +37,15 @@ async def _make_subject(db: AsyncSession) -> Subject:
 async def test_recreating_a_deleted_courses_title_picks_a_fresh_slug(
     client: AsyncClient, auth_headers, db_session: AsyncSession
 ) -> None:
+    """After B3, the soft-deleted row's slug is *available* for reuse.
+
+    The minter checks ``slug_is_taken`` which (since B3) filters on
+    ``deleted_at IS NULL``. So the second course can — and should —
+    reclaim the original slug without a ``-2`` suffix. The partial-
+    unique index ``uq_courses_slug_live`` enforces that this is safe.
+    Renaming the test would lose the regression-name; the body now
+    locks in the post-B3 contract instead.
+    """
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
 
@@ -41,39 +58,26 @@ async def test_recreating_a_deleted_courses_title_picks_a_fresh_slug(
     first_slug = first.json()["slug"]
     first_id = first.json()["id"]
 
-    # Soft-delete it
     deleted = await client.delete(f"/api/v1/courses/{first_id}", headers=teacher)
     assert deleted.status_code == 200
 
-    # Create another course with the exact same title — slug must collide-
-    # detect against the soft-deleted row, not raise UniqueViolation.
     second = await client.post(
         "/api/v1/courses",
         json={"title": "Quantum mechanics", "subject_id": subject.id, "overview": "y"},
         headers=teacher,
     )
     assert second.status_code == 201, second.text
-    assert second.json()["slug"] != first_slug
+    # B3's contract: the soft-deleted row no longer blocks the slug;
+    # the live course gets the canonical "quantum-mechanics" back.
+    assert second.json()["slug"] == first_slug
 
 
-async def test_duplicating_a_course_uses_a_fresh_slug(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
-) -> None:
-    teacher = await auth_headers(role=Role.instructor)
-    subject = await _make_subject(db_session)
-    create = await client.post(
-        "/api/v1/courses",
-        json={"title": "Original", "subject_id": subject.id, "overview": "x"},
-        headers=teacher,
-    )
-    original_id = create.json()["id"]
-    original_slug = create.json()["slug"]
-
-    dup1 = await client.post(f"/api/v1/courses/{original_id}/duplicate", headers=teacher)
-    dup2 = await client.post(f"/api/v1/courses/{original_id}/duplicate", headers=teacher)
-    assert dup1.status_code == 201 and dup2.status_code == 201
-    slugs = {original_slug, dup1.json()["slug"], dup2.json()["slug"]}
-    assert len(slugs) == 3, slugs
+# NOTE: the ``test_duplicating_a_course_uses_a_fresh_slug`` case that
+# lived here previously exercised the
+# ``POST /api/v1/courses/{course_id}/duplicate`` endpoint, removed in
+# rebuild Cut A5. Slug uniqueness on the surviving create + rename
+# paths is still asserted by the two cases that bracket it; the
+# slug-mint helper they all share is what was load-bearing here.
 
 
 async def test_renaming_keeps_slug_when_unchanged(

@@ -113,9 +113,6 @@ export const Courses = {
       enrollments_last_30d: number;
     }>(`/api/v1/courses/${courseId}/analytics`, { token }),
 
-  duplicate: (courseId: string, token?: string) =>
-    api<CourseListItem>(`/api/v1/courses/${courseId}/duplicate`, { method: "POST", token }),
-
   getLesson: (lessonId: string, token?: string) =>
     api<LessonOut>(`/api/v1/courses/lessons/${lessonId}`, { token }),
 
@@ -147,6 +144,11 @@ export const Me = {
       token,
     }),
   notifications: (token?: string) => api("/api/v1/me/notifications", { token }),
+  /** Phase E7 — bundled mastery dashboard (weak spots + per-course
+   *  rollups). Fetched as a single round-trip so the surface paints
+   *  both sections on one loading state. */
+  mastery: (token?: string) =>
+    api<MasteryResponse>("/api/v1/me/mastery", { token }),
   markNotificationRead: (id: string, token?: string) =>
     api<{ ok: true }>(`/api/v1/me/notifications/${id}/read`, { method: "POST", token }),
   markAllNotificationsRead: (token?: string) =>
@@ -154,11 +156,370 @@ export const Me = {
       method: "POST",
       token,
     }),
-  bookmarks: (token?: string) => api<CourseListItem[]>("/api/v1/me/bookmarks", { token }),
-  bookmark: (courseId: string, token?: string) =>
-    api<{ ok: true }>(`/api/v1/me/bookmarks/${courseId}`, { method: "PUT", token }),
-  unbookmark: (courseId: string, token?: string) =>
-    api<{ ok: true }>(`/api/v1/me/bookmarks/${courseId}`, { method: "DELETE", token }),
+  // Phase D4 — per-kind notification dispatch prefs.
+  notificationPrefs: {
+    get: (token?: string) =>
+      api<NotificationPrefsResponse>("/api/v1/me/notifications/prefs", { token }),
+    update: (prefs: Record<string, NotificationDispatch>, token?: string) =>
+      api<NotificationPrefsResponse>("/api/v1/me/notifications/prefs", {
+        method: "PUT",
+        body: { prefs },
+        token,
+      }),
+  },
+};
+
+// ---------- Mastery dashboard (Phase E7) ----------
+
+/** Stable signal codes attached to a weak-spot row. The frontend
+ * localises each code and picks a Badge variant from it. */
+export type MasterySignal =
+  | "quiz_failed"
+  | "card_overdue"
+  | "quiz_low"
+  | "tutor_repeat";
+
+/** Slimmed lesson + course context attached to a weak-spot row. */
+export interface MasteryWeakSpotLesson {
+  id: string;
+  title: string;
+  course_id: string;
+  course_slug: string;
+  course_title: string;
+}
+
+/** One actionable row on the mastery dashboard. */
+export interface MasteryWeakSpot {
+  lesson: MasteryWeakSpotLesson;
+  signals: MasterySignal[];
+  /** Open-ended details map: ``quiz_score``, ``overdue_days``,
+   * ``tutor_count``. Always strings so JSON shape stays uniform. */
+  signal_details: Record<string, string>;
+  /** When the lesson has an FSRS card currently due, the
+   *  "Review now" CTA deep-links into the spaced-repetition queue. */
+  review_card_id: string | null;
+}
+
+/** Per-enrolled-course rollup row. */
+export interface MasteryCourse {
+  course_id: string;
+  slug: string;
+  title: string;
+  mastery_pct: number;
+  completion_pct: number;
+}
+
+/** Bundled mastery dashboard payload. */
+export interface MasteryResponse {
+  weak_spots: MasteryWeakSpot[];
+  courses: MasteryCourse[];
+}
+
+// Phase D4 — keep this in sync with backend NotificationKind /
+// NotificationDispatch enums.
+export type NotificationKind =
+  | "enrolled"
+  | "lesson_available"
+  | "certificate_ready"
+  | "review_received"
+  | "chat_mention"
+  | "security"
+  | "discussion_reply";
+
+export type NotificationDispatch =
+  | "off"
+  | "in_app"
+  | "email_immediate"
+  | "digest_daily";
+
+export interface NotificationPrefsResponse {
+  prefs: Record<NotificationKind, NotificationDispatch>;
+}
+
+// ---------- Studio content ingest (Phase E3) ----------
+
+export type IngestSource = "youtube" | "notion" | "google_docs" | "unknown";
+
+export interface IngestLessonDraft {
+  title: string;
+  type: "text";
+  body: string;
+  anchor: string | null;
+}
+
+export interface IngestModuleDraft {
+  title: string;
+  lessons: IngestLessonDraft[];
+}
+
+export interface IngestPayload {
+  title: string;
+  source_url: string;
+  source: IngestSource;
+  modules: IngestModuleDraft[];
+}
+
+export interface IngestCommitResponse {
+  course_id: string;
+  modules: number;
+  lessons: number;
+}
+
+export const Ingest = {
+  detect: (url: string, token?: string) =>
+    api<{ source: IngestSource }>(`/api/v1/studio/ingest/detect`, {
+      method: "POST",
+      body: { url },
+      token,
+    }),
+  preview: (url: string, token?: string) =>
+    api<IngestPayload>(`/api/v1/studio/ingest/preview`, {
+      method: "POST",
+      body: { url },
+      token,
+    }),
+  commit: (input: { course_id: string; payload: IngestPayload }, token?: string) =>
+    api<IngestCommitResponse>(`/api/v1/studio/ingest/commit`, {
+      method: "POST",
+      body: input,
+      token,
+    }),
+};
+
+// ---------- AI authoring (Phase E2) ----------
+
+export interface OutlineLesson {
+  title: string;
+  type: "text" | "quiz";
+}
+
+export interface OutlineModule {
+  title: string;
+  lessons: OutlineLesson[];
+}
+
+export interface CourseOutline {
+  title: string;
+  overview: string;
+  modules: OutlineModule[];
+}
+
+export interface AIQuizQuestion {
+  id: string;
+  prompt: string;
+  kind: "single" | "multiple" | "short";
+  choices: { id: string; text: string }[];
+  answer_keys: string[];
+}
+
+export interface CommittedLesson {
+  id: string;
+  title: string;
+  type: string;
+  order: number;
+}
+
+export interface CommittedModule {
+  id: string;
+  title: string;
+  order: number;
+  lessons: CommittedLesson[];
+}
+
+export interface CommitOutlineResponse {
+  course_id: string;
+  modules: CommittedModule[];
+}
+
+// ---------- I3: self-critique authoring loop ----------
+
+export interface CriticScoresOut {
+  coverage: number;
+  learning_arc: number;
+  scope: number;
+  mean: number;
+}
+
+export interface DraftCourseResponse {
+  course_id: string;
+  slug: string;
+  module_count: number;
+  lesson_count: number;
+  final_score: CriticScoresOut;
+  final_rationale: string;
+  draft_id: string;
+  revisions_used: number;
+}
+
+export interface DraftTraceStep {
+  id: string;
+  draft_id: string;
+  course_id: string | null;
+  step:
+    | "researcher"
+    | "outliner"
+    | "critic"
+    | "reviser"
+    | "lesson_drafter"
+    | "final_critic"
+    | string;
+  step_index: number;
+  status: "ok" | "error" | string;
+  duration_ms: number;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface DraftTraceResponse {
+  course_id: string;
+  draft_id: string | null;
+  steps: DraftTraceStep[];
+}
+
+export const AI = {
+  outline: (input: { brief: string; target_modules?: number }, token?: string) =>
+    api<CourseOutline>("/api/v1/studio/ai/outline", {
+      method: "POST",
+      body: input,
+      token,
+    }),
+  lessonBody: (
+    input: { lesson_title: string; course_context?: string },
+    token?: string,
+  ) =>
+    api<{ blocks: Record<string, unknown> }>("/api/v1/studio/ai/lesson-body", {
+      method: "POST",
+      body: input,
+      token,
+    }),
+  quiz: (
+    input: { lesson_title: string; course_context?: string; n?: number },
+    token?: string,
+  ) =>
+    api<{ questions: AIQuizQuestion[] }>("/api/v1/studio/ai/quiz", {
+      method: "POST",
+      body: input,
+      token,
+    }),
+  commitOutline: (
+    input: { course_id: string; outline: CourseOutline },
+    token?: string,
+  ) =>
+    api<CommitOutlineResponse>("/api/v1/studio/ai/commit-outline", {
+      method: "POST",
+      body: input,
+      token,
+    }),
+  draftCourse: (
+    input: { brief: string; subject_slug: string },
+    token?: string,
+  ) =>
+    api<DraftCourseResponse>("/api/v1/studio/ai/draft-course", {
+      method: "POST",
+      body: input,
+      token,
+    }),
+  draftTrace: (courseId: string, token?: string) =>
+    api<DraftTraceResponse>(
+      `/api/v1/studio/drafts/${encodeURIComponent(courseId)}/trace`,
+      { token },
+    ),
+};
+
+// ---------- Learner + instructor agent traces (Phase I4) ----------
+//
+// Two surfaces consume these endpoints: the per-turn tutor
+// drill-down at /dashboard/tutor/{cid}/turn/{mid} and the
+// instructor replay at /studio/draft/{cid}/replay.
+
+export interface TraceLLMCallSummary {
+  call_id: string;
+  feature: string;
+  provider: string;
+  model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cost_usd: string;
+  latency_ms: number;
+  status: string;
+  created_at: string;
+}
+
+export interface TraceStep {
+  trace_id: string;
+  parent_trace_id: string | null;
+  parent_call_id: string | null;
+  step: string;
+  step_index: number;
+  payload: Record<string, unknown>;
+  duration_ms: number;
+  status: string;
+  created_at: string;
+}
+
+export interface TraceRetrievalAudit {
+  audit_id: string;
+  feature: string;
+  query: string;
+  course_id: string | null;
+  chunks: Array<Record<string, unknown>>;
+  top_score: number | null;
+  created_at: string;
+}
+
+export interface TutorTurnTraceResponse {
+  message_id: string;
+  conversation_id: string;
+  course_id: string;
+  feature: string;
+  llm_call: TraceLLMCallSummary | null;
+  agent_traces: TraceStep[];
+  retrieval_audits: TraceRetrievalAudit[];
+  total_cost_usd: string;
+  total_latency_ms: number;
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  confidence: number;
+  created_at: string;
+}
+
+export interface DraftReplayStep {
+  id: string;
+  draft_id: string;
+  course_id: string | null;
+  step: string;
+  step_index: number;
+  status: string;
+  duration_ms: number;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface DraftReplayResponse {
+  course_id: string;
+  draft_id: string | null;
+  steps: DraftReplayStep[];
+  step_count: number;
+  total_duration_ms: number;
+}
+
+export const Traces = {
+  tutorTurn: (
+    conversationId: string,
+    messageId: string,
+    token?: string,
+  ) =>
+    api<TutorTurnTraceResponse>(
+      `/api/v1/me/tutor/conversations/${encodeURIComponent(
+        conversationId,
+      )}/turns/${encodeURIComponent(messageId)}/trace`,
+      { token },
+    ),
+  draftReplay: (courseId: string, token?: string) =>
+    api<DraftReplayResponse>(
+      `/api/v1/me/studio/drafts/${encodeURIComponent(courseId)}/replay`,
+      { token },
+    ),
 };
 
 // ---------- Reviews ----------
@@ -172,5 +533,144 @@ export const Reviews = {
     }),
   remove: (courseId: string, token?: string) =>
     api<{ ok: true }>(`/api/v1/courses/${courseId}/reviews`, { method: "DELETE", token }),
+};
+
+// ---------- Reviews queue (FSRS-6, Phase E4) ----------
+
+export type ReviewCardState = "new" | "learning" | "review" | "relearning";
+
+export interface ReviewCardLesson {
+  id: string;
+  title: string;
+  course_id: string;
+  course_title: string;
+  course_slug: string;
+}
+
+export interface ReviewCardOut {
+  id: string;
+  state: ReviewCardState;
+  stability: number;
+  difficulty: number;
+  due_at: string;
+  last_reviewed_at: string | null;
+  total_reviews: number;
+  lesson: ReviewCardLesson;
+}
+
+export interface ReviewQueueResponse {
+  items: ReviewCardOut[];
+}
+
+export interface ReviewStatsResponse {
+  due: number;
+  learning: number;
+  review: number;
+  next_7_days: number;
+}
+
+export type ReviewRating = "again" | "hard" | "good" | "easy";
+
+export const ReviewsQueue = {
+  queue: (token?: string, limit = 20) =>
+    api<ReviewQueueResponse>(`/api/v1/me/reviews/queue?limit=${limit}`, { token }),
+  stats: (token?: string) =>
+    api<ReviewStatsResponse>("/api/v1/me/reviews/stats", { token }),
+  grade: (cardId: string, rating: ReviewRating, token?: string) =>
+    api<ReviewCardOut>(`/api/v1/me/reviews/${cardId}/grade`, {
+      method: "POST",
+      body: { rating },
+      token,
+    }),
+};
+
+// ---------- Tutor (course-scoped RAG, Phase E1) ----------
+
+/** One citation pill rendered under an assistant message. */
+export interface TutorCitation {
+  lesson_id: string;
+  lesson_title: string;
+  chunk_excerpt: string;
+}
+
+/** One turn in a tutor conversation. */
+export interface TutorMessageOut {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  citations: TutorCitation[];
+  created_at: string;
+}
+
+/** Conversation list row in the "my recent threads" panel. */
+export interface TutorConversationSummary {
+  id: string;
+  course_id: string;
+  created_at: string;
+  last_message_at: string;
+  last_message_preview: string;
+  message_count: number;
+}
+
+/** Full conversation detail with its message history. */
+export interface TutorConversationDetail {
+  id: string;
+  course_id: string;
+  created_at: string;
+  last_message_at: string;
+  messages: TutorMessageOut[];
+}
+
+/** One sub-agent dispatch as rendered in the agent-reasoning panel (Phase I2). */
+export interface TutorToolCallTrace {
+  tool_name: string;
+  args: Record<string, unknown>;
+  rationale: string;
+  result_summary: string;
+  result_details: Record<string, unknown>;
+}
+
+/** Both turns returned by a single POST /messages call. */
+export interface TutorPostResponse {
+  user_message: TutorMessageOut;
+  assistant_message: TutorMessageOut;
+  refused: boolean;
+  /** Phase I2: 0-5 self-reported by the planner / re-planner. */
+  confidence?: number;
+  /** Phase I2: per-turn tool-call log for the agent-reasoning panel. */
+  agent_trace?: TutorToolCallTrace[];
+}
+
+export const Tutor = {
+  startConversation: (courseId: string, token?: string) =>
+    api<TutorConversationDetail>(
+      `/api/v1/courses/${encodeURIComponent(courseId)}/tutor/conversations`,
+      { method: "POST", token },
+    ),
+  listConversations: (
+    courseId: string,
+    params: { page?: number; page_size?: number } = {},
+    token?: string,
+  ) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null) qs.set(k, String(v));
+    }
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<Page<TutorConversationSummary>>(
+      `/api/v1/courses/${encodeURIComponent(courseId)}/tutor/conversations${suffix}`,
+      { token },
+    );
+  },
+  getConversation: (conversationId: string, token?: string) =>
+    api<TutorConversationDetail>(
+      `/api/v1/tutor/conversations/${encodeURIComponent(conversationId)}`,
+      { token },
+    ),
+  postMessage: (conversationId: string, content: string, token?: string) =>
+    api<TutorPostResponse>(
+      `/api/v1/tutor/conversations/${encodeURIComponent(conversationId)}/messages`,
+      { method: "POST", body: { content }, token },
+    ),
 };
 

@@ -57,9 +57,14 @@ describe("CourseCard", () => {
     expect(img).not.toBeNull();
   });
 
-  it("falls back to a letter monogram when there is no cover image", () => {
-    render(<CourseCard course={baseSample} />);
-    expect(screen.getByText("F")).toBeInTheDocument();
+  it("renders a decorative glyph fallback when there is no cover image", () => {
+    const { container } = render(<CourseCard course={baseSample} />);
+    // No <img> when cover_url is null
+    expect(container.querySelector("img")).toBeNull();
+    // The empty-cover area contains an SVG glyph — keyed to the scroll
+    // motif from the lumen primitives. We assert there is *some* SVG
+    // rather than pin a viewBox, so future glyph swaps don't break.
+    expect(container.querySelector("svg")).not.toBeNull();
   });
 
   it("renders the difficulty + subject badges", () => {

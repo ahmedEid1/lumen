@@ -10,11 +10,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LessonPlayer } from "@/components/lesson/lesson-player";
 import { ApiError } from "@/lib/api/client";
 import { Courses } from "@/lib/api/endpoints";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 type Params = { slug: string; lessonId: string };
 
 export default function PreviewLessonPage({ params }: { params: Promise<Params> }) {
   const { slug, lessonId } = use(params);
+  const t = useT();
 
   const lessonQ = useQuery({
     queryKey: ["preview", "lesson", lessonId],
@@ -22,45 +25,56 @@ export default function PreviewLessonPage({ params }: { params: Promise<Params> 
     retry: false,
   });
 
+  const errorCopy =
+    lessonQ.error instanceof ApiError && lessonQ.error.status === 403
+      ? t("preview.forbidden")
+      : lessonQ.error instanceof ApiError && lessonQ.error.status === 404
+        ? t("preview.notFound")
+        : t("preview.error");
+
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-10">
+    <div className="container mx-auto max-w-3xl px-6 py-10">
       <Link
         href={`/courses/${slug}`}
-        className="mb-4 inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
+        className="mb-4 inline-flex items-center font-body text-sm text-muted-foreground transition-colors duration-[160ms] hover:text-foreground"
       >
-        <ArrowLeft className="me-1 h-4 w-4" /> Back to course
+        <ArrowLeft className="me-1 h-4 w-4" /> {t("moduleEdit.backToCourse")}
       </Link>
+
+      <p className="mb-3 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+        {t("preview.cartouche")}
+      </p>
 
       <Card>
         <CardHeader>
-          <div className="mb-1 flex items-center gap-2">
-            <Badge variant="secondary">free preview</Badge>
-            {lessonQ.data && <Badge variant="muted">{lessonQ.data.type}</Badge>}
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge className="border border-primary bg-primary/10 font-mono uppercase tracking-wider text-primary">
+              {t("player.freePreview")}
+            </Badge>
+            {lessonQ.data && (
+              <Badge variant="muted" className="font-mono uppercase tracking-wider">
+                {t(`lessonType.${lessonQ.data.type}` as MessageKey)}
+              </Badge>
+            )}
           </div>
-          <CardTitle>{lessonQ.data?.title ?? "Lesson"}</CardTitle>
+          <CardTitle className="font-display text-2xl leading-tight tracking-tight">
+            {lessonQ.data?.title ?? t("preview.lessonFallback")}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {lessonQ.isLoading ? (
-            <div className="h-48 animate-pulse rounded-md bg-muted" aria-hidden />
+            <div className="skeleton h-48 border border-border" aria-hidden />
           ) : lessonQ.error ? (
-            <p className="text-sm text-muted-foreground">
-              {lessonQ.error instanceof ApiError && lessonQ.error.status === 403
-                ? "This lesson is for enrolled students. Enroll in the course to read it."
-                : lessonQ.error instanceof ApiError && lessonQ.error.status === 404
-                  ? "Lesson not found."
-                  : "Could not load this preview."}
-            </p>
+            <p className="font-body text-sm text-muted-foreground">{errorCopy}</p>
           ) : lessonQ.data ? (
             <LessonPlayer lesson={lessonQ.data} />
           ) : null}
 
-          <div className="mt-6 flex items-center justify-between rounded-lg border bg-muted/30 p-4">
-            <p className="text-sm text-muted-foreground">
-              Enjoying it? Enroll to unlock the rest of the course.
-            </p>
+          <div className="mt-6 flex flex-col items-start justify-between gap-3 rounded-md border border-border bg-surface-2 p-4 sm:flex-row sm:items-center">
+            <p className="font-body text-sm text-foreground">{t("preview.cta")}</p>
             <Link href={`/courses/${slug}`}>
               <Button>
-                <GraduationCap className="me-1 h-4 w-4" /> Enroll
+                <GraduationCap className="me-1 h-4 w-4" /> {t("course.enroll")}
               </Button>
             </Link>
           </div>

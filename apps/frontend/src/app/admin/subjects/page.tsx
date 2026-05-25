@@ -5,96 +5,123 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
 import { Catalog } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
+import { useT } from "@/lib/i18n/provider";
 
+/**
+ * Admin subjects — Workbench repaint.
+ *
+ * Flat add form on the page background, list rendered as a hairline-
+ * divided list — no nested card chrome. Slugs and counts in mono so
+ * the columns scan cleanly.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
 export default function AdminSubjects() {
   const qc = useQueryClient();
+  const t = useT();
   const subjectsQ = useQuery({ queryKey: qk.subjects, queryFn: () => Catalog.subjects() });
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
 
   const create = useMutation({
-    mutationFn: () => api("/api/v1/admin/subjects", { method: "POST", body: { title, slug: slug || undefined } }),
+    mutationFn: () =>
+      api("/api/v1/admin/subjects", {
+        method: "POST",
+        body: { title, slug: slug || undefined },
+      }),
     onSuccess: () => {
-      toast.success("Subject added");
+      toast.success(t("adminSubjects.successToast"));
       setTitle("");
       setSlug("");
       qc.invalidateQueries({ queryKey: qk.subjects });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not add"),
+    onError: (e: Error) => toast.error(e?.message ?? t("adminSubjects.addError")),
   });
   const remove = useMutation({
     mutationFn: (id: string) => api(`/api/v1/admin/subjects/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.subjects }),
-    onError: (e: Error) => toast.error(e?.message ?? "Could not delete"),
+    onError: (e: Error) => toast.error(e?.message ?? t("adminSubjects.deleteError")),
   });
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-10">
-      <h1 className="mb-4 text-2xl font-bold tracking-tight">Subjects</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>Add subject</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
-            onSubmit={(e) => {
-              e.preventDefault();
-              create.mutate();
-            }}
-          >
-            <Input
-              placeholder="Title (e.g. Programming)"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-            />
-            <Input placeholder="Slug (optional)" value={slug} onChange={(e) => setSlug(e.target.value)} />
-            <Button type="submit" disabled={!title || create.isPending}>
-              <Plus className="me-1 h-4 w-4" /> Add
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <div className="container mx-auto max-w-3xl px-6 py-14">
+      <header className="mb-8 flex flex-col gap-3">
+        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          {t("adminSubjects.cartouche")}
+        </p>
+        <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+          {t("adminSubjects.title")}
+        </h1>
+      </header>
 
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>All subjects</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="divide-y">
-            {subjectsQ.data?.map((s) => (
-              <li key={s.id} className="flex items-center justify-between py-2">
+      <section className="mb-10 border-t border-border pt-6">
+        <h2 className="mb-4 font-display text-base leading-tight tracking-tight">
+          {t("adminSubjects.addCard")}
+        </h2>
+        <form
+          className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
+          onSubmit={(e) => {
+            e.preventDefault();
+            create.mutate();
+          }}
+        >
+          <Input
+            placeholder={t("adminSubjects.titlePlaceholder")}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+          />
+          <Input
+            placeholder={t("adminSubjects.slugPlaceholder")}
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+          />
+          <Button type="submit" disabled={!title || create.isPending}>
+            <Plus className="me-1 h-4 w-4" /> {t("adminTags.add")}
+          </Button>
+        </form>
+      </section>
+
+      <section className="border-t border-border pt-6">
+        <h2 className="mb-4 font-display text-base leading-tight tracking-tight">
+          {t("adminSubjects.allCard")}
+        </h2>
+        {!subjectsQ.data?.length ? (
+          <p className="font-body text-sm text-muted-foreground">{t("adminSubjects.empty")}</p>
+        ) : (
+          <ul className="divide-y divide-border border-y border-border">
+            {subjectsQ.data.map((s) => (
+              <li
+                key={s.id}
+                className="flex items-center justify-between gap-3 px-1 py-3 transition-colors duration-[160ms] hover:bg-muted/30"
+              >
                 <div>
-                  <div className="font-medium">{s.title}</div>
-                  <div className="text-xs text-muted-foreground">/{s.slug}</div>
+                  <div className="font-body text-sm font-medium text-foreground">{s.title}</div>
+                  <div className="font-mono text-xs text-muted-foreground">/{s.slug}</div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-muted-foreground">
-                    {s.total_courses ?? 0} courses
+                  <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                    {t("adminSubjects.courseCount", { n: s.total_courses ?? 0 })}
                   </span>
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => remove.mutate(s.id)}
-                    aria-label="Delete"
+                    aria-label={t("common.delete")}
+                    className="text-muted-foreground hover:text-destructive"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </li>
             ))}
-            {!subjectsQ.data?.length && (
-              <li className="py-6 text-center text-sm text-muted-foreground">No subjects yet.</li>
-            )}
           </ul>
-        </CardContent>
-      </Card>
+        )}
+      </section>
     </div>
   );
 }

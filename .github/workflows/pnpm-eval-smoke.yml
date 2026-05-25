@@ -1,0 +1,144 @@
+name: Eval smoke (tutor)
+
+# Phase H2 gate. Runs a 3-item subset of the tutor golden dataset
+# end-to-end against the live FastAPI stack and judges with the
+# configured LLM. If ``OPENAI_API_KEY`` (Groq key — Groq accepts the
+# OpenAI-compat client via OPENAI_API_BASE) is set in repo secrets,
+# the smoke runs against Llama 3.3 70B and fails the build on
+# ``mean_overall < 3.5``. If the secret is missing, the smoke
+# still runs with ``LLM_PROVIDER=noop`` so we at least exercise
+# the runner code path and surface regressions there — but the
+# pass/fail score gate is skipped because the noop judge always
+# scores zero (noop replies don't parse as JSON).
+#
+# The JSONL report is uploaded as an artifact so any drop in mean
+# score can be diff'd against the previous run by downloading the
+# artifact from a green build and the new one from the failing PR.
+
+on:
+  push:
+    branches: [Rewrite, master]
+  pull_request:
+
+concurrency:
+  group: eval-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: tutor smoke (3 items)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare .env
+        run: cp .env.example .env
+
+      # Start only the services the eval needs: db (Postgres with
+      # pgvector), redis (Celery broker), and the api container. We
+      # skip web / s3 / mail to keep the runner footprint small —
+      # the eval calls services directly and doesn't need them.
+      - name: Start backend stack
+        run: docker compose up -d --build db redis api
+
+      - name: Wait for api healthy
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8000/api/v1/health/live >/dev/null 2>&1; then
+              echo "api up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "api never became healthy"; docker compose logs api; exit 1
+
+      - name: Migrate + seed
+        run: |
+          docker compose exec -T api alembic upgrade head
+          docker compose exec -T api python -m app.cli seed
+
+      - name: Decide LLM backend
+        id: backend
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -n "${OPENAI_API_KEY}" ]; then
+            echo "mode=real" >> $GITHUB_OUTPUT
+          else
+            echo "mode=noop" >> $GITHUB_OUTPUT
+          fi
+
+      # The "real" branch runs against Groq's OpenAI-compatible
+      # endpoint with Llama 3.3 70B — matches the spec addendum's
+      # locked execution path.
+      - name: Run eval smoke (real LLM)
+        if: steps.backend.outputs.mode == 'real'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          docker compose exec -T \
+            -e LLM_PROVIDER=openai \
+            -e OPENAI_API_BASE=https://api.groq.com/openai/v1 \
+            -e OPENAI_API_KEY="${OPENAI_API_KEY}" \
+            -e LLM_MODEL=llama-3.3-70b-versatile \
+            api python -m app.evals run --suite tutor --limit 3 --out /app/evals/reports/ci-smoke.jsonl
+
+      # The "noop" branch exercises the same code path without an
+      # outbound network call — used when the repo doesn't have a
+      # secret configured (forks, first-time clones, dependabot PRs).
+      - name: Run eval smoke (noop)
+        if: steps.backend.outputs.mode == 'noop'
+        run: |
+          docker compose exec -T \
+            -e LLM_PROVIDER=noop \
+            api python -m app.evals run --suite tutor --limit 3 --out /app/evals/reports/ci-smoke.jsonl
+
+      - name: Copy report to host
+        if: always()
+        run: |
+          docker compose cp api:/app/evals/reports/ci-smoke.jsonl ./ci-smoke.jsonl || true
+          ls -la ./ci-smoke.jsonl || echo "no report produced"
+
+      # Gate the build on mean_overall — only when a real LLM judged
+      # the run. With LLM_PROVIDER=noop the judge replies don't parse
+      # as JSON so every item is judge_errored and mean_overall is 0;
+      # gating on that would always fail in the no-secret path.
+      - name: Score gate (mean_overall >= 3.5)
+        if: steps.backend.outputs.mode == 'real'
+        run: |
+          python3 - <<'PY'
+          import json, sys, pathlib
+          path = pathlib.Path("ci-smoke.jsonl")
+          if not path.exists():
+              sys.exit("no smoke report on host")
+          summary = None
+          for raw in path.read_text(encoding="utf-8").splitlines():
+              raw = raw.strip()
+              if not raw:
+                  continue
+              row = json.loads(raw)
+              if row.get("_summary") is True:
+                  summary = row
+          if summary is None:
+              sys.exit("no _summary row in report")
+          mean = float(summary.get("mean_overall") or 0.0)
+          print(f"mean_overall = {mean}")
+          if mean < 3.5:
+              sys.exit(f"smoke gate failed: mean_overall {mean} < 3.5")
+          print("smoke gate passed")
+          PY
+
+      - name: Upload smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-smoke-tutor-report
+          path: ci-smoke.jsonl
+          if-no-files-found: ignore
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose down -v

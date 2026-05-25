@@ -1,10 +1,12 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
 import { useState } from "react";
 import { toast } from "sonner";
 import { Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
+import { useT } from "@/lib/i18n/provider";
 
 type PresignResponse = {
   method: "POST";
@@ -50,13 +52,14 @@ export function ImageUpload({
   shape = "circle",
   label,
 }: Props) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const effectiveAccept = accept ?? DEFAULT_ACCEPT[kind];
   const limit = maxBytes ?? DEFAULT_MAX[kind];
 
   async function handleFile(file: File) {
     if (file.size > limit) {
-      toast.error(`File is too large (max ${Math.round(limit / (1024 * 1024))} MB)`);
+      toast.error(t("upload.tooLarge", { n: Math.round(limit / (1024 * 1024)) }));
       return;
     }
     setBusy(true);
@@ -84,15 +87,18 @@ export function ImageUpload({
         // surface a friendly message instead of the raw status.
         if (upload.status === 403) {
           throw new Error(
-            `File exceeds the ${Math.round(presign.max_bytes / (1024 * 1024))} MB limit for ${kind} uploads`,
+            t("upload.exceedsLimit", {
+              n: Math.round(presign.max_bytes / (1024 * 1024)),
+              kind,
+            }),
           );
         }
-        throw new Error(`Upload failed (${upload.status})`);
+        throw new Error(t("upload.failedWithStatus", { status: upload.status }));
       }
       onChange(presign.public_url);
-      toast.success("Uploaded");
+      toast.success(t("upload.successToast"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Upload failed");
+      toast.error(e instanceof Error ? e.message : t("upload.failed"));
     } finally {
       setBusy(false);
     }
@@ -105,15 +111,19 @@ export function ImageUpload({
 
   return (
     <div className="space-y-2">
-      {label && <p className="text-sm font-medium">{label}</p>}
+      {label && <p className="font-body text-sm font-medium">{label}</p>}
       <div className="flex items-center gap-3">
         {value ? (
-          <img src={value} alt="" className={`${previewClass} border bg-muted`} />
+          <img
+            src={value}
+            alt=""
+            className={`${previewClass} border border-border/60 bg-muted`}
+          />
         ) : (
           <div
-            className={`${previewClass} flex items-center justify-center border bg-muted text-xs text-muted-foreground`}
+            className={`${previewClass} flex items-center justify-center border border-border/60 bg-muted/40 font-body text-xs italic text-muted-foreground`}
           >
-            none
+            {t("upload.none")}
           </div>
         )}
         <div className="flex flex-col gap-2">
@@ -129,13 +139,20 @@ export function ImageUpload({
               }}
               disabled={busy}
             />
-            <span className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border bg-background px-4 text-sm hover:bg-muted disabled:opacity-50">
-              <Upload className="h-4 w-4" /> {busy ? "Uploading…" : "Choose file"}
+            <span className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-border/60 bg-background px-4 font-body text-sm transition-colors hover:border-primary/60 hover:bg-primary/5 disabled:opacity-50">
+              <Upload className="h-4 w-4 text-muted-foreground" />{" "}
+              {busy ? t("upload.uploading") : t("upload.choose")}
             </span>
           </label>
           {value && (
-            <Button variant="ghost" size="sm" onClick={() => onChange(null)} disabled={busy}>
-              <X className="me-1 h-4 w-4" /> Remove
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onChange(null)}
+              disabled={busy}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <X className="me-1 h-4 w-4" /> {t("studioEdit.remove")}
             </Button>
           )}
         </div>

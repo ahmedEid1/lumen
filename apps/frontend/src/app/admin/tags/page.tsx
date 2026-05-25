@@ -5,14 +5,23 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
 import { Catalog } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
+import { useT } from "@/lib/i18n/provider";
 
+/**
+ * Admin tags — Workbench repaint.
+ *
+ * Flat add form, tags rendered as a bordered chip rail in mono. No
+ * card chrome; chips inherit the surface utility's border treatment.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
 export default function AdminTags() {
   const qc = useQueryClient();
+  const t = useT();
   const tagsQ = useQuery({ queryKey: qk.tags, queryFn: () => Catalog.tags() });
   const [name, setName] = useState("");
 
@@ -22,7 +31,7 @@ export default function AdminTags() {
       setName("");
       qc.invalidateQueries({ queryKey: qk.tags });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not add"),
+    onError: (e: Error) => toast.error(e?.message ?? t("adminTags.error")),
   });
 
   const remove = useMutation({
@@ -31,56 +40,65 @@ export default function AdminTags() {
   });
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-10">
-      <h1 className="mb-4 text-2xl font-bold tracking-tight">Tags</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>Add tag</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              create.mutate();
-            }}
-          >
-            <Input
-              placeholder="Name (e.g. Python)"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-            <Button type="submit" disabled={!name || create.isPending}>
-              <Plus className="me-1 h-4 w-4" /> Add
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>All tags</CardTitle>
-        </CardHeader>
-        <CardContent>
+    <div className="container mx-auto max-w-3xl px-6 py-14">
+      <header className="mb-8 flex flex-col gap-3">
+        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          {t("adminTags.cartouche")}
+        </p>
+        <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+          {t("adminTags.title")}
+        </h1>
+      </header>
+
+      <section className="mb-10 border-t border-border pt-6">
+        <h2 className="mb-4 font-display text-base leading-tight tracking-tight">
+          {t("adminTags.addCard")}
+        </h2>
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            create.mutate();
+          }}
+        >
+          <Input
+            placeholder={t("adminTags.namePlaceholder")}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+          <Button type="submit" disabled={!name || create.isPending}>
+            <Plus className="me-1 h-4 w-4" /> {t("adminTags.add")}
+          </Button>
+        </form>
+      </section>
+
+      <section className="border-t border-border pt-6">
+        <h2 className="mb-4 font-display text-base leading-tight tracking-tight">
+          {t("adminTags.allCard")}
+        </h2>
+        {!tagsQ.data?.length ? (
+          <p className="font-body text-sm text-muted-foreground">{t("adminTags.empty")}</p>
+        ) : (
           <ul className="flex flex-wrap gap-2">
-            {tagsQ.data?.map((t) => (
-              <li key={t.id} className="flex items-center gap-1 rounded-full border px-3 py-1 text-sm">
-                {t.name}
+            {tagsQ.data.map((tag) => (
+              <li
+                key={tag.id}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-muted px-2.5 py-1 font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors duration-[160ms] hover:border-foreground/40 hover:text-foreground"
+              >
+                {tag.name}
                 <button
-                  onClick={() => remove.mutate(t.id)}
-                  aria-label="Remove"
-                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => remove.mutate(tag.id)}
+                  aria-label={t("studioEdit.remove")}
+                  className="text-muted-foreground transition-colors duration-[160ms] hover:text-destructive"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-3 w-3" />
                 </button>
               </li>
             ))}
-            {!tagsQ.data?.length && (
-              <li className="w-full py-4 text-center text-sm text-muted-foreground">No tags yet.</li>
-            )}
           </ul>
-        </CardContent>
-      </Card>
+        )}
+      </section>
     </div>
   );
 }

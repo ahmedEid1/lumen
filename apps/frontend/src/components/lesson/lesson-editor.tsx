@@ -3,14 +3,17 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Courses } from "@/lib/api/endpoints";
-import type { LessonOut, LessonType } from "@/lib/api/types";
+import { AI, Courses } from "@/lib/api/endpoints";
+import type { LessonOut, LessonType, TextLessonData } from "@/lib/api/types";
+import { BlockEditor } from "@/components/lesson/block-editor";
+import { resolveTextLessonDoc, type BlockDoc, isBlockDoc, emptyDoc } from "@/lib/lesson/blocks";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 type QuizChoice = { id: string; text: string };
 type QuizQuestion = {
@@ -23,6 +26,11 @@ type QuizQuestion = {
 
 type Props = {
   moduleId: string;
+  /** Optional — only used to feed the "course context" to the AI assist
+   *  buttons. The lesson editor stays usable without it (the AI calls
+   *  just send an empty context string). */
+  courseId?: string;
+  courseTitle?: string;
   lesson?: LessonOut;
   newType?: LessonType;
   onSaved: () => void;
@@ -30,13 +38,69 @@ type Props = {
   onCancel?: () => void;
 };
 
-export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, onCancel }: Props) {
+export function LessonEditor({
+  moduleId,
+  courseId: _courseId,
+  courseTitle,
+  lesson,
+  newType,
+  onSaved,
+  onDeleted,
+  onCancel,
+}: Props) {
+  const t = useT();
   const type = (lesson?.type ?? newType ?? "text") as LessonType;
   const [title, setTitle] = useState(lesson?.title ?? "");
   const [duration, setDuration] = useState(lesson?.duration_seconds ?? 0);
   const [isPreview, setIsPreview] = useState<boolean>(lesson?.is_preview ?? false);
   const initial = useMemo(() => normalizeData(type, lesson?.data ?? {}), [type, lesson]);
   const [data, setData] = useState<any>(initial);
+  const [aiBusy, setAiBusy] = useState(false);
+
+  async function draftBodyWithAi() {
+    if (!title.trim()) {
+      toast.error(t("lessonEdit.ai.needTitle"));
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const res = await AI.lessonBody({
+        lesson_title: title.trim(),
+        course_context: courseTitle ?? "",
+      });
+      const blocks = isBlockDoc(res.blocks) ? res.blocks : emptyDoc();
+      setData((prev: any) => ({ ...prev, blocks }));
+      toast.success(t("lessonEdit.ai.bodyDraftedToast"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("lessonEdit.ai.error"));
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function generateQuizWithAi() {
+    if (!title.trim()) {
+      toast.error(t("lessonEdit.ai.needTitle"));
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const res = await AI.quiz({
+        lesson_title: title.trim(),
+        course_context: courseTitle ?? "",
+        n: 4,
+      });
+      setData((prev: any) => ({
+        ...prev,
+        questions: res.questions,
+      }));
+      toast.success(t("lessonEdit.ai.quizDraftedToast"));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("lessonEdit.ai.error"));
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   const save = useMutation({
     mutationFn: async () => {
@@ -59,31 +123,40 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
       }
     },
     onSuccess: () => {
-      toast.success("Lesson saved");
+      toast.success(t("lessonEdit.savedToast"));
       onSaved();
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not save lesson"),
+    onError: (e: Error) => toast.error(e?.message ?? t("lessonEdit.saveError")),
   });
 
   const remove = useMutation({
     mutationFn: () => Courses.deleteLesson(lesson!.id),
     onSuccess: () => {
-      toast.success("Lesson deleted");
+      toast.success(t("lessonEdit.deletedToast"));
       onDeleted?.();
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not delete"),
+    onError: (e: Error) => toast.error(e?.message ?? t("lessonEdit.deleteError")),
   });
 
   return (
-    <Card>
+    <Card className="surface">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>
-            {lesson ? "Edit lesson" : "New lesson"} <Badge variant="muted" className="ms-2 capitalize">{type}</Badge>
+          <CardTitle className="font-display text-2xl">
+            {lesson ? t("lessonEdit.titleEdit") : t("lessonEdit.titleNew")}{" "}
+            <Badge variant="muted" className="ms-2">
+              {t(`lessonType.${type}` as MessageKey)}
+            </Badge>
           </CardTitle>
           {lesson && (
-            <Button variant="ghost" size="sm" onClick={() => remove.mutate()} disabled={remove.isPending}>
-              <Trash2 className="me-1 h-4 w-4" /> Delete
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => remove.mutate()}
+              disabled={remove.isPending}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="me-1 h-4 w-4" /> {t("common.delete")}
             </Button>
           )}
         </div>
@@ -91,14 +164,14 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="title">
-              Title
+            <label className="font-body text-sm font-medium" htmlFor="title">
+              {t("studioNew.field.title")}
             </label>
             <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="duration">
-              Duration (seconds)
+            <label className="font-body text-sm font-medium" htmlFor="duration">
+              {t("lessonEdit.duration")}
             </label>
             <Input
               id="duration"
@@ -109,38 +182,49 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
             />
           </div>
         </div>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-2 font-body text-sm">
           <input
             type="checkbox"
             checked={isPreview}
             onChange={(e) => setIsPreview(e.target.checked)}
-            className="h-4 w-4 rounded border-input"
+            className="h-4 w-4 rounded border-border accent-[hsl(var(--primary))]"
           />
-          <span>
-            Free preview (visible to non-enrolled visitors when the course is published)
-          </span>
+          <span>{t("lessonEdit.freePreview")}</span>
         </label>
 
         {type === "text" && (
           <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="body">
-              Body (Markdown)
-            </label>
-            <Textarea
-              id="body"
-              rows={14}
-              value={data.body_markdown ?? ""}
-              onChange={(e) => setData({ ...data, body_markdown: e.target.value })}
-              placeholder="# Heading&#10;&#10;Write your lesson..."
-            />
+            <div className="flex items-center justify-between gap-2">
+              <label className="font-body text-sm font-medium" id="lesson-body-label">
+                {t("lessonEdit.body")}
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={draftBodyWithAi}
+                disabled={aiBusy || !title.trim()}
+                aria-label={t("lessonEdit.ai.draftBody")}
+              >
+                <Sparkles className="me-1 h-3.5 w-3.5" />
+                {aiBusy ? t("lessonEdit.ai.drafting") : t("lessonEdit.ai.draftBody")}
+              </Button>
+            </div>
+            <div aria-labelledby="lesson-body-label">
+              <BlockEditor
+                value={data.blocks as BlockDoc}
+                onChange={(blocks) => setData({ ...data, blocks })}
+                placeholder={t("lessonEdit.bodyPlaceholder")}
+              />
+            </div>
           </div>
         )}
 
         {type === "video" && (
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="video-url">
-                Video URL
+              <label className="font-body text-sm font-medium" htmlFor="video-url">
+                {t("lessonEdit.videoUrl")}
               </label>
               <Input
                 id="video-url"
@@ -150,8 +234,8 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="video-captions">
-                Captions URL (WebVTT, optional)
+              <label className="font-body text-sm font-medium" htmlFor="video-captions">
+                {t("lessonEdit.captionsUrl")}
               </label>
               <Input
                 id="video-captions"
@@ -159,26 +243,32 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
                 onChange={(e) => setData({ ...data, captions_url: e.target.value || null })}
                 placeholder="https://.../captions.vtt"
               />
-              <p className="text-xs text-muted-foreground">
-                Add WebVTT captions so the lesson stays accessible to deaf
-                / hard-of-hearing learners. Default: on.
+              <p className="font-body text-xs text-muted-foreground">
+                {t("lessonEdit.captionsHelp")}
               </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="captions-label">
-                  Caption track label
+                <label className="font-body text-sm font-medium" htmlFor="captions-label">
+                  {t("lessonEdit.captionsLabel")}
                 </label>
                 <Input
                   id="captions-label"
+                  // Persisted data fallback intentionally stays as the
+                  // literal "English" — it's what the <track label="">
+                  // attribute shows to learners on the video player if
+                  // the instructor doesn't override it. The placeholder
+                  // is the only locale-aware part: an Arabic instructor
+                  // sees "العربية" as the hint, suggesting they should
+                  // type the language they're actually using.
                   value={data.captions_label ?? "English"}
                   onChange={(e) => setData({ ...data, captions_label: e.target.value })}
-                  placeholder="English"
+                  placeholder={t("lessonEdit.captionsLabelPlaceholder")}
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="captions-lang">
-                  Language code (BCP-47)
+                <label className="font-body text-sm font-medium" htmlFor="captions-lang">
+                  {t("lessonEdit.captionsLang")}
                 </label>
                 <Input
                   id="captions-lang"
@@ -195,8 +285,8 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
         {type === "image" && (
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="image-key">
-                Asset key
+              <label className="font-body text-sm font-medium" htmlFor="image-key">
+                {t("lessonEdit.assetKey")}
               </label>
               <Input
                 id="image-key"
@@ -206,8 +296,8 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="image-alt">
-                Alt text
+              <label className="font-body text-sm font-medium" htmlFor="image-alt">
+                {t("lessonEdit.altText")}
               </label>
               <Input
                 id="image-alt"
@@ -221,8 +311,8 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
         {type === "file" && (
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="file-key">
-                Asset key
+              <label className="font-body text-sm font-medium" htmlFor="file-key">
+                {t("lessonEdit.assetKey")}
               </label>
               <Input
                 id="file-key"
@@ -231,8 +321,8 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="file-name">
-                Filename
+              <label className="font-body text-sm font-medium" htmlFor="file-name">
+                {t("lessonEdit.filename")}
               </label>
               <Input
                 id="file-name"
@@ -243,15 +333,32 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
           </div>
         )}
 
-        {type === "quiz" && <QuizEditor data={data} onChange={setData} />}
+        {type === "quiz" && (
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={generateQuizWithAi}
+                disabled={aiBusy || !title.trim()}
+                aria-label={t("lessonEdit.ai.generateQuiz")}
+              >
+                <Sparkles className="me-1 h-3.5 w-3.5" />
+                {aiBusy ? t("lessonEdit.ai.drafting") : t("lessonEdit.ai.generateQuiz")}
+              </Button>
+            </div>
+            <QuizEditor data={data} onChange={setData} />
+          </div>
+        )}
       </CardContent>
       <CardFooter className="justify-between">
         <Button onClick={() => save.mutate()} disabled={!title || save.isPending}>
-          {save.isPending ? "Saving…" : "Save lesson"}
+          {save.isPending ? t("common.saving") : t("lessonEdit.save")}
         </Button>
         {onCancel && (
           <Button variant="ghost" onClick={onCancel}>
-            Cancel
+            {t("common.cancel")}
           </Button>
         )}
       </CardFooter>
@@ -260,6 +367,7 @@ export function LessonEditor({ moduleId, lesson, newType, onSaved, onDeleted, on
 }
 
 function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => void }) {
+  const t = useT();
   const questions: QuizQuestion[] = data.questions ?? [];
   const passScore: number = data.pass_score ?? 60;
 
@@ -296,8 +404,8 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <label className="text-sm font-medium" htmlFor="pass-score">
-          Pass score (%)
+        <label className="font-body text-sm font-medium" htmlFor="pass-score">
+          {t("quizEdit.passScore")}
         </label>
         <Input
           id="pass-score"
@@ -311,23 +419,30 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
       </div>
       <ul className="space-y-3">
         {questions.map((q, idx) => (
-          <li key={idx} className="rounded-md border p-3">
+          <li key={idx} className="surface p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="text-xs uppercase text-muted-foreground">Question {idx + 1}</span>
-              <Button variant="ghost" size="sm" onClick={() => removeQ(idx)}>
-                Remove
+              <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                {t("quizEdit.questionN", { n: idx + 1 })}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => removeQ(idx)}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                {t("studioEdit.remove")}
               </Button>
             </div>
             <Input
-              placeholder="Prompt"
+              placeholder={t("quizEdit.promptPlaceholder")}
               value={q.prompt}
               onChange={(e) => updateQ(idx, (cur) => ({ ...cur, prompt: e.target.value }))}
               className="mb-2"
             />
-            <div className="mb-2 flex items-center gap-2 text-sm">
-              <span>Type</span>
+            <div className="mb-2 flex items-center gap-2 font-body text-sm">
+              <span>{t("quizEdit.type")}</span>
               <select
-                className="h-9 rounded border bg-background px-2"
+                className="h-9 rounded-md border border-border bg-muted px-2 text-foreground transition-colors duration-[160ms] focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none"
                 value={q.kind}
                 onChange={(e) =>
                   updateQ(idx, (cur) => ({
@@ -338,15 +453,15 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
                   }))
                 }
               >
-                <option value="single">Single choice</option>
-                <option value="multiple">Multiple choice</option>
-                <option value="short">Short answer</option>
+                <option value="single">{t("quizEdit.kindSingle")}</option>
+                <option value="multiple">{t("quizEdit.kindMulti")}</option>
+                <option value="short">{t("quizEdit.kindShort")}</option>
               </select>
             </div>
 
             {q.kind === "short" ? (
               <Input
-                placeholder="Accepted answer (case-insensitive)"
+                placeholder={t("quizEdit.shortAnswerPlaceholder")}
                 value={q.answer_keys[0] ?? ""}
                 onChange={(e) => updateQ(idx, (cur) => ({ ...cur, answer_keys: [e.target.value] }))}
               />
@@ -369,6 +484,7 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
                             return { ...cur, answer_keys: Array.from(set) };
                           })
                         }
+                        className="accent-[hsl(var(--primary))]"
                       />
                       <Input
                         value={c.text}
@@ -380,7 +496,7 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
                             ),
                           }))
                         }
-                        placeholder={`Choice ${c.id.toUpperCase()}`}
+                        placeholder={t("quizEdit.choicePlaceholder", { letter: c.id.toUpperCase() })}
                       />
                       <Button
                         variant="ghost"
@@ -392,6 +508,7 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
                             answer_keys: cur.answer_keys.filter((k) => k !== c.id),
                           }))
                         }
+                        className="text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -411,7 +528,7 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
                     }))
                   }
                 >
-                  <Plus className="me-1 h-4 w-4" /> Add choice
+                  <Plus className="me-1 h-4 w-4" /> {t("quizEdit.addChoice")}
                 </Button>
               </ul>
             )}
@@ -419,7 +536,7 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
         ))}
       </ul>
       <Button variant="outline" onClick={addQ}>
-        <Plus className="me-1 h-4 w-4" /> Add question
+        <Plus className="me-1 h-4 w-4" /> {t("quizEdit.addQuestion")}
       </Button>
     </div>
   );
@@ -430,7 +547,15 @@ function normalizeData(type: LessonType, raw: any): any {
   delete copy.type;
   switch (type) {
     case "text":
-      return { body_markdown: copy.body_markdown ?? "" };
+      // Promote whichever shape arrived from the wire into the new
+      // block-tree form. Legacy lessons stored markdown in
+      // `body_markdown`; the block editor (Phase E6) writes
+      // `blocks` and is the only field the player reads going
+      // forward. The promotion is lossless for new lessons (the
+      // doc round-trips through Tiptap unchanged) and best-effort
+      // for legacy ones (markdown → single paragraph; see
+      // `lib/lesson/blocks.ts`).
+      return { blocks: resolveTextLessonDoc(copy as TextLessonData) };
     case "video":
       return {
         url: copy.url ?? "",

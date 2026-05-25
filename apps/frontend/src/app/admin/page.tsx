@@ -5,15 +5,29 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { RefreshCw } from "lucide-react";
+import { ArrowRight, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
+import { useT } from "@/lib/i18n/provider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
+/**
+ * Admin home — Workbench repaint.
+ *
+ * Stats render as a tight surface tile grid with mono+tabular-nums for
+ * every value (so admins reading numbers don't get baseline wobble).
+ * The old `lift-3d` tile grid is replaced by a dense panel: each admin
+ * tool is a bordered row with a title, description, and a small arrow.
+ * Search reindex is a single trailing section.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
 export default function AdminHome() {
   const { user, ready } = useAuth();
   const router = useRouter();
+  const t = useT();
+
   useEffect(() => {
     if (!ready) return;
     if (!user) router.replace("/login?next=/admin");
@@ -22,8 +36,8 @@ export default function AdminHome() {
 
   const reindex = useMutation({
     mutationFn: () => api("/api/v1/admin/search/reindex", { method: "POST" }),
-    onSuccess: () => toast.success("Reindex queued"),
-    onError: (e: Error) => toast.error(e?.message ?? "Could not queue reindex"),
+    onSuccess: () => toast.success(t("admin.searchIndex.toast")),
+    onError: (e: Error) => toast.error(e?.message ?? t("admin.searchIndex.error")),
   });
 
   const stats = useQuery({
@@ -43,75 +57,92 @@ export default function AdminHome() {
 
   if (!ready || !user || user.role !== "admin") return null;
 
-  const tiles = [
-    { href: "/admin/subjects", title: "Subjects", body: "Manage the taxonomy of the catalog." },
-    { href: "/admin/tags", title: "Tags", body: "Curate the public tag list." },
-    { href: "/admin/courses", title: "Courses", body: "Oversee the catalog, set featured." },
-    { href: "/admin/users", title: "Users", body: "Promote instructors, manage activity." },
-    { href: "/admin/audit", title: "Audit log", body: "Track sensitive admin actions." },
+  const tools: { href: string; titleKey: MessageKey; bodyKey: MessageKey }[] = [
+    { href: "/admin/subjects", titleKey: "admin.tile.subjects.title", bodyKey: "admin.tile.subjects.body" },
+    { href: "/admin/tags", titleKey: "admin.tile.tags.title", bodyKey: "admin.tile.tags.body" },
+    { href: "/admin/courses", titleKey: "admin.tile.courses.title", bodyKey: "admin.tile.courses.body" },
+    { href: "/admin/users", titleKey: "admin.tile.users.title", bodyKey: "admin.tile.users.body" },
+    { href: "/admin/audit", titleKey: "admin.tile.audit.title", bodyKey: "admin.tile.audit.body" },
   ];
 
   return (
-    <div className="container mx-auto px-4 py-10">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Admin</h1>
-        <p className="text-muted-foreground">Operate the platform.</p>
+    <div className="container mx-auto px-6 py-14">
+      <header className="mb-10 flex flex-col gap-3">
+        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          {t("admin.cartouche")}
+        </p>
+        <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+          {t("admin.title")}
+        </h1>
+        <p className="font-body text-sm text-muted-foreground">{t("admin.subtitle")}</p>
       </header>
+
+      {/* Stats panel — mono, tabular-nums. */}
       {stats.data && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Platform at a glance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4 lg:grid-cols-7">
-              <StatTile label="Users" value={stats.data.users} />
-              <StatTile label="Active" value={stats.data.active_users} />
-              <StatTile label="Instructors" value={stats.data.instructors} />
-              <StatTile label="Courses" value={stats.data.courses_total} />
-              <StatTile label="Published" value={stats.data.courses_published} />
-              <StatTile label="Drafts" value={stats.data.courses_draft} />
-              <StatTile label="Enrollments" value={stats.data.enrollments} />
-            </dl>
-          </CardContent>
-        </Card>
+        <section className="mb-12 border-t border-border pt-8">
+          <h2 className="mb-5 font-display text-lg leading-tight tracking-tight">
+            {t("admin.stats.title")}
+          </h2>
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+            <StatTile label={t("admin.stat.users")} value={stats.data.users} />
+            <StatTile label={t("admin.stat.active")} value={stats.data.active_users} />
+            <StatTile label={t("admin.stat.instructors")} value={stats.data.instructors} />
+            <StatTile label={t("admin.stat.courses")} value={stats.data.courses_total} />
+            <StatTile label={t("admin.stat.published")} value={stats.data.courses_published} />
+            <StatTile label={t("admin.stat.drafts")} value={stats.data.courses_draft} />
+            <StatTile label={t("admin.stat.enrollments")} value={stats.data.enrollments} />
+          </dl>
+        </section>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tiles.map((t) => (
-          <Link key={t.href} href={t.href}>
-            <Card className="h-full transition-shadow hover:shadow-md">
-              <CardHeader>
-                <CardTitle>{t.title}</CardTitle>
-                <CardDescription>{t.body}</CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      {/* Tools — dense bordered rows, no 3D tile grid. */}
+      <section className="border-t border-border pt-8">
+        <h2 className="mb-5 font-display text-lg leading-tight tracking-tight">
+          {t("admin.title")}
+        </h2>
+        <ul className="divide-y divide-border border-y border-border">
+          {tools.map((tool) => (
+            <li key={tool.href}>
+              <Link
+                href={tool.href}
+                className="group flex items-center justify-between gap-4 px-1 py-4 transition-colors duration-[160ms] hover:bg-muted/30"
+              >
+                <div className="flex flex-col gap-1">
+                  <span className="font-display text-base leading-tight tracking-tight text-foreground transition-colors duration-[160ms] group-hover:text-muted-foreground">
+                    {t(tool.titleKey)}
+                  </span>
+                  <span className="font-body text-sm text-muted-foreground">{t(tool.bodyKey)}</span>
+                </div>
+                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-colors duration-[160ms] group-hover:text-foreground" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
 
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Search index</CardTitle>
-          <CardDescription>
-            Rebuild the search index from published courses. Runs in the background.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={() => reindex.mutate()} disabled={reindex.isPending}>
-            <RefreshCw className={`me-2 h-4 w-4 ${reindex.isPending ? "animate-spin" : ""}`} />
-            {reindex.isPending ? "Queuing…" : "Reindex catalog"}
-          </Button>
-        </CardContent>
-      </Card>
+      <section className="mt-12 border-t border-border pt-8">
+        <h2 className="mb-2 font-display text-lg leading-tight tracking-tight">
+          {t("admin.searchIndex.title")}
+        </h2>
+        <p className="mb-4 max-w-2xl font-body text-sm text-muted-foreground">
+          {t("admin.searchIndex.body")}
+        </p>
+        <Button onClick={() => reindex.mutate()} disabled={reindex.isPending}>
+          <RefreshCw className={`me-2 h-4 w-4 ${reindex.isPending ? "animate-spin" : ""}`} />
+          {reindex.isPending ? t("admin.searchIndex.submitting") : t("admin.searchIndex.submit")}
+        </Button>
+      </section>
     </div>
   );
 }
 
 function StatTile({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border bg-background p-3">
-      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-2xl font-semibold tabular-nums">{value.toLocaleString()}</dd>
+    <div className="surface p-4">
+      <dt className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{label}</dt>
+      <dd className="mt-2 font-mono text-xl tabular-nums text-foreground">
+        {value.toLocaleString()}
+      </dd>
     </div>
   );
 }

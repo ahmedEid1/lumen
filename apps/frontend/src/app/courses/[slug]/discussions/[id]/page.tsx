@@ -5,14 +5,25 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Bell, BellOff, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { formatRelative } from "@/lib/utils";
+import { useT } from "@/lib/i18n/provider";
+
+/**
+ * Thread detail — Workbench repaint.
+ *
+ * Single column. The opening post leads, replies are stacked below
+ * separated by subtle border-t dividers rather than card frames. The
+ * reply composer is a flat textarea + primary CTA at the bottom — the
+ * single lime affordance on the page.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
 
 type Author = { id: string; full_name: string; avatar_url: string | null } | null;
 
@@ -33,7 +44,6 @@ type ThreadDetail = {
   updated_at: string;
   author: Author;
   replies: Reply[];
-  is_subscribed: boolean;
 };
 
 export default function ThreadPage({
@@ -45,6 +55,7 @@ export default function ThreadPage({
   const qc = useQueryClient();
   const router = useRouter();
   const { user } = useAuth();
+  const t = useT();
   const [draft, setDraft] = useState("");
 
   const threadQ = useQuery({
@@ -62,26 +73,16 @@ export default function ThreadPage({
       setDraft("");
       qc.invalidateQueries({ queryKey: ["discussion", id] });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not post reply"),
-  });
-
-  const toggleSubscribe = useMutation({
-    mutationFn: () =>
-      api<{ ok: true }>(
-        `/api/v1/discussions/${id}/subscribe`,
-        { method: threadQ.data?.is_subscribed ? "DELETE" : "POST" },
-      ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["discussion", id] }),
-    onError: (e: Error) => toast.error(e?.message ?? "Could not update subscription"),
+    onError: (e: Error) => toast.error(e?.message ?? t("thread.postError")),
   });
 
   const deleteThread = useMutation({
     mutationFn: () => api<{ ok: true }>(`/api/v1/discussions/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      toast.success("Thread deleted");
+      toast.success(t("thread.deletedToast"));
       router.replace(`/courses/${slug}/discussions`);
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not delete"),
+    onError: (e: Error) => toast.error(e?.message ?? t("thread.deleteError")),
   });
 
   const deleteReply = useMutation({
@@ -90,156 +91,142 @@ export default function ThreadPage({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["discussion", id] });
     },
-    onError: (e: Error) => toast.error(e?.message ?? "Could not delete reply"),
+    onError: (e: Error) => toast.error(e?.message ?? t("thread.replyDeleteError")),
   });
 
-  if (threadQ.isLoading) return <div className="container mx-auto px-4 py-10">Loading…</div>;
+  if (threadQ.isLoading)
+    return (
+      <div className="container mx-auto px-6 py-14 font-body text-sm text-muted-foreground">
+        {t("common.loading")}
+      </div>
+    );
   if (!threadQ.data) {
     return (
-      <div className="container mx-auto px-4 py-10 text-muted-foreground">
-        Thread not found.
+      <div className="container mx-auto flex flex-col items-start gap-3 px-6 py-20">
+        <p className="font-display text-xl leading-tight tracking-tight text-muted-foreground">
+          {t("thread.notFound")}
+        </p>
       </div>
     );
   }
-  const t = threadQ.data;
-  const canEditThread = !!user && (user.id === t.author?.id || user.role === "admin");
+  const thread = threadQ.data;
+  const canEditThread = !!user && (user.id === thread.author?.id || user.role === "admin");
+  const replyCountKey = thread.replies.length === 1 ? "thread.replyCountOne" : "thread.replyCount";
 
   return (
-    <div className="container mx-auto max-w-3xl space-y-6 px-4 py-10">
+    <div className="container mx-auto max-w-3xl px-6 py-14">
       <Link
         href={`/courses/${slug}/discussions`}
-        className="text-sm text-muted-foreground hover:underline"
+        className="mb-4 inline-flex items-center font-body text-sm text-muted-foreground transition-colors duration-[160ms] hover:text-foreground"
       >
-        ← All discussions
+        <ArrowLeft className="me-1 h-4 w-4" /> {t("thread.allDiscussions")}
       </Link>
 
-      <Card>
-        <CardHeader className="space-y-2">
-          <div className="flex items-start justify-between gap-3">
-            <CardTitle>{t.title}</CardTitle>
-            <div className="flex items-center gap-1">
-              {user && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => toggleSubscribe.mutate()}
-                  disabled={toggleSubscribe.isPending}
-                  title={
-                    t.is_subscribed
-                      ? "Stop getting notified about new replies"
-                      : "Get notified when someone replies"
-                  }
-                >
-                  {t.is_subscribed ? (
-                    <>
-                      <BellOff className="me-1 h-3.5 w-3.5" /> Subscribed
-                    </>
-                  ) : (
-                    <>
-                      <Bell className="me-1 h-3.5 w-3.5" /> Subscribe
-                    </>
-                  )}
-                </Button>
-              )}
-              {canEditThread && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Delete thread"
-                  onClick={() => deleteThread.mutate()}
-                  disabled={deleteThread.isPending}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Avatar className="h-5 w-5">
-              <AvatarImage src={t.author?.avatar_url ?? undefined} alt="" />
-              <AvatarFallback>
-                {(t.author?.full_name ?? "?").slice(0, 1)}
-              </AvatarFallback>
-            </Avatar>
-            <span>{t.author?.full_name ?? "Deleted user"}</span>
-            <span>· {formatRelative(t.created_at)}</span>
-          </div>
-        </CardHeader>
-        {t.body && (
-          <CardContent>
-            <p className="whitespace-pre-wrap text-sm">{t.body}</p>
-          </CardContent>
-        )}
-      </Card>
-
-      <h2 className="text-sm font-medium text-muted-foreground">
-        {t.replies.length} {t.replies.length === 1 ? "reply" : "replies"}
-      </h2>
-      <ul className="space-y-3">
-        {t.replies.map((r) => {
-          const canDelete = !!user && (user.id === r.author?.id || user.role === "admin");
-          return (
-            <li key={r.id}>
-              <Card>
-                <CardContent className="space-y-2 pt-4">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="flex items-center gap-2">
-                      <Avatar className="h-5 w-5">
-                        <AvatarImage src={r.author?.avatar_url ?? undefined} alt="" />
-                        <AvatarFallback>
-                          {(r.author?.full_name ?? "?").slice(0, 1)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span>{r.author?.full_name ?? "Deleted user"}</span>
-                      <span>· {formatRelative(r.created_at)}</span>
-                    </span>
-                    {canDelete && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Delete reply"
-                        onClick={() => deleteReply.mutate(r.id)}
-                        disabled={deleteReply.isPending}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                  <p className="whitespace-pre-wrap text-sm">{r.body}</p>
-                </CardContent>
-              </Card>
-            </li>
-          );
-        })}
-      </ul>
-
-      {user && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Reply</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form
-              className="space-y-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!draft.trim()) return;
-                reply.mutate();
-              }}
+      {/* Opening post */}
+      <article className="mb-10">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <h1 className="font-display text-2xl leading-tight tracking-tight sm:text-3xl">
+            {thread.title}
+          </h1>
+          {canEditThread && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("thread.deleteThread")}
+              onClick={() => deleteThread.mutate()}
+              disabled={deleteThread.isPending}
+              className="text-muted-foreground hover:text-destructive"
             >
-              <Textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                rows={3}
-                maxLength={10000}
-                placeholder="Add to the conversation…"
-              />
-              <Button type="submit" disabled={reply.isPending || !draft.trim()}>
-                {reply.isPending ? "Posting…" : "Post reply"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        <div className="mb-4 flex items-center gap-2 font-body text-xs text-muted-foreground">
+          <Avatar className="h-5 w-5 border border-border">
+            <AvatarImage src={thread.author?.avatar_url ?? undefined} alt="" />
+            <AvatarFallback>
+              {(thread.author?.full_name ?? "?").slice(0, 1)}
+            </AvatarFallback>
+          </Avatar>
+          <span>{thread.author?.full_name ?? t("discussions.deletedUser")}</span>
+          <span className="font-mono">· {formatRelative(thread.created_at)}</span>
+        </div>
+        {thread.body && (
+          <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-foreground/90">
+            {thread.body}
+          </p>
+        )}
+      </article>
+
+      {/* Replies */}
+      <section className="border-t border-border pt-8">
+        <h2 className="mb-5 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          {t(replyCountKey, { n: thread.replies.length })}
+        </h2>
+        <ul className="divide-y divide-border border-y border-border">
+          {thread.replies.map((r) => {
+            const canDelete = !!user && (user.id === r.author?.id || user.role === "admin");
+            return (
+              <li key={r.id} className="py-5">
+                <div className="mb-2 flex items-center justify-between font-body text-xs text-muted-foreground">
+                  <span className="flex items-center gap-2">
+                    <Avatar className="h-5 w-5 border border-border">
+                      <AvatarImage src={r.author?.avatar_url ?? undefined} alt="" />
+                      <AvatarFallback>
+                        {(r.author?.full_name ?? "?").slice(0, 1)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span>{r.author?.full_name ?? t("discussions.deletedUser")}</span>
+                    <span className="font-mono">· {formatRelative(r.created_at)}</span>
+                  </span>
+                  {canDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t("thread.deleteReply")}
+                      onClick={() => deleteReply.mutate(r.id)}
+                      disabled={deleteReply.isPending}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+                <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-foreground/90">
+                  {r.body}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      {/* Reply composer */}
+      {user && (
+        <section className="mt-10 border-t border-border pt-8">
+          <h2 className="mb-4 font-display text-base leading-tight tracking-tight">
+            {t("thread.replyCard")}
+          </h2>
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!draft.trim()) return;
+              reply.mutate();
+            }}
+          >
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={4}
+              maxLength={10000}
+              placeholder={t("thread.replyPlaceholder")}
+            />
+            <Button type="submit" disabled={reply.isPending || !draft.trim()}>
+              {reply.isPending ? t("discussions.posting") : t("thread.post")}
+            </Button>
+          </form>
+        </section>
       )}
     </div>
   );

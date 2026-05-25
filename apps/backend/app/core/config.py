@@ -5,6 +5,7 @@ Read once at startup. Use the cached `get_settings()` everywhere.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
 from typing import Literal
@@ -75,12 +76,6 @@ class Settings(BaseSettings):
     s3_force_path_style: bool = True
     s3_presign_ttl_seconds: int = 900
 
-    # ---------- Search ----------
-    search_backend: Literal["meilisearch", "postgres"] = "meilisearch"
-    meili_url: str = "http://search:7700"
-    meili_master_key: SecretStr = SecretStr("lumen-search-key")
-    meili_index_courses: str = "courses"
-
     # ---------- Email ----------
     smtp_host: str = "mail"
     smtp_port: int = 1025
@@ -100,6 +95,79 @@ class Settings(BaseSettings):
     rate_limit_anon_per_minute: int = 60
     rate_limit_auth_per_minute: int = 10
     rate_limit_user_per_minute: int = 240
+
+    # ---------- Open Badges 3.0 / W3C VC (Phase E5) ----------
+    # ``badges_issuer_url`` is the platform's public identifier that
+    # ends up baked into every issued credential's ``issuer.id``.
+    # Per OB3 §8.1 verifiers expect it to dereference to a Profile
+    # document (today the Lumen domain root suffices; once we migrate
+    # to did:web the issuer ID will switch to ``did:web:<domain>``).
+    # ``badges_signing_key`` is the Ed25519 private key in PEM form.
+    # When unset (typical in dev/test) :mod:`app.core.badges_keys`
+    # falls back to a key deterministically derived from
+    # ``secret_key`` so a fresh ``docker compose up`` can issue and
+    # verify credentials end-to-end without any extra setup. The
+    # production guard refuses to boot if the dev secret leaks
+    # through; see :meth:`assert_production_ready`.
+    badges_issuer_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8000")
+    badges_signing_key: SecretStr = SecretStr("")
+
+    # ---------- Embeddings (Phase E0) ----------
+    # Provider for ``app.services.embeddings`` — selects which concrete
+    # ``EmbeddingProvider`` implementation backs the ingest + retrieval
+    # pipeline. ``local`` uses ``sentence-transformers/all-MiniLM-L6-v2``
+    # (CPU-friendly, fully self-hostable, 384-dim). ``openai`` calls
+    # ``text-embedding-3-small`` with ``dimensions=384`` so the column
+    # shape stays constant across providers. ``noop`` returns zero
+    # vectors with a deterministic seed — for tests only.
+    embedding_provider: Literal["local", "openai", "noop"] = "local"
+    embedding_model_local: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_model_openai: str = "text-embedding-3-small"
+    openai_api_key: SecretStr | None = None
+    openai_api_base: str = "https://api.openai.com/v1"
+
+    # ---------- LLM (Phase E1 RAG tutor + E2 authoring assistant) ----------
+    # Provider selector for ``app.services.llm`` — drives both the
+    # RAG tutor (Phase E1) and the AI-assisted authoring service
+    # (Phase E2). ``noop`` returns deterministic canned text for
+    # tests so every CI run that touches an LLM path stays
+    # network-free. Operators flip the provider via ``LLM_PROVIDER``;
+    # ``LLM_MODEL`` overrides the per-provider default model id.
+    llm_provider: Literal["anthropic", "openai", "noop"] = "anthropic"
+    llm_model: str | None = None
+    anthropic_api_key: SecretStr | None = None
+    anthropic_api_base: str | None = None
+    llm_max_tokens: int = 1024
+
+    # ---------- LLM cost tracking + budget guard (Phase H1) ----------
+    # Every LLM round-trip through ``app.services.llm_call_log`` is
+    # recorded in the ``llm_calls`` table when this flag is on. The
+    # meter is essentially free (one INSERT per call, ~µs), so it's
+    # ON by default — the flag exists so operators can disable it for
+    # synthetic-load benchmarks or while debugging a migration.
+    llm_cost_tracking_enabled: bool = True
+    # Per-user rolling-24h spend cap in USD. The wrapper sums
+    # ``cost_usd`` for the caller over the last day; once the sum
+    # exceeds this threshold the next call short-circuits with
+    # ``BudgetExceededError`` (still persisted as a row with
+    # ``status="budget_exceeded"`` so the admin surface sees the
+    # spike). Default ``$1.00`` is deliberately tiny — Lumen runs on
+    # Groq's free tier in the public demo, where token cost is
+    # nominal; the guard is really a runaway-loop trip-wire, not a
+    # billing meter. Bump in ``.env`` for power users / production.
+    llm_user_budget_24h_usd: Decimal = Decimal("1.00")
+
+    # ---------- Content ingest (Phase E3) ----------
+    # Optional Notion integration token. When unset, the Notion
+    # extractor refuses with a clean 422 ("set NOTION_TOKEN") rather
+    # than attempting to scrape Notion's HTML. Public Notion pages
+    # *can* be served without auth, but the embedded ``__NEXT_DATA__``
+    # JSON shape is brittle enough that we'd rather lean on the
+    # supported integration API. YouTube + Google Docs paths don't
+    # need any credentials — public videos expose transcripts to
+    # ``youtube-transcript-api`` and "anyone with the link" Docs
+    # expose a plaintext export.
+    notion_token: SecretStr | None = None
 
     # ---------- HIBP (breach-list lookup) ----------
     # Opt-in because (a) it adds a ~200ms external call to register/reset
@@ -138,6 +206,11 @@ class Settings(BaseSettings):
             problems.append("CORS_ORIGINS contains localhost in production")
         if "localhost" in str(self.web_base_url):
             problems.append("WEB_BASE_URL is still the localhost default — emails would link to a dev host")
+        if "localhost" in str(self.badges_issuer_url):
+            problems.append(
+                "BADGES_ISSUER_URL is still the localhost default — issued OB3"
+                " credentials would resolve to a dev host and fail external verification"
+            )
         if problems:
             raise RuntimeError(
                 "Refusing to start: " + "; ".join(problems) + ". Update your .env."

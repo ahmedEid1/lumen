@@ -21,6 +21,15 @@ WORKDIR /app
 
 # ---------------- deps ----------------
 FROM base AS deps
+# ``pyproject.toml`` (and ``uv.lock`` when it exists) are copied
+# *before* the source so Docker's layer cache is keyed on
+# dependency declarations only — a code-only change reuses this
+# (slow, network-bound) layer, but ANY change to ``pyproject.toml``
+# or ``uv.lock`` invalidates it and re-runs the install below.
+# This is what makes ``docker compose up --build`` (or
+# ``docker compose build api worker beat``) pick up newly added
+# backend dependencies automatically — bare ``docker compose up``
+# will keep using the previous image until you ask it to rebuild.
 COPY pyproject.toml uv.lock* ./
 # Stub package layout so ``uv pip install -e '.'`` succeeds on the
 # deps-only stage when there's no uv.lock to lean on. The real
@@ -29,12 +38,26 @@ COPY pyproject.toml uv.lock* ./
 # directory 'app' does not exist" because nothing has copied the
 # source yet at this point in the build.
 RUN mkdir -p app && touch app/__init__.py
+# Two-pass install with a deliberate fallback:
+#   1. ``uv sync --frozen`` is the fast path when ``uv.lock`` is
+#      already in sync with ``pyproject.toml`` — it installs the
+#      pinned graph in seconds.
+#   2. If a developer added a dep to ``pyproject.toml`` without
+#      re-running ``uv lock``, ``--frozen`` refuses to update the
+#      lock and exits non-zero; we then fall back to
+#      ``uv pip install -e '.'`` which resolves straight from
+#      ``pyproject.toml`` and lays the new dep down.
+# We DON'T silence stderr on the sync attempt (the previous
+# ``2>/dev/null`` made it impossible to see *why* the fast path
+# failed); the fallback's own output is enough to confirm what
+# happened.
 RUN uv venv /opt/venv \
- && uv sync --frozen --no-install-project --no-dev 2>/dev/null || uv pip install -e '.'
+ && (uv sync --frozen --no-install-project --no-dev || uv pip install -e '.')
 
 # ---------------- dev ----------------
 FROM deps AS dev
-RUN uv sync --frozen --group dev 2>/dev/null || uv pip install -e '.[dev]' \
+RUN uv sync --frozen --group dev \
+ || uv pip install -e '.[dev]' \
       pytest pytest-asyncio pytest-cov pytest-httpx anyio ruff mypy types-redis types-passlib \
       factory-boy freezegun respx faker
 # Real source goes on top of the stub — overrides app/__init__.py.

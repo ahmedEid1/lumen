@@ -8,7 +8,8 @@ DELETE silently:
 
 * invalidated the certificate (``/verify/{cert_id}`` → 404),
 * threw away every lesson-completion timestamp,
-* lost the quiz scores stored on lesson_progress.payload.
+* lost the quiz scores stored on lesson_progress.score and the
+  full attempt history on quiz_attempts.
 
 Even though no frontend surface currently exposes unenroll, the API
 client does — and once it gets called for a completed enrollment the

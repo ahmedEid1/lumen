@@ -1,6 +1,10 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Workbench Textarea. Same surface treatment as Input — sits on
+ * muted, focus tightens to the lime ring.
+ */
 export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
@@ -8,7 +12,12 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     <textarea
       ref={ref}
       className={cn(
-        "flex min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+        "flex min-h-24 w-full rounded-md px-3 py-2 font-body text-sm",
+        "border border-border bg-muted text-foreground",
+        "transition-colors duration-[160ms]",
+        "focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none",
+        "placeholder:text-muted-foreground/60",
+        "disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}

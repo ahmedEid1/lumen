@@ -7,6 +7,1499 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Activation (Wave 1+2, portfolio publish prep — 2026-05-25)
+
+Portfolio activation team passed: branch is push-ready for the
+1.1.0-agentic release. Six agents landed disjoint scopes across two
+waves without external credentials.
+
+**Wave 1 (parallel):**
+
+- **A2** — Smoke-tested the H2 eval harness end-to-end against the
+  deterministic `noop` provider. Fixed the Typer CLI collapse so
+  `python -m app.evals run --suite tutor` (referenced by README,
+  CHANGELOG, the `pnpm-eval-smoke.yml` CI gate, and `/admin/evals`)
+  stops raising `Got unexpected extra argument (run)` — a no-op
+  `@cli.callback()` restores the explicit subcommand. The CLI now
+  preflights `LLM_PROVIDER` credentials before opening a DB session
+  so a missing `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` fails with one
+  named-env-var error at the boundary instead of an opaque vendor
+  exception after a partial report. Added `make eval` (overrides via
+  `suite=…` and `limit=N`) so the operator runbook stays a one-liner.
+- **A3** — Made the Lumen MCP server packet-ready for
+  `registry.modelcontextprotocol.io`. Rewrote
+  `apps/backend/app/mcp/registry_metadata.json` against the current
+  2025-12-11 registry schema (the previous file used the 2024 shape
+  and would have been rejected), renamed it to the
+  `io.github.ahmedeid1/lumen` namespace required for GitHub-OAuth
+  publishing, aligned the version to `1.1.0`, and validated locally
+  with `ajv`. New operator runbook at
+  `docs/mcp-registry-submission.md` walks through `mcp-publisher`
+  install, GitHub OAuth login, the one-line submit, verification,
+  and the README badge swap. No submission performed.
+- **A4** — Replaced the multi-provider free-tier deploy story with a
+  single-VM Oracle Cloud Always-Free runbook. New
+  `docs/deployment/oracle-vps.md` walks Oracle signup → A1 Ampere VM
+  (4 OCPU / 24 GB RAM / 200 GB block, ARM64 Ubuntu 24.04) →
+  hardened-host setup → unmodified `docker-compose.prod.yml` stack →
+  TLS via the already-containerised Caddy 2 against Let's Encrypt.
+  Added `scripts/oracle-bootstrap.sh` — idempotent first-boot
+  installer for non-root admin user, hardened sshd, ufw + fail2ban,
+  Docker Engine + Compose v2 (ARM64). Deleted the old
+  `docs/deployment/free-tier.md` and rewrote the README "Deploy it"
+  section. Target steady-state cost: **$0/mo, forever**.
+- **A5** — Built out the demo seed so `make seed` produces a
+  recruiter-legible dataset, then captured the five-PNG portfolio
+  screenshot pack against it. New `app/seeds/agentic_demo.py` adds
+  five published courses (rounding the catalog to six), backfills
+  the FastAPI course with `cover_url` + `learning_outcomes`, and
+  gives the seed student a completed FastAPI enrollment
+  (`certificate_id` + best-effort OB3 `badge_credential`) plus a
+  ~50%-progress Data Engineering enrollment. Persists one tutor turn
+  with matching `agent_traces` / `llm_calls` / `retrieval_audits`
+  inside the 120 s I4 temporal-join window, and an eight-row
+  self-critique trace on the `ai-tutor-design-patterns` draft so
+  `/studio/draft/{id}/replay` populates. Idempotent. New Playwright
+  spec at `tests/e2e/screenshots.spec.ts` lands hero, trace-timeline,
+  studio-replay, observability, and evals PNGs at 1440×900 under
+  `docs/screenshots/`; README's `HERO_SCREENSHOT_TBD` now points at
+  `hero.png`.
+- **A6** — Pre-wrote the GitHub PR body for the `Rewrite → master`
+  release at `docs/release/1.1.0-agentic-pr-body.md` (lifts the
+  `[1.1.0-agentic]` CHANGELOG section verbatim, adds an architecture
+  diff vs `1.0.0-rebuild`, lists the verification gates, embeds the
+  operator's seven-item definition-of-done checklist). Added a
+  `make publish-rewrite` Makefile target that previews pending
+  commits, prompts `[y/N]`, then runs `git push origin Rewrite` +
+  `gh pr create --base master --head Rewrite --body-file …`. No
+  push or PR opened from this task — materials only.
+
+**Wave 2 (parallel + sequential):**
+
+- **A1** — Brought README and a handful of stale files into agreement
+  with what 1.1.0-agentic actually shipped. Status table flipped
+  H4/H5/H7 and all five Phase-I rows from "in progress" / "queued"
+  to "shipped (1.1.0-agentic)"; "The agentic patterns I built"
+  bullets re-tagged to `*(shipped — ...)*` with code links to
+  `tutor_orchestrator`, `authoring_orchestrator`, `mcp/server`,
+  `learning_path`, and `learner_traces` + `agent_tracer`. MCP
+  registry badge swapped to the canonical
+  `io.github.ahmedeid1/lumen` blue badge (quiet HTML comment notes
+  the badge 404s until `mcp-publisher publish` runs). Dead-code
+  sweep: removed the Makefile `# free-tier deploy (H4)` block, the
+  `infra/{fly,supabase,vercel}/` trees, and the Fly-targeted
+  `.github/workflows/deploy.yml`; fixed the `.env.example` Groq
+  block to cross-reference `docs/deployment/oracle-vps.md` Step 5.
+- **C1** — Consolidated the six per-agent snippet files into this
+  entry and removed the scaffolding files in the same commit.
+
+**Operator runbook (next steps, no agent intervention required):**
+
+1. Provision Oracle Always Free ARM A1 VM and run
+   `scripts/oracle-bootstrap.sh` — see
+   `docs/deployment/oracle-vps.md`.
+2. Set `LLM_PROVIDER=openai` + Groq endpoint + `OPENAI_API_KEY` in
+   `.env.production` (free Groq key from
+   <https://console.groq.com>); restart the stack.
+3. Run `make eval` to populate the real tutor-eval score in the
+   README badge.
+4. Run `mcp-publisher publish apps/backend/app/mcp/registry_metadata.json`
+   — see `docs/mcp-registry-submission.md`.
+5. Capture the 90-second Loom against the live demo; paste URL into
+   the `LOOM_URL_TBD` placeholder in `README.md`.
+6. Run `make publish-rewrite` to push `Rewrite` to origin and open
+   the PR.
+
+**Phase I / H follow-up flagged by Wave 1 (out of scope to fix here):**
+
+- Run `oxipng -o4` on the committed PNGs — files land at 45–80 KB
+  out of Playwright; lossless oxipng tends to halve them if/when
+  README grows additional inline screenshots.
+- Catch the "Loading Celery health…" flash on `/admin/observability`
+  — either pre-fetch the poll on tab focus or show a skeleton with
+  rough shape so first-paint isn't a single-line gray string.
+- `/admin/evals` reads "no runs yet" until a suite is executed —
+  either ship a tiny noop-provider judging result as part of the
+  seed so suite cards always show a score, or document that
+  `make eval` against the noop provider produces a meaningful
+  screenshot.
+- The seeded tutor turn uses the `noop` provider's deterministic
+  output, which stamps `noop/lumen-noop-1` into screenshots rather
+  than `groq/llama-3.3-70b`. Consider a `LUMEN_DEMO_PROVIDER_LABEL`
+  env var that lets the seed stamp a chosen provider/model string
+  into the seeded `llm_calls` rows without calling a remote API.
+- Picsum cover URLs occasionally serve a different image on
+  cache-miss. Fine for now; if the catalog screenshot ever joins
+  the pack, bake committed cover PNGs under
+  `apps/backend/app/seeds/assets/covers/` and serve via MinIO.
+- The studio replay scrubs to step 3 (Reviser) deterministically
+  but the lime-active row is at the top of frame, not centred. Add
+  `scrollIntoView({ block: 'center' })` inside `TraceTimeline`
+  whenever `activeIndex` changes so the active card stays in view
+  if page chrome grows.
+
+## [1.1.0-agentic] - 2026-05-22
+
+Phase H (production-grade hardening) + Phase I (agentic-AI signature
+features) shipped on top of `1.0.0-rebuild`. 627/627 backend tests
+pass, frontend typecheck clean, coverage 73.7% (gate at 70%).
+
+### Added (v2 phase I — agentic features)
+- **I1: Lumen MCP server.** New `apps/backend/app/mcp/` package
+  exposes Lumen's surface as 9 MCP tools (`list_courses`,
+  `get_course`, `search_lesson_content`, `ask_tutor`,
+  `list_my_due_reviews`, `grade_review_card`, `create_course_draft`,
+  `ingest_url_to_draft`, `list_my_progress`) over stdio (Claude
+  Desktop) and streamable-HTTP (`claude mcp add lumen`) transports.
+  OAuth 2.0 client-credentials flow with argon2-hashed secrets, RFC
+  8414 metadata at `/.well-known/oauth-authorization-server`,
+  15-minute JWT access tokens. Admin CRUD at
+  `/api/v1/admin/mcp-clients`. CLI: `make mcp-token` mints a fresh
+  client. `docs/mcp.md` is the operator guide; README install
+  snippet replaces the `MCP_INSTALL_TBD` placeholder from H5.
+- **I5: Personalized learning-path agent.** `/dashboard/path` —
+  learner states a goal in plain English; a single LLM call
+  consumes mastery + FSRS load + 20-course catalog digest and emits
+  a structured plan (`milestones[]` + `next_action_today` +
+  `rationale`). Validated against existing course slugs with
+  one-shot retry on hallucinations. Monthly Celery beat job
+  re-plans every active path whose `replanned_at` is older than 30
+  days. Tables: `learning_paths` (partial-unique on
+  `status='active'`) + `learning_path_steps`. Frontend: server
+  component overview + client `TodayWidget` + `MilestoneTable`.
+- **I2: Multi-agent tutor.** The Phase E1 single-shot RAG tutor is
+  now a planner-orchestrator loop. Planner picks among 5 sub-agents
+  per turn: `retriever` (wraps the E0 RAG with `audit=True`),
+  `web_searcher` (Tavily free tier; gracefully no-ops when
+  `TAVILY_API_KEY` is unset), `code_runner` (RestrictedPython 8.x
+  sandbox, stdlib `math`/`statistics` only, 5 s hard timeout),
+  `quiz_generator`, `concept_explainer`. Hard caps: 5 tool-call
+  rounds + 3 orchestrator LLM round-trips per turn. Every step
+  writes an `agent_traces` row via H7. Tutor API response gained
+  `agent_trace[]` + `confidence` fields (backwards compatible).
+  Frontend `AgentReasoningPanel` shows the per-turn plan + tool
+  calls inline; first turn auto-expanded so the demo reads the
+  agent thinking immediately.
+- **I3: Self-critique authoring agent.** The Phase E2 outline
+  generator is now a researcher → outliner → critic ↺ reviser →
+  lesson-drafter → final-critic loop. Researcher pulls Tavily
+  snippets + catalog neighbours into a 200-token research bundle.
+  Critic scores `coverage`/`learning_arc`/`scope` on 0-5; reviser
+  fires when mean < 4, max 3 revisions. Lesson-drafter reuses the
+  existing `generate_lesson_body` + `generate_quiz` per accepted
+  lesson. Final-critic rates the full course before the instructor
+  publishes. Every step persists a `course_draft_traces` row.
+  Frontend `/studio/draft/[courseId]` renders the timeline + final
+  score badge + "Publish anyway" escape hatch. New endpoint
+  `POST /api/v1/studio/ai/draft-course`.
+- **I4: Learner-facing agent-trace surface.** Two read-only
+  drill-down routes built on top of the H7 tables:
+  `/dashboard/tutor/{conversation_id}/turn/{message_id}` (Surface
+  A — learner sees the full per-turn agent thinking, owner-only)
+  and `/studio/draft/{course_id}/replay` (Surface B — instructor
+  steps through the draft's reasoning with play/pause/scrub,
+  owner-or-admin). Shared `TraceTimeline` / `TraceStepCard` /
+  `RetrievalChunkList` / `CostBadge` components carry the
+  Workbench tokens through. Wires a "See the full trace →" link
+  from I2's inline `AgentReasoningPanel`. `docs/agent-traces.md`
+  documents the privacy model + retention policy.
+
+### Added (v2 phase H — wave 2)
+- **H4: Free-tier live demo deployment (Vercel + Fly + Supabase + Upstash + R2).**
+  `infra/fly/{fly.api.toml, fly.worker.toml, Dockerfile.fly}` configure
+  the API + Celery worker as two scale-to-zero Fly Machines (`min_machines_running = 0`,
+  `auto_stop = "stop"`, region `fra`, 256 MB VMs). `infra/vercel/vercel.json`
+  wires the Next.js frontend as a monorepo pnpm build with an
+  `ignoreCommand` that skips rebuilds on backend-only diffs. `infra/supabase/`
+  documents the pgvector bootstrap SQL and the **session-pooler-only**
+  rule (port 5432 — asyncpg's prepared statements break against the
+  transaction pooler at 6543). New workflows: `deploy.yml` (deploys
+  api + worker via `flyctl deploy --remote-only` after CI green) and
+  `daily-digest.yml` (07:00 UTC cron that fires the digest task via
+  `flyctl ssh console -C "celery ... call ..."` — no new HTTP endpoint
+  needed since Fly idles the beat process). `apps/backend/app/seeds/demo.py`
+  + `make demo-seed` + `python -m app.cli demo-seed` add an idempotent
+  demo bundle (3 published courses + `demo@lumen.test`). Full first-deploy
+  runbook + day-2 ops + per-tier cost-watch tables in
+  `docs/deployment/free-tier.md`. Cost target: **$0/mo idle**.
+- **H5: README rewrite for agentic-AI positioning.** Replaced the
+  Django-prototype README with an 11-section file: hero band (live
+  demo link, build + eval + MCP + license badges, 90-second Loom
+  placeholder), what-this-is framing, Mermaid architecture diagram
+  (client → Vercel → Fly → Supabase pgvector → Upstash → R2, agent
+  layer + MCP + eval loop), the agentic-patterns resume bullets
+  (I1/I2/I3/I5 marked `planned — Phase I`, H2 shipped, H1+H7
+  observability mixed), "what's running today" status table with
+  ✅/🚧/⏳ marks, eval-scores block, local-run instructions with
+  Groq env-var override, free-tier deploy summary linking to
+  `docs/deployment/free-tier.md`, MCP install snippet placeholder,
+  "Built by" with LinkedIn + GitHub + "open to senior agentic-AI
+  engineering roles" line. Honest framing throughout — `swappable
+  LLM layer; demo runs Groq for $0, prod-ready for Anthropic/OpenAI`
+  rather than `powered by Claude`.
+- **H7: AI-trace observability surface.** New tables `agent_traces`
+  (tree-shaped via `parent_trace_id`, FK to `llm_calls.id`) and
+  `retrieval_audits` (top-K chunks + similarity scores as JSONB) in
+  migration `0023`. `app.services.agent_tracer` exposes
+  `record_step` / `list_traces_for_call` / `list_recent` with
+  SAVEPOINT-isolated writes (mirroring H1's pattern — trace failures
+  don't poison the agent flow). `find_relevant_chunks` grew an
+  opt-in `audit=True` hook (default off) that I2's planner-orchestrator
+  will flip on at its call site. `app.core.otel` now also boots
+  Traceloop's OpenLLMetry SDK when `OBSERVABILITY_ENABLED=true`,
+  auto-instrumenting the Anthropic + OpenAI clients with prompt /
+  response / tokens / model attributes — gated so test runs without
+  an OTLP collector skip the init. Admin API
+  `GET /api/v1/admin/observability/{llm-calls/{id}/trace, retrieval, celery}`
+  + three-tab frontend dashboard at `/admin/observability` (Celery
+  queue depths, LLM trace drill-downs with collapsible tree,
+  retrieval-quality list with chunk scores). Built as the substrate
+  I2 (multi-agent tutor) and I3 (self-critique authoring) will
+  write into.
+
+### Added (v2 phase H — wave 1)
+- **H1: LLM cost meter + per-user budget guard.** Every LLM call now
+  routes through `app.services.llm_call_log.call_logged`, which times
+  the call, records prompt/completion tokens + USD cost into a new
+  `llm_calls` table (migration `0022`), and trips a `BudgetExceededError`
+  (HTTP 429, `code="llm.budget_exceeded"`) once a user's rolling 24-hour
+  spend crosses `settings.llm_user_budget_24h_usd` (default `$1.00`).
+  Pricing for the demo's default model (`llama-3.3-70b-versatile` via
+  Groq's OpenAI-compatible endpoint) and the paid Anthropic / OpenAI
+  paths is in `app.services.llm_pricing`. Admin API:
+  `GET /api/v1/admin/llm-calls` (paginated + filtered) and
+  `GET /api/v1/admin/llm-calls/summary` (14-day rollup).
+- **H2: Eval harness with LLM-as-judge + golden datasets.** Three
+  hand-curated suites under `apps/backend/evals/`: `tutor/` (30 items
+  across 3 seed courses), `authoring/` (10 briefs + ideal outlines),
+  `ingest/` (5 YouTube + 5 Notion URLs). Run with
+  `python -m app.evals run --suite tutor --limit N`. Judge is the
+  configured LLM provider (Groq Llama 3.3 70B by default) scoring each
+  item on suite-specific axes (faithfulness / citation_correctness /
+  helpfulness for tutor; coverage / learning_arc / scope / fidelity
+  for authoring; chapter_count / key_phrases / structure for ingest).
+  Reports land as JSONL under `apps/backend/evals/reports/` with mean
+  + regression-vs-previous-run. Admin dashboard at `/admin/evals`
+  surfaces per-suite history with drill-down + expandable rationales.
+  CI workflow `pnpm-eval-smoke.yml` runs a 3-item smoke on every PR,
+  failing only when the judge ran against a real LLM and mean dropped
+  below 3.5.
+- **H3: Playwright e2e against the live stack.** Five new spec files
+  under `apps/frontend/tests/e2e/` covering register→verify→reset,
+  enrol→quiz→certificate+badge, instructor draft→AI-outline→publish→
+  analytics, tutor citations cross-checked against the catalog API,
+  and multi-modal ingest→commit→drafts. Helpers under `tests/e2e/helpers/`
+  for seeded login, Mailpit token polling, and unauthenticated catalog
+  reads. New `e2e.yml` workflow brings up the full docker stack,
+  migrates, seeds, pre-indexes lesson embeddings, and uploads
+  Playwright traces + screenshots + videos + compose logs on failure.
+- **H6: Production-exposure security pass.** Refresh-token reuse now
+  also fans out a `security.refresh_reuse` admin notification (chain
+  revocation behaviour is unchanged). New `app.core.prod_guards.assert_production_safe()`
+  runs at lifespan startup in production and refuses to boot if
+  `LLM_PROVIDER=noop`, `SECRET_KEY` is short, or `DATABASE_URL` points
+  at `localhost` — and warns when `LLM_PROVIDER=openai` is selected
+  without `OPENAI_API_BASE` (operator probably meant Groq). CORS
+  middleware filters loopback origins out in prod and fails-boot if
+  the resulting list is empty. 429 events flow into an in-memory ring
+  buffer surfaced via `GET /api/v1/admin/rate-limit-stats`. `.env.example`
+  re-grouped with section banners and missing fields added. New
+  `docs/security.md` documents auth transport, the refresh-reuse
+  alarm, the prod guard list, secret rotation, CORS policy, and a
+  one-page threat model.
+
+### Fixed (rebuild phase G)
+- **Worker image now picks up new backend deps on rebuild (G5).**
+  At session start the worker container was missing the seven
+  Phase E deps that landed during the rebuild (`pgvector`,
+  `fsrs`, `anthropic`, `openai`, `pyld`,
+  `youtube-transcript-api`, `notion-client`) — they were listed
+  in `apps/backend/pyproject.toml` but a bare `docker compose up`
+  kept using the previously built image, which had been built
+  against an older pyproject. The Dockerfile already copies
+  `pyproject.toml` + `uv.lock` into the `deps` stage *before*
+  the source, so the layer cache is keyed on dependency
+  declarations and any change to those files invalidates the
+  install layer — but the install command silenced stderr
+  (`2>/dev/null`) on the `uv sync --frozen` fast path, which
+  hid the actual failure mode when developers added a dep
+  without re-running `uv lock`.
+
+  Fix: stopped silencing stderr on the sync attempt so the lock-
+  drift case shows up in build logs, and added an in-Dockerfile
+  comment explaining the cache-invalidation contract. The two-
+  pass install (fast path: `uv sync --frozen`; fallback:
+  `uv pip install -e '.'` straight from pyproject) was already
+  in place and continues to do the right thing — the comment
+  just makes it discoverable. Added
+  `docs/runbooks/upgrade.md` documenting that bare
+  `docker compose up` doesn't auto-rebuild on pyproject changes:
+  after a pull that touches backend deps you need
+  `docker compose build api worker beat && docker compose up -d`
+  (or `docker compose up --build`), plus a verification command
+  to confirm the new deps actually landed in the worker image.
+
+  Files: `apps/backend/Dockerfile`, `docs/runbooks/upgrade.md`.
+
+- **Stale tests from Phase A cuts cleaned up (G4).** Seven backend
+  tests still referenced features removed during the rebuild's
+  Phase A cuts. Each got the right treatment — fixed, rewritten,
+  or trimmed — so the suite passes cleanly against the post-rebuild
+  surface area.
+  - `tests/test_builders.py`: the
+    `test_detail_passes_through_enrollment_and_bookmark_flags` case
+    asserted on `is_bookmarked` and passed `is_bookmarked=True` to
+    `_builders.detail()`, but bookmarks were ripped in Cut A7 and
+    the builder no longer accepts that kwarg. Renamed and slimmed
+    to the enrollment/progress half that still holds.
+  - `tests/test_enrollments_dashboard_perf.py`: the
+    `test_dashboard_progress_is_batched` case called
+    `seed_lesson(course_id, teacher, title=...)`, but the
+    `seed_lesson` conftest fixture is a two-positional helper that
+    never accepted a `title` kwarg. The title was only ever
+    cosmetic — dropped the kwarg so the helper calls match the
+    signature.
+  - `tests/test_discussion_reply_notifies.py`: the
+    `test_no_notification_when_thread_author_was_deleted` case
+    exercised the post-cascade state where
+    `Discussion.author_id` is `NULL` (FK `SET NULL` on user
+    delete). The reply path naively notified `user_id=d.author_id`
+    without the NULL guard, which would have violated the
+    NOT-NULL constraint on `notifications.user_id`. Fixed the
+    real race in `app/services/discussions.py::reply` —
+    `if d.author_id is not None and d.author_id != user.id` —
+    rather than skipping the test.
+  - `tests/test_rate_limit_per_user.py` and
+    `tests/test_rate_limit_writes.py`: both hammered
+    `/api/v1/chat/courses/{id}/messages`, which was removed
+    alongside the per-course WebSocket chat in Cut A8. Rewrote
+    against `/api/v1/discussions/{id}/replies` (20/minute,
+    same per-user keying) — it's the post-A8 stand-in for the
+    flood surface those tests were guarding.
+  - `tests/test_slug_race.py` and `tests/test_slug_uniqueness.py`:
+    each had one case driving
+    `POST /api/v1/courses/{id}/duplicate`, removed in Cut A5
+    along with the "duplicate course" flow (the AI authoring
+    stack now covers the instructor's instinct to fork a course).
+    Deleted those two cases — the shared slug-mint helper they
+    regressed against is still exercised by the surviving
+    create + rename cases above them in the same files.
+
+  Files: `apps/backend/tests/test_builders.py`,
+  `apps/backend/tests/test_enrollments_dashboard_perf.py`,
+  `apps/backend/tests/test_discussion_reply_notifies.py`,
+  `apps/backend/tests/test_rate_limit_per_user.py`,
+  `apps/backend/tests/test_rate_limit_writes.py`,
+  `apps/backend/tests/test_slug_race.py`,
+  `apps/backend/tests/test_slug_uniqueness.py`,
+  `apps/backend/app/services/discussions.py`.
+
+- **Tutor rate-limit test isolation (G3).** The
+  `test_post_message_rate_limited_at_20_per_minute` case in
+  `apps/backend/tests/test_tutor.py` passed in isolation but
+  flaked sporadically in the full suite. The conftest's
+  `_reset_rate_limiter` autouse fixture *does* call
+  `ratelimit.reset_for_tests()` before every test, but pytest
+  doesn't guarantee a strict ordering between two same-scope
+  autouse fixtures — and `test_tutor.py` declares a second
+  autouse (`_force_noop_providers`) that monkeypatches the
+  `LLM_PROVIDER` / `EMBEDDING_PROVIDER` env vars and clears the
+  settings cache. Under the wrong ordering, the slowapi
+  MemoryStorage was being touched again after the reset had
+  fired, leaving stale window entries from prior tutor cases
+  (different `user:<sub>` keys, but the in-process dict was
+  still warm). The fix is the surgical one: the rate-limit test
+  itself now calls `reset_for_tests()` inline at the start and
+  again after the `auth_headers` fixtures have hit `/auth/login`
+  (which is also rate-limited, 10/minute, keyed by IP for
+  anonymous traffic). The test is now self-contained and no
+  longer depends on autouse ordering.
+
+  Files: `apps/backend/tests/test_tutor.py`.
+
+- **Light-mode primary contrast (G1).** The Workbench rebuild's
+  light-mode `--primary` was `hsl(72 80% 38%)` (`#8FAE13`), which
+  only managed 2.44:1 against `#FAFAF9`, 2.54:1 against `#FFFFFF`,
+  and 2.33:1 against `#F4F4F2` — well below the WCAG 2.2 AA 4.5:1
+  body-text floor. The Phase D5 axe-core gate flagged nine of the
+  ten audited routes on `color-contrast` whenever Chromium honoured
+  `prefers-color-scheme: light` (which it does by default on the CI
+  runners), making the gate effectively unfightable in light mode.
+
+  Light-mode `--primary` now resolves to `hsl(75 80% 25%)` =
+  `#59730D` — a deeper sibling of the same lime family, sitting at
+  5.21 / 5.42 / 4.98:1 against the three light surfaces (background,
+  card, muted respectively). `--primary-foreground` flips from the
+  near-black `hsl(220 14% 4%)` to the light foreground
+  `hsl(60 9% 98%)` so `bg-primary text-primary-foreground` buttons
+  still pass AA at 5.21:1 (white-on-green), and `--ring` tracks
+  `--primary` so the focus outline stays consistent.
+
+  **Dark mode is untouched.** `--primary` there remains
+  `hsl(72 100% 50%)` (`#C8FF00` electric lime) — the dark-mode
+  signature accent reads correctly against the `#0A0B0D` surface,
+  and the rebuild's brand identity hinges on it. The two values are
+  intentionally separate shades of the same green family; light mode
+  needs a contrast-correct sibling, not a unified token.
+
+  Verified locally with `make a11y` against the dev compose stack:
+  the seven routes whose only failure was `text-primary` /
+  `border-primary` / `bg-primary/10` consumers (`/`, `/courses`,
+  `/login`, `/register`, `/forgot-password`, `/courses/{slug}`,
+  `/studio`, `/admin`) now go green. The two remaining failing
+  routes (`/dashboard`, `/profile`) carry violations on unrelated
+  tokens / primitives (a destructive-variant button, an unlabeled
+  disabled form input, a test-side selector that matches both the
+  page heading and the onboarding-tour heading); those are tracked
+  separately and are out of scope for G1, which is bounded to the
+  light-mode primary token swap.
+
+  Files: `apps/frontend/src/styles/globals.css` (`--primary`,
+  `--primary-foreground`, `--ring` in the `.light` block, plus an
+  inline comment documenting the contrast ratios),
+  `docs/accessibility.md` (new "Light-mode primary token" section
+  with the surface × ratio table and the rationale for keeping the
+  dark-mode lime untouched).
+
+## [1.0.0-rebuild] - 2026-05-22
+
+The Lumen rebuild. Six phases (A: cuts, B: stop-the-bleed, C: Workbench
+visual pivot, D: PRD-promised quick wins, E: AI-native differentiators,
+F: ship) landed across 25+ commits on the `Rewrite` branch since the
+spec at `docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md`.
+
+Headline user-facing changes: the platform pivoted from a Coursera-style
+OSS LMS to an AI-first OSS learning platform with a light async-cohort
+surface. The Skillpath cobalt palette and the prior Egyptian-deity
+branding are gone, replaced by the Workbench visual identity (electric
+lime on `#0A0B0D`, Inter / JetBrains Mono, border-driven elevation,
+dark-mode-default). Meilisearch was ripped — full-text search runs on
+Postgres `tsvector` + GIN; semantic retrieval ships on pgvector with a
+provider-agnostic embedding service. Per-course WebSocket chat was
+removed; the AI tutor plus per-lesson async comments cover that ground.
+PDF certificates are now a fallback only — the primary credential is an
+Open Badges 3.0 / W3C VC signed with Ed25519. New AI-native surfaces:
+course-scoped RAG tutor with citations (E1), AI-assisted authoring (E2),
+multi-modal ingest from YouTube / Notion / Google Docs (E3), FSRS-6
+spaced-repetition review queue (E4), Tiptap block editor (E6), mastery
+dashboard (E7). Smart digest notifications with per-kind email
+preferences (D4), first-login onboarding tour (D3), instructor
+analytics (D2), "Preview as student" (D1), and a **WCAG 2.2 AA
+axe-core CI gate** (D5) blocking on every PR.
+
+### Added (rebuild phase E)
+- **Per-learner mastery dashboard (E7).** A new "what to revisit next"
+  surface at `/dashboard/mastery` that combines the three independent
+  signal streams the platform has been quietly accumulating across
+  earlier E phases into one actionable view.
+
+  **Signal sources.** The "weak spots" list joins three signals per
+  (course, lesson):
+  - **E4's FSRS-6 review queue.** A card whose `due_at` is more than
+    `CARD_OVERDUE_DAYS=2` in the past contributes the `card_overdue`
+    signal with the day count attached. The weak-spot row exposes
+    the card's id so the "Review now" CTA deep-links into
+    `/dashboard/reviews` rather than the lesson player.
+  - **Quiz attempts.** The service takes the *latest* attempt per
+    lesson (not the minimum — a learner who failed then passed has
+    resolved the weak spot). Failing attempts emit `quiz_failed`
+    (weight 3); passing attempts below `QUIZ_WEAK_SCORE=70` emit
+    `quiz_low` (weight 2).
+  - **E1's tutor citations.** Tutor messages already store citations
+    as JSONB. The service tallies citation counts across all of the
+    learner's assistant messages and emits `tutor_repeat` for any
+    lesson cited `>= TUTOR_REPEAT_THRESHOLD=3` times.
+
+  Signals deduplicate per (course, lesson) so a lesson hit by all
+  three sources renders as one row with three pills, ordered
+  strongest-first (failed quiz > overdue card > low quiz > tutor
+  repeat). The default surface shows the top 10 weak spots by
+  accumulated weight.
+
+  **Bundled endpoint.** `GET /api/v1/me/mastery` returns
+  `{weak_spots: [...], courses: [{course_id, slug, title,
+  mastery_pct, completion_pct}]}` in one round-trip. Splitting into
+  two endpoints would either flash between two loading states or
+  force the surface to await both spinners before painting. Rate-
+  limited at 60/minute per identity — the underlying queries fan
+  out into a handful of SELECTs (latest-quiz-per-lesson with a
+  window function, overdue cards, tutor-citation aggregation, per-
+  course rollups), and 60/min is well above any plausible
+  interactive use.
+
+  **Mastery per course.** Each enrolled course gets two thin progress
+  bars (completion + mastery). `completion_pct` is fraction of live
+  lessons marked complete (mirrors the dashboard's own number).
+  `mastery_pct` is the average of latest-quiz-attempt scores across
+  every quiz the learner has attempted in that course — 0.0 if no
+  attempts (the UI disambiguates "never tried" from "tried and
+  failed" via the two bars together).
+
+  **Cross-links.** The mastery surface and the FSRS reviews surface
+  point at each other:
+  - `/dashboard/reviews` (Phase E4) gains a small "See full mastery →"
+    link in its header so a learner who landed on reviews from the
+    dashboard tile can pivot to the broader weak-spot view.
+  - A `Mastery` nav link sits next to `Reviews` in the site header,
+    visible to every authenticated role.
+
+  **Files.** New service `app/services/mastery.py` (signal collectors,
+  ranking weight, per-course rollup). New API `app/api/v1/mastery.py`
+  (one endpoint, Pydantic response models, rate limiter). New page
+  `apps/frontend/src/app/dashboard/mastery/page.tsx` (Workbench
+  density — bordered rows, signal pills using existing Badge
+  variants, two thin Progress bars per course row). API client gets
+  `Me.mastery()` + `MasteryResponse` / `MasterySignal` types.
+
+  **Backend tests** (`tests/test_mastery.py`, 11 cases): each signal
+  source surfaces independently; a passing retake retires an older
+  failure; tutor citations below the threshold are ignored; a lesson
+  hit by all three signals deduplicates and orders signals
+  strongest-first; one learner's weak spots never leak into
+  another's view; per-course rollups compute mastery_pct as the
+  latest-quiz-attempt average and completion_pct against live
+  lessons only; courses with no quizzes report mastery_pct=0 +
+  real completion_pct; the `GET /me/mastery` endpoint bundles both
+  pieces and returns `{weak_spots: [], courses: []}` for a new
+  learner; auth is required.
+
+  **Frontend tests** (`tests/mastery-page.test.tsx`): stub
+  `Me.mastery()` returning one weak spot (failed quiz + overdue
+  card) and one course (mixed completion + mastery percentages),
+  assert the weak-spot row renders the signal pills with quantified
+  labels and the "Review now" CTA targets the FSRS surface (because
+  the spot carries a `review_card_id`), and the per-course row
+  exposes both progress bars with the percentages alongside.
+
+- **AI-assisted course authoring (E2).** Instructors can paste a
+  one-paragraph brief and get back a proposed course structure
+  (3-6 modules, each with 3-5 lessons), then drill into individual
+  lessons to draft a Tiptap block-doc body or generate a 4-question
+  quiz — all reviewed and edited in the studio before anything
+  lands in the database. Four new endpoints under
+  `/api/v1/studio/ai`: `POST /outline`, `POST /lesson-body`,
+  `POST /quiz` (all pure generate — no DB writes), and
+  `POST /commit-outline` which persists the (possibly-edited)
+  outline as draft modules + lessons against an existing course.
+  All four require `RequireInstructor` and are rate-limited at
+  5/minute per user.
+
+  **Human-in-the-loop, by design.** No auto-persist on generate.
+  The LLM hallucinates; an instructor who clicks "Generate" and
+  walks away must not come back to a course full of model-authored
+  content carrying their name. Generate returns a preview; the
+  studio surfaces the preview as an inline-editable tree (rename
+  per row, delete per row, delete per module); only on explicit
+  "Create draft course" does the outline land in the DB, and even
+  then the course stays in draft with placeholder lesson bodies
+  that the instructor will overwrite per-lesson via the
+  "Draft with AI" / "Generate quiz questions" buttons in the
+  lesson editor.
+
+  **LLM coordination with E1.** Phase E1 (RAG tutor) shipped the
+  `app.services.llm.LLMProvider` Protocol + concrete Anthropic /
+  OpenAI / Noop providers — the authoring service consumes that
+  contract verbatim (`async chat(messages, temperature) -> str`)
+  rather than building a parallel stack. Switching the operator's
+  LLM via `LLM_PROVIDER` re-routes both authoring and tutor traffic
+  in one place.
+
+  **Error model — strict parse + one retry.** Every generate path
+  asks the LLM for a JSON object, parses with Pydantic, and on
+  failure sends one corrective turn back to the model with the
+  parse error quoted inline. Two failures surface as
+  `ValidationAppError("ai.bad_output")` so the studio modal can
+  show a clean "try again" rather than leaking the broken text.
+
+  **Files.** New service `app/services/ai_authoring.py` (prompts,
+  schemas, retry helper, commit logic). New API
+  `app/api/v1/ai_authoring.py` (four endpoints + Pydantic request /
+  response models). New studio component
+  `apps/frontend/src/components/studio/ai-outline-modal.tsx`
+  (three-phase modal: brief → review → creating). Lesson editor
+  picks up "Draft with AI" (text lessons) and "Generate quiz
+  questions" (quiz lessons) buttons that pre-fill the existing
+  editor — never auto-save.
+
+  **Backend tests** (`tests/test_ai_authoring.py`, 14 cases):
+  outline parsing, malformed-then-retry path, twice-malformed
+  surfacing `ai.bad_output`, markdown-fence stripping, schema
+  rejection + recovery, lesson body returns a Tiptap doc, quiz
+  returns the expected number of MCQs, HTTP surface requires
+  instructor, commit creates the right module / lesson rows in
+  order, non-owner gets 403, and rate-limit fires on the 6th
+  call/minute. All routed through a scripted provider that returns
+  canned JSON so no network call ever leaves the test process.
+
+  **Frontend tests** (`tests/ai-outline-modal.test.tsx`, 3 cases):
+  stub the API, drive the brief → review flow, and assert the
+  preview tree renders module + lesson titles as editable inputs.
+
+- **Course-scoped RAG AI tutor (E1).** "Ask the tutor" lands on
+  every course surface (lesson player toolbar + course detail
+  syllabus card for enrolled learners). Each answer is grounded
+  in *this course's* lessons via E0's pgvector retrieval and
+  carries inline `[L:<lesson_id>]` citations that render as
+  clickable pills under the assistant turn. Provider abstraction
+  in `app/services/llm.py` exposes one `LLMProvider` Protocol
+  with three concrete backends (Anthropic / OpenAI / Noop); the
+  noop backend mines lesson ids out of the system prompt's
+  context block and emits `[L:<id>]` tokens so the test suite
+  exercises retrieval + citation extraction end-to-end without
+  burning tokens or depending on outbound network. System prompt
+  pins the model to retrieved chunks; two refusal guardrails
+  (empty-retrieval short-circuit + citation validation against
+  retrieval set) make it impossible to render a citation pointing
+  at a lesson the answer wasn't grounded in. New tables
+  `tutor_conversations` + `tutor_messages` (Alembic `0021`)
+  persist every turn — user turn lands before the LLM call so
+  the audit log shows what a learner asked even on errors; the
+  assistant turn (with citation JSONB) lands only on success.
+  Four endpoints (start / list / get / post-message) with the
+  message-post path rate-limited at 20/minute per identity. UI:
+  `<TutorPanel courseId>` is a Workbench-style card with a
+  single lime CTA, optimistic user-message rendering, in-flight
+  loading sentinel, and citation pills that open lessons in a
+  new tab. Mounted lazily (no LLM round-trip) until the learner
+  toggles "Ask the tutor". 15 i18n keys, en+ar parity.
+
+- **Multi-modal content ingest (E3).** Instructors can paste a
+  YouTube video, public Notion page, or public Google Doc URL into a
+  new "Import from URL" panel in the studio and the system returns a
+  draft course (modules + lessons) ready to review and commit. New
+  endpoints under `/api/v1/studio/ingest/*`: `POST /detect` (cheap
+  regex source detection — 60/min), `POST /preview` (full extraction,
+  no persistence — 3/min), `POST /commit` (writes modules + lessons
+  into a named course — 10/min). All three require instructor /
+  admin.
+
+  **Source detection pattern.** A pure `detect_source(url)` function
+  in `app/services/content_ingest.py` returns one of
+  `"youtube" | "notion" | "google_docs" | "unknown"` from a URL host
+  + path match. We expose it both as a server endpoint (so a tampered
+  client can't bypass our extractor whitelist) and re-implement the
+  same shape client-side in the studio modal so the "Detected:
+  YouTube" badge updates instantly while the user types — no network
+  round-trip for what is, fundamentally, a regex.
+
+  **Typed `IngestPayload` contract.** Every extractor returns the
+  same Pydantic model: `{title, source_url, source, modules: [{title,
+  lessons: [{title, type: "text", body, anchor?}]}]}`. The discriminated
+  `source` field is what the UI uses to badge each draft; the
+  `anchor` field on lessons is a deep link back to the original (a
+  YouTube `&t={seconds}` URL, a Notion block anchor, etc.) and is
+  prepended to the lesson body markdown on commit so a learner can
+  always jump to the source. Lessons land as `LessonType.text` for
+  v1 — we don't yet transcode YouTube into a Lumen-hosted video,
+  we just embed the chunked transcript prose and let the anchor
+  carry the timestamp.
+
+  **Auth posture per source.** YouTube uses
+  `youtube-transcript-api`, which scrapes the public transcript feed
+  with no API key (videos with disabled transcripts return a clean
+  422 `ingest.youtube.no_transcript`). Notion uses the official
+  `notion-client` SDK + `NOTION_TOKEN` (new
+  `Settings.notion_token`); v1 is **token-only** — the spec hinted
+  at a public-page scraping fallback but Notion's
+  `__NEXT_DATA__` blob is brittle enough that we'd rather degrade
+  with an explicit `ingest.notion.no_token` error than ship a
+  silently-flaky path. Google Docs uses `httpx` against
+  `https://docs.google.com/document/d/{id}/export?format=txt` — any
+  "anyone with the link" doc exposes a plaintext export with no
+  auth; private docs return 401/403 which we surface as a clean 422
+  `ingest.google_docs.private`. None of the three need a paid /
+  managed API account; the only credential is the optional Notion
+  token.
+
+  **Human-in-the-loop preview flow.** The studio modal renders the
+  payload tree (modules → lessons) inline with every title field as
+  an editable `<input>`, and only the user-clicked **Create draft
+  course** CTA commits the payload. For v1 the commit always creates
+  a *new* draft course (using the first subject by alphabetical
+  order — same default as `/studio/new`); appending to an existing
+  course is a future enhancement. The two-request commit (create
+  course, then append modules) keeps the `ingest/commit` endpoint
+  course-agnostic and reusable for that future flow.
+
+  **Studio integration.** `apps/frontend/src/components/studio/ingest-modal.tsx`
+  is a self-contained bespoke `role="dialog"` overlay — the project
+  doesn't ship a shared Dialog primitive yet and the few existing
+  modals (mobile nav, onboarding tour) each roll their own. The
+  studio root page (`apps/frontend/src/app/studio/page.tsx`) gains
+  an "Import from URL" outline button alongside the existing "New
+  course" CTA. ~25 new i18n keys under the `studio.import.*`
+  namespace, with full Arabic parity.
+
+  **Why block-on-request vs. background task.** The spec called
+  out a 202 + task-id polling option for >5s extractions; v1
+  ships the block-on-request path because (a) the 3/min rate
+  limit caps the worst-case server load, (b) a YouTube transcript
+  for a 90-minute lecture is still tens of KB so the extractor
+  itself rarely takes >2s, and (c) the upstream network hop
+  dominates anyway — moving it to Celery just adds a Redis
+  round-trip without changing the user-perceived latency. If a
+  source genuinely needs minutes of work (long-form Notion
+  workspaces, PDFs) we'll add a background variant in a follow-up
+  ADR.
+
+- **Open Badges 3.0 / W3C Verifiable Credentials issuance + public
+  verification (E5).** Every certificate minted on 100% course
+  completion now also produces a signed OB3 JSON-LD credential, stored
+  on `enrollments.badge_credential` (JSONB, Alembic `0020`). The
+  legacy `cert_<nanoid>` and the PDF download stay exactly as they
+  were — the PDF remains the human-facing fallback — but a learner
+  who wants to drop their credential into a wallet, paste it into a
+  third-party verifier, or hand an employer something a generic VC
+  toolkit can check now has a machine-readable artifact alongside the
+  PDF.
+
+  **Why OB3 over PDF-as-primary.** A PDF certificate proves only "we
+  could render this PDF"; a verifier has no cryptographic way to tell
+  it apart from a forgery without round-tripping through Lumen's
+  servers. An OB3 credential is a JSON-LD document signed with the
+  platform's Ed25519 key, so any party with the issuer's public key
+  can verify offline. Switching to OB3-primary, dropping PDF, would
+  also drop the case where a learner just wants a printable
+  certificate — that's why both ship, with the OB3 path additive.
+
+  **Signing model.** New module `app/core/badges_keys.py` loads an
+  Ed25519 private key from `BADGES_SIGNING_KEY` (PEM PKCS#8) and falls
+  back to a key deterministically derived from `secret_key` in dev /
+  test so `docker compose up` works without any explicit config. The
+  production guard in `Settings.assert_production_ready` refuses to
+  boot if `secret_key` is still the dev default OR if
+  `BADGES_ISSUER_URL` still points at localhost — issued credentials
+  would otherwise resolve to a dev host and fail external
+  verification. Signature: Ed25519 over the JCS-canonicalized
+  (RFC-8785-style: sorted keys, no whitespace) credential payload
+  minus its `proof` member, embedded as a `DataIntegrityProof` /
+  `eddsa-jcs-2022` `proof` object — the cryptosuite OB3 §8.2 names
+  for the JCS path. `pyld` is in the dep tree for future
+  URDNA2015 / did:web work but isn't on the v1 hot path.
+
+  **Public verify endpoint shape.** Two new public,
+  rate-limited (60/minute, same posture as `/certificates/verify/{id}`
+  from Fix B2) endpoints under `/api/v1/credentials`:
+  `GET /credentials/{certificate_id}` returns the signed JSON-LD
+  credential with `Content-Type: application/ld+json`, suitable for
+  a wallet or a verifier to consume directly; `GET /credentials/
+  {certificate_id}/verify` re-runs the signature check server-side
+  and returns a `{ valid, issuer, achievement_name, learner_name }`
+  summary for browser clients that don't want to ship a JOSE library.
+  Both endpoints mint on the fly for historical certificates that
+  predate Phase E5 (read-only — they don't write the freshly-signed
+  credential back to the row).
+
+  **Dashboard link.** Each completed enrollment on `apps/frontend/src/
+  app/dashboard/page.tsx` now renders an "Open Badge" link next to
+  the existing "Download PDF" link. Open Badge opens
+  `/api/v1/credentials/{certificate_id}` in a new tab (the raw
+  JSON-LD); PDF stays as `target=_self` for the existing browser
+  download flow.
+
+  **Verify page extension.** `apps/frontend/src/app/verify/[id]/page.
+  tsx` previously only resolved the certificate ID to learner +
+  course. Phase E5 adds a side query against the OB3 `/verify`
+  endpoint and renders a signature panel on success: a shield-check
+  badge with the "Signature verified" label and a link to the raw
+  credential JSON, or a shield-X badge with "Signature invalid" if
+  the stored credential was tampered with. The panel is silent for
+  pre-E5 certificates whose verify call fails; the certificate ID
+  + learner name + course title still resolve as before.
+
+  **PDF fallback contract.** `/api/v1/certificates/{course_id}.pdf`
+  is unchanged: same path, same auth, same response, same
+  `Content-Disposition`. The legacy `/api/v1/certificates/verify/
+  {certificate_id}` endpoint also stays — it's the only public
+  surface that returns learner_name without requiring credential
+  fetch, and the front-end verify page still calls it for the
+  initial resolve before layering the OB3 verify result on top.
+  Both pieces persist exactly because a learner who wants the
+  human-readable artifact, an HR reviewer pasting a stack of IDs,
+  and a wallet ingesting a credential are three different
+  consumers with three different needs.
+
+  **Storage + issuance hook.** `_maybe_issue_certificate` in
+  `app/services/enrollment.py` now also calls
+  `badges_service.issue_for_enrollment(...)` when minting the
+  certificate, stores the result on `enrollment.badge_credential`,
+  and swallows any signing failure so the legacy cert path stays
+  intact if the OB3 path raises. The signing exception is logged
+  via `structlog` (`badges.issue_failed`) so it surfaces in Sentry
+  /OTLP if it ever fires.
+
+  Five new files (`app/core/badges_keys.py`, `app/services/badges.
+  py`, `app/api/v1/badges.py`, `tests/test_badges.py`, Alembic
+  `0020`), six i18n keys × 2 locales (en + ar) added. Eight
+  pytest cases cover issue → verify roundtrip, two flavours of
+  tamper detection (payload + signature), 404 on unknown cert,
+  JSON-LD content-type + body shape, verify summary shape, stored-
+  credential tamper detection on the server side, and the rate-limit
+  cap firing after 60 hits. Backend test files unchanged elsewhere;
+  the existing `test_certificates.py` PDF + verify suite still
+  passes.
+
+- **pgvector + per-lesson chunk index + provider-agnostic embedding
+  service (E0).** Lays the storage and ingestion plumbing the rest of
+  the AI moat (E1 tutor / E2 authoring / E3 multi-modal / E7 mastery
+  dashboard) sits on top of. Postgres-side: the `db` service swaps
+  from `postgres:17-alpine` to `pgvector/pgvector:pg17` so the
+  `vector` extension is available in dev + prod; the init SQL adds
+  `CREATE EXTENSION IF NOT EXISTS "vector"`; a new Alembic migration
+  `0017_pgvector_extension` runs the same `CREATE EXTENSION` against
+  upgrades of existing volumes; a second migration `0018_lesson_chunks`
+  creates the per-chunk table — `id`, `lesson_id (FK ON DELETE
+  CASCADE)`, `chunk_index`, `text`, `embedding vector(384)`,
+  `token_count`, `created_at` — plus an HNSW index
+  (`vector_cosine_ops`) for sub-linear ANN search. Python-side: new
+  `pgvector>=0.3` dep for the SQLAlchemy `Vector` adapter, new
+  `app/models/lesson_chunk.py` registered in `models/__init__.py`,
+  and `EMBEDDING_DIM = 384` as the single source of truth for the
+  column shape.
+
+  Why 384 dims: `sentence-transformers/all-MiniLM-L6-v2` (our
+  default self-hosted provider) emits 384, and OpenAI's
+  `text-embedding-3-small` accepts `dimensions=384` as a
+  truncation knob — so operators can flip
+  `EMBEDDING_PROVIDER=local|openai` without a re-index or schema
+  change. Why HNSW: read-heavy, append-on-publish workload; IVFFlat
+  would need a `REINDEX` after every ingest to perform, which is
+  operationally expensive given courses publish one at a time.
+
+  Provider interface (`app/services/embeddings.py`): an abstract
+  `EmbeddingProvider` Protocol with three concrete implementations.
+  `LocalEmbeddingProvider` defers the `sentence_transformers` import
+  to first `embed()` call (the package pulls in torch — ~200MB and
+  slow — and worker boot would crawl if we imported eagerly).
+  `OpenAIEmbeddingProvider` posts to `/v1/embeddings` with
+  `dimensions=384`, sorts the response by `index` defensively, and
+  surfaces network failures up to the Celery retry policy.
+  `NoopEmbeddingProvider` is a deterministic SHA-256 + L2-normalize
+  stub for tests — same input maps to the same unit vector, different
+  inputs map to different ones, no network. New config keys
+  `embedding_provider` (default `"local"`), `embedding_model_local`,
+  `embedding_model_openai`, `openai_api_key` (SecretStr, optional),
+  `openai_api_base`.
+
+  Chunker + ingest (`app/services/embeddings_ingest.py`):
+  ~500-token sliding windows with 50-token overlap, using a cheap
+  whitespace + 1.3 tokens/word proxy so the chunker stays independent
+  of the embedding model's tokenizer. Quiz lessons concatenate every
+  question's prompt into one document; image/file/video lessons fall
+  back to title + alt/filename/description so the retriever always
+  has *something* to point at. `ingest_lesson` is idempotent —
+  re-runs delete the lesson's existing chunks before inserting new
+  ones. `ingest_course` walks every live lesson in the course; a
+  Celery task `app.workers.tasks.embeddings.index_course_embeddings`
+  wraps it with the async-to-sync bridge used by `digest_daily`.
+
+  Publish hook: `_transition_status` in `app/services/courses.py`
+  enqueues `index_course_embeddings.delay(course_id)` whenever a
+  course lands in `published`. Best-effort by design — if the
+  broker is unreachable (the dev stack ships without a worker by
+  default), we log a warning and don't block the publish, matching
+  the defensive shape `_schedule_index` used pre-A9.
+
+  Retrieval helper (`app/services/embeddings_retrieval.py`):
+  `find_relevant_chunks(db, course_id, query, top_k=5)` embeds the
+  query, runs a `<=>` cosine-distance search joined to live lessons
+  in the target course, and returns ORM `LessonChunk` rows with
+  their parent `Lesson` eagerly loaded so callers can render
+  citations without a second SELECT. The course scope is enforced
+  in SQL — chunks from other courses are unreachable through this
+  surface.
+
+  Admin reindex: `POST /api/v1/admin/search/reindex` has been a 202
+  no-op since A9 (the FTS column is a generated `tsvector` and has
+  nothing to rebuild). It now legitimately fans out one
+  `index_course_embeddings` task per live published course — useful
+  when an operator flips `EMBEDDING_PROVIDER`, after a chunker
+  bug-fix, or on a fresh deploy that needs the historical catalogue
+  backfilled. Existing test coverage on the audit-row contract is
+  unchanged.
+
+  Tests: `apps/backend/tests/test_embeddings.py` covers the chunker
+  on multi-paragraph text + quiz + image-with-alt + empty bodies,
+  asserts overlap on consecutive windows, exercises
+  `ingest_lesson`'s idempotency contract (re-ingest count
+  unchanged), confirms `find_relevant_chunks` orders by cosine
+  distance correctly (exact-stored-text query → distance-0 top
+  hit), and asserts `top_k` truncation + blank-query short-circuit.
+  The provider is swapped to `noop` per-test via
+  `monkeypatch.setenv("EMBEDDING_PROVIDER", "noop")` +
+  `get_settings.cache_clear()` — the CLAUDE.md-documented pattern
+  for runtime config flips. Reference spec §4 Phase E item 0.
+- **Block editor for `text` lessons — Tiptap, Notion-style (E6).**
+  The free-form markdown `<Textarea>` that backed text lessons is
+  replaced with a block-based editor. Authors compose paragraphs,
+  headings, bulleted + numbered lists, blockquotes, code blocks
+  (lowlight-highlighted at authoring time), images, callouts, and
+  horizontal rules; the lesson player renders the same JSON tree
+  read-only via a dedicated `BlockRenderer` that imports no editor
+  runtime, so the learner bundle stays small. Stack pick:
+  **Tiptap** (`@tiptap/react`, `@tiptap/starter-kit`,
+  `@tiptap/extension-link`, `@tiptap/extension-image`,
+  `@tiptap/extension-code-block-lowlight`, `lowlight`) — ProseMirror
+  underneath, JSON-native (so the wire format and the editor's
+  internal state are the same object — zero serialization layer),
+  MIT-licensed, and modular enough that the player needs none of
+  it. Storage stays inside the existing `lesson.data` JSONB column
+  under a new `blocks` field; the legacy `body_markdown` field
+  remains valid on the wire and gets promoted to a single paragraph
+  block on first edit (deliberately not a full markdown parser —
+  see `apps/frontend/src/lib/lesson/blocks.ts`'s
+  `fromLegacyMarkdown` for the contract). Workbench styling: a
+  bordered `surface` panel with a `prose` content area, plus an
+  inline `BubbleMenu` toolbar that floats next to the current
+  selection (no permanent top bar eating vertical space) and
+  exposes bold / italic / inline code / link / heading-2 /
+  bulleted list / numbered list / quote / code-block / image
+  buttons — matches the Workbench "chrome appears only when it's
+  needed" pattern from C0/C1. `BlockRenderer` walks the JSON tree
+  with a tiny recursive visitor, supports all the editor's block
+  types plus marks (bold / italic / code / strike / underline /
+  link, with `rel="noopener noreferrer"` hard-baked into every
+  link), and degrades gracefully on unknown block types by
+  rendering their children rather than dropping content. Two new
+  tests: `block-editor.test.tsx` (mounts the editor with a stubbed
+  Tiptap, asserts the `onUpdate → onChange` wiring carries the
+  typed paragraph through), `block-renderer.test.tsx` (renders
+  paragraph / heading / bulletList / inline marks / codeBlock /
+  blockquote / hr / image and asserts the expected HTML shape).
+  Two i18n key renames (`lessonEdit.bodyMarkdown` →
+  `lessonEdit.body`, placeholder updated) × 2 locales — parity
+  test passes.
+- **FSRS-6 spaced-repetition review queue (E4).** Every completed
+  quiz lesson — pass *or* fail — joins the learner's per-card
+  forgetting-curve schedule, with a dedicated dashboard surface for
+  working through what's due. Algorithm: the `fsrs` (≥5.0) Python
+  package, which is the reference implementation of Free Spaced
+  Repetition Scheduler v6 used across Anki's official integration,
+  Mochi, RemNote, and other 2026 spaced-repetition tools. We pull
+  it in instead of rolling our own SM-2 because FSRS-6 fits a
+  per-card stability + difficulty model from review logs and targets
+  a configurable retention rate (default 0.9), where SM-2 treats
+  every card with the same forgetting curve modulo an ease factor —
+  overshooting on early reviews and undershooting on lapses.
+  Storage: new `review_cards` table (migration `0019`) with one row
+  per `(user_id, lesson_id)` — a `UniqueConstraint` enforced by the
+  DB so `ensure_card` is safely idempotent across concurrent quiz
+  submissions. Columns are the FSRS-6 memory variables (`stability`,
+  `difficulty`, both float), the scheduler state (`new | learning |
+  review | relearning` — `new` is our pre-FSRS state for cards that
+  have never been graded), `step` (Learning / Relearning step
+  counter, NULL after graduation), `due_at` (composite index with
+  `user_id` so the queue read is an index-only scan),
+  `last_reviewed_at`, and a denormalized `total_reviews` counter
+  for the stats endpoint. Cardinality choice: **quiz-only for v1**
+  and **one card per lesson, not per question** — FSRS treats each
+  card as a single forgetting curve, and per-question cards would
+  explode the queue (5-question quiz ⇒ 5 cards/learner) while
+  forcing the UI to render bare question fragments out of context.
+  Hook: `app.services.enrollment.record_quiz_attempt` calls
+  `app.services.fsrs.ensure_card` on every quiz submission so the
+  card joins the queue immediately (cards are added on fail too —
+  failed quizzes are exactly the material the queue exists to help
+  revisit). Service surface:
+  `ensure_card(user_id, lesson_id) → ReviewCard` (idempotent
+  get-or-create with `due_at = now()` so it shows up at the top of
+  the next dashboard refresh), `record_review(card, rating) →
+  ReviewCard` (runs the FSRS-6 scheduler and writes the updated
+  stability / difficulty / state / step / due_at / last_reviewed_at
+  back onto the row, bumps `total_reviews`), `due_cards(user_id,
+  limit=20)` (oldest-due first, eager-loads
+  `lesson.module.course` so the API doesn't N+1), `stats(user_id)`
+  (counters for the four buckets — due-now, learning, review,
+  next-7-days). API surface: new `app/api/v1/reviews_queue.py`
+  module mounted under `/me/reviews` (kept disjoint from
+  `/courses/{id}/reviews` which is the course-rating endpoint),
+  with `GET /me/reviews/queue?limit=N`, `GET /me/reviews/stats`,
+  and `POST /me/reviews/{card_id}/grade` (body `{"rating": "again"
+  | "hard" | "good" | "easy"}`). Cross-user grading returns 404
+  rather than 403 so the endpoint can't be used to probe card ids.
+  Invalid rating → 422 with `review_card.invalid_rating`. Frontend
+  surface: new `/dashboard/reviews` route on the Workbench palette
+  — a stats grid (mono-typeset counts in `surface` cells), a
+  bordered list of due cards with course context, and an inline
+  grade panel that swaps in below the active row. Workbench rule
+  on the four grade buttons: **none of them get the lime accent**,
+  because semantically Again / Hard / Good / Easy are equal-status
+  self-reports — tinting one would suggest a "correct" choice.
+  The single lime accent on the screen sits on the per-row "Start
+  review" CTA. New "Reviews" nav link in `site-header.tsx` for
+  every authenticated user (instructors and admins can have learner
+  cards too if they've taken quizzes; the empty-state copy handles
+  the no-cards case cleanly). i18n: 22 keys × 2 locales (en + ar)
+  added; parity test passes. Tests:
+  `apps/backend/tests/test_fsrs.py` covers `ensure_card` defaults +
+  idempotency, `record_review` state-advance + bad-rating handling,
+  `due_cards` future-filter, stats bucketing, the
+  quiz-submit-creates-card side effect, the grade endpoint's update
+  + cross-user 404, and the stats endpoint — 11 tests, all green.
+  Reference spec §4 Phase E item 4. Migration coordination note:
+  this commit ships `0019_review_cards` after E0's `0018_lesson_chunks`;
+  if a later phase needs to renumber the chain that's the
+  merge-time concern of whoever lands last.
+
+### Added (rebuild phase D)
+- **Per-kind email notification preferences + daily digest worker
+  (D4).** Notifications used to be bell-only; this phase makes them
+  routable per `NotificationKind` across four dispatch modes — `off`
+  (drop entirely), `in_app` (default, bell row only — preserves pre-D4
+  behaviour), `email_immediate` (bell row + one-shot email send via
+  the existing email worker), `digest_daily` (bell row + the new
+  daily-digest worker bundles unread rows into one summary email per
+  user). Storage: new `users.notification_prefs` JSONB column
+  (`server_default '{}'`, migration `0015`) shaped
+  `{ "<kind>": "off|in_app|email_immediate|digest_daily" }` — sparse
+  so missing keys resolve to `in_app` at read time, no data backfill
+  needed for existing accounts. Idempotency stamp: new
+  `notifications.digested_at` column (migration `0016`, separate from
+  the prefs migration so each is independently revertable) — the
+  digest worker sets it on every row it includes in a send so
+  subsequent runs skip them. Schedule: Celery Beat fires
+  `app.workers.tasks.digest.send_daily_digests` at 07:00 UTC, picked
+  to land before the EU/India work day and after Americas overnight
+  activity; the task itself is idempotent so the exact tick is a soft
+  target. Best-effort by design — if the broker or SMTP is down in
+  dev the rows simply stay un-stamped and get picked up next run, and
+  the in-app bell remains the source of truth (which the loop comment
+  in `digest.py` and CLAUDE.md's existing "Celery is best-effort in
+  dev" gotcha both call out). Frontend: new "Notifications" section
+  on `apps/frontend/src/app/profile/page.tsx` — one row per
+  `NotificationKind` with a native `<select>` of the four dispatch
+  modes, loaded from `GET /me/notifications/prefs` on mount, saved as
+  a whole-form PUT. New endpoints `GET/PUT /me/notifications/prefs`,
+  schema `NotificationPrefs` + `NotificationPrefsUpdate`, service
+  `app/services/notification_prefs.py` (the only place defaults are
+  resolved). Eighteen i18n keys × 2 locales (en + ar) added; parity
+  test passes.
+- **First-login onboarding tour for learners + instructors (D3).** A
+  three-step interactive walkthrough shown to brand-new users on their
+  first dashboard visit (learners) and first studio visit (instructors
+  and admins). Steps are role-specific: learners see dashboard +
+  AI-tutor + streak copy, instructors see studio + AI-assisted
+  authoring + publish copy. Persistence is localStorage-only — flag is
+  `lumen.onboarding.${role}.dismissed = "1"`, set on either Skip or
+  Done. No backend column, no migration; resyncing across devices was
+  intentionally deferred because the tour is informational and a
+  re-show on a fresh device is acceptable UX. Keyboard support: Esc to
+  dismiss, ArrowRight to advance. Visual: single bordered Workbench
+  card on a dimmed overlay, one lime accent (Next/Done CTA), Skip is a
+  ghost. New surfaces: `components/onboarding/onboarding-tour.tsx`,
+  `lib/onboarding/steps.ts`, `lib/onboarding/use-onboarding.ts`. Eight
+  i18n chrome + step keys × 2 locales (en + ar) added; parity test
+  green. Five vitest cases cover initial render, advance-on-Next,
+  Done-dismisses-and-persists, no-render-when-flag-set, and
+  Skip-dismisses-and-persists.
+- **WCAG 2.2 AA CI gate (D5).** Every PR and every push to `Rewrite`
+  / `master` now runs `@axe-core/playwright` inside a real Chromium
+  session against the built Next.js app and fails on any AA
+  violation. The April 24 2026 WCAG 2.2 AA effective date applies
+  broadly to consumer-facing surfaces, so this is treated as a
+  release blocker rather than a soft check.
+
+  Routes audited: `/`, `/courses`, `/login`, `/register`,
+  `/forgot-password`, the first seeded `/courses/{slug}`,
+  `/dashboard` (student), `/profile` (student), `/studio`
+  (instructor), `/admin` (admin). Auth runs through the seeded
+  demo accounts from `make seed`, so the gate hits the same
+  surfaces a developer sees locally.
+
+  Tag set is `wcag2a + wcag2aa + wcag21a + wcag21aa + wcag22aa` —
+  `best-practice` rules are informational and do not gate. Axe
+  surfaces each violation with the rule id, impact, WCAG help URL,
+  offending CSS selector, and a human-readable failure summary; the
+  custom formatter in `accessibility.spec.ts` prints all of that
+  into the CI log so triage doesn't require a re-run, and the
+  workflow uploads `playwright-report` + `test-results` as the
+  `playwright-axe-report` artifact on failure for screenshots and
+  traces.
+
+  Files: `apps/frontend/tests/e2e/accessibility.spec.ts` (new),
+  `.github/workflows/accessibility.yml` (new), `Makefile` (`a11y`
+  target for local runs against an up dev stack),
+  `docs/accessibility.md` (new — triage guide),
+  `docs/architecture.md` (§13 cross-link),
+  `apps/frontend/package.json` (`@axe-core/playwright` dev dep).
+
+  Local: `make up && make migrate && make seed && make a11y`. The
+  policy is to *fix* violations, not ignore them; if a rule needs
+  to be temporarily suppressed during triage, scope a
+  `disableRules([...])` on the single test with a tracking `TODO`,
+  rather than growing a global ignore file.
+
+### Changed (rebuild phase C)
+- **Workbench repaint of dashboard + learn + studio + admin + profile
+  + discussions (C2 wave 2).** Twenty file/view repaints onto the
+  C0+C1 token + primitive foundation, finishing the Workbench
+  conversion the wave-1 commit (`cc52641`) started. Each surface
+  follows the same rules: left-aligned label-like headlines on
+  `font-display` (~24-36px, not marketing-large), eyebrow labels in
+  `font-mono uppercase tracking-wider text-muted-foreground` (no
+  custom letter-spacing values), `border-t border-border` between
+  sections instead of nested card chrome, `transition-colors
+  duration-[160ms]` motion, and exactly one lime accent per screen
+  reserved for the primary CTA — every other affordance is a
+  bordered ghost.
+
+  Repainted surfaces, before → after:
+  - `dashboard/page.tsx`: marketing-sized `text-5xl/6xl` welcome and
+    `lift-3d` enrolment cards with shadow-hover → label-style header,
+    dense `surface` card grid for in-progress, bordered list rows for
+    completed (completed work occupies less weight than active work),
+    certificate links as lime text with arrow icon.
+  - `learn/[slug]/page.tsx`: card-in-card outline + card-in-card
+    player with `text-4xl` lesson title → two-column layout (sticky
+    `surface` outline left, flat player center), current lesson
+    highlighted with `bg-muted border-l-2 border-foreground/40` —
+    NOT lime, lime stays on the single Mark Complete CTA.
+  - `components/lesson/lesson-player.tsx`: residual `border-border/60`
+    + `bg-background/60` + `tracking-[0.28em]` quiz styling →
+    `border-border` + `bg-muted` + `font-mono` eyebrows; quiz history
+    chips and option pills use the Workbench palette directly.
+  - `studio/page.tsx`: 3D-tilt `lift-3d` card grid with pill filter
+    chips → bordered list rows for courses + `border-b-2
+    border-primary` active-tab marker (Linear/Vercel pattern).
+  - `studio/new/page.tsx`: centered marketing card wrapper → flat
+    left-aligned form on the page background.
+  - `studio/[id]/page.tsx`: stacked Cards for every section with
+    `text-5xl` title → toolbar header (status badge + title + small
+    action group), section-divider layout, mono+tabular-nums analytics
+    tiles, modules render as bordered rows with drag-handle on the
+    left and gear on the right.
+  - `studio/[id]/modules/[moduleId]/page.tsx`: per-card sidebar +
+    `bg-primary/10 text-primary` selected-lesson highlight (which
+    duplicated the lime affordance with the form's save CTA) →
+    surface-1 sticky sidebar with `border-l-2 border-foreground/40`
+    selection (lime saved for the Save button).
+  - `components/lesson/lesson-editor.tsx`: residual `bg-background/60`
+    + `tracking-[0.28em]` on the quiz editor → `bg-muted` +
+    `font-mono` eyebrows aligned to the page-level primitives.
+  - `admin/page.tsx`: `lift-3d` tile grid of admin tools + 3D-tilt
+    cards → dense bordered-row tool index with chevron affordance +
+    mono+tabular-nums stats tiles in a 7-up grid.
+  - `admin/users/page.tsx`: marketing-size header + `bg-muted/30`
+    table head → label-style header + mono uppercase table head; email
+    + last-login render in mono so admins can copy/scan cleanly.
+  - `admin/subjects/page.tsx`, `admin/tags/page.tsx`: nested cards →
+    flat add forms above hairline-divided lists; tag chips use the
+    bordered mono treatment.
+  - `admin/courses/page.tsx`: same pattern as users — mono table head,
+    body in body text, statuses + featured flag as Workbench Badges.
+  - `admin/audit/page.tsx`: timestamps + action codes + IDs + JSON
+    data now render entirely in `font-mono text-xs` so machine-emitted
+    values stay aligned; the action column drops its old lime tint
+    (audit data is reference, not interactive).
+  - `profile/page.tsx`: five stacked Cards → five flat sections
+    separated by `border-t border-border`; destructive "delete
+    account" lives in a `border-destructive/30 bg-destructive/5`
+    surface at the bottom.
+  - `courses/[slug]/discussions/page.tsx`: thread list rendered as
+    Cards → bordered list rows on `border-y border-border`; reply
+    counts in mono down the right edge.
+  - `courses/[slug]/discussions/[id]/page.tsx`: opening post in a
+    Card, replies in stacked Cards → single column with hairline
+    dividers; the lime affordance is the Post-reply CTA at the bottom.
+  - `components/course/course-card.tsx`: `hover:-translate-y-1` lift
+    + glow shadow + cover scale + radial gradient placeholder →
+    flat surface card whose only hover state is a border-colour
+    shift; meta row uses mono+tabular-nums.
+  - `components/course/my-review-editor.tsx`,
+    `components/course/cohort-card.tsx`,
+    `components/shared/sessions-card.tsx`,
+    `components/shared/notifications-bell.tsx`,
+    `components/shared/site-footer.tsx`: residual
+    `tracking-[0.18em]` / `tracking-[0.28em]` / `text-[0.62rem]` /
+    `border-border/60` patterns swept to `font-mono text-xs
+    uppercase tracking-wider` + `border-border` + 160ms transitions.
+
+  `mesh-bg`, `text-shine`, `lift-3d` references are now gone from the
+  app routes; only the C0 removal comment in `home-view.tsx` still
+  mentions them. Typecheck clean, vitest run green (89/89, including
+  the asserts on the course-card stat strings).
+- **Workbench repaint of every primary surface (C2 — partial wave 1).**
+  Sixteen page/view files repainted onto the C0+C1 token + primitive
+  foundation: home page (`home-view.tsx` — left-aligned hero, flat
+  pillar cards with mono numeric eyebrows, no mesh / text-shine / 3D
+  tilt / scroll-reveal stagger), catalog page (`courses/page.tsx` —
+  left-aligned section header, density-leaning filter rail, the old
+  `mesh-bg` + `text-shine` hero chrome gone), course detail
+  (`course-detail-view.tsx` — sidebar enrollment card on
+  surface-2, syllabus with subtle dividers, no `lift-3d` on
+  enrollment / progress panels), course preview lesson, error.tsx
+  (bordered card with mono `digest` ID + retry primary + home ghost),
+  not-found.tsx (404 in mono, body + home CTA), loading.tsx
+  (skeleton utility, no shimmer), all seven auth flows (login,
+  register, forgot-password, reset-password, verify, verify-email,
+  confirm-email-change — centered single bordered card, mono
+  cartouche eyebrow, lime primary CTA at the bottom of each form).
+  i18n: 3 new strings each in en.ts + ar.ts to support the new
+  copy patterns. The dashboard + learn + studio + admin + profile
+  + discussions repaints land in C2 wave 2.
+- **Workbench visual foundation — tokens + fonts + primitives
+  (C0 + C1).** Replaces the Skillpath cobalt + Instrument Serif +
+  Geist stack with the Workbench palette: dark-first
+  (`#0A0B0D` background, `#111316`/`#171A1F`/`#1E2228` surface ramp,
+  `#E8EAED` foreground, `#C8FF00` electric-lime accent, desaturated
+  `#E5484D`/`#46A758`/`#F5A524` semantic), `cubic-bezier(0.16,1,0.3,1)`
+  easing at 80/160/240ms durations, 6px radius, 2px lime focus ring.
+  Light mode is now an explicit opt-in (`.light` class) rather than
+  the default. Fonts: Inter + Inter Display + JetBrains Mono via
+  next/font, with `--font-display`/`--font-body`/`--font-mono`
+  Tailwind theme variables pointing at the next/font CSS variables
+  (`--font-inter-display`, `--font-inter`, `--font-jetbrains-mono`).
+  `mesh-bg`, `text-shine`, `lift-3d`, `lift-3d-hover`, `drift`,
+  `mesh-drift`, `shine` keyframes + utilities are removed; `surface`
+  + `hairline` + new `skeleton` utility remain. Primitives repainted:
+  Button (no shadow, single-color hover, 9/8/10 height ramp), Card
+  (single border, no shadow, surface-1 bg, 20px padding), Input +
+  Textarea (sit on muted, focus tightens border to lime ring),
+  Progress (1px-tall, lime indicator, 240ms ease), Badge (rounded-sm
+  pill with bordered tinted background per semantic, plus mono
+  variant for IDs). Site header chevron mark replaced with a square-
+  bracket-and-dot Lumen mark; wordmark + 7 i18n strings + page
+  metadata rebrand from Skillpath → Lumen. Per-surface repaints land
+  in Phase C2 (each as its own commit).
+
+### Performance (rebuild phase B)
+- **Batched progress lookup on the dashboard listing (Fix B1).**
+  `GET /api/v1/me/enrollments` previously called
+  `enrollment_service.progress_pct(enrollment)` once per enrollment,
+  and each call hit two queries (`count_lessons_in_course` +
+  `count_completed_lessons`). For N enrollments that was 2N round-
+  trips on top of the courses+stats fetch — a learner enrolled in 50
+  courses cost 100 progress queries per dashboard hit. Added
+  `courses_repo.progress_pcts_for_enrollments` which issues two
+  aggregate SELECTs (GROUP BY course_id for live-lesson totals; GROUP
+  BY enrollment_id for completions) and divides in Python, collapsing
+  the dashboard's progress budget to a flat 2 queries regardless of
+  N. API response shape is unchanged. Regression covered by
+  `apps/backend/tests/test_enrollments_dashboard_perf.py`, which
+  attaches a `before_cursor_execute` listener and asserts ≤2
+  progress-related SELECTs for a 5-enrollment listing.
+- **Swapped the notifications composite index from `(user_id, read_at)`
+  to `(user_id, created_at)` (rebuild Fix B6).** The old index was
+  designed around a "show me the unread ones" query that never
+  materialised — `read_at` is mostly NULL and no repo or service
+  filters by it. The actual hot path is
+  `notifications.list_for_user`, which selects by `user_id` and
+  orders by `created_at DESC LIMIT N`. The new composite supports
+  the WHERE and the ORDER BY in a single index scan and lets the
+  planner skip the sort entirely for the bell-icon dropdown. Alembic
+  migration `0008_notifications_index_swap` is reversible.
+
+### Fixed (rebuild phase B)
+- **`courses.slug` uniqueness now ignores soft-deleted rows
+  (rebuild Fix B3).** The initial schema enforced `slug` uniqueness
+  globally via `uq_courses_slug` + the unique `ix_courses_slug`.
+  Because Lumen soft-deletes courses (`deleted_at IS NOT NULL`
+  tombstones), a freed slug stayed locked forever, and restoring a
+  soft-deleted course risked silently colliding with whatever live
+  row had since claimed the slug — the collision only surfaced at
+  runtime in unrelated code paths. Migration drops the global unique
+  constraint + unique lookup index and replaces them with a
+  *partial* unique index `uq_courses_slug_live` gated by
+  `WHERE deleted_at IS NULL`, plus a non-unique `ix_courses_slug`
+  for plain lookups. Tombstoned rows keep their slug as a tombstone
+  but no longer block live duplicates; attempting to restore a
+  soft-deleted row while a live duplicate exists now fails the
+  constraint at commit time. Regression covered by
+  `apps/backend/tests/test_courses_slug_partial_unique.py`.
+
+### Security (rebuild phase B)
+- **Pinned the account-delete token-revocation invariants with two
+  new regression tests (Fix B5).** `DELETE /api/v1/users/me` already
+  flipped `is_active = False` (which `get_current_user_optional` then
+  treats as 401) AND called `revoke_all_refresh_tokens(user.id)`
+  inside the same transaction, so an attacker holding a stolen token
+  from before the delete could not actually re-authenticate — but
+  the backend audit flagged this as an unprotected window because
+  there was no test guarding the invariant. The fix adds two tests
+  in `apps/backend/tests/test_users.py`:
+  `test_delete_account_kills_outstanding_access_token` (use the
+  pre-delete access token on `/users/me` → assert 401) and
+  `test_delete_account_revokes_refresh_token` (use the pre-delete
+  refresh cookie at `/auth/refresh` → assert 401). Implementation
+  unchanged; the tests pin the behaviour so a future refactor that
+  drops either guard fails CI instead of silently widening the
+  post-delete auth window.
+- **Rate-limited the public `/certificates/verify/{id}` endpoint
+  (`@limiter.limit("20/minute")`).** The route is intentionally
+  unauthenticated so anyone with a certificate ID can confirm it
+  was issued by Lumen, but it returns `(learner_name, course_title)`
+  for any valid hit — and certificate IDs are 21-char nanoids over
+  a finite keyspace. With no cap, a single attacker could walk that
+  keyspace and harvest the full roster of everyone who has ever
+  completed a course on the platform. 20/minute is enough for an
+  HR reviewer pasting a stack of credentials into a verifier and
+  far below the rate a scraper needs to be cost-effective.
+  Anonymous traffic keys by IP via the existing slowapi
+  `_identity_key` machinery. Regression in
+  `apps/backend/tests/test_certificates.py::test_public_verify_is_rate_limited`.
+- **Removed hard-coded demo credentials from the login form.**
+  `apps/frontend/src/app/login/page.tsx` previously initialised the
+  email + password `useState` hooks with `student@lumen.test` /
+  `Learn!2026` for dev convenience. That convenience ships to prod
+  as a real footgun: any visitor opening `/login` sees a valid seed
+  account pre-typed into the form, and a one-click submit lands
+  them inside the dashboard against any environment whose database
+  still has the seed. Both fields now start as empty strings.
+  Regression covered by `apps/frontend/tests/login.test.tsx`.
+
+### Changed (rebuild phase A)
+- **Stripped remaining Egyptian deity copy from the home page + i18n
+  (Cuts A1 + A6).** The 35-iter Thoth (Egyptian temple) theme was
+  visually replaced by Skillpath cobalt months ago, but textual
+  residue stayed put: the home page rendered "01 Thoth / 02 Seshat /
+  03 Ptah" pillar cards keyed by `home.deity.thoth/seshat/ptah` +
+  `home.underDeity`, the empty-completed dashboard string read "every
+  scribe starts with a blank papyrus", and every i18n file section
+  header had Egyptian-flavoured comments ("scroll room", "eye of the
+  temple", "inscribe a course", "scribe's hall of records", and the
+  Arabic equivalents). The 3D pointer-tilt on the pillar cards +
+  `mesh-bg` / `text-shine` chrome on the hero also die here — they're
+  Skillpath-era set dressing the Workbench pivot won't keep. Replaced
+  with neutral copy (Build real projects / Learn at your pace / Keep
+  what you make), flat hero (no mesh, no text-shine, no drift
+  animations), and plain section comments. The `cartouche` key naming
+  pattern stays for now (values are already neutral); Phase C2 will
+  decide whether to rename it as part of the surface repaint. en.ts +
+  ar.ts remain at 550/550 keys, parity preserved.
+### Removed (rebuild phase A)
+- **Meilisearch + the entire search worker (Cut A9).** The Meili
+  client + service wrapper + scheduled reindex worker existed but did
+  not work as advertised: the reindex worker shipped without
+  integration tests, the `MEILI_*` env never landed in the
+  test/conftest fixture, and search via the Meili path silently
+  returned empty for catalogs that had never been reindexed. The
+  existing Postgres ILIKE+ts_rank fallback in `search_courses` was
+  the only working path. Per Lumen 2.0 rebuild spec section 3.3 we
+  cut the external search service entirely and promote the existing
+  Postgres-native FTS to a stored generated column + GIN index for
+  performance. Removed: `apps/backend/app/services/search.py`,
+  `apps/backend/app/workers/tasks/search.py`, the `reindex-catalog`
+  beat schedule + `search` include in `celery_app.py`, the
+  `_schedule_index` helper + its two call-sites in
+  `apps/backend/app/services/courses.py`, the
+  `search_backend / meili_url / meili_master_key /
+  meili_index_courses` config keys, the `meilisearch>=0.34` dep +
+  its mypy override in `pyproject.toml`, the `search` service block +
+  `search-data` volume in both compose files, `SEARCH_BACKEND` +
+  `MEILI_*` env vars from `.env.example`, and the meilisearch row
+  from `docs/architecture.md`. The admin `POST /search/reindex`
+  endpoint stays as a 202 no-op (audit row still records the intent;
+  the schema is auto-maintained so there is nothing to reindex).
+### Changed (rebuild phase A)
+- **Promoted course full-text search to a stored generated tsvector
+  with a GIN index (Cut A9).** `courses.search_vector` is now a
+  Postgres `GENERATED ALWAYS AS (to_tsvector('english', coalesce(title,'')
+  || ' ' || coalesce(overview,''))) STORED` column, paired with the
+  GIN-indexed `ix_courses_search_vector`. `repositories/courses.py`
+  reads the column directly via `Course.__table__.c.search_vector`
+  instead of recomputing `to_tsvector` per row at query time, so the
+  same query plan picks up the index and tail latency drops with
+  catalog size. The repo's ILIKE fallback for partial-word matches
+  is preserved. Alembic 0014 adds the column + index with a
+  reversible downgrade.
+- **Per-course WebSocket chat (Cut A8).** The chat module shipped a
+  WebSocket connection manager, a paginated REST history endpoint, a
+  ChatMessage model + table, a presence counter, and the
+  `ChatRoom` component that sat in the learn-page right column. The
+  backend audit flagged the WS receive loop as untested (no
+  integration tests on the actual send/persist/broadcast path) and
+  lossy on reconnect (exponential backoff with no max cap left the
+  client spinning "Reconnecting…" forever if the endpoint hung), and
+  the cuts-inventory agent recommended replacing the per-course
+  chat surface entirely with lesson-scoped async comments + a
+  course-level AI tutor (which Phase D/E will deliver). Per Lumen
+  2.0 rebuild spec section 3.2 the chat surface goes now; the
+  replacement surfaces ship later in their own phases. Removed:
+  `apps/backend/app/models/chat.py`, `app/api/v1/chat.py`,
+  `app/services/chat.py`, `app/repositories/chat.py`,
+  `app/schemas/chat.py`, the `chat` router registration, the
+  `ChatMessage` model export, the `chat_messages` relationship on
+  `Course`, the `chat_messages` count in GDPR export, three test
+  files (`test_chat.py`, `test_chat_presence.py`,
+  `test_chat_ws_revalidate.py`), `chat_messages` from the
+  `conftest.py` TRUNCATE list, the `apps/frontend/src/components/chat/`
+  directory + its test, the chat panel + right column on the learn
+  page (3-col → 2-col layout), the `qk.chatHistory` query key, the
+  `ChatMessageOut` TS type, `learn.courseChat` + the nine `chat.*`
+  i18n keys in en.ts and ar.ts. Alembic 0013 drops the table with a
+  reversible downgrade. en.ts + ar.ts remain at 537/537 keys.
+- **Bookmarks (Cut A7).** The Bookmark model + `bookmarks` table +
+  three `/me/bookmarks` endpoints tracked "saved for later" courses
+  per learner. The state was UX-redundant with enrollment: anything a
+  learner actually cared about they enrolled in (free, idempotent);
+  anything they bookmarked-and-never-enrolled rotted in the dashboard
+  as a permanent reminder of indecision. The audit flagged it as an
+  anti-pattern and the cuts-inventory agent agreed; per Lumen 2.0
+  rebuild spec section 3.2 the whole surface goes. Removed: the
+  model, the API module + router registration, `is_bookmarked` on
+  `CourseDetail` schema + `_builders.detail` + ETag fingerprint, the
+  `Bookmark` import from `courses.py`, the dashboard Bookmarks
+  section, the course-detail toggle button, the `Me.bookmark*` API
+  clients, the `qk.bookmarks` query key, `is_bookmarked` from the TS
+  `CourseDetail` type, and four bookmark-related i18n keys
+  (`course.bookmark`, `course.bookmarked`, `courseDetail.bookmarkError`,
+  `dashboard.bookmarks`) plus their Arabic siblings. Alembic 0012
+  drops the `bookmarks` table with a reversible downgrade that
+  re-creates the original schema. en.ts + ar.ts remain at 546/546
+  keys.
+- **Course duplication feature (Cut A5).** `POST
+  /api/v1/courses/{id}/duplicate` cloned a course with all its modules
+  and lessons into a fresh draft owned by the caller. The feature is
+  not in the v1 PRD and never made it into the studio UX flows beyond
+  a single "Duplicate" button on the course-edit toolbar. Instructors
+  who want a remix workflow can create a new course manually — at
+  v1 catalog scale the keystroke savings did not justify the surface
+  area (route, service, schema, two test files, frontend mutation,
+  four `studioEdit.duplicate*` i18n keys). Removed: the route + the
+  ~70-line service method, the `Courses.duplicate` client, the
+  toolbar button + mutation in `apps/frontend/src/app/studio/[id]/page.tsx`,
+  the four `studioEdit.duplicate*` i18n keys from en.ts + ar.ts,
+  `apps/backend/tests/test_duplicate_visibility.py`, and the two
+  duplicate tests from the former `test_analytics_and_duplicate.py`
+  (file renamed to `test_analytics.py`). No migration needed —
+  duplication never had its own schema. Revisit if the catalog ever
+  grows past O(100) instructor-authored courses.
+- **`DiscussionSubscription` model + subscribe/unsubscribe endpoints
+  (Cut A4).** The model and its table tracked which users wanted bell
+  notifications for a thread, but no delivery mechanism ever shipped —
+  there was no Celery digest, no email trigger, and the only consumer
+  of the data was a UI bell-icon toggle on the thread detail page. The
+  fanout that wrote to `notifications` on every reply now simply
+  notifies the thread *author* (skip self-notifications), which covers
+  the original "did anyone answer my question?" UX without the
+  subscription table. Removed: the model, the two API routes, the
+  `is_subscribed` field on `DiscussionDetail`, the four service
+  helpers, the entire frontend subscribe button + state, and the five
+  i18n keys (`thread.subscribe*`, `thread.unsubscribeTip`,
+  `thread.subscribeError`). Alembic migration `0011` drops the table
+  with a reversible downgrade that re-creates the original schema.
+- **`LessonProgress.payload` JSONB column (Cut A3).** The column
+  mirrored the latest quiz submission (answers + score + passed),
+  but since iteration 47 the append-only `quiz_attempts` table
+  (Alembic 0004) has been the single source of truth for attempt
+  history. The mirror had zero remaining read sites outside its
+  own write — every consumer that wanted "did the learner answer
+  X?" already queried `QuizAttempt`. Dropped via Alembic 0008
+  (reversible; downgrade re-adds the column with the original
+  default). Service+API stripped of the unused write path:
+  `record_quiz_attempt` now takes `answers` directly,
+  `mark_lesson` no longer accepts `payload`, and
+  `ProgressUpdate.payload` is gone from the schema. Frontend
+  never sent the field.
+- Idempotency middleware (`app/core/idempotency.py` + middleware
+  registration in `app/main.py`) and its test suite. The middleware
+  was scaffolded for a future payments surface but never enforced —
+  no `Idempotency-Key` header was required by any v1 endpoint and no
+  business logic depended on the replay-cache it maintained. Per
+  Lumen 2.0 rebuild spec §3.2 we revisit when payments land; until
+  then it was a moving part with zero load-bearing role. Frontend
+  client never sent the header either.
+
 ### Changed (simplify iter 43) — frontend studio/[id] tidy via simplifier
 Twenty-sixth dispatch of the `code-simplifier` plugin agent —
 first frontend file. Applied 3 of its 5 recommendations:

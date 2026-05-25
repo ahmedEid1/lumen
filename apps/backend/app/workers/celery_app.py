@@ -16,8 +16,13 @@ celery = Celery(
     include=[
         "app.workers.tasks.email",
         "app.workers.tasks.media",
-        "app.workers.tasks.search",
         "app.workers.tasks.certificates",
+        "app.workers.tasks.digest",
+        "app.workers.tasks.embeddings",
+        # Phase I5 — monthly learning-path re-planner. Registered
+        # here so the worker boots with the task module imported;
+        # the actual schedule entry lives below in ``beat_schedule``.
+        "app.workers.tasks.learning_path",
     ],
 )
 
@@ -39,8 +44,23 @@ celery.conf.beat_schedule = {
         "task": "app.workers.tasks.media.sweep_unclaimed_assets",
         "schedule": crontab(hour="3", minute="0"),
     },
-    "reindex-catalog": {
-        "task": "app.workers.tasks.search.reindex_catalog",
-        "schedule": crontab(hour="*/6", minute="15"),
+    # Phase D4 — bundle yesterday's ``digest_daily`` notifications into
+    # one summary email per user. 07:00 UTC is early enough to land in
+    # most inboxes before the working day in EU/India and late enough
+    # to capture overnight activity from the Americas. The task itself
+    # is idempotent (``digested_at`` stamp gates re-delivery), so the
+    # exact tick is a soft target.
+    "send-daily-digests": {
+        "task": "app.workers.tasks.digest.send_daily_digests",
+        "schedule": crontab(hour="7", minute="0"),
+    },
+    # Phase I5 — monthly learning-path re-planner. Runs at 04:00 UTC
+    # on the first of every month so the spike in metered LLM
+    # traffic lands well before any working-hours user load. The
+    # task swallows per-user errors so a single failed learner
+    # can't block the rest of the cohort.
+    "replan-learning-paths": {
+        "task": "app.workers.tasks.learning_path.replan_paths_monthly",
+        "schedule": crontab(hour="4", minute="0", day_of_month="1"),
     },
 }

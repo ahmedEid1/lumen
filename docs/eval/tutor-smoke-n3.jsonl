@@ -1,0 +1,4 @@
+{"id": "t-001", "suite": "tutor", "status": "error", "actual": {"status": "error", "error_kind": "ModuleNotFoundError", "error_message": "No module named 'sentence_transformers'"}}
+{"id": "t-002", "suite": "tutor", "status": "error", "actual": {"status": "error", "error_kind": "ModuleNotFoundError", "error_message": "No module named 'sentence_transformers'"}}
+{"id": "t-003", "suite": "tutor", "status": "error", "actual": {"status": "error", "error_kind": "ModuleNotFoundError", "error_message": "No module named 'sentence_transformers'"}}
+{"_summary": true, "suite": "tutor", "started_at": "2026-05-25T12:10:04.604353Z", "finished_at": "2026-05-25T12:10:05.170612Z", "judge_provider": "anthropic", "judge_model": "default", "items_total": 3, "items_judged": 0, "items_skipped": 0, "items_judge_error": 0, "axes": {}, "mean_overall": 0.0, "regression_vs_previous": null, "run_id": "tutor-20260525T121004Z"}

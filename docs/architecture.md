@@ -22,20 +22,31 @@
                   │     │        │
         async SQL │     │ pubsub │ presigned PUT/GET
                   ▼     ▼        ▼
-            ┌─────────┐┌─────┐┌────────┐
-            │ Postgres││Redis││ MinIO  │
-            │   17    ││  7  ││   S3   │
-            └─────────┘└─────┘└────────┘
-                  ▲
-        FT search │
-                  ▼
-              ┌───────────┐
-              │ Meili 1.x │
-              └───────────┘
+            ┌─────────────────────┐ ┌─────┐ ┌────────┐
+            │ Postgres 17 +        │ │Redis│ │ MinIO  │
+            │ pgvector             │ │  7  │ │   S3   │
+            │ • tsvector + GIN FTS │ └─────┘ └────────┘
+            │ • vector(384) HNSW   │
+            │   (lesson chunks)    │
+            └─────────────────────┘
+
+LLM providers (provider-agnostic Protocol; configured via env):
+  Anthropic / OpenAI / local sentence-transformers / noop (tests)
+  – consumed by RAG tutor (E1), AI authoring (E2), multi-modal ingest (E3),
+    embeddings pipeline (E0), mastery dashboard (E7)
+
+Credentials:
+  OB3 / W3C Verifiable Credentials (Ed25519 over JCS) — primary
+  PDF (ReportLab) — fallback download
 
 Background:                           Email:
   Celery worker ───►  Redis  ◄───►   Mailpit (dev) / SMTP (prod)
-  Celery beat
+  Celery beat (daily digest, asset sweep)
+
+Note: Meilisearch was removed in rebuild Cut A9 — full-text search now
+runs on Postgres ``tsvector`` + GIN; semantic retrieval uses pgvector.
+Per-course WebSocket chat was removed in Cut A8 — replaced by per-lesson
+async comments plus the course-scoped AI tutor.
 ```
 
 ## 2. Services
@@ -46,10 +57,9 @@ Background:                           Email:
 | `api`         | `python:3.13-slim` → custom  | FastAPI HTTP + WebSocket |
 | `worker`      | same as `api`                | Celery worker (uploads, emails, indexing, certs) |
 | `beat`        | same as `api`                | Celery beat scheduler |
-| `db`          | `postgres:17-alpine`         | Primary datastore |
+| `db`          | `pgvector/pgvector:pg17`     | Primary datastore + pgvector for semantic search (Phase E0) |
 | `redis`       | `redis:7-alpine`             | Cache, broker, pub/sub |
 | `s3`          | `minio/minio`                | Object storage (lessons, avatars) |
-| `search`      | `getmeili/meilisearch:v1.10` | Full-text search |
 | `mail`        | `axllent/mailpit`            | Dev SMTP UI |
 | `proxy`       | `caddy:2-alpine`             | TLS termination + routing |
 | `prom`        | `prom/prometheus`            | (prod profile) metrics scrape |
@@ -210,3 +220,17 @@ Presence is approximated by Redis sorted set `presence:{course_id}` (member = us
 - Stateless API and FE allow horizontal scaling behind the proxy.
 - Postgres is the primary bottleneck; v1 is single-writer. Read replicas + Pgpool can be added without code changes (repositories accept an explicit session).
 - WebSocket pubsub via Redis means any API replica can receive a message for any room.
+
+## 13. Accessibility gate
+
+- `WCAG 2.2 AA` is enforced in CI via `@axe-core/playwright` against
+  the built Next.js app on every PR and every push to `Rewrite` /
+  `master`. The audit covers the golden-path routes for all three
+  roles (logged-out home/catalog/auth pages, course detail,
+  student dashboard + profile, instructor studio, admin).
+- Workflow: `.github/workflows/accessibility.yml`. Suite:
+  `apps/frontend/tests/e2e/accessibility.spec.ts`. Run locally with
+  `make a11y` against an up dev stack.
+- Full guide — including how to read an axe failure, when to fix
+  vs. when to scope a `disableRules` call, and why there is no
+  global ignore list — is in [`docs/accessibility.md`](./accessibility.md).

@@ -58,3 +58,22 @@ async def test_certificate_blocked_until_completion(
     assert pdf.status_code == 200
     assert pdf.headers["content-type"] == "application/pdf"
     assert pdf.content.startswith(b"%PDF")
+
+
+async def test_public_verify_is_rate_limited(client: AsyncClient) -> None:
+    """The public verify endpoint is decorated with ``@limiter.limit("20/minute")``.
+
+    Without this cap, the endpoint is a brute-force oracle: certificate IDs are
+    21-char nanoids, but an attacker who walks the keyspace can harvest the
+    (learner_name, course_title) roster of every learner who has ever
+    completed a course. The 429 must fire before the DB lookup, so it doesn't
+    matter that ``does-not-exist`` is not a real certificate id — the limiter
+    short-circuits the handler regardless.
+    """
+    last = None
+    for _ in range(25):
+        last = await client.get("/api/v1/certificates/verify/does-not-exist")
+    assert last is not None
+    assert last.status_code == 429, last.text
+    body = last.json()
+    assert body["error"]["code"] == "rate_limited"

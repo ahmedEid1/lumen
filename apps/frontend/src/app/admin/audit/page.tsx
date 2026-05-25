@@ -3,8 +3,19 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api/client";
+import { useT } from "@/lib/i18n/provider";
+
+/**
+ * Admin audit log — Workbench repaint.
+ *
+ * Mono for every machine-emitted column: timestamps, action codes,
+ * actor IDs, target type:id pairs, JSON data payloads. The action
+ * column drops its old lime tint — colour is reserved for hits like
+ * Mark Complete; the audit log is reference data, not interactive.
+ *
+ * See docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md §2.
+ */
 
 type AuditEvent = {
   id: string;
@@ -19,6 +30,8 @@ type AuditEvent = {
 const PAGE_SIZE = 100;
 
 export default function AdminAudit() {
+  const t = useT();
+
   // Cursor for the page currently being fetched. null = head (newest).
   // Each "Load more" click bumps this to the id of the oldest event we
   // currently have, asking the server for events strictly older.
@@ -48,54 +61,60 @@ export default function AdminAudit() {
   const oldest = events.length ? events[events.length - 1].id : null;
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-10">
-      <h1 className="mb-4 text-2xl font-bold tracking-tight">Audit log</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent events</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {/* overflow-x-auto wrapper so the audit table scrolls
-              instead of breaking the layout on small viewports. */}
-          <div className="overflow-x-auto">
+    <div className="container mx-auto max-w-6xl px-6 py-14">
+      <header className="mb-8 flex flex-col gap-3">
+        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          {t("adminAudit.cartouche")}
+        </p>
+        <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+          {t("adminAudit.title")}
+        </h1>
+      </header>
+
+      <div className="surface overflow-hidden">
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-start">
+            <thead className="border-b border-border bg-muted/40 font-mono text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
-                <th className="px-4 py-2">When</th>
-                <th className="px-4 py-2">Action</th>
-                <th className="px-4 py-2">Actor</th>
-                <th className="px-4 py-2">Target</th>
-                <th className="px-4 py-2">Data</th>
+                <th className="px-4 py-3 text-start font-medium">{t("adminAudit.col.when")}</th>
+                <th className="px-4 py-3 text-start font-medium">{t("adminAudit.col.action")}</th>
+                <th className="px-4 py-3 text-start font-medium">{t("adminAudit.col.actor")}</th>
+                <th className="px-4 py-3 text-start font-medium">{t("adminAudit.col.target")}</th>
+                <th className="px-4 py-3 text-start font-medium">{t("adminAudit.col.data")}</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="font-mono text-xs">
               {events.map((e) => (
-                <tr key={e.id} className="border-t align-top">
-                  <td className="px-4 py-2 whitespace-nowrap text-xs text-muted-foreground">
+                <tr
+                  key={e.id}
+                  className="border-t border-border align-top transition-colors duration-[160ms] hover:bg-muted/30"
+                >
+                  <td className="whitespace-nowrap px-4 py-2 tabular-nums text-muted-foreground">
                     {new Date(e.created_at).toLocaleString()}
                   </td>
-                  <td className="px-4 py-2 font-mono text-xs">{e.action}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{e.actor_id ?? "—"}</td>
-                  <td className="px-4 py-2 font-mono text-xs">
+                  <td className="px-4 py-2 text-foreground">{e.action}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{e.actor_id ?? "—"}</td>
+                  <td className="px-4 py-2 text-muted-foreground">
                     {e.target_type ? `${e.target_type}:${e.target_id ?? ""}` : "—"}
                   </td>
-                  <td className="px-4 py-2 font-mono text-xs">
+                  <td className="px-4 py-2 text-muted-foreground">
                     {Object.keys(e.data).length ? JSON.stringify(e.data) : "—"}
                   </td>
                 </tr>
               ))}
               {!events.length && !pageQ.isLoading && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
-                    No events.
+                  <td colSpan={5} className="px-4 py-12">
+                    <p className="text-center font-body text-sm text-muted-foreground">
+                      {t("adminAudit.empty")}
+                    </p>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       {lastFetchedFull && oldest && (
         <div className="mt-4 flex justify-center">
           <Button
@@ -103,7 +122,7 @@ export default function AdminAudit() {
             onClick={() => setCursor(oldest)}
             disabled={pageQ.isFetching}
           >
-            {pageQ.isFetching ? "Loading…" : "Load older events"}
+            {pageQ.isFetching ? t("common.loading") : t("adminAudit.loadOlder")}
           </Button>
         </div>
       )}

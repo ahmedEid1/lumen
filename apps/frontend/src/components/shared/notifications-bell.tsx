@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
 import { qk } from "@/lib/query/keys";
 import { formatRelative } from "@/lib/utils";
+import { useT } from "@/lib/i18n/provider";
 
 type Notification = {
   id: string;
@@ -45,6 +46,7 @@ export function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const router = useRouter();
+  const t = useT();
   const q = useQuery({
     queryKey: qk.notifications,
     queryFn: () => api<Notification[]>("/api/v1/me/notifications"),
@@ -72,12 +74,15 @@ export function NotificationsBell() {
       <Button
         variant="ghost"
         size="icon"
-        aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+        aria-label={
+          unread ? t("notif.ariaWithCount", { n: unread }) : t("nav.notifications.aria")
+        }
         onClick={() => setOpen((v) => !v)}
+        className="text-muted-foreground hover:text-foreground"
       >
         <Bell className="h-5 w-5" />
         {unread > 0 && (
-          <span className="absolute end-1.5 top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+          <span className="absolute end-1.5 top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-semibold tabular-nums text-primary-foreground">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -86,9 +91,11 @@ export function NotificationsBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute end-0 z-40 mt-2 w-80 overflow-hidden rounded-md border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b px-3 py-2 text-sm">
-              <span className="font-semibold">Notifications</span>
+          <div className="surface absolute end-0 z-40 mt-2 w-80 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
+              <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                {t("notif.title")}
+              </span>
               {unread > 0 && (
                 <button
                   type="button"
@@ -97,22 +104,22 @@ export function NotificationsBell() {
                     markAllRead.mutate();
                   }}
                   disabled={markAllRead.isPending}
-                  className="text-xs text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50"
+                  className="font-body text-xs text-muted-foreground transition-colors duration-[160ms] hover:text-foreground disabled:opacity-50"
                 >
-                  {markAllRead.isPending ? "Marking…" : "Mark all read"}
+                  {markAllRead.isPending ? t("notif.marking") : t("notif.markAllRead")}
                 </button>
               )}
             </div>
-            <ul className="max-h-96 overflow-y-auto">
+            <ul className="max-h-96 overflow-y-auto font-body">
               {q.data?.length ? (
                 q.data.map((n) => {
                   const href = targetHref(n);
                   return (
                     <li
                       key={n.id}
-                      className={`flex flex-col gap-1 border-b px-3 py-2 text-sm last:border-0 ${
-                        href ? "cursor-pointer hover:bg-muted/50" : ""
-                      } ${!n.read_at ? "bg-primary/5" : ""}`}
+                      className={`flex flex-col gap-1 border-b border-border px-3 py-2.5 text-sm last:border-0 transition-colors duration-[160ms] ${
+                        href ? "cursor-pointer hover:bg-muted/40" : ""
+                      } ${!n.read_at ? "bg-muted/30" : ""}`}
                       onClick={() => {
                         if (!n.read_at) markRead.mutate(n.id);
                         if (href) {
@@ -122,18 +129,18 @@ export function NotificationsBell() {
                       }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <strong className="truncate">{n.title}</strong>
-                        <span className="shrink-0 text-xs text-muted-foreground">
+                        <strong className="truncate font-medium text-foreground">{n.title}</strong>
+                        <span className="shrink-0 font-mono text-xs text-muted-foreground">
                           {formatRelative(n.created_at)}
                         </span>
                       </div>
-                      {n.body && <p className="text-muted-foreground">{n.body}</p>}
+                      {n.body && <p className="text-xs text-muted-foreground">{n.body}</p>}
                     </li>
                   );
                 })
               ) : (
-                <li className="px-3 py-6 text-center text-sm text-muted-foreground">
-                  Nothing here yet.
+                <li className="px-3 py-8 text-center font-body text-sm text-muted-foreground">
+                  {t("notif.empty")}
                 </li>
               )}
             </ul>

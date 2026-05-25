@@ -53,11 +53,11 @@ def _enrollment_out(enrollment, course, stats: dict, pct: float) -> EnrollmentOu
 async def list_my_enrollments(user: CurrentUser, db: DBSession) -> list[EnrollmentOut]:
     enrollments = await courses_repo.list_enrollments_for_user(db, user.id)
     stats = await courses_repo.stats_for_courses(db, [e.course_id for e in enrollments])
-    out: list[EnrollmentOut] = []
-    for e in enrollments:
-        pct = await enrollment_service.progress_pct(db, enrollment=e)
-        out.append(_enrollment_out(e, e.course, stats.get(e.course_id, {}), pct))
-    return out
+    pcts = await courses_repo.progress_pcts_for_enrollments(db, enrollments)
+    return [
+        _enrollment_out(e, e.course, stats.get(e.course_id, {}), pcts.get(e.id, 0.0))
+        for e in enrollments
+    ]
 
 
 @router.post("/enrollments/{course_id}", response_model=EnrollmentOut, status_code=status.HTTP_201_CREATED)
@@ -82,7 +82,7 @@ async def mark_lesson_progress(
 ) -> dict:
     lesson = await _get_live_lesson(db, lesson_id)
     enrollment, lp, pct = await enrollment_service.mark_lesson(
-        db, user=user, lesson=lesson, completed=payload.completed, payload=payload.payload
+        db, user=user, lesson=lesson, completed=payload.completed
     )
     return {
         "lesson_id": lesson.id,
@@ -209,11 +209,7 @@ async def submit_quiz(
         lesson=lesson,
         score=result.score,
         passed=result.passed,
-        payload={
-            "answers": payload.answers,
-            "score": result.score,
-            "passed": result.passed,
-        },
+        answers=payload.answers,
     )
 
     return QuizSubmitResponse(

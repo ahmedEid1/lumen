@@ -102,13 +102,15 @@ async def get_course_by_slug(db: AsyncSession, slug: str, *, with_modules: bool 
 
 
 async def slug_is_taken(db: AsyncSession, slug: str, *, exclude_id: str | None = None) -> bool:
-    """Has any row (alive or soft-deleted) claimed this slug?
+    """Has any *live* row claimed this slug?
 
-    The DB enforces ``UNIQUE(courses.slug)`` regardless of ``deleted_at``,
-    so callers minting new slugs must check against the raw table — not
-    via ``get_course_by_slug`` which already hides deleted rows.
+    Since rebuild Fix B3 the DB enforces ``slug`` uniqueness via a
+    partial unique index (``uq_courses_slug_live``) that ignores
+    soft-deleted rows. The minter therefore only needs to avoid
+    slugs claimed by live rows — tombstoned rows are allowed to
+    share a slug with a freshly created live row.
     """
-    pred = Course.slug == slug
+    pred = and_(Course.slug == slug, Course.deleted_at.is_(None))
     if exclude_id is not None:
         pred = and_(pred, Course.id != exclude_id)
     return bool((await db.execute(select(exists().where(pred)))).scalar())
@@ -139,34 +141,28 @@ async def search_courses(
         stmt = stmt.join(Course.tags).where(Tag.slug == tag_slug)
     if difficulty:
         stmt = stmt.where(Course.difficulty == difficulty)
-    # Search ranking: when ``q`` is set we use Postgres' full-text
-    # ``websearch_to_tsquery`` for relevance (handles quoted phrases,
-    # operators, stop-word stripping) and fall back to ILIKE for
-    # partial-word matches the FTS would miss (e.g. "java" finding
-    # "javascript"). Hits matching the full-text path get a ts_rank;
-    # ILIKE-only hits get a small floor so they still appear under
-    # exact matches. We don't add a tsvector column / GIN index here
-    # — at the courses-table size we're operating at, an inline
-    # ``to_tsvector('english', title || ' ' || overview)`` is cheap.
-    # Promote to materialised column if the table grows past ~1M rows.
+    # Search ranking: when ``q`` is set we hit the GIN-indexed
+    # ``courses.search_vector`` column (a Postgres generated tsvector
+    # over title + overview, maintained automatically). ILIKE stays as
+    # a partial-word fallback so "java" still finds "javascript", which
+    # the stemmed FTS would otherwise miss. ts_rank lights up only when
+    # the FTS branch matches; ILIKE-only hits get a 0.0 floor so they
+    # still appear under exact matches. Migration 0014 introduced the
+    # column + GIN index.
     rank_col: object | None = None
     if q:
         ts_query = func.websearch_to_tsquery("english", q)
-        title_overview = func.coalesce(Course.title, "") + " " + func.coalesce(Course.overview, "")
-        ts_doc = func.to_tsvector("english", title_overview)
+        search_vec = Course.__table__.c.search_vector
         like = f"%{q}%"
         stmt = stmt.where(
             or_(
-                ts_doc.op("@@")(ts_query),
+                search_vec.op("@@")(ts_query),
                 Course.title.ilike(like),
                 Course.overview.ilike(like),
             )
         )
-        # ts_rank when the FTS matched; 0.0 floor for the ILIKE-only
-        # fallback. ``case`` keeps rank-aware ORDER BY working even
-        # when the FTS expression evaluates to false on a row.
         rank_col = case(
-            (ts_doc.op("@@")(ts_query), func.ts_rank(ts_doc, ts_query)),
+            (search_vec.op("@@")(ts_query), func.ts_rank(search_vec, ts_query)),
             else_=0.0,
         )
 
@@ -351,6 +347,53 @@ async def count_completed_lessons(db: AsyncSession, enrollment_id: str) -> int:
     return int(res.scalar_one())
 
 
+async def progress_pcts_for_enrollments(
+    db: AsyncSession, enrollments: list[Enrollment]
+) -> dict[str, float]:
+    """Batched progress-% lookup for the dashboard listing.
+
+    Avoids the 2N round-trip the per-enrollment ``progress_pct`` path
+    takes: one aggregate query for total live lessons per course, one
+    aggregate for completed lessons per enrollment, then divide in
+    Python. Result maps enrollment_id -> rounded percentage.
+    """
+    if not enrollments:
+        return {}
+
+    course_ids = {e.course_id for e in enrollments}
+    enrollment_ids = [e.id for e in enrollments]
+
+    totals_res = await db.execute(
+        select(Module.course_id, func.count(Lesson.id))
+        .join(Lesson, Lesson.module_id == Module.id)
+        .where(
+            Module.course_id.in_(course_ids),
+            Lesson.deleted_at.is_(None),
+        )
+        .group_by(Module.course_id)
+    )
+    totals_by_course: dict[str, int] = {cid: int(n) for cid, n in totals_res.all()}
+
+    done_res = await db.execute(
+        select(LessonProgress.enrollment_id, func.count(LessonProgress.id))
+        .join(Lesson, Lesson.id == LessonProgress.lesson_id)
+        .where(
+            LessonProgress.enrollment_id.in_(enrollment_ids),
+            LessonProgress.completed_at.is_not(None),
+            Lesson.deleted_at.is_(None),
+        )
+        .group_by(LessonProgress.enrollment_id)
+    )
+    done_by_enrollment: dict[str, int] = {eid: int(n) for eid, n in done_res.all()}
+
+    out: dict[str, float] = {}
+    for e in enrollments:
+        total = totals_by_course.get(e.course_id, 0)
+        done = done_by_enrollment.get(e.id, 0)
+        out[e.id] = round(done / total * 100.0, 1) if total else 0.0
+    return out
+
+
 async def get_or_create_progress(
     db: AsyncSession, *, enrollment_id: str, lesson_id: str
 ) -> LessonProgress:
@@ -368,11 +411,9 @@ async def get_or_create_progress(
     return lp
 
 
-async def mark_completed(db: AsyncSession, lp: LessonProgress, *, payload: dict[str, object] | None = None) -> None:
+async def mark_completed(db: AsyncSession, lp: LessonProgress) -> None:
     if not lp.completed_at:
         lp.completed_at = datetime.now(UTC)
-    if payload:
-        lp.payload = {**(lp.payload or {}), **payload}
 
 
 # ----- Reviews -----
