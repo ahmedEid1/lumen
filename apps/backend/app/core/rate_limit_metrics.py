@@ -8,11 +8,11 @@ roll-up; H6 ships the simplest thing that works in a single process:
 a ring-buffered list of ``(timestamp, path)`` tuples that the
 read-only admin endpoint groups by path within a sliding window.
 
-This is intentionally **not Redis-backed**. The free-tier deploy
-runs a single Fly machine, so a process-local counter is honest about
-the data: it resets on every redeploy. If Lumen later scales out, the
-endpoint switches to a Redis ``ZADD`` / ``ZRANGEBYSCORE`` pair without
-breaking the response shape.
+This is intentionally **not Redis-backed**. The demo deploy runs a
+single VM (AWS t4g.small per `docs/deployment/aws-vps.md`), so a
+process-local counter is honest about the data: it resets on every
+redeploy. If Lumen later scales out, the endpoint switches to a Redis
+``ZADD`` / ``ZRANGEBYSCORE`` pair without breaking the response shape.
 
 The counter is process-wide and async-safe. Concurrent ``record_*``
 calls share a single ``deque``; deque ``append`` is documented as

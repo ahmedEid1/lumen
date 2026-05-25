@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Repo cleanup: delete `legacy/` Django snapshot + stale-state scrub (2026-05-25)
+
+- **Deleted `legacy/`** — 160 MB Django prototype that earned its keep through v1.0.0 as a read-only reference for the rewrite, but has been untouched since the rewrite shipped. The tree is recoverable from git history (`git log -- legacy/`) at any pre-deletion commit; nothing currently in the repo depends on it.
+- **Updated `CLAUDE.md`** — removed the four `legacy/` references (banner, layout block, "never edit" guidance line, "what to leave alone" entry).
+- **Stale-state scrub** — fixes for the items surfaced by the cleanup pass (mermaid diagram still showed Vercel + Fly + Supabase + Upstash + R2 from the dead H4 free-tier scaffold; `--suite` CLI snippet missed the `run` subcommand; "v2 free-tier deploy" comments in `prod_guards.py` / `rate_limit_metrics.py` / `pyproject.toml` predated the AWS pivot; stale `LIVE_DEMO_URL_TBD` / `LOOM_URL_TBD` placeholders; resolved TODO markers in `apps/workers/tasks/media.py` and the studio path page). See the commit body for the full per-file diff.
+
 ### Deploy target pivot: Oracle Always Free → AWS t4g.small (2026-05-25)
 
 The Oracle Always Free single-VM runbook landed by Wave 1 / A4 was retired
@@ -4415,7 +4421,7 @@ list with the seeded credentials:
 - Pre-commit hooks: ruff, eslint, prettier, gitleaks, conventional-commits check.
 
 ### Changed
-- Original Django project archived to `legacy/`.
+- Original Django project archived to `legacy/` (removed in May 2026 once the rewrite shipped — recoverable via `git log -- legacy/`).
 
 ### Security
 - Argon2id password hashing.

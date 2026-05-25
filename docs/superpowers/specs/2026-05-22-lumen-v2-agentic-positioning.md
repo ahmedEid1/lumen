@@ -1,8 +1,10 @@
 # Lumen v2 — Production grade + Agentic-AI portfolio positioning
 
+> **Post-execution note (2026-05-25):** this spec is preserved as the historical planning record. Phase H + Phase I shipped on 2026-05-22 as `1.1.0-agentic`. The Section 8 deploy target was originally scoped as a multi-provider free-tier stack (Vercel + Fly + Supabase + Upstash + R2); execution settled on a single-VM Oracle Always-Free runbook (Wave 1 / A4), and then pivoted again to AWS t4g.small Free Plan (CHANGELOG entry "Deploy target pivot: Oracle Always Free → AWS t4g.small"). The current runbook is [`docs/deployment/aws-vps.md`](../../deployment/aws-vps.md). See the CHANGELOG `[Unreleased]` and `[1.1.0-agentic]` sections for the executed shape; everything below is the original plan as written.
+
 | Field           | Value                                                            |
 |-----------------|------------------------------------------------------------------|
-| Status          | Approved — to execute in the next session                        |
+| Status          | Executed (see post-execution note above)                         |
 | Date            | 2026-05-22                                                        |
 | Branch          | `Rewrite` (continue from rebuild release `f9093b6` + Phase G)    |
 | Predecessor     | `docs/superpowers/specs/2026-05-22-lumen-rebuild-design.md`      |

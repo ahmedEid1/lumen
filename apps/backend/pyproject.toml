@@ -3,8 +3,8 @@ name = "lumen-backend"
 # PEP 440 local-version segment (``+agentic``) keeps the human-
 # readable label without breaking ``uv lock`` / ``uv pip install``.
 # The 1.1.0 bump reflects Phase H (production hardening: cost
-# meter + eval harness + e2e + security pass + free-tier deploy +
-# observability) plus Phase I (agentic features: Lumen MCP server
+# meter + eval harness + e2e + security pass + single-VM demo deploy
+# + observability) plus Phase I (agentic features: Lumen MCP server
 # + multi-agent tutor + self-critique authoring + learning-path
 # agent + learner-facing trace surface).
 version = "1.1.0+agentic"

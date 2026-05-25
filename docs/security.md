@@ -192,8 +192,9 @@ authenticated mutating method.
 
 ## Threat model (one-page summary)
 
-A focused recap of the STRIDE table above, scoped to the v2 free-tier
-public deployment.
+A focused recap of the STRIDE table above, scoped to the v2 single-VM
+public demo (AWS t4g.small per [`docs/deployment/aws-vps.md`](deployment/aws-vps.md);
+free LLM tier via Groq's OpenAI-compatible endpoint).
 
 **Assets.** Learner accounts (email + Argon2id hash + course progress
 + certificate VCs); instructor course drafts; admin observability /

@@ -2,8 +2,8 @@
 
 Lumen — an open-source, AI-first LMS built as a portfolio anchor for agentic-AI engineering work.
 
-[![Try the live demo →](https://img.shields.io/badge/live%20demo-lumen--demo.fly.dev-C8FF00?style=for-the-badge)](https://lumen-demo.fly.dev)
-<!-- LIVE_DEMO_URL_TBD: H4's free-tier runbook (docs/deployment/free-tier.md) ships the real URL -->
+[![Live demo: provisioning](https://img.shields.io/badge/live%20demo-provisioning-lightgrey?style=for-the-badge)](docs/deployment/aws-vps.md)
+<!-- LIVE_DEMO_URL_TBD: replace with the public URL once the AWS t4g.small VM is up (docs/deployment/aws-vps.md). -->
 
 [![CI](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml)
 [![authoring eval: 3.85/5 (n=10)](https://img.shields.io/badge/authoring%20eval-3.85%2F5%20(n%3D10)-success)](docs/eval/authoring-n10-groq-20260525.jsonl)
@@ -40,29 +40,29 @@ flowchart LR
     user([Learner / Instructor])
 
     subgraph Edge[Edge]
-      web[Next.js 15<br/>App Router · RSC<br/>Vercel]
+      web[Next.js 15<br/>App Router · RSC<br/>Docker on EC2]
     end
 
     subgraph App[Application]
-      api[FastAPI · Python 3.13<br/>Fly.io scale-to-zero]
-      worker[Celery worker + beat<br/>Fly.io]
+      api[FastAPI · Python 3.13<br/>Docker on EC2]
+      worker[Celery worker + beat<br/>Docker on EC2]
     end
 
     subgraph Agents[Agent layer]
-      planner[Planner-orchestrator<br/>I2 · planned]
+      planner[Planner-orchestrator<br/>I2 · shipped]
       subs[Sub-agents:<br/>retriever · web-searcher<br/>code-runner · quiz-gen<br/>concept-explainer]
-      authoring[Self-critique authoring<br/>I3 · planned]
-      pathagent[Learning-path agent<br/>I5 · planned]
+      authoring[Self-critique authoring<br/>I3 · shipped]
+      pathagent[Learning-path agent<br/>I5 · shipped]
     end
 
     subgraph MCP[MCP surface]
-      mcp[Lumen MCP server<br/>I1 · planned<br/>claude mcp add lumen]
+      mcp[Lumen MCP server<br/>I1 · shipped<br/>claude mcp add lumen]
     end
 
     subgraph Data[Data plane]
-      pg[(Postgres 17 + pgvector<br/>Supabase free tier)]
-      redis[(Redis 7<br/>Upstash free tier)]
-      r2[(Object storage<br/>Cloudflare R2 free tier)]
+      pg[(Postgres 17 + pgvector<br/>Docker on EC2)]
+      redis[(Redis 7<br/>Docker on EC2)]
+      s3[(MinIO S3-compatible<br/>Docker on EC2)]
     end
 
     subgraph LLM[Swappable LLM layer]
@@ -82,7 +82,7 @@ flowchart LR
     web --> api
     api --> pg
     api --> redis
-    api --> r2
+    api --> s3
     api --> worker
     worker --> pg
     api --> planner
@@ -156,7 +156,7 @@ The resume bullets, with links to the code. Every item below is on the release b
 ```bash
 # Real eval run, n=10 — needs LLM_PROVIDER=openai + OPENAI_API_BASE=https://api.groq.com/openai/v1
 # + OPENAI_API_KEY=<your-groq-key> + LLM_MODEL=llama-3.3-70b-versatile in .env:
-docker compose exec api python -m app.evals --suite authoring
+docker compose exec api python -m app.evals run --suite authoring
 ```
 
 ### Suite coverage

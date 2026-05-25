@@ -28,9 +28,9 @@ stack.
 #   OPENAI_API_KEY=<your-groq-key>
 #   LLM_MODEL=llama-3.3-70b-versatile
 # then:
-docker compose exec api python -m app.evals --suite authoring     # full n=10
-docker compose exec api python -m app.evals --suite tutor         # full n=30
-docker compose exec api python -m app.evals --suite ingest        # full n=10
+docker compose exec api python -m app.evals run --suite authoring     # full n=10
+docker compose exec api python -m app.evals run --suite tutor         # full n=30
+docker compose exec api python -m app.evals run --suite ingest        # full n=10
 ```
 
 Reports are written under `apps/backend/evals/reports/` as JSONL
