@@ -18,7 +18,13 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       postgres:
-        image: postgres:17-alpine
+        # pgvector/pgvector:pg17 ships the ``vector`` extension that
+        # ``apps/backend/tests/conftest.py`` runs ``CREATE EXTENSION
+        # vector`` against at fixture setup. Plain ``postgres:17-alpine``
+        # doesn't ship pgvector, so the fixture failed before
+        # ``metadata.create_all`` ran. Matches the dev image in
+        # ``docker-compose.yml`` so CI mirrors local.
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_USER: lumen
           POSTGRES_PASSWORD: lumen
