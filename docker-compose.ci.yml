@@ -37,16 +37,22 @@ services:
       context: ./apps/frontend
       target: prod
     image: lumen-web:ci-prod
-    # Empty list explicitly REPLACES the base compose's bind + named
-    # volumes (sequences merge by replacement in compose overlays). If
-    # we let the base mounts ride, the bind would clobber the prod
-    # image's /app contents at runtime and the container would exit
-    # immediately with `Cannot find module '/app/server.js'`.
-    volumes: []
-    # Environment merges as a mapping — only NODE_ENV is overridden;
-    # everything else (NEXT_PUBLIC_API_BASE_URL, API_INTERNAL_BASE_URL,
-    # PORT) flows through from the base.
+    # !override is the Compose spec marker that REPLACES a sequence
+    # instead of appending. The default merge rule for `volumes` is
+    # append, so a bare `volumes: []` would just no-op and the base
+    # compose's bind + named volumes (./apps/frontend:/app, the
+    # web-node-modules / web-next-cache named volumes, and the
+    # docker-compose.yml read-only mount) would all still attach.
+    # The bind in particular shadows the prod image's baked-in
+    # /app/server.js + /app/public + /app/.next/static, which is
+    # what bombed the first CI run with `Cannot find module
+    # '/app/server.js'`.
+    volumes: !override []
+    # Environment is a mapping — merges, so only NODE_ENV is
+    # overridden; NEXT_PUBLIC_API_BASE_URL, API_INTERNAL_BASE_URL,
+    # PORT flow through from the base.
     environment:
       NODE_ENV: production
-    # Sequences replace — drops `pnpm dev` for the prod CMD.
-    command: ["node", "server.js"]
+    # !override on command too — same append-by-default risk
+    # (would otherwise produce `pnpm dev node server.js`).
+    command: !override ["node", "server.js"]
