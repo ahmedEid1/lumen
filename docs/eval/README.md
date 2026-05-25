@@ -4,36 +4,39 @@ This directory holds *checked-in* eval artifacts for the README badge and for
 portfolio reviewers who want to see the harness output without spinning up the
 stack.
 
-## Files
+## Latest real runs (2026-05-25, Groq Llama 3.3 70B)
 
-- [`tutor-smoke-n3.jsonl`](tutor-smoke-n3.jsonl) — 3-item smoke run of the
-  tutor suite executed against the `noop` LLM provider on 2026-05-25. Verifies
-  the full harness chain (item loader → executor → judge → reporter →
-  JSONL report) without needing a real LLM key or a retrieval-embedding
-  model. Items end up `status=error` because the retriever wants the local
-  `sentence-transformers` embedding model and the slim API image doesn't
-  bundle PyTorch by default — this is the same surface every reviewer would
-  hit on first run without setting `OPENAI_EMBEDDINGS_KEY` or installing
-  `sentence-transformers`. The summary line at the bottom confirms loader +
-  judge plumbing are correct.
+| File | Suite | n | Mean overall | Notes |
+|------|-------|---|--------------|-------|
+| [`authoring-n10-groq-20260525.jsonl`](authoring-n10-groq-20260525.jsonl) | authoring | 10 | **3.85/5** | 10/10 judged, no errors. Axes: coverage 4.0, learning_arc 3.9, scope 4.0, brief_fidelity 3.5. |
+| [`tutor-n30-groq-noopembed-20260525.jsonl`](tutor-n30-groq-noopembed-20260525.jsonl) | tutor | 30 | 2.0/5 | 10/30 judged, 20 skipped. Conservative low number — the API image doesn't ship `sentence-transformers`, so retrieval was forced to a deterministic noop embedder and most judged items hit the tutor's "refuse on empty retrieval" safety path. Re-run with real embeddings for a meaningful number. |
 
-## How to mint a real number
+## Earlier artifacts (kept for transparency)
+
+| File | Notes |
+|------|-------|
+| [`tutor-smoke-n3.jsonl`](tutor-smoke-n3.jsonl) | 3-item smoke run executed against the `noop` LLM provider on 2026-05-25 *before* the Groq key was wired. All items errored on the missing `sentence-transformers` dep; the summary line confirmed loader + judge plumbing was structurally correct. Kept as a record of the harness chain's failure mode pre-fix. |
+
+## How to mint a new real number
 
 ```bash
-# locally, against the docker-compose stack:
-docker compose exec api python -m app.evals --suite tutor          # full n=30
-docker compose exec api python -m app.evals --suite authoring      # n=10
-docker compose exec api python -m app.evals --suite ingest         # n=10
+# .env needs:
+#   LLM_PROVIDER=openai
+#   OPENAI_API_BASE=https://api.groq.com/openai/v1
+#   OPENAI_API_KEY=<your-groq-key>
+#   LLM_MODEL=llama-3.3-70b-versatile
+# then:
+docker compose exec api python -m app.evals --suite authoring     # full n=10
+docker compose exec api python -m app.evals --suite tutor         # full n=30
+docker compose exec api python -m app.evals --suite ingest        # full n=10
 ```
 
 Reports are written under `apps/backend/evals/reports/` as JSONL
-(`<suite>-<ISO>.jsonl`). The auto-generated reports are gitignored — copy
-the file you want to publish here under a curated name (e.g.
-`tutor-n30-groq-20260601.jsonl`) and update the README badge.
+(`<suite>-<ISO>.jsonl`). Auto-generated reports are gitignored — copy the
+file you want to publish here under a curated name (e.g.
+`<suite>-n<N>-<provider>-<YYYYMMDD>.jsonl`) and update the README badge.
 
-For the judge call to score (vs. error) you need an LLM provider key set in
-`.env` — Groq's free Llama 3.3 70B is the recommended starting point. For
-retrieval-based suites (tutor, ingest) you also need either
-`sentence-transformers` installed in the API image **or** `OPENAI_API_KEY` +
-`OPENAI_EMBEDDINGS_MODEL=text-embedding-3-small` set so the embedding
-provider switches to OpenAI.
+For the tutor suite to score meaningfully you need real embeddings — either
+add `sentence-transformers` to the API image, or set
+`EMBEDDING_PROVIDER=openai` + `OPENAI_API_KEY` (note: this requires a real
+OpenAI key, not the Groq one — Groq doesn't ship an embeddings endpoint).

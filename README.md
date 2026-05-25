@@ -6,7 +6,7 @@ Lumen — an open-source, AI-first LMS built as a portfolio anchor for agentic-A
 <!-- LIVE_DEMO_URL_TBD: H4's free-tier runbook (docs/deployment/free-tier.md) ships the real URL -->
 
 [![CI](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml)
-[![tutor eval: harness ready (n=30)](https://img.shields.io/badge/tutor%20eval-harness%20ready%20(n%3D30)-blue)](docs/eval/)
+[![authoring eval: 3.85/5 (n=10)](https://img.shields.io/badge/authoring%20eval-3.85%2F5%20(n%3D10)-success)](docs/eval/authoring-n10-groq-20260525.jsonl)
 [![MCP registry](https://img.shields.io/badge/MCP%20registry-io.github.ahmedEid1%2Flumen-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.ahmedEid1%2Flumen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -149,17 +149,25 @@ The resume bullets, with links to the code. Every item below is on the release b
 
 ## Eval scores
 
-**Status:** the eval **harness** is shipped and structurally working — see [`docs/eval/tutor-smoke-n3.jsonl`](docs/eval/tutor-smoke-n3.jsonl) for a 3-item smoke run that exercises the full loader → executor → judge → reporter chain end-to-end ([context](docs/eval/README.md)). A real score (n=30) requires two things this repo intentionally doesn't ship pre-built: (1) an LLM provider key for the judge — Groq's free Llama 3.3 70B is the recommended choice; (2) `sentence-transformers` in the API image for the retriever's local embedding model (or an OpenAI embeddings key as a swap). Once both are wired in, the same `python -m app.evals --suite tutor` command emits a numbered JSONL report under `apps/backend/evals/reports/` and the badge above flips to the real mean.
+### Headline number
+
+**Authoring suite, n=10, judge = Llama 3.3 70B (Groq): mean overall 3.85/5.** Per-axis breakdown — coverage 4.0, scope 4.0, learning_arc 3.9, brief_fidelity 3.5. All 10/10 items judged, zero judge errors. Full JSONL: [`docs/eval/authoring-n10-groq-20260525.jsonl`](docs/eval/authoring-n10-groq-20260525.jsonl) (10 individual items + summary record). Reproduce locally with the snippet below.
 
 ```bash
-# 3-item smoke run, no provider needed (use this to verify the harness):
-docker compose exec api python -m app.evals --suite tutor --limit 3
-
-# full n=30 (needs LLM key + sentence-transformers in the image):
-make eval suite=tutor
+# Real eval run, n=10 — needs LLM_PROVIDER=openai + OPENAI_API_BASE=https://api.groq.com/openai/v1
+# + OPENAI_API_KEY=<your-groq-key> + LLM_MODEL=llama-3.3-70b-versatile in .env:
+docker compose exec api python -m app.evals --suite authoring
 ```
 
-Each item is scored 0–5 by an LLM-as-judge on suite-specific axes (`faithfulness`, `citation_correctness`, `helpfulness` for tutor; `outline_quality`, `lesson_coverage` for authoring; `chunking_quality`, `metadata_completeness` for ingest). The report carries per-axis means, an overall mean, and a regression diff vs. the previous run. CI gates a 3-item smoke on every PR via [`.github/workflows/pnpm-eval-smoke.yml`](.github/workflows/pnpm-eval-smoke.yml).
+### Suite coverage
+
+| Suite       | n  | Score (latest) | Notes |
+|-------------|----|----------------|-------|
+| `authoring` | 10 | **3.85/5**     | Real Groq signal — no retrieval needed, judge directly compares generated outline vs. ideal. |
+| `tutor`     | 30 | 2.0/5\*        | \*Score is conservatively low because the API image doesn't ship `sentence-transformers`, so retrieval falls back to a deterministic noop embedder; 10 of 30 items got the tutor's "refuse on empty retrieval" safety path. Wire real embeddings (`sentence-transformers` in the image, or `EMBEDDING_PROVIDER=openai` with an OpenAI key) and re-run for a meaningful number. Report: [`docs/eval/tutor-n30-groq-noopembed-20260525.jsonl`](docs/eval/tutor-n30-groq-noopembed-20260525.jsonl). |
+| `ingest`    | 10 | — (n/a)        | All items YouTube-transcript-based; the live API rejects unauthenticated YouTube transcript fetches from CI/cloud IPs. Needs a transcript-API workaround or pre-fetched dataset. |
+
+Each item is scored 0–5 by an LLM-as-judge on suite-specific axes (`faithfulness`, `citation_correctness`, `helpfulness` for tutor; `coverage`, `learning_arc`, `scope`, `brief_fidelity` for authoring; `chunking_quality`, `metadata_completeness` for ingest). Reports carry per-axis means, an overall mean, and a regression diff vs. the previous run. CI gates a 3-item smoke on every PR via [`.github/workflows/pnpm-eval-smoke.yml`](.github/workflows/pnpm-eval-smoke.yml).
 
 ---
 
