@@ -197,7 +197,17 @@ def _fetch_youtube_transcript(video_id: str) -> list[_TranscriptSegment]:
         ) from exc
 
     try:
-        raw = YouTubeTranscriptApi.get_transcript(video_id)
+        # youtube-transcript-api 1.x removed the
+        # ``YouTubeTranscriptApi.get_transcript`` classmethod in favour
+        # of the instance-method ``YouTubeTranscriptApi().fetch(...)``.
+        # ``.fetch()`` returns a ``FetchedTranscript`` whose snippets
+        # are ``FetchedTranscriptSnippet`` objects (``.text`` /
+        # ``.start`` / ``.duration`` attributes, not dict keys). We
+        # normalise via ``to_raw_data()`` so the rest of this function
+        # — and any test that hands us a list-of-dicts stub — keeps
+        # working without conditionals.
+        fetched = YouTubeTranscriptApi().fetch(video_id)
+        raw = fetched.to_raw_data() if hasattr(fetched, "to_raw_data") else fetched
     except Exception as exc:
         # The library raises a small zoo of exceptions
         # (TranscriptsDisabled, NoTranscriptFound, VideoUnavailable…)
@@ -211,12 +221,17 @@ def _fetch_youtube_transcript(video_id: str) -> list[_TranscriptSegment]:
 
     out: list[_TranscriptSegment] = []
     for entry in raw:
-        out.append(
-            _TranscriptSegment(
-                text=str(entry.get("text", "")).strip(),
-                start=float(entry.get("start", 0.0)),
-            )
-        )
+        # ``raw`` is either a list[dict] (test stubs, or
+        # ``.to_raw_data()`` output) or — in case a future library
+        # version changes the shape again — a list of objects exposing
+        # ``.text`` / ``.start`` attributes. Support both.
+        if isinstance(entry, dict):
+            text = str(entry.get("text", "")).strip()
+            start = float(entry.get("start", 0.0))
+        else:
+            text = str(getattr(entry, "text", "")).strip()
+            start = float(getattr(entry, "start", 0.0))
+        out.append(_TranscriptSegment(text=text, start=start))
     return out
 
 

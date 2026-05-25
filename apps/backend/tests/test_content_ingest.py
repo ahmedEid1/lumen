@@ -108,10 +108,22 @@ def _fake_youtube_segments() -> list[dict[str, Any]]:
 def test_extract_youtube_builds_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     """End-to-end through ``extract_youtube`` with the HTTP layer mocked."""
 
+    # youtube-transcript-api 1.x switched to an instance-method API:
+    # ``YouTubeTranscriptApi().fetch(video_id)`` returns an object
+    # exposing ``.to_raw_data()`` -> list[dict[text/start/duration]].
+    # The fake class mirrors that shape so the production code path
+    # under test runs unchanged.
+    class _FakeFetchedTranscript:
+        def __init__(self, segments: list[dict[str, Any]]) -> None:
+            self._segments = segments
+
+        def to_raw_data(self) -> list[dict[str, Any]]:
+            return self._segments
+
     fake_api_class = type(
         "FakeYouTubeTranscriptApi",
         (),
-        {"get_transcript": staticmethod(lambda video_id: _fake_youtube_segments())},
+        {"fetch": lambda self, video_id: _FakeFetchedTranscript(_fake_youtube_segments())},
     )
     # The function does ``from youtube_transcript_api import YouTubeTranscriptApi``
     # at call time, so monkeypatch the symbol on the (possibly real)
