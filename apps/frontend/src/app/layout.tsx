@@ -51,7 +51,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </main>
                   <SiteFooter />
                 </div>
-                <Toaster richColors position="top-center" />
+                {/* theme="dark" pinned explicitly: the app's color-scheme
+                    is dark by default and Sonner's `richColors` doesn't
+                    pick that up reliably in Playwright (headless Chromium
+                    inherits prefers-color-scheme=light), so success toasts
+                    were rendering with light-mode greens (#008a2e on
+                    #ecfdf3 = 4.25:1) and failing axe-core's WCAG 1.4.3
+                    gate on every authenticated route. Pinning theme="dark"
+                    forces the dark-mode toast palette which has the
+                    contrast headroom AA needs. */}
+                <Toaster richColors theme="dark" position="top-center" />
               </AuthProvider>
             </QueryProvider>
           </LocaleProvider>
