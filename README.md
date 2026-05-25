@@ -134,14 +134,14 @@ The resume bullets, with links to the code. Items marked `planned — Phase I` s
 | Eval harness + golden datasets + judge dashboard (H2)    | ✅ shipped (wave 1) |
 | Playwright e2e against the live stack (H3)               | ✅ shipped (wave 1) |
 | Production-exposure security pass (H6)                   | ✅ shipped (wave 1) |
-| Free-tier live demo deployment (H4)                      | 🚧 in progress (wave 2) |
-| README rewrite for agentic-AI positioning (H5)           | 🚧 in progress (this file) |
-| Agent-trace + retrieval observability surface (H7)       | 🚧 in progress (wave 2) |
-| Lumen MCP server (I1)                                    | ⏳ Phase I |
-| Multi-agent planner-orchestrator tutor (I2)              | ⏳ Phase I |
-| Self-critique authoring agent (I3)                       | ⏳ Phase I |
-| Agent-trace observability surface for learners (I4)      | ⏳ Phase I |
-| Personalized learning-path agent (I5)                    | ⏳ Phase I |
+| Oracle Always-Free single-VM deploy runbook (H4)         | ✅ shipped (1.1.0-agentic) |
+| README rewrite for agentic-AI positioning (H5)           | ✅ shipped (1.1.0-agentic) |
+| Agent-trace + retrieval observability surface (H7)       | ✅ shipped (1.1.0-agentic) |
+| Lumen MCP server (I1)                                    | ✅ shipped (1.1.0-agentic) |
+| Multi-agent planner-orchestrator tutor (I2)              | ✅ shipped (1.1.0-agentic) |
+| Self-critique authoring agent (I3)                       | ✅ shipped (1.1.0-agentic) |
+| Agent-trace observability surface for learners (I4)      | ✅ shipped (1.1.0-agentic) |
+| Personalized learning-path agent (I5)                    | ✅ shipped (1.1.0-agentic) |
 
 ---
 
