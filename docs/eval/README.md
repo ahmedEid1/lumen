@@ -9,7 +9,8 @@ stack.
 | File | Suite | n | Mean overall | Notes |
 |------|-------|---|--------------|-------|
 | [`authoring-n10-groq-20260525.jsonl`](authoring-n10-groq-20260525.jsonl) | authoring | 10 | **3.85/5** | 10/10 judged, no errors. Axes: coverage 4.0, learning_arc 3.9, scope 4.0, brief_fidelity 3.5. |
-| [`tutor-n30-groq-noopembed-20260525.jsonl`](tutor-n30-groq-noopembed-20260525.jsonl) | tutor | 30 | 2.0/5 | 10/30 judged, 20 skipped. Conservative low number — the API image doesn't ship `sentence-transformers`, so retrieval was forced to a deterministic noop embedder and most judged items hit the tutor's "refuse on empty retrieval" safety path. Re-run with real embeddings for a meaningful number. |
+| [`tutor-n30-groq-cloudflare-20260525.jsonl`](tutor-n30-groq-cloudflare-20260525.jsonl) | tutor | 30 | **2.33/5** | 10/30 judged, 20 skipped. Real retrieval (Cloudflare Workers AI `@cf/baai/bge-small-en-v1.5`, 384-dim, free tier) + real LLM (Groq Llama 3.3 70B). Faithfulness 3.3, helpfulness 2.8, citation_correctness 0.9 — the low citation score reflects a mismatch between the dataset's expected `must_cite_ids` and what the retriever pulls. |
+| [`tutor-n30-groq-noopembed-20260525.jsonl`](tutor-n30-groq-noopembed-20260525.jsonl) | tutor | 30 | 2.0/5 (prior) | Same suite, run with noop embeddings before Cloudflare was wired. Kept for direct comparison: noop → real bumped helpfulness 0.8 → 2.8. |
 | [`ingest-n10-groq-20260525.jsonl`](ingest-n10-groq-20260525.jsonl) | ingest | 10 | 0.83/5 | 4/10 judged (6 upstream transcript fetch failures). Judged items scored low on chapter-count + structure because the v1 chunker emits one-module-per-video instead of detecting chapter boundaries. |
 
 ## Earlier artifacts (kept for transparency)

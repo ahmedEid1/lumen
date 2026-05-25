@@ -52,6 +52,12 @@ x-api-env: &api-env
   EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
   EMBEDDING_MODEL_LOCAL: ${EMBEDDING_MODEL_LOCAL:-sentence-transformers/all-MiniLM-L6-v2}
   EMBEDDING_MODEL_OPENAI: ${EMBEDDING_MODEL_OPENAI:-text-embedding-3-small}
+  # Optional embedding-specific endpoint + key — lets the embedding
+  # call hit a different OpenAI-compatible API (e.g. Cloudflare Workers
+  # AI at /accounts/<id>/ai/v1) than the LLM (e.g. Groq on its own
+  # /openai/v1). Fall back to the shared OPENAI_API_* below if unset.
+  EMBEDDING_OPENAI_API_KEY: ${EMBEDDING_OPENAI_API_KEY:-}
+  EMBEDDING_OPENAI_API_BASE: ${EMBEDDING_OPENAI_API_BASE:-}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

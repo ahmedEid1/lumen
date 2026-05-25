@@ -125,6 +125,13 @@ class Settings(BaseSettings):
     embedding_model_openai: str = "text-embedding-3-small"
     openai_api_key: SecretStr | None = None
     openai_api_base: str = "https://api.openai.com/v1"
+    # Optional embedding-specific overrides. Lets an operator point the
+    # embedding provider at a different OpenAI-compatible endpoint
+    # (e.g. Cloudflare Workers AI's ``/accounts/<id>/ai/v1``) while
+    # keeping the LLM call on a different one (Groq's chat-only API).
+    # Falls back to ``openai_api_key`` / ``openai_api_base`` when unset.
+    embedding_openai_api_key: SecretStr | None = None
+    embedding_openai_api_base: str | None = None
 
     # ---------- LLM (Phase E1 RAG tutor + E2 authoring assistant) ----------
     # Provider selector for ``app.services.llm`` — drives both the

@@ -211,11 +211,17 @@ def get_provider() -> EmbeddingProvider:
     if kind == "noop":
         return NoopEmbeddingProvider()
     if kind == "openai":
-        api_key = s.openai_api_key.get_secret_value() if s.openai_api_key else ""
+        # Prefer embedding-specific overrides if set — lets the embedding
+        # call hit a different OpenAI-compatible endpoint (e.g. Cloudflare
+        # Workers AI) than the LLM (e.g. Groq). Falls back to the shared
+        # ``openai_api_*`` so existing single-provider setups don't change.
+        emb_key_secret = s.embedding_openai_api_key or s.openai_api_key
+        api_key = emb_key_secret.get_secret_value() if emb_key_secret else ""
+        api_base = s.embedding_openai_api_base or s.openai_api_base
         return OpenAIEmbeddingProvider(
             api_key=api_key,
             model=s.embedding_model_openai,
-            api_base=s.openai_api_base,
+            api_base=api_base,
         )
     # default — "local"
     return LocalEmbeddingProvider(s.embedding_model_local)
