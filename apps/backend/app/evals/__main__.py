@@ -108,8 +108,8 @@ def run(
     run set LLM_PROVIDER=openai +
     OPENAI_API_BASE=https://api.groq.com/openai/v1 +
     LLM_MODEL=llama-3.3-70b-versatile and put your Groq key in
-    OPENAI_API_KEY. See docs/release/_activation_a2.md for the full
-    operator runbook.
+    OPENAI_API_KEY. See docs/release/operator-activation-runbook.md for the
+    full operator runbook.
     """
     if suite not in SUITES:
         raise typer.BadParameter(f"--suite must be one of {list(SUITES)}")

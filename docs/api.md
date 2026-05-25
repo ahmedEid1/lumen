@@ -172,7 +172,7 @@ OpenAPI at `/openapi.json` is the source of truth; this list points to the resou
 - `GET /courses` — paginated, filterable (`q`, `subject`, `tag`, `difficulty`, `sort`)
 
 ### Search (`/api/v1/search`)
-- `GET /courses?q=...` — Meilisearch when configured, otherwise Postgres ILIKE fallback; supports `subject`, `tag`, `difficulty`
+- `GET /courses?q=...` — Postgres `tsvector` full-text on `courses.search_vector` (a `GENERATED ALWAYS AS` column Postgres maintains on every insert/update — no Celery trigger needed) **plus** an ILIKE OR-branch on `title` / `overview` for partial-word matches the English stemmer would miss (so "java" still finds "javascript"). FTS hits rank at `ts_rank`; ILIKE-only hits get a `0.0` floor so exact matches surface first. Supports `subject`, `tag`, `difficulty`.
 
 ### Courses (`/api/v1/courses`)
 - `POST /` — instructor-only create

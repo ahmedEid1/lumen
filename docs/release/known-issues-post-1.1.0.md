@@ -15,7 +15,7 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 **Where:** `apps/backend/app/services/embeddings.py:80` — `EMBEDDING_PROVIDER=local` is the default but the runtime dep `sentence-transformers` is not in `apps/backend/pyproject.toml` or `uv.lock`. On the first default embedding path (e.g. indexing a published course, or the e2e pre-index step) the deferred import raises `ModuleNotFoundError`.
 
 **Why deferred:** Two operator-shaped fixes, neither obviously right:
-- (a) Add `sentence-transformers` to deps — pulls in PyTorch + CUDA tooling, **~2 GB** Docker image growth, ARM64-on-Oracle has known wheels issues that may force a CPU-only build path.
+- (a) Add `sentence-transformers` to deps — pulls in PyTorch + CUDA tooling, **~2 GB** Docker image growth, and ARM64 wheels can be flaky on the small deploy target (t4g.small only has 2 GB RAM total, so even a CPU-only build path is dicey).
 - (b) Change the default to `noop` (already wired) — cheap, but means the operator has to opt into embeddings explicitly via `.env`. Probably the right answer for portfolio-demo posture; `noop` returns deterministic zero-vectors which lets the catalog + RAG plumbing work end-to-end without ever hitting an embedding model.
 
 **Suggested action:** Switch default to `noop` in `apps/backend/app/services/embeddings.py`. Document `EMBEDDING_PROVIDER=local` in `.env.example` as the opt-in path with a "requires `pip install sentence-transformers`" note. Defer the full local-model story to a Phase J optional dep extra (`pip install lumen-backend[embeddings-local]`).
@@ -50,7 +50,7 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 **Where:** `apps/backend/uv.lock` (refreshed in commit `b0c3128`) now includes `opentelemetry-instrumentation-{agno,alephalpha,bedrock,chromadb,cohere,crewai,google-generativeai,groq,haystack,lancedb,langchain,llamaindex,marqo,milvus,mistralai,ollama,openai-agents,pinecone,qdrant,replicate,sagemaker,together,transformers,vertexai,voyageai,watsonx,weaviate,writer,...}`.
 
 **Why deferred:** Upstream design issue with `traceloop-sdk`'s blanket dependency, not ours to fix:
-- Docker image grows by **hundreds of MB**; cold-start on Oracle ARM A1 grows with it.
+- Docker image grows by **hundreds of MB**; cold-start on the t4g.small ARM target grows with it (and matters more on 2 GB RAM than it did on the originally-targeted 24 GB Oracle A1).
 - Each instrumentation monkey-patches its target SDK at import time; rare but real risk of import-order breakage.
 - The blanket-install pattern is upstream's choice — they may add a `traceloop-sdk[minimal]` extra in a future release.
 
@@ -94,17 +94,18 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 
 ---
 
-### KI-6 — Stale "free-tier deploy" references in backend comments
+### KI-6 — Stale "free-tier deploy" references in backend comments — ✅ RESOLVED 2026-05-25
 
 **Source:** Claude review M5.
 
-**Where:** `apps/backend/pyproject.toml:6`, `apps/backend/app/core/rate_limit_metrics.py:11`, `apps/backend/app/core/prod_guards.py:4,140`. These reference "free-tier deploy" as a justification anchor for design choices that are now anchored on Oracle Always-Free.
+**Where:** `apps/backend/pyproject.toml:6`, `apps/backend/app/core/rate_limit_metrics.py:11`, `apps/backend/app/core/prod_guards.py:4,140` — plus the broader sweep found `apps/backend/app/seeds/demo.py:1`, `apps/backend/app/cli.py:219`, `apps/backend/tests/test_prod_guards.py:188`, and `.env.example:150` had the same drift.
 
-**Impact:** Internal documentation drift only — no behaviour, no broken links — but two different stories about the production target.
+**Impact:** Internal documentation drift only — no behaviour, no broken links — but multiple different stories about the production target across history.
 
-**Suggested action:** Targeted `s/free-tier deploy/Oracle Always-Free deploy/` sweep, or add a comment clarifying "free-tier" now refers generically to the Groq LLM tier (still free) rather than the FAANG deploy stack.
-
-**Estimated effort:** 15 min.
+**Resolution:** Eight drift sites total — reworded to "public demo deploy" / "single-VM demo deploy" / "demo bundle" with cross-refs to `docs/deployment/aws-vps.md` where helpful. Landed across three commits:
+- `996a6ed` (3 sites, alongside `legacy/` delete): `pyproject.toml:6`, `rate_limit_metrics.py:11`, `prod_guards.py:4,140`
+- `cbe17e4` (4 sites): `seeds/demo.py:1`, `cli.py:219`, `tests/test_prod_guards.py:188`, `.env.example:150`
+- `fa5d909` (1 site): `apps/backend/app/seeds/__init__.py:6`
 
 ---
 
@@ -126,7 +127,7 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 
 **Source:** Claude review m2 (minor).
 
-**Where:** `scripts/oracle-bootstrap.sh:156-164` writes `APP_DOMAIN` + `ACME_EMAIL` to `/etc/lumen-deploy/deploy.env`. Runbook step 5 of `docs/deployment/oracle-vps.md` tells the operator to "mirror these into your .env.production" — manual re-entry. The file is written but never consumed.
+**Where:** `scripts/aws-bootstrap.sh` (Block 7) writes `APP_DOMAIN` + `ACME_EMAIL` to `/etc/lumen-deploy/deploy.env`. Runbook step 5 of `docs/deployment/aws-vps.md` tells the operator to "mirror these into your .env.production" — manual re-entry. The file is written but never consumed. (Inherited from the retired `oracle-bootstrap.sh`; same problem, same fix.)
 
 **Suggested action:** Either drop the `/etc/lumen-deploy/deploy.env` write (dead data) or update the runbook to `source /etc/lumen-deploy/deploy.env` before the secret-generation loop.
 
@@ -146,11 +147,11 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 
 ---
 
-### KI-10 — `oracle-bootstrap.sh` exit message recommends `python -m app.cli demo-seed` alongside `seed`
+### KI-10 — `aws-bootstrap.sh` exit message recommends `python -m app.cli demo-seed` alongside `seed`
 
 **Source:** Claude review m5 (minor).
 
-**Where:** `scripts/oracle-bootstrap.sh` exit-summary block + `docs/deployment/oracle-vps.md` step 6.
+**Where:** `scripts/aws-bootstrap.sh` exit-summary block + `docs/deployment/aws-vps.md` step 6. (Inherited from the retired `oracle-bootstrap.sh`.)
 
 **Impact:** Both `seed` and `demo-seed` exist in the CLI. The Wave-1 A5 work moved the agentic-demo dataset into `agentic_demo.apply()` which is invoked from the regular `_seed()` function in `cli.py`. So running both yields the agentic demo + the older H4 demo bundle (still at `apps/backend/app/seeds/demo.py`), producing six published courses plus the demo learner. Not wrong, but more demo surface than the operator may want.
 
@@ -166,7 +167,7 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 2. **KI-4** (MCP stdout log) — quick spec compliance
 3. **KI-5** (60s/120s comment) — 30-second polish
 4. **KI-7** (seed feature slug) — 5-minute consistency
-5. **KI-6** (free-tier comments) — 15-minute drift cleanup
+5. ~~**KI-6** (free-tier comments) — 15-minute drift cleanup~~ ✅ done in `996a6ed`
 6. **KI-8** + **KI-10** (bootstrap script polish) — 15-minute total
 
 That's roughly **2 hours of focused work** to land all the cleanup as a follow-up patch release. KI-2 (code_runner sandbox) and KI-3 (traceloop bloat) are Phase-J-scoped.

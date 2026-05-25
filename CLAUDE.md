@@ -8,10 +8,10 @@ Project-specific guidance for Claude Code agents. Read this once at the start of
 
 - **Backend:** Python 3.13, FastAPI, async SQLAlchemy 2, Alembic, Celery, structlog
 - **Frontend:** Next.js 15 (App Router, RSC), React 19, TypeScript 5, Tailwind 4, shadcn-style primitives, TanStack Query
-- **Data:** PostgreSQL 17, Redis 7, MinIO (S3-compatible), Meilisearch
+- **Data:** PostgreSQL 17 (with `pgvector` + `tsvector` full-text search), Redis 7, MinIO (S3-compatible)
 - **Delivery:** Docker Compose (dev + prod), GitHub Actions CI/CD, Trivy + CodeQL + gitleaks
 
-The original Django app is preserved under `legacy/` — read-only, never modified.
+The original Django prototype lived under `legacy/` through v1.0.0 as a read-only archive; it was deleted in May 2026 once the rewrite shipped and the snapshot stopped earning its 160 MB. The reference history is preserved in git — `git log -- legacy/` recovers the tree at any pre-deletion commit if you need it.
 
 ## Layout
 
@@ -23,7 +23,6 @@ infra/             Caddy, Postgres init scripts, Prometheus config
 .github/           CI workflows, issue/PR templates, CODEOWNERS, dependabot
 docker-compose.yml docker-compose.prod.yml
 Makefile           make up | down | migrate | seed | test | lint | fmt | ...
-legacy/            Django prototype (archive — do not touch)
 ```
 
 Within the backend:
@@ -81,12 +80,11 @@ Default seeded accounts (dev only):
 3. **One topic per commit**; Conventional Commits subject; squash on merge.
 4. **CHANGELOG entry** for user-visible changes.
 5. **OpenAPI is the contract** — when you add/change an endpoint, regenerate the TS client (`make api-client`) if you ship code that consumes it.
-6. **Never edit `legacy/`**. If a reference is needed, copy the snippet into a PR description.
 
 ## Testing notes
 
 - Backend `conftest.py` creates a transient DB per session, force-clears the Settings cache after env-var overrides, and exposes `make_user`/`auth_headers` fixtures
-- For tests that need a non-default search backend, `monkeypatch.setenv("SEARCH_BACKEND", "postgres")` then call `get_settings.cache_clear()`
+- Search uses Postgres `tsvector` (no separate search service); the legacy `SEARCH_BACKEND` env var is a no-op on current `Settings` but is still set in a couple of test fixtures for historical reasons
 - Frontend tests use Vitest + happy-dom; E2E uses Playwright with the dev compose stack
 
 ## Gotchas
@@ -96,7 +94,7 @@ Default seeded accounts (dev only):
 - **Celery is best-effort in dev** — `_schedule_index` and the password-reset email both swallow broker errors so the API stays up without a worker
 - **Compose env on Windows hosts** logs CRLF warnings on `git add` — harmless; `.gitattributes` would silence it but isn't worth the churn
 - **Pydantic v2 + SQLAlchemy 2** — keep models and schemas separate; never expose an ORM object as a response without `UserPublic.model_validate(...)` or similar
-- **Search index** is updated via a Celery task on publish/unpublish/delete; if Meili is down, the search endpoint falls back to Postgres ILIKE
+- **Search index** lives in a `GENERATED ALWAYS AS` Postgres `tsvector` column on `courses` — Postgres maintains it on every insert/update, no Celery trigger involved. The Celery reindex task is a separate path that rebuilds **lesson-chunk embeddings** for the RAG tutor (fires on publish + admin reindex only; `delete_course` is a soft-delete that doesn't enqueue). There's no separate search service — the original Meilisearch wire was retired during the rebuild (see superseded ADR-0003 / new ADR-0015).
 
 ## Where to put new things
 
@@ -107,6 +105,5 @@ Default seeded accounts (dev only):
 
 ## What to leave alone
 
-- `legacy/` (archived Django prototype)
 - `.claude/ralph-loop.local.md` (loop state — read-only signal)
 - Anything under `infra/` without a corresponding ADR change

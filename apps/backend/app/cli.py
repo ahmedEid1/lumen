@@ -216,7 +216,7 @@ def reindex() -> None:
 
 @cli.command(name="demo-seed")
 def demo_seed() -> None:
-    """Load the H4 free-tier demo bundle (3 courses + demo student).
+    """Load the demo bundle (3 courses + demo student).
 
     Sits on top of ``seed``: run ``seed`` first if you want the full
     subject / tag / instructor / student dev fixtures; ``demo-seed`` is
@@ -327,8 +327,10 @@ def info() -> None:
             "api": str(s.api_base_url),
             "db": s.database_url,
             "redis": s.redis_url,
-            "search": s.search_backend,
+            "search": "postgres-tsvector",
             "s3": s.s3_endpoint_url,
+            "llm_provider": s.llm_provider,
+            "embedding_provider": s.embedding_provider,
         }
     )
 

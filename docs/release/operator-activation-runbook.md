@@ -2,9 +2,9 @@
 
 This is the single, ordered runbook for getting Lumen from "the code is on a branch in your worktree" to "a recruiter can click your live demo, see the MCP server in the public registry, watch a 90-second Loom, and the PR is open on GitHub." Everything below is **operator-driven** — Claude prepared every artifact but cannot run external accounts on your behalf.
 
-**Time budget:** ~3 hours of focused work spread across ~1 day (Oracle account approval is async).
+**Time budget:** ~2 hours of focused work in one sitting. AWS Free Plan signup is instant (no async approval). Steps 5 (MCP publish) and 6 (screencast) are already complete; only Steps 1–4 + 7 remain.
 
-**Status:** Branch `claude/romantic-mayer-ab2e85` at HEAD `8a8eb21`, 43 commits ahead of `15cb431` (the 1.1.0-agentic release), backend 628/628 + frontend 139/139, working tree clean.
+**Status:** Branch `claude/romantic-mayer-ab2e85` at HEAD `5f348fd`, 45 commits ahead of `15cb431` (the 1.1.0-agentic release), backend 628/628 + frontend 139/139, working tree clean. Pivoted from Oracle Always Free to AWS t4g.small on 2026-05-25 after Frankfurt A1 capacity stayed saturated for 24h and Oracle's PAYG region-subscription cap blocked the Stockholm fallback.
 
 ---
 
@@ -14,95 +14,103 @@ Keep these in a sticky note as you progress. Several steps feed each other.
 
 | Variable | Set in step | Used in step |
 |---|---|---|
-| `REGION` (e.g. `eu-stockholm-1`) | 1 | 2 |
-| `VM_IP` (public IPv4) | 2 | 3, 6 |
-| `SSH_KEY_PATH` (e.g. `~/.ssh/id_ed25519`) | 2 | 3 |
+| `AWS_REGION` (e.g. `eu-central-1`) | 1 | 2 |
+| `VM_IP` (Elastic IP) | 2 | 3, 6 |
+| `SSH_KEY_PATH` (e.g. `~/.ssh/lumen-prod.pem`) | 2 | 3 |
 | `DOMAIN_NAME` (optional — e.g. `lumen.ahmedhobeishy.de`) | 2 (optional) | 3, 6 |
 | `GROQ_KEY` (starts with `gsk_`) | 3 | 4, 5 |
 | `EVAL_SCORE` (e.g. `4.2/5`) | 4 | ping Claude |
-| `MCP_REGISTRY_URL` | 5 | ping Claude |
-| `LOOM_URL` | 6 | ping Claude |
+| `MCP_REGISTRY_URL` | (Step 5 — already done) | n/a |
+| `LOOM_URL` or `SCREENCAST_PATH` | (Step 6 — already done) | n/a |
 
 🛑 markers below = stop here and ping Claude so Claude can do the code-side work (paste keys, update README, push branch).
 
 ---
 
-## Step 1 — Oracle Cloud Always Free signup (~30 min active, then async approval)
+## Step 1 — AWS Free Plan signup (~15 min, instant activation)
 
-Full screen-by-screen walkthrough is in chat. Short version:
+1. Open <https://signup.aws.amazon.com>.
+2. Pick the **Free Plan** option (the no-card, 6-month, up-to-$200-credit path) — *not* the legacy 12-month free tier.
+3. **Email** + **AWS account name** (you can change the display name later; the underlying 12-digit account ID is permanent).
+4. **Mobile SMS verify** (no card required for the Free Plan path).
+5. Pick a **home region**. Good defaults for Essen: `eu-central-1` (Frankfurt, ~15 ms) or `eu-west-1` (Ireland, ~30 ms). AWS regions are not locked to your account — you can spin up resources anywhere — but free t4g.small hours are aggregated across regions so pick one and stick with it. Capture as `AWS_REGION`.
+6. Activation is **instant** — the welcome email arrives in <1 min.
 
-1. Open <https://signup.cloud.oracle.com>
-2. **Country:** Germany. **Cloud Account Name:** a lowercase-only slug (this is permanent — becomes part of your console URL).
-3. ⚠️ **Home region: pick `eu-stockholm-1`.** Do NOT pick Frankfurt, London, Ashburn, or Phoenix — all saturated for ARM A1. Stockholm has reliable A1 capacity, ~25 ms RTT from Essen.
-4. Mobile SMS verify (German +49 number).
-5. **Card check:** credit card or Visa/MC debit. Oracle takes a €1 temporary hold, never charges Always Free. Prepaid cards (Vimpay, Revolut virtual) usually get rejected.
-6. Submit and **bookmark the tenancy URL** Oracle shows (looks like `cloud.oracle.com/?tenant=<slug>&region=eu-stockholm-1`).
+Once in the console:
 
-**Wait for the "Your Oracle Cloud account is ready" email.** 80% of the time it lands in under 10 minutes; 15% takes 1–4 hours; rare cases 24 h.
+1. **Set a $5/month budget alarm** under *Billing → Budgets → Create budget* (template: "Monthly cost budget", threshold $5, alert email = your address). Belt-and-braces — the Free Plan auto-blocks at $0 actual charges, but the email warns you well before the 6-month auto-close lands.
+2. **Complete the 5 onboarding tasks** (Billing → Free Plan → Earn more credits) to unlock the second $100 of credits: launch+terminate an EC2 instance, configure an RDS instance, deploy a Lambda function, test a Bedrock prompt, set up a budget. Total ~30 min of clicking through "hello world" tutorials. Save the tasks for after Step 2 — the EC2 task there counts.
 
-**While waiting → start Step 5 (MCP registry publish) in parallel** — it's fully independent of Oracle.
-
-🛑 When the approval email arrives, ping Claude with "Oracle approved, what next." (No code changes needed at this step.)
+🛑 Ping Claude with: "AWS Free Plan active, region `<AWS_REGION>`." (No code change needed yet.)
 
 ---
 
-## Step 2 — Create the ARM A1 VM (~20 min after approval lands)
+## Step 2 — Launch the t4g.small EC2 instance (~15 min)
 
-### 2.1 Generate an SSH key on your local machine (skip if you already have one)
+### 2.1 Prepare an SSH key
 
-```bash
-# Check first:
-ls ~/.ssh/id_ed25519.pub 2>/dev/null && echo "have one"
+Two options — pick one:
 
-# If not:
-ssh-keygen -t ed25519 -C "lumen-oracle"
-# Press Enter for default path. Set a passphrase (recommended) or leave empty.
-```
+**(a) Reuse an existing local key** (recommended if you already have `~/.ssh/id_ed25519`). You'll upload the public key into the EC2 console as a "key pair" so the instance accepts your local private key.
 
-The public key (`~/.ssh/id_ed25519.pub`) is what you paste into Oracle. The private key (`~/.ssh/id_ed25519`) stays on your machine forever.
+**(b) Let AWS generate a new keypair.** The EC2 launch wizard offers this. AWS gives you a `.pem` file to download once — save it to `~/.ssh/lumen-prod.pem` and `chmod 600` immediately or SSH will refuse to use it.
 
-### 2.2 Create the VM in the OCI console
+Either way, capture the path as `SSH_KEY_PATH`.
 
-Log in to your tenancy URL. Left rail → **Compute → Instances → Create instance**.
+### 2.2 Launch the instance
+
+In the EC2 console (top-right region picker → `<AWS_REGION>` → *EC2 → Instances → Launch instances*):
 
 | Field | Value |
 |---|---|
 | Name | `lumen-prod` |
-| Image | **Canonical Ubuntu 24.04** (aarch64 — the console auto-picks ARM when the shape is A1) |
-| Shape | **VM.Standard.A1.Flex** → set OCPU=**4**, Memory=**24 GB** |
-| VCN | "Create new VCN" → accept all defaults |
-| Public IPv4 | **Assign** (toggle on) |
-| SSH keys | Paste the contents of `~/.ssh/id_ed25519.pub` |
-| Boot volume | 100 GB |
+| AMI | **Canonical Ubuntu 24.04 LTS** — the *arm64* build (the wizard auto-picks it once you select t4g.small) |
+| Instance type | **t4g.small** (2 vCPU + 2 GB Graviton2 — the only type covered by the free promo) |
+| Key pair | Existing key (option a) or "Create new key pair" → save `.pem` (option b) |
+| Network settings → Auto-assign public IP | **Enable** |
+| Network settings → Firewall (security group) | Create new `lumen-prod-sg` — see ingress rules below |
+| Storage | 30 GB **gp3** root volume |
 
-Click **Create**. Wait 2–5 min for `PROVISIONING → STARTING → RUNNING`.
+**Security group ingress rules** (add three before launching):
 
-⚠️ **If you see "Out of host capacity":** Stockholm is briefly out. Wait 15 min and retry. If it persists 24 h, the runbook in `docs/deployment/oracle-vps.md` has alt-region recovery steps.
+| Type | Protocol | Port | Source |
+|---|---|---|---|
+| SSH | TCP | 22 | `0.0.0.0/0` (or your `<your-ip>/32` for tighter posture) |
+| HTTP | TCP | 80 | `0.0.0.0/0` |
+| HTTPS | TCP | 443 | `0.0.0.0/0` |
 
-### 2.3 Capture the public IP
+Default egress (`0.0.0.0/0`, all protocols) is fine — leave it.
 
-Instance detail page → **Public IPv4 Address**. **Write it down — this is `VM_IP`.**
+Click **Launch instance**. State moves `pending → running` in ~30 s.
 
-### 2.4 Open the firewall
+⚠️ **If you see `InsufficientInstanceCapacity`:** AWS briefly out of t4g.small in this AZ. Pick a different Availability Zone (subnet) in the same region and retry — rarely sustains >5 min. Full alt-AZ recovery in [`docs/deployment/aws-vps.md`](../deployment/aws-vps.md) troubleshooting.
 
-Left rail → **Networking → Virtual cloud networks → your VCN → Default security list → Add ingress rules**:
+### 2.3 Allocate an Elastic IP (so the public address survives stop/start)
 
-| Source CIDR | Protocol | Destination port |
-|---|---|---|
-| `0.0.0.0/0` | TCP | 22 |
-| `0.0.0.0/0` | TCP | 80 |
-| `0.0.0.0/0` | TCP | 443 |
+*EC2 → Network & Security → Elastic IPs → Allocate Elastic IP address* (defaults are fine). Then *Actions → Associate Elastic IP address* → instance `lumen-prod`. EIP attached to a running instance is free; the unattached/idle case is the only thing that bills ($3.65/mo). Do not allocate spares.
 
-### 2.5 Verify SSH works
+Capture the Elastic IP address — **this is `VM_IP`.**
+
+### 2.4 Verify SSH works
 
 ```bash
-ssh ubuntu@<VM_IP>
+chmod 600 ~/.ssh/lumen-prod.pem   # only needed for option-b keys
+ssh -i <SSH_KEY_PATH> ubuntu@<VM_IP>
 # Type "yes" to accept the host key on first connect.
-# You should land at a `ubuntu@lumen-prod:~$` prompt.
+# You should land at a `ubuntu@ip-...:~$` prompt.
 exit
 ```
 
-🛑 Ping Claude with: "VM up at `<VM_IP>`, SSH works." No code change needed yet — but capturing it tells Claude you're ready for Step 3.
+🛑 Ping Claude with: "EC2 up at `<VM_IP>`, SSH works." No code change needed yet — but capturing it tells Claude you're ready for Step 3.
+
+### 2.5 Optional — point a domain at the Elastic IP
+
+If you own a domain (e.g. `ahmedhobeishy.de`):
+1. Create an A record `lumen.ahmedhobeishy.de → <VM_IP>` at your DNS provider (Route 53, Cloudflare, registrar's DNS — any works).
+2. Wait 5–15 min for propagation (`dig lumen.ahmedhobeishy.de` shows the IP).
+3. Capture `DOMAIN_NAME` for Step 3.
+
+**No domain?** Use [`<VM_IP>.nip.io`](https://nip.io) — a free wildcard DNS service that resolves any IP-shaped subdomain back to that IP. Caddy will fetch a Let's Encrypt cert against it. Your `DOMAIN_NAME` is literally `<VM_IP>.nip.io` (e.g. `52.18.123.45.nip.io`).
 
 ### 2.6 Optional — point a domain at the VM
 
@@ -123,39 +131,34 @@ If you own a domain (e.g. `ahmedhobeishy.de`):
 2. **API Keys** → **Create API Key** → name it `lumen-prod`.
 3. Copy the key — starts with `gsk_...`. **You see it ONCE.** This is `GROQ_KEY`.
 
-### 3.2 SSH into the VM and run the bootstrap script
+### 3.2 SSH into the EC2 and run the bootstrap script
 
 ```bash
-ssh ubuntu@<VM_IP>
-
-# Pull the bootstrap script from the branch you're about to deploy.
-# (Branch is claude/romantic-mayer-ab2e85, but the script lives on it — we
-# fetch via the GitHub raw URL once the branch is pushed, OR we can scp it
-# from your laptop. We'll do scp since the branch isn't pushed yet.)
+ssh -i <SSH_KEY_PATH> ubuntu@<VM_IP>
 
 # In a SECOND local terminal (don't close the ssh session):
-scp scripts/oracle-bootstrap.sh ubuntu@<VM_IP>:~/
+scp -i <SSH_KEY_PATH> scripts/aws-bootstrap.sh ubuntu@<VM_IP>:~/
 
 # Back in the ssh session:
-chmod +x oracle-bootstrap.sh
-sudo ./oracle-bootstrap.sh
+chmod +x aws-bootstrap.sh
+sudo ./aws-bootstrap.sh
 ```
 
 The script will prompt you for:
 - **Admin username** for the new non-root user (default `lumen` — accept).
-- **Domain name** for TLS (paste `DOMAIN_NAME` from Step 2.6).
+- **Domain name** for TLS (paste `DOMAIN_NAME` from Step 2.6 — see optional step below).
 - **Admin email** for Let's Encrypt notifications (your real email).
 
-It will then: install Docker + Compose, harden sshd (key-only auth), enable ufw, install fail2ban. **Idempotent** — re-runnable.
+It will then: create a 4 GB swapfile (critical for the 2 GB RAM cap), install Docker + Compose, harden sshd (key-only auth), enable ufw, install fail2ban. **Idempotent** — re-runnable.
 
-⚠️ **If the script halts with "Refusing to disable password SSH without verified authorized_keys":** that's the M1 guard working as intended. It means your key wasn't found in the expected location. Re-run with `LUMEN_SKIP_SSHD_HARDENING=1 sudo ./oracle-bootstrap.sh` and harden manually after the deploy works.
+⚠️ **If the script halts with "Refusing to disable password SSH without verified authorized_keys":** that's the M1 guard working as intended. It means your key wasn't found in the expected location. Re-run with `LUMEN_SKIP_SSHD_HARDENING=1 sudo ./aws-bootstrap.sh` and harden manually after the deploy works.
 
 ### 3.3 Verify you can ssh in as the new admin user
 
 ```bash
 # Open a THIRD terminal — don't close the ubuntu@ session yet.
-ssh lumen@<VM_IP>
-# Should land at a lumen@lumen-prod:~$ prompt.
+ssh -i <SSH_KEY_PATH> lumen@<VM_IP>
+# Should land at a lumen@ip-...:~$ prompt.
 ```
 
 Once that works, you can close the original `ubuntu@` session.
@@ -166,12 +169,13 @@ The branch isn't on GitHub yet (we'll push it in Step 7). So clone via scp:
 
 ```bash
 # On your LOCAL machine, from the worktree root:
-rsync -avz --exclude='.venv' --exclude='node_modules' --exclude='.next' \
+rsync -avz -e "ssh -i <SSH_KEY_PATH>" \
+  --exclude='.venv' --exclude='node_modules' --exclude='.next' \
   --exclude='.git/objects' --exclude='.playwright-mcp' \
   ./ lumen@<VM_IP>:~/lumen/
 
 # Then ssh in and finish the .git bootstrap:
-ssh lumen@<VM_IP>
+ssh -i <SSH_KEY_PATH> lumen@<VM_IP>
 cd ~/lumen
 git status   # should show clean tree on claude/romantic-mayer-ab2e85
 ```
@@ -216,6 +220,18 @@ CORS_ORIGINS=https://<DOMAIN_NAME>
 WEB_BASE_URL=https://<DOMAIN_NAME>
 ```
 
+Then append the **2 GB RAM tuning block** (t4g.small only has 2 GB):
+
+```env
+# t4g.small low-memory tuning
+POSTGRES_SHARED_BUFFERS=192MB
+POSTGRES_WORK_MEM=4MB
+POSTGRES_MAINTENANCE_WORK_MEM=64MB
+POSTGRES_EFFECTIVE_CACHE_SIZE=512MB
+REDIS_MAXMEMORY=64mb
+CELERY_CONCURRENCY=1
+```
+
 Save + exit.
 
 ### 3.6 Boot the stack
@@ -223,6 +239,8 @@ Save + exit.
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 # Wait ~60 seconds for Postgres healthcheck + migration container to finish.
+# Watch memory: `free -h` and `docker stats --no-stream` should show
+# ~1.8 GB used (of 2 GB) + minimal swap on a quiet box.
 
 docker compose -f docker-compose.prod.yml --env-file .env.production exec api alembic upgrade head
 docker compose -f docker-compose.prod.yml --env-file .env.production exec api python -m app.cli seed
@@ -272,56 +290,17 @@ scp lumen@<VM_IP>:~/lumen/apps/backend/evals/reports/tutor-*.jsonl ./apps/backen
 
 ---
 
-## Step 5 — Publish the MCP server to the public registry (~10 min, can run in parallel with steps 1–4)
+## Step 5 — Publish the MCP server to the public registry — ✅ DONE
 
-Detailed runbook at `docs/mcp-registry-submission.md`. Short version:
-
-### 5.1 Install `mcp-publisher`
-
-```bash
-# On your LOCAL machine (not the VM):
-npm install -g @modelcontextprotocol/registry-publisher
-mcp-publisher --version
-```
-
-### 5.2 Authenticate with GitHub OAuth
-
-```bash
-mcp-publisher login github
-# Opens browser. Sign in as ahmedEid1 (the namespace owner).
-```
-
-### 5.3 Submit the metadata
-
-```bash
-# From the worktree root:
-mcp-publisher publish apps/backend/app/mcp/registry_metadata.json
-```
-
-Expected output: `Published io.github.ahmedeid1/lumen v1.1.0`.
-
-Verify at <https://registry.modelcontextprotocol.io/v0.1/servers/io.github.ahmedeid1/lumen>.
-
-🛑 Ping Claude: "MCP published, listing live at `<MCP_REGISTRY_URL>`." Claude verifies the README badge URL now resolves green (instead of 404).
+Already shipped on 2026-05-25. `io.github.ahmedEid1/lumen` v1.1.0 is live at <https://registry.modelcontextprotocol.io/v0/servers?search=io.github.ahmedEid1%2Flumen>. The README badge already resolves green. No action needed.
 
 ---
 
-## Step 6 — Record the 90-second Loom (~15–30 min)
+## Step 6 — Screencast walkthrough — ✅ DONE (silent captioned MP4)
 
-**Two paths — pick whichever is ready first:**
+A silent captioned walkthrough was autonomously recorded against the local Docker stack and committed at [`docs/screencast/walkthrough.mp4`](../screencast/walkthrough.mp4). It covers the same 6 beats originally scoped for the Loom version (landing → tutor → agent reasoning → trace surface → self-critique authoring → observability) without depending on a live URL.
 
-| Path | When | Pros | Cons |
-|---|---|---|---|
-| **6a — Local-stack recording** (recommended now) | Whenever your local docker stack is up | Doesn't wait on Oracle/Hetzner; unblocks portfolio submissions today | URL bar shows `localhost:3000` (acknowledged in voiceover) |
-| **6b — Live-URL recording** | After Step 3 lands a public URL | Cleaner — URL bar shows `lumen.ahmedhobeishy.de` | Blocked until deploy is up |
-
-**Full script + pre-recording checklist + voiceover delivery notes:** [`docs/release/loom-recording-script.md`](loom-recording-script.md)
-
-The script covers the same 6 beats × 15 sec (intro → tutor → agent reasoning → trace surface → self-critique replay → observability wrap), with two variants for local vs live recording. The local-stack version has an explicit "running locally; public demo being provisioned" caveat in Beat 1 — recruiters appreciate the honesty, and the agentic behavior renders identically either way.
-
-Loom signup: <https://www.loom.com> (free tier — 5-min cap per video, 25 videos total).
-
-🛑 After recording, ping Claude with the Loom URL. Claude pastes it into the `LOOM_URL_TBD` placeholder in `README.md` and commits.
+**Optional follow-up (after Step 3.7 confirms `https://<DOMAIN_NAME>` is live):** record a 90-second voiced Loom against the *live* demo for the README hero spot. The captioned MP4 stays as the primary demo asset either way. The 6-beat script lives at [`docs/release/loom-recording-script.md`](loom-recording-script.md) with both local-stack + live-URL variants; capture URL as `LOOM_URL` and ping Claude to update the README.
 
 ---
 
@@ -378,8 +357,10 @@ Reference the README's "Built by" section and link the Loom in your cover paragr
 
 ## Recovery / common issues
 
-- **Oracle approval stuck >24h:** open a [support ticket](https://support.oracle.com/portal/) citing your tenancy slug. Or sign up again with a different email + a less-saturated region.
-- **A1 capacity unavailable for weeks:** Stockholm is usually fine, but if not, try `ap-mumbai-1` or `sa-vinhedo-1`. Latency hurts the demo but the portfolio still works.
+- **AWS `InsufficientInstanceCapacity` on launch:** Pick a different Availability Zone (subnet) within `<AWS_REGION>` and retry. Rarely sustains >5 min.
+- **Free Plan credits exhausted before 6 months:** Check *Billing → Cost Explorer*. Most likely culprit is an unattached Elastic IP — release any spares (`EC2 → Elastic IPs → Actions → Release`). t4g.small instance hours are free regardless of credits through Dec 31 2026.
+- **Free Plan auto-close email at 6 months:** Either add a card to upgrade to Paid Plan (~$18/mo steady-state after Dec 31 2026) or migrate the deploy to Oracle Always Free A1 / Hetzner CAX11 — the compose stack works on all three because all three are ARM64 Ubuntu 24.04. Migration mostly means rerunning Steps 2–3 against the new target.
+- **Out-of-memory killer reaped a container:** t4g.small is tight. Drop `CELERY_CONCURRENCY=0` (process tasks inline), reduce Postgres `shared_buffers` to 128MB, or move the Next.js frontend to Vercel free (see "Split deploy" in `docs/deployment/aws-vps.md`).
 - **Groq rate-limit during eval:** free tier is 30 req/min on Llama 3.3 70B. The eval runner respects this; if it errors, re-run — it resumes from the report's last line.
 - **Caddy TLS won't issue:** check `docker compose logs proxy`; the most common cause is DNS not propagated yet. `dig <DOMAIN_NAME>` from the VM should return its own IP.
 - **`make publish-rewrite` says "no commits to push":** you're on the wrong local branch. `git checkout Rewrite` first.
@@ -388,11 +369,12 @@ Reference the README's "Built by" section and link the Loom in your cover paragr
 
 ## Where Claude takes over (the 🛑 moments)
 
-1. After Step 2 — Claude doesn't need to do anything but acknowledges the VM is up.
-2. After Step 3.7 — Claude updates `LIVE_DEMO_URL_TBD` → real URL in README + commits.
-3. After Step 4 — Claude updates the tutor-eval badge in README + commits the report JSONL.
-4. After Step 5 — Claude verifies the MCP badge URL resolves.
-5. After Step 6 — Claude pastes Loom URL into `LOOM_URL_TBD` + commits.
-6. After Step 7 — Claude logs the PR URL for the session record.
+1. After Step 1 — Claude acknowledges AWS Free Plan is active.
+2. After Step 2 — Claude acknowledges EC2 is up.
+3. After Step 3.7 — Claude updates `LIVE_DEMO_URL_TBD` → real URL in README + commits.
+4. After Step 4 — Claude updates the tutor-eval badge in README + commits the report JSONL.
+5. Step 5 (MCP publish) — already done; no action.
+6. Step 6 (screencast) — already done as `docs/screencast/walkthrough.mp4`; the optional voiced Loom against the live URL is a stretch goal.
+7. After Step 7 — Claude logs the PR URL for the session record.
 
-After all 6, the README has zero placeholders, the demo is live, the MCP server is publicly listed, and the PR is open. **That is the "ready to apply" state.**
+After all of these, the README has zero placeholders, the demo is live, the MCP server is publicly listed, the screencast is committed, and the PR is open. **That is the "ready to apply" state.**

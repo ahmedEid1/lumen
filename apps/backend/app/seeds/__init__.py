@@ -3,7 +3,7 @@
 This package holds focused, additive seed scripts that build on top of the
 base seed in :mod:`app.cli` (``python -m app.cli seed``). The base seed
 exists to support tests and the dev `make seed` flow; bundles here are for
-operator scenarios like the free-tier live-demo deploy (H4).
+operator scenarios like the single-VM demo deploy (H4 / `docs/deployment/aws-vps.md`).
 
 Currently provided:
 

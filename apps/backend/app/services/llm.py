@@ -27,8 +27,8 @@ single env var. Today's concrete providers:
 Selection is by :attr:`Settings.llm_provider` and resolved through
 :func:`get_provider` per-call so tests can flip the provider via
 ``monkeypatch.setenv("LLM_PROVIDER", "noop")`` + ``get_settings.cache_clear()``
-without restarting the process — mirroring the convention CLAUDE.md
-documents for ``SEARCH_BACKEND`` and ``EMBEDDING_PROVIDER``.
+without restarting the process — the same env-flip-then-cache-clear
+pattern :mod:`app.services.embeddings` uses for ``EMBEDDING_PROVIDER``.
 
 A note on async vs sync. The vendor SDKs ship both, but the tutor
 service is called from inside FastAPI's request loop, and we don't

@@ -1,8 +1,8 @@
 # Loom recording script — Lumen 1.1.0-agentic 90-second walkthrough
 
-**Goal:** 90 seconds, 6 beats × 15 seconds, recorded against the local Docker stack while the Oracle deploy is still pending. The voiceover acknowledges "this is running locally" up-front; the URL bar will show `localhost:3000` instead of `lumen.ahmedhobeishy.de`. Recruiters care about the **agentic-AI behavior**, not the hostname — what makes Lumen interesting is the multi-agent tutor, the trace surfaces, and the self-critique authoring loop, all of which render identically locally.
+**Goal:** 90 seconds, 6 beats × 15 seconds, recorded against the local Docker stack while the AWS t4g.small deploy is still pending. The voiceover acknowledges "this is running locally" up-front; the URL bar will show `localhost:3000` instead of `lumen.ahmedhobeishy.de`. Recruiters care about the **agentic-AI behavior**, not the hostname — what makes Lumen interesting is the multi-agent tutor, the trace surfaces, and the self-critique authoring loop, all of which render identically locally.
 
-This is the cleanest path: record once now, swap the URL banner in the README, and re-record if/when Oracle (or a Hetzner box) gives us a real public URL.
+This is the cleanest path: record once now, swap the URL banner in the README, and re-record if/when the AWS deploy (or any other live host) gives us a real public URL.
 
 ---
 
@@ -106,7 +106,7 @@ Loom supports trim + re-record on segments. Plan a **single 90-second take**. If
 
 ---
 
-## If you want to re-record once Oracle/Hetzner is live
+## If you want to re-record once AWS (or any other host) is live
 
 The script above works identically with the live URL. Just:
 

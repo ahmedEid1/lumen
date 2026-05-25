@@ -185,8 +185,8 @@ def test_openai_base_warning_when_default() -> None:
     warnings: list[str] = []
     check_llm_base_url_for_openai(s, warnings)
     # Operator might *want* real OpenAI — the warning surfaces but
-    # doesn't block. We still flag it so the v2 free-tier deploy
-    # doesn't silently bill.
+    # doesn't block. We still flag it so the public demo deploy
+    # (Groq via OpenAI-compat) doesn't silently bill.
     assert len(warnings) == 1
 
 

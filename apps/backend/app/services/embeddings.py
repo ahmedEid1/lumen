@@ -203,8 +203,10 @@ def get_provider() -> EmbeddingProvider:
     """Return the configured provider.
 
     Resolved each call so tests can swap providers mid-run via
-    ``monkeypatch.setenv`` + ``get_settings.cache_clear()`` — the
-    pattern documented in CLAUDE.md for ``SEARCH_BACKEND``.
+    ``monkeypatch.setenv("EMBEDDING_PROVIDER", ...)`` +
+    ``get_settings.cache_clear()`` — the env-flip-then-cache-clear
+    pattern Lumen uses for any Settings field that has alternate
+    implementations behind it.
     """
     s = get_settings()
     kind = s.embedding_provider

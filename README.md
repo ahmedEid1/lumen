@@ -2,8 +2,8 @@
 
 Lumen — an open-source, AI-first LMS built as a portfolio anchor for agentic-AI engineering work.
 
-[![Try the live demo →](https://img.shields.io/badge/live%20demo-lumen--demo.fly.dev-C8FF00?style=for-the-badge)](https://lumen-demo.fly.dev)
-<!-- LIVE_DEMO_URL_TBD: H4's free-tier runbook (docs/deployment/free-tier.md) ships the real URL -->
+[![Live demo: provisioning](https://img.shields.io/badge/live%20demo-provisioning-lightgrey?style=for-the-badge)](docs/deployment/aws-vps.md)
+<!-- LIVE_DEMO_URL_TBD: replace with the public URL once the AWS t4g.small VM is up (docs/deployment/aws-vps.md). -->
 
 [![CI](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml)
 [![authoring eval: 3.85/5 (n=10)](https://img.shields.io/badge/authoring%20eval-3.85%2F5%20(n%3D10)-success)](docs/eval/authoring-n10-groq-20260525.jsonl)
@@ -40,29 +40,29 @@ flowchart LR
     user([Learner / Instructor])
 
     subgraph Edge[Edge]
-      web[Next.js 15<br/>App Router · RSC<br/>Vercel]
+      web[Next.js 15<br/>App Router · RSC<br/>Docker on EC2]
     end
 
     subgraph App[Application]
-      api[FastAPI · Python 3.13<br/>Fly.io scale-to-zero]
-      worker[Celery worker + beat<br/>Fly.io]
+      api[FastAPI · Python 3.13<br/>Docker on EC2]
+      worker[Celery worker + beat<br/>Docker on EC2]
     end
 
     subgraph Agents[Agent layer]
-      planner[Planner-orchestrator<br/>I2 · planned]
+      planner[Planner-orchestrator<br/>I2 · shipped]
       subs[Sub-agents:<br/>retriever · web-searcher<br/>code-runner · quiz-gen<br/>concept-explainer]
-      authoring[Self-critique authoring<br/>I3 · planned]
-      pathagent[Learning-path agent<br/>I5 · planned]
+      authoring[Self-critique authoring<br/>I3 · shipped]
+      pathagent[Learning-path agent<br/>I5 · shipped]
     end
 
     subgraph MCP[MCP surface]
-      mcp[Lumen MCP server<br/>I1 · planned<br/>claude mcp add lumen]
+      mcp[Lumen MCP server<br/>I1 · shipped<br/>claude mcp add lumen]
     end
 
     subgraph Data[Data plane]
-      pg[(Postgres 17 + pgvector<br/>Supabase free tier)]
-      redis[(Redis 7<br/>Upstash free tier)]
-      r2[(Object storage<br/>Cloudflare R2 free tier)]
+      pg[(Postgres 17 + pgvector<br/>Docker on EC2)]
+      redis[(Redis 7<br/>Docker on EC2)]
+      s3[(MinIO S3-compatible<br/>Docker on EC2)]
     end
 
     subgraph LLM[Swappable LLM layer]
@@ -82,7 +82,7 @@ flowchart LR
     web --> api
     api --> pg
     api --> redis
-    api --> r2
+    api --> s3
     api --> worker
     worker --> pg
     api --> planner
@@ -136,7 +136,7 @@ The resume bullets, with links to the code. Every item below is on the release b
 | Eval harness + golden datasets + judge dashboard (H2)    | ✅ shipped (wave 1) |
 | Playwright e2e against the live stack (H3)               | ✅ shipped (wave 1) |
 | Production-exposure security pass (H6)                   | ✅ shipped (wave 1) |
-| Oracle Always-Free single-VM deploy runbook (H4)         | ✅ shipped (1.1.0-agentic) |
+| AWS t4g.small single-VM deploy runbook (H4)              | ✅ shipped (1.1.0-agentic) |
 | README rewrite for agentic-AI positioning (H5)           | ✅ shipped (1.1.0-agentic) |
 | Agent-trace + retrieval observability surface (H7)       | ✅ shipped (1.1.0-agentic) |
 | Lumen MCP server (I1)                                    | ✅ shipped (1.1.0-agentic) |
@@ -156,7 +156,7 @@ The resume bullets, with links to the code. Every item below is on the release b
 ```bash
 # Real eval run, n=10 — needs LLM_PROVIDER=openai + OPENAI_API_BASE=https://api.groq.com/openai/v1
 # + OPENAI_API_KEY=<your-groq-key> + LLM_MODEL=llama-3.3-70b-versatile in .env:
-docker compose exec api python -m app.evals --suite authoring
+docker compose exec api python -m app.evals run --suite authoring
 ```
 
 ### Suite coverage
@@ -205,22 +205,22 @@ The same `LLMProvider` abstraction also accepts native Anthropic (`LLM_PROVIDER=
 
 ---
 
-## Deploy it (Oracle Cloud Always Free)
+## Deploy it (AWS EC2 t4g.small, free through Dec 31 2026)
 
-The live demo runs on **one** Oracle Cloud Always-Free Ampere A1 VM (4 OCPU + 24 GB RAM + 200 GB block, ARM64 Ubuntu 24.04) — $0/mo, **forever**, no card charged. The unmodified `docker-compose.prod.yml` brings up FastAPI + Celery worker + beat + Postgres-pgvector + Redis + MinIO + a containerised Caddy 2 that auto-fetches a Let's Encrypt cert. Putting Cloudflare's DNS proxy in front is an optional next step, not a prerequisite.
+The live demo runs on **one** AWS EC2 t4g.small Graviton2 VM (2 vCPU + 2 GB RAM + 30 GB gp3, ARM64 Ubuntu 24.04) — covered by AWS's t4g.small free-trial promo through Dec 31 2026 and absorbed by the new-account Free Plan credits before that. The unmodified `docker-compose.prod.yml` brings up FastAPI + Celery worker + beat + Postgres-pgvector + Redis + MinIO + a containerised Caddy 2 that auto-fetches a Let's Encrypt cert. The 2 GB RAM cap is handled by a 4 GB swapfile + tuned Postgres config in the bootstrap script. Cloudflare's DNS proxy in front is an optional next step, not a prerequisite.
 
-tl;dr after you have an Oracle account and the VM is running:
+tl;dr after the EC2 instance is running and you've SSHed in:
 
 ```bash
-ssh ubuntu@<vm-public-ip>
-curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/master/scripts/oracle-bootstrap.sh | sudo bash
+ssh -i ~/.ssh/lumen-prod.pem ubuntu@<elastic-ip>
+curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/master/scripts/aws-bootstrap.sh | sudo bash
 # log out, log back in as the new admin user, then:
 git clone https://github.com/ahmedEid1/E-Learning-Platform.git lumen && cd lumen
 cp .env.example .env.production    # fill APP_DOMAIN + secrets (see runbook step 5)
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 ```
 
-Full runbook (VM creation through TLS + smokes): [docs/deployment/oracle-vps.md](docs/deployment/oracle-vps.md). Cost callout: steady-state **$0/mo, forever** on the Always-Free tier; the per-user 24h LLM budget guard caps spend at $1/user/day by default and the operator can dial it lower in `.env`.
+Full runbook (EC2 creation through TLS + smokes): [docs/deployment/aws-vps.md](docs/deployment/aws-vps.md). Cost callout: **$0 wall-clock** on a new AWS Free-Plan account (6 months, up to $200 credits absorb the Elastic IP); ~$6/mo on an existing account until Dec 31 2026 when t4g free hours expire. The per-user 24h LLM budget guard caps Groq spend at $1/user/day by default and the operator can dial it lower in `.env`. Migration path off AWS at end-of-trial: rerun the same runbook against Oracle Always Free A1 (if capacity ever appears) or Hetzner CAX11 — the compose stack is identical because all three targets are ARM64 Ubuntu 24.04.
 
 ---
 
@@ -265,4 +265,4 @@ Once installed, ask Claude `'list my Lumen courses'` and watch the MCP tool call
 
 MIT — see [LICENSE](LICENSE).
 
-Status: actively built. 1.1.0-agentic shipped 2026-05-22 (Phase H + all five Phase I items — MCP server, multi-agent tutor, self-critique authoring, learner-trace surface, learning-path agent). Wave 2 portfolio-activation prep completed 2026-05-25 (eval harness wiring + agentic-demo seed + screenshot pack + Oracle Always-Free deploy runbook + MCP registry metadata + README truthing). Remaining work is operator-side: provision the Oracle VM and run the deploy runbook, mint the live tutor-eval score against Groq, record the 90-second Loom, then publish the MCP server to `registry.modelcontextprotocol.io` and start applying.
+Status: actively built. 1.1.0-agentic shipped 2026-05-22 (Phase H + all five Phase I items — MCP server, multi-agent tutor, self-critique authoring, learner-trace surface, learning-path agent). Wave 2 portfolio-activation prep completed 2026-05-25 (eval harness wiring + agentic-demo seed + screenshot pack + single-VM deploy runbook + MCP registry metadata + README truthing). The deploy target pivoted from Oracle Always Free to AWS t4g.small after Frankfurt Always-Free capacity stayed saturated for 24h and Oracle's PAYG region-subscription cap blocked the Stockholm fallback; the new AWS runbook (`docs/deployment/aws-vps.md`) ships ~$0/mo wall-clock on a new-account Free Plan through end-of-2026. Remaining work is operator-side: provision the EC2 instance and run the deploy runbook, mint the live tutor-eval score against Groq, record the 90-second Loom, and start applying. The MCP server is already published to `registry.modelcontextprotocol.io` as `io.github.ahmedEid1/lumen` v1.1.0.

@@ -30,9 +30,11 @@ from app.models.user import Role
 
 @pytest.fixture(autouse=True)
 def _force_pg_search(monkeypatch):
-    """The repository function is shared by the catalog and the
-    Postgres-fallback search backend. Make sure we're exercising the
-    PG path and not Meili."""
+    """Historical fixture from the ADR-0003 (Meilisearch) era. The
+    ``SEARCH_BACKEND`` env var is now a no-op on current ``Settings``
+    (Meilisearch was retired — see ADR-0015), but the monkeypatch +
+    cache_clear plumbing is left intact so a future ADR swap can
+    re-add the field without re-templating every catalog fixture."""
     from app.core.config import get_settings
 
     monkeypatch.setenv("SEARCH_BACKEND", "postgres")

@@ -1,7 +1,7 @@
 """Production boot guards (Phase H6).
 
 These checks complement :meth:`app.core.config.Settings.assert_production_ready`
-by catching footguns specific to the v2 free-tier deploy: shipping with the
+by catching footguns specific to the public demo deploy: shipping with the
 ``noop`` LLM provider, secrets shorter than 32 chars (HS256 / RFC 7518 §3.2),
 or a stray ``DATABASE_URL`` pointing at a localhost Postgres.
 
@@ -137,12 +137,12 @@ def check_database_not_loopback(settings: Any, problems: list[str]) -> None:
 def check_llm_base_url_for_openai(settings: Any, warnings: list[str]) -> None:
     """Soft signal: ``LLM_PROVIDER=openai`` without an explicit ``OPENAI_API_BASE``.
 
-    The v2 free-tier deploy points the OpenAI provider at Groq's
-    OpenAI-compatible endpoint (`https://api.groq.com/openai/v1`). If the
-    operator selected ``openai`` but left the base URL at the real
-    OpenAI default, they're probably about to incur dollar costs they
-    didn't plan for. Warn loudly but don't refuse the boot — paid OpenAI
-    is a perfectly legitimate config.
+    The public demo deploy points the OpenAI provider at Groq's
+    OpenAI-compatible endpoint (`https://api.groq.com/openai/v1`) so the
+    LLM tier stays free. If the operator selected ``openai`` but left the
+    base URL at the real OpenAI default, they're probably about to incur
+    dollar costs they didn't plan for. Warn loudly but don't refuse the
+    boot — paid OpenAI is a perfectly legitimate config.
     """
     provider = getattr(settings, "llm_provider", None)
     value = getattr(provider, "value", provider)
