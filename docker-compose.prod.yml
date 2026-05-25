@@ -40,9 +40,12 @@ x-api-env: &api-env
   # Embedding + LLM pass-through. Both default to noop so the stack
   # boots without paid credentials in dev. In production ENV the
   # prod-boot guard (apps/backend/app/core/prod_guards.py) refuses both
-  # LLM_PROVIDER=noop and EMBEDDING_PROVIDER=noop and forces a real
-  # provider — without the embedding guard, RAG would silently degrade
-  # to hash-seeded zero-vectors with no error in the logs.
+  # LLM_PROVIDER=noop and EMBEDDING_PROVIDER=noop. Without the embedding
+  # guard, RAG would silently degrade to hash-derived pseudo-random unit
+  # vectors (apps/backend/app/services/embeddings.py NoopEmbeddingProvider)
+  # — cosine similarity stays well-defined, but rankings become arbitrary
+  # noise with no error in the logs. The guard turns that into a loud
+  # boot-time refusal instead.
   EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-noop}
   EMBEDDING_MODEL_LOCAL: ${EMBEDDING_MODEL_LOCAL:-sentence-transformers/all-MiniLM-L6-v2}
   EMBEDDING_MODEL_OPENAI: ${EMBEDDING_MODEL_OPENAI:-text-embedding-3-small}
@@ -111,6 +114,11 @@ services:
     # ${REDIS_MAXMEMORY:-0} = unlimited by default (matches stock redis-server
     # behaviour); set REDIS_MAXMEMORY=64mb on t4g.small / 2 GB boxes to keep
     # Redis from starving Postgres + Celery under burst load.
+    # Policy is `noeviction`: this same Redis backs CELERY_BROKER_URL and
+    # CELERY_RESULT_BACKEND, so an LRU-style policy could silently evict
+    # queued tasks under pressure. `noeviction` instead causes writes to
+    # fail loudly when full, surfacing as task-enqueue errors operators
+    # can act on (instead of jobs vanishing without a trace).
     command:
       - "redis-server"
       - "--appendonly"
@@ -118,7 +126,7 @@ services:
       - "--maxmemory"
       - "${REDIS_MAXMEMORY:-0}"
       - "--maxmemory-policy"
-      - "allkeys-lru"
+      - "noeviction"
     volumes:
       - redis-data:/data
     healthcheck:

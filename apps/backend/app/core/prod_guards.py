@@ -99,12 +99,13 @@ def check_llm_provider(settings: Any, problems: list[str]) -> None:
 def check_embedding_provider(settings: Any, problems: list[str]) -> None:
     """Reject the ``noop`` embedding provider in production.
 
-    The noop embedder returns deterministic hash-seeded zero-magnitude
-    vectors so the stack still boots without a paid embedding key. In
-    production that silently breaks RAG: every cosine similarity returns
-    the same garbage ranking, so retrieval is functionally disabled with
-    no error in the logs. Mirror the LLM guard so the compose comment
-    promising this behaviour is actually true.
+    The noop embedder (``app.services.embeddings.NoopEmbeddingProvider``)
+    returns deterministic, hash-derived, L2-normalised *unit* vectors so
+    cosine distance stays well-defined and the stack boots without a paid
+    embedding key. In production that's still wrong: the vectors carry no
+    semantic signal, so retrieval rankings collapse into arbitrary noise
+    with no error path to surface the regression. Mirror the LLM guard so
+    the compose comment promising this behaviour is actually true.
     """
     provider = getattr(settings, "embedding_provider", None)
     value = getattr(provider, "value", provider)

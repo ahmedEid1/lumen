@@ -50,22 +50,28 @@ command needed. Tail progress with `sudo tail -f /var/log/lumen-first-boot.log`.
 
 If first-boot bootstrap fails and you need to re-run it manually, **don't pipe
 `curl … | bash`** — the script uses interactive `read -p` prompts that read
-EOF from a pipe and the run aborts. Download then execute, or use the
-non-interactive env-var form:
+EOF from a pipe and the run aborts. cloud-init already dropped the script
+at `/root/aws-bootstrap.sh`, so prefer the on-box copy; the GitHub URL is
+a fallback for the case where you've manually re-imaged the box.
 
 ```bash
-# Download then execute (interactive — reads ADMIN_USER / APP_DOMAIN / ADMIN_EMAIL from your tty)
+# Primary (the script is already on the box from cloud-init).
+# Non-interactive form — no prompts, env vars carry every input:
+sudo LUMEN_BOOTSTRAP_NONINTERACTIVE=1 \
+     ADMIN_USER=lumen \
+     APP_DOMAIN=$(terraform output -raw dns_nip_io) \
+     ADMIN_EMAIL=you@example.com \
+  bash /root/aws-bootstrap.sh
+
+# Fallback (script not on box — e.g. you re-imaged and skipped cloud-init).
+# Download then execute, interactive: prompts for ADMIN_USER / APP_DOMAIN /
+# ADMIN_EMAIL on the tty. Pin the branch you're deploying; `Rewrite` is the
+# current canonical working branch, but if you merge to a different default
+# branch, update this ref.
 curl -fsSL -o /tmp/aws-bootstrap.sh \
   https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/Rewrite/scripts/aws-bootstrap.sh
 chmod +x /tmp/aws-bootstrap.sh
 sudo /tmp/aws-bootstrap.sh
-
-# Non-interactive (Terraform-friendly — no prompts)
-LUMEN_BOOTSTRAP_NONINTERACTIVE=1 \
-  ADMIN_USER=lumen \
-  APP_DOMAIN=$(terraform output -raw dns_nip_io) \
-  ADMIN_EMAIL=you@example.com \
-  sudo -E bash /tmp/aws-bootstrap.sh
 ```
 
 Full deploy runbook (rsync repo → `.env.production` → `docker compose
