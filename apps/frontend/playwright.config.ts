@@ -29,7 +29,13 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
     navigationTimeout: 60_000,
-    actionTimeout: 15_000,
+    // 30s: hydration-gated auth forms (login/register/forgot/reset)
+    // disable the submit button until React mounts, and Next.js dev
+    // mode's on-demand JIT compile can push that past 15s on a cold
+    // /login under workers=2 parallel pressure. 30s is comfortably
+    // above observed cold-compile + hydration times without softening
+    // the signal on legitimate stalls.
+    actionTimeout: 30_000,
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },

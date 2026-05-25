@@ -29,16 +29,15 @@ const buttonVariants = cva(
         outline:
           "border border-border bg-transparent text-foreground hover:bg-muted",
         ghost: "text-foreground/80 hover:bg-muted hover:text-foreground",
-        // text-white instead of text-destructive-foreground: the latter
-        // resolves to the near-white --destructive-foreground token, but
-        // pairing it with `bg-destructive` (at the design-token's red
-        // hue) only clears 3.24:1 contrast — fails axe-core's WCAG 1.4.3
-        // AA gate. Pure white on `bg-destructive` (the darkened 40% L
-        // red set in globals.css) clears 4.5:1 with margin. The other
-        // `text-destructive` usages (badges, banner text) sit on
-        // muted/transparent backgrounds so they pass on their own.
+        // `bg-destructive` at the design-token's 59% L red only clears
+        // 3.24:1 against --destructive-foreground (axe-core WCAG 1.4.3
+        // fail). We can't darken --destructive globally because the
+        // same token drives `text-destructive` on the dark page bg,
+        // where a too-dark red drops below 4.5:1 the other direction.
+        // Arbitrary-value bg sidesteps the token here: hsl(358 76% 30%)
+        // = ~#9B0F16, paired with text-white, clears ~8:1.
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90",
+          "bg-[hsl(358_76%_30%)] text-white hover:bg-[hsl(358_76%_25%)]",
         secondary:
           "border border-border bg-secondary text-secondary-foreground hover:bg-muted",
         link: "text-primary underline-offset-4 hover:underline",

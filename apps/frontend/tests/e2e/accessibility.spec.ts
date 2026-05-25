@@ -179,8 +179,13 @@ test.describe("WCAG 2.2 AA — public routes", () => {
 test.describe("WCAG 2.2 AA — authenticated routes", () => {
   test("student dashboard", async ({ page }) => {
     await signIn(page, "student@lumen.test", "Learn!2026");
+    // Tightened from /Welcome/i to /Welcome back/i — the dashboard now
+    // also renders an onboarding modal whose own H2 starts with
+    // "Welcome to Lumen", and /Welcome/i is ambiguous under Playwright
+    // strict mode. The dashboard's actual H1 still starts with
+    // "Welcome back".
     await expect(
-      page.getByRole("heading", { name: /Welcome/i }),
+      page.getByRole("heading", { name: /Welcome back/i }),
     ).toBeVisible();
     await expectNoAxeViolations(page);
   });
