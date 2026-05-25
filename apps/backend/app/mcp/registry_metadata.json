@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.ahmedeid1/lumen",
+  "name": "io.github.ahmedEid1/lumen",
   "title": "Lumen",
   "description": "Self-hostable agentic-AI LMS: catalog, RAG tutor, FSRS reviews, AI authoring, ingest.",
   "version": "1.1.0",
