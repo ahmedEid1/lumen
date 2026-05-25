@@ -38,6 +38,15 @@ jobs:
     name: Playwright golden paths
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    # COMPOSE_FILE is a Compose-native env var that every `docker
+    # compose …` invocation in this job inherits, so we don't have
+    # to repeat `-f docker-compose.yml -f docker-compose.ci.yml`
+    # on the up / exec / logs / down calls below. The overlay
+    # swaps `web` from dev mode (pnpm dev + JIT compile, the source
+    # of the WebKit hydration race) to the prod standalone build —
+    # same image AWS is running.
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
     steps:
       - uses: actions/checkout@v4
 

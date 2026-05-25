@@ -1,0 +1,52 @@
+# Compose overlay used by the Playwright-driven CI workflows
+# (.github/workflows/e2e.yml and .github/workflows/accessibility.yml).
+#
+# What it changes vs the base docker-compose.yml:
+#
+# - `web` flips from the `dev` target (Next.js dev server, on-demand JIT
+#   compile per route, larger HMR-instrumented bundle) to the `prod`
+#   target (Next.js standalone server.js, pre-built bundle, no per-hit
+#   compile cost). Same image the live AWS deploy is running.
+#
+# - The dev-mode bind mount (`./apps/frontend:/app`) and named volumes
+#   for `node_modules` and `.next` are dropped — they would shadow the
+#   prod target's baked-in /app/server.js + /app/public + /app/.next/
+#   static and break the boot.
+#
+# - The `pnpm dev` command is replaced with the prod entrypoint
+#   `node server.js`. NODE_ENV flips to production.
+#
+# Why it matters for CI: the dev-mode Playwright runs had a hydration
+# race under workers=2 parallel pressure (WebKit + cold-compile cost
+# could push `.click()` past 60s on the auth-form submit). The prod
+# bundle eliminates both the JIT compile and the dev-only hydration
+# overhead, so the gate goes deterministic.
+#
+# Usage from a workflow step:
+#     env:
+#       COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+#     run: docker compose up -d --build web …
+#
+# `COMPOSE_FILE` is a built-in Docker Compose env var — every
+# `docker compose …` invocation in the same step inherits both files
+# without having to repeat `-f` on each command.
+
+services:
+  web:
+    build:
+      context: ./apps/frontend
+      target: prod
+    image: lumen-web:ci-prod
+    # Empty list explicitly REPLACES the base compose's bind + named
+    # volumes (sequences merge by replacement in compose overlays). If
+    # we let the base mounts ride, the bind would clobber the prod
+    # image's /app contents at runtime and the container would exit
+    # immediately with `Cannot find module '/app/server.js'`.
+    volumes: []
+    # Environment merges as a mapping — only NODE_ENV is overridden;
+    # everything else (NEXT_PUBLIC_API_BASE_URL, API_INTERNAL_BASE_URL,
+    # PORT) flows through from the base.
+    environment:
+      NODE_ENV: production
+    # Sequences replace — drops `pnpm dev` for the prod CMD.
+    command: ["node", "server.js"]

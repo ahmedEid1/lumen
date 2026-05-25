@@ -27,6 +27,13 @@ jobs:
     name: axe-core WCAG 2.2 AA
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    # COMPOSE_FILE picks up the overlay that switches `web` from the
+    # dev JIT-compile target to the prod standalone build. Same
+    # rationale as e2e.yml — kills the hydration race that was
+    # flaking authenticated routes. See docker-compose.ci.yml for
+    # the full why.
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
     steps:
       - uses: actions/checkout@v4
 
