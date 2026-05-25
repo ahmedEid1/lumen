@@ -80,43 +80,45 @@ async def _mint_token(db: AsyncSession, *, owner_user_id: str) -> str:
 
 
 def _jsonrpc_frame(payload: dict) -> bytes:
-    """Encode one JSON-RPC request as a Content-Length-framed frame.
+    """Encode one JSON-RPC message as a newline-delimited frame.
 
-    The MCP stdio transport uses the LSP-style framing: a
-    ``Content-Length: <n>\\r\\n\\r\\n`` header followed by ``n`` bytes
-    of JSON payload. Test sends one frame, reads one frame back.
+    Per the MCP stdio transport spec (2025-06-18), messages are
+    individual JSON-RPC requests/notifications/responses delimited
+    by newlines, and **MUST NOT** contain embedded newlines. No
+    Content-Length header is used. See:
+    https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#stdio
     """
-    body = json.dumps(payload).encode("utf-8")
-    header = f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
-    return header + body
+    return (json.dumps(payload) + "\n").encode("utf-8")
 
 
 async def _read_jsonrpc_frame(stream: asyncio.StreamReader) -> dict | None:
-    """Read one JSON-RPC frame off the subprocess's stdout.
+    """Read one JSON-RPC message off the subprocess's stdout.
 
     Returns ``None`` on EOF so the caller can distinguish a clean
-    shutdown from a parse error. The MCP framing matches LSP: read
-    a single ``Content-Length`` header line, then read exactly that
-    many bytes of JSON.
+    shutdown from a parse error. Per the MCP stdio transport spec
+    (2025-06-18), each message is one newline-terminated line of
+    UTF-8 JSON — no Content-Length header.
+
+    The MCP spec says the server **MUST NOT** write anything to
+    stdout that is not a valid MCP message, but defensive parsing
+    keeps the test robust: non-JSON lines or JSON objects without
+    a ``jsonrpc`` field (e.g. a stray structlog line) are skipped
+    so we keep reading until the real response or EOF.
     """
-    # Read headers until blank line.
-    content_length: int | None = None
     while True:
         line = await stream.readline()
         if not line:
             return None
-        decoded = line.decode("ascii", errors="replace").strip()
+        decoded = line.decode("utf-8", errors="replace").strip()
         if not decoded:
-            break
-        if decoded.lower().startswith("content-length:"):
-            content_length = int(decoded.split(":", 1)[1].strip())
-    if content_length is None:
-        return None
-    body = await stream.readexactly(content_length)
-    try:
-        return json.loads(body)
-    except json.JSONDecodeError:
-        return None
+            continue
+        try:
+            parsed = json.loads(decoded)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict) and parsed.get("jsonrpc") == "2.0":
+            return parsed
+        # Not a JSON-RPC message — keep reading.
 
 
 # ---------- The smoke test ----------
@@ -179,7 +181,7 @@ async def test_stdio_tools_list_returns_nine_tools(
             "id": 1,
             "method": "initialize",
             "params": {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": "2025-06-18",
                 "capabilities": {},
                 "clientInfo": {"name": "lumen-smoke-test", "version": "1.0"},
             },
