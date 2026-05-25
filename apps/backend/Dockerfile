@@ -84,6 +84,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=build /opt/venv /opt/venv
 COPY --from=build /app /app
 
+# /app comes over with root ownership from the build stage's COPY. The
+# non-root `lumen` runtime user needs to write into /app/evals/reports
+# (the eval harness streams per-item JSONL — without this, `make eval`
+# fails with PermissionError on the first item write), and under /app
+# generally for tmpfiles. chown the whole tree so the prod runtime never
+# hits EACCES on first write.
+RUN chown -R lumen:lumen /app
+
 WORKDIR /app
 USER lumen
 EXPOSE 8000

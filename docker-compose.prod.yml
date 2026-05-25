@@ -43,6 +43,12 @@ x-api-env: &api-env
   EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-noop}
   EMBEDDING_MODEL_LOCAL: ${EMBEDDING_MODEL_LOCAL:-sentence-transformers/all-MiniLM-L6-v2}
   EMBEDDING_MODEL_OPENAI: ${EMBEDDING_MODEL_OPENAI:-text-embedding-3-small}
+  # Embedding-specific OpenAI-compat endpoint overrides. Let the embedding
+  # provider hit a different host than the LLM (e.g. Cloudflare Workers AI
+  # for embeddings while Groq drives the chat LLM). Empty defaults mean
+  # the existing shared OPENAI_API_KEY / OPENAI_API_BASE fall through.
+  EMBEDDING_OPENAI_API_BASE: ${EMBEDDING_OPENAI_API_BASE:-}
+  EMBEDDING_OPENAI_API_KEY: ${EMBEDDING_OPENAI_API_KEY:-}
   LLM_PROVIDER: ${LLM_PROVIDER:-noop}
   LLM_MODEL: ${LLM_MODEL:-}
   LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-1024}
