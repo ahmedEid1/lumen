@@ -102,7 +102,7 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 
 **Impact:** Internal documentation drift only — no behaviour, no broken links — but multiple different stories about the production target across history.
 
-**Resolution:** All seven sites reworded to "public demo deploy" / "single-VM demo deploy" / "demo bundle" with cross-refs to `docs/deployment/aws-vps.md` where helpful. Landed alongside the `legacy/` delete in the repo-cleanup commit (`996a6ed`).
+**Resolution:** All seven sites reworded to "public demo deploy" / "single-VM demo deploy" / "demo bundle" with cross-refs to `docs/deployment/aws-vps.md` where helpful. Landed in two commits — the original 3 sites in `996a6ed` (alongside the `legacy/` delete) and the 4 round-2 sites (`seeds/demo.py:1`, `cli.py:219`, `tests/test_prod_guards.py:188`, `.env.example:150`) plus another round-3 site (`apps/backend/app/seeds/__init__.py:6`) in `cbe17e4`+ subsequent.
 
 ---
 

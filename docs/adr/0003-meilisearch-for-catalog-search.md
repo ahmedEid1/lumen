@@ -1,8 +1,10 @@
 # ADR-0003: Meilisearch for catalog full-text search
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0015](0015-postgres-tsvector-for-catalog-search.md) (2026-05-25)
 - **Date:** 2026-05-21
 - **Deciders:** @ahmedEid1
+
+> **Superseded:** Meilisearch was removed from the stack during the rebuild — the operational footprint of a second service didn't pay off for a catalog of this size. Replaced with a Postgres `GENERATED ALWAYS AS` `tsvector` column on `courses` (no Celery trigger; Postgres maintains the column on every insert/update). See ADR-0019 for the swap rationale. The original decision below is preserved as historical record.
 
 ## Context
 

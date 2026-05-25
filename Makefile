@@ -41,7 +41,6 @@ urls: ## Print useful local URLs.
 	@echo "  API docs     : http://localhost:8000/docs"
 	@echo "  MinIO console: http://localhost:9001"
 	@echo "  Mailpit      : http://localhost:8025"
-	@echo "  Meilisearch  : http://localhost:7700"
 	@echo ""
 
 # ----- db -----

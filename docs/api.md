@@ -172,7 +172,7 @@ OpenAPI at `/openapi.json` is the source of truth; this list points to the resou
 - `GET /courses` — paginated, filterable (`q`, `subject`, `tag`, `difficulty`, `sort`)
 
 ### Search (`/api/v1/search`)
-- `GET /courses?q=...` — Meilisearch when configured, otherwise Postgres ILIKE fallback; supports `subject`, `tag`, `difficulty`
+- `GET /courses?q=...` — Postgres `tsvector` full-text; supports `subject`, `tag`, `difficulty`. The `courses.search_vector` column is maintained as `GENERATED ALWAYS AS` (Postgres updates it on every insert/update — no Celery trigger needed).
 
 ### Courses (`/api/v1/courses`)
 - `POST /` — instructor-only create
