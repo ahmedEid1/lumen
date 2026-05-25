@@ -94,17 +94,15 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 
 ---
 
-### KI-6 — Stale "free-tier deploy" references in backend comments
+### KI-6 — Stale "free-tier deploy" references in backend comments — ✅ RESOLVED 2026-05-25
 
 **Source:** Claude review M5.
 
-**Where:** `apps/backend/pyproject.toml:6`, `apps/backend/app/core/rate_limit_metrics.py:11`, `apps/backend/app/core/prod_guards.py:4,140`. These reference "free-tier deploy" as a justification anchor for design choices that have since been re-anchored on the AWS t4g.small target (after the Oracle Always-Free pivot on 2026-05-25).
+**Where:** `apps/backend/pyproject.toml:6`, `apps/backend/app/core/rate_limit_metrics.py:11`, `apps/backend/app/core/prod_guards.py:4,140` — plus the broader sweep found `apps/backend/app/seeds/demo.py:1`, `apps/backend/app/cli.py:219`, `apps/backend/tests/test_prod_guards.py:188`, and `.env.example:150` had the same drift.
 
 **Impact:** Internal documentation drift only — no behaviour, no broken links — but multiple different stories about the production target across history.
 
-**Suggested action:** Add a comment clarifying "free-tier" now refers generically to the AWS t4g.small free-trial promo + Groq LLM free tier rather than the original multi-provider stack (Vercel + Fly + Supabase + Upstash + R2) it was named after.
-
-**Estimated effort:** 15 min.
+**Resolution:** All seven sites reworded to "public demo deploy" / "single-VM demo deploy" / "demo bundle" with cross-refs to `docs/deployment/aws-vps.md` where helpful. Landed alongside the `legacy/` delete in the repo-cleanup commit (`996a6ed`).
 
 ---
 
@@ -166,7 +164,7 @@ All items below are post-`1.1.0-agentic` follow-ups and would land as discrete P
 2. **KI-4** (MCP stdout log) — quick spec compliance
 3. **KI-5** (60s/120s comment) — 30-second polish
 4. **KI-7** (seed feature slug) — 5-minute consistency
-5. **KI-6** (free-tier comments) — 15-minute drift cleanup
+5. ~~**KI-6** (free-tier comments) — 15-minute drift cleanup~~ ✅ done in `996a6ed`
 6. **KI-8** + **KI-10** (bootstrap script polish) — 15-minute total
 
 That's roughly **2 hours of focused work** to land all the cleanup as a follow-up patch release. KI-2 (code_runner sandbox) and KI-3 (traceloop bloat) are Phase-J-scoped.

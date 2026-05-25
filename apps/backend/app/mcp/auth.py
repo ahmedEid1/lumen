@@ -207,7 +207,7 @@ def authorization_server_metadata(*, base_url: str) -> dict[str, Any]:
     OIDC-specific fields.
 
     ``base_url`` should be the externally-reachable origin of the
-    MCP HTTP transport (e.g. ``https://lumen-mcp.fly.dev``); the
+    MCP HTTP transport (e.g. ``https://lumen.example.com``); the
     server module passes it down from the CLI's ``--public-url`` flag
     (or the request's own ``Host`` header in dev).
     """

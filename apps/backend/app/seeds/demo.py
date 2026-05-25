@@ -1,4 +1,4 @@
-"""Demo seed bundle for the H4 free-tier deployment.
+"""Demo seed bundle for the single-VM demo deploy.
 
 Drops three published courses and one demo student into the database on
 top of whatever the base seed (``python -m app.cli seed``) put there:

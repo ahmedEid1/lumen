@@ -9,9 +9,12 @@ a ring-buffered list of ``(timestamp, path)`` tuples that the
 read-only admin endpoint groups by path within a sliding window.
 
 This is intentionally **not Redis-backed**. The demo deploy runs a
-single VM (AWS t4g.small per `docs/deployment/aws-vps.md`), so a
-process-local counter is honest about the data: it resets on every
-redeploy. If Lumen later scales out, the endpoint switches to a Redis
+single VM (AWS t4g.small per `docs/deployment/aws-vps.md`) with the
+prod image's ``uvicorn ... --workers 4``, so the in-memory ``_events``
+deque is per-process — each worker records its own 429s and the admin
+endpoint returns whichever worker handles the read. Counts are
+best-effort and reset on every redeploy / worker restart. If Lumen
+later needs VM-wide aggregate counts, the endpoint switches to a Redis
 ``ZADD`` / ``ZRANGEBYSCORE`` pair without breaking the response shape.
 
 The counter is process-wide and async-safe. Concurrent ``record_*``

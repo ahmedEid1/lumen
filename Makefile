@@ -120,7 +120,7 @@ a11y: ## WCAG 2.2 AA axe-core gate (requires `make up` first; chromium only).
 # or `make eval suite=ingest`. Pass `limit=3` to truncate (smoke run).
 #
 # Provider selection is via env on the api container — see the
-# operator runbook in docs/release/_activation_a2.md. The default
+# operator runbook in docs/release/operator-activation-runbook.md. The default
 # .env / docker-compose path gives you the noop provider, which is
 # free, deterministic, and good enough to prove the harness wiring;
 # point LLM_PROVIDER=openai + OPENAI_API_BASE at Groq for a real run.
