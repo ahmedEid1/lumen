@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (UI redesign — loop-7-followup hotfix)
+
+- **`max-w-3xl` (and `max-w-xl`/`max-w-2xl` etc.) was resolving to
+  96px in prod since Loop 1's deploy** (`2049ec8`, 2026-05-26
+  ~07:30). The hero on `/` rendered "Take a path. Become it." one
+  word per line because the `<div class="max-w-3xl">` wrapper was
+  96px wide instead of 48rem (768px). Same defect affected every
+  page using `max-w-*` constraints: the catalog subtitle, the auth
+  cards, the lesson player chrome.
+- **Root cause:** Loop 1's `@theme inline` declared
+  `--spacing-{xs,sm,md,lg,xl,2xl,3xl}` (intending to extend
+  Tailwind's `p-`/`m-`/`gap-` utility set with `p-md` / `gap-lg`
+  etc.). But Tailwind 4 reads the `--spacing-*` namespace for
+  `max-width` / `min-width` / `width` utilities too — so
+  `--spacing-3xl: 6rem` overrode `max-w-3xl: 48rem` (Tailwind's
+  default) to `max-w-3xl: 6rem` (96px).
+- **Detection:** caught during the post-deploy visual review
+  ritual the user added on 2026-05-26 ("have also visual review of
+  the deployed, every time you review"). The Playwright walkthrough
+  capture of `/` made the broken hero immediately obvious. Eight
+  prior loops + audits + visual-regression baselines missed it —
+  audit agents reviewed code not rendered output; vitest covers
+  primitive behaviour not page layout; VR baselines captured the
+  broken state from Loop 1 forward and treated it as the new
+  normal.
+- **Fix:** remove the `--spacing-*` aliases from `@theme inline`.
+  Keep `--space-{xs..3xl}` declarations in `:root` so consumers can
+  still use `var(--space-md)` via arbitrary Tailwind values
+  (`p-[var(--space-md)]`, `gap-[var(--space-lg)]`).
+- **Regression test updated:**
+  `apps/frontend/tests/tokens-foundation.test.ts` flipped from
+  "asserts `--spacing-*` exists in @theme" to "asserts
+  `--spacing-*` is ABSENT from @theme" — any future re-introduction
+  fails CI loudly. Test uses anchored regex (`/^\s+--spacing-3xl:/m`)
+  to match real declarations only, not the explanatory comment.
+- **Verified:** post-fix Playwright probe shows
+  `h1Parent.computedMaxW === "768px"`. The home hero now renders
+  "Take a path. Become it." on two lines (the muted `<span>` wraps
+  cleanly). `make test.web` → 37 files / 202 tests passed.
+- **Lessons** documented in
+  `docs/redesign/loop-7-followup-hotfix.md` and rolled into
+  `~/.claude/projects/.../memory/active-redesign.md`:
+  1. Post-deploy visual review is non-negotiable (JSON health
+     check alone misses layout bugs).
+  2. `--spacing-*` namespace is reserved in Tailwind 4 — future
+     named-scale work uses component-scoped CSS variables that
+     don't collide.
+  3. VR baselines are NOT visual review. A baseline captured
+     against a broken page perpetuates the bug indefinitely.
+
 ### Added (UI redesign loop 9)
 
 - **`<RadioGroup>` + `<RadioGroupItem>` primitives** at

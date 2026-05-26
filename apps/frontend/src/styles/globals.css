@@ -275,17 +275,22 @@
   --duration-base: 160ms;
   --duration-slow: 240ms;
 
-  /* Spacing scale aliases — Tailwind reads --spacing-* to extend the
-     p-/m-/gap- utility set. After this, `p-md` / `gap-lg` / `m-xs`
-     resolve to the named tokens defined in :root. The existing
-     Tailwind 4px scale (`p-2` = 8px etc.) keeps working alongside. */
-  --spacing-xs: 0.5rem;
-  --spacing-sm: 1rem;
-  --spacing-md: 1.5rem;
-  --spacing-lg: 2rem;
-  --spacing-xl: 3rem;
-  --spacing-2xl: 4rem;
-  --spacing-3xl: 6rem;
+  /* Spacing aliases REMOVED in the loop-7-followup hotfix. The
+     original intent was `p-md` / `gap-lg` / `m-xs` utilities derived
+     from `--spacing-{xs,sm,md,lg,xl,2xl,3xl}`, but Tailwind 4 reads
+     the `--spacing-*` namespace for max-width / min-width / width
+     utilities too — so `--spacing-3xl: 6rem` overrode `max-w-3xl`
+     from its default 48rem to 96px, breaking every page that
+     constrains content with `max-w-3xl` / `max-w-xl` etc.
+     (visible regression: the home hero "Take a path. Become it."
+     rendered at one word per line because the `max-w-3xl` wrapper
+     was 96px wide, not 768px). Consumers that want the named scale
+     consume `var(--space-md)` etc. directly via arbitrary Tailwind
+     values: `p-[var(--space-md)]`, `gap-[var(--space-lg)]`. A
+     future loop can land proper named-scale utilities via a
+     non-colliding namespace (e.g. component-scoped CSS variables).
+     See `docs/redesign/loop-7-followup-hotfix.md` for the full
+     forensic trail. */
 
   /* Z-index aliases — `z-sticky` / `z-modal` / `z-popover` etc. become
      valid Tailwind utilities. Numeric values are literals here so the

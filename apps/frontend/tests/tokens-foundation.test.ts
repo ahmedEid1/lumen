@@ -140,7 +140,16 @@ describe("loop-1 token foundation", () => {
       expect(themeBody!).toMatch(/--color-info-foreground:\s/);
     });
 
-    it("aliases the spacing scale for `p-md` / `gap-lg` etc.", () => {
+    // The `--spacing-*` aliases in @theme inline were REMOVED in the
+    // loop-7-followup hotfix — Tailwind 4 reads the `--spacing-*`
+    // namespace for max-width utilities too, so `--spacing-3xl: 6rem`
+    // overrode `max-w-3xl` from 48rem default to 96px. The named
+    // scale lives in :root as `--space-*` and is consumed via
+    // arbitrary Tailwind values (`p-[var(--space-md)]`). This test
+    // now asserts the OPPOSITE: that the @theme block does NOT
+    // contain `--spacing-*` aliases that would re-introduce the
+    // regression.
+    it("does NOT alias the spacing scale in @theme (avoids max-w-* collision)", () => {
       const css = readSrc("src/styles/globals.css");
       const themeBody = extractBlock(css, /@theme\s+inline\s*\{/);
       for (const name of [
@@ -152,9 +161,13 @@ describe("loop-1 token foundation", () => {
         "--spacing-2xl",
         "--spacing-3xl",
       ]) {
-        expect(themeBody!, `@theme missing ${name}`).toMatch(
-          new RegExp(`${name}:\\s`),
-        );
+        // Match real CSS declarations only: start-of-line indent
+        // followed by the token name. Excludes the comment prose in
+        // globals.css that names the token as an example.
+        expect(
+          themeBody!,
+          `@theme should NOT contain ${name} as a real declaration — it collides with Tailwind 4's max-w-* utility derivation. See the @theme block's comment in globals.css.`,
+        ).not.toMatch(new RegExp(`^\\s+${name}:\\s`, "m"));
       }
     });
 
