@@ -83,18 +83,46 @@ async def _engine():
     os.environ["DATABASE_URL"] = test_url
     get_settings.cache_clear()  # type: ignore[attr-defined]
 
+    # Drop the freshly-created DB on any setup failure between the
+    # ``CREATE DATABASE`` above and the ``yield`` below. Without this,
+    # a transient ``CREATE EXTENSION vector`` or ``metadata.create_all``
+    # failure (e.g. a schema migration drifting from a model class)
+    # would leak ``lumen_test_gwN_<uuid>`` databases on the postgres
+    # server — invisible on CI (the postgres service container is
+    # ephemeral per job) but real on any long-lived shared postgres.
+    # We don't catch the ``thread`` timeout-method ``os._exit`` path
+    # — that one bypasses every Python finally hook by design — but
+    # it's a vanishingly rare case once the suite is healthy.
+    async def _drop_test_db() -> None:
+        admin = create_async_engine(admin_url, isolation_level="AUTOCOMMIT")
+        try:
+            async with admin.connect() as conn:
+                await conn.execute(
+                    text(f'DROP DATABASE IF EXISTS "{test_db}" WITH (FORCE)')
+                )
+        finally:
+            await admin.dispose()
+
     engine = create_async_engine(test_url, future=True)
-    async with engine.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS citext"))
-        # Phase E0 — ``lesson_chunks`` declares a ``vector(384)`` column,
-        # which requires the pgvector extension. Tests run against the
-        # same ``db`` service as dev (``pgvector/pgvector:pg17``) so
-        # this should always succeed in CI / make test. We split it
-        # into its own statement so a missing extension surfaces here
-        # with the real Postgres error, not as a cryptic create_all
-        # failure half a screen later.
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        await conn.run_sync(db_base.Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS citext"))
+            # Phase E0 — ``lesson_chunks`` declares a ``vector(384)`` column,
+            # which requires the pgvector extension. Tests run against the
+            # same ``db`` service as dev (``pgvector/pgvector:pg17``) so
+            # this should always succeed in CI / make test. We split it
+            # into its own statement so a missing extension surfaces here
+            # with the real Postgres error, not as a cryptic create_all
+            # failure half a screen later.
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            await conn.run_sync(db_base.Base.metadata.create_all)
+    except BaseException:
+        # Setup failed before we could yield. Dispose the half-init'd
+        # engine and drop the orphan DB before re-raising — the normal
+        # finally below won't run since we never entered the yield.
+        await engine.dispose()
+        await _drop_test_db()
+        raise
 
     db_base._engine = engine
     db_base._sessionmaker = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
@@ -103,10 +131,7 @@ async def _engine():
         yield engine
     finally:
         await engine.dispose()
-        admin_engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT")
-        async with admin_engine.connect() as conn:
-            await conn.execute(text(f'DROP DATABASE IF EXISTS "{test_db}" WITH (FORCE)'))
-        await admin_engine.dispose()
+        await _drop_test_db()
 
 
 def _all_table_names() -> str:
