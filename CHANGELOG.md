@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 2)
+
+- **Playwright visual-regression baselines** for the four public
+  routes (`/`, `/courses`, `/login`, `/register`) across both themes:
+  `apps/frontend/tests/e2e/visual-regression.spec.ts` (108 LoC) plus
+  8 PNG baselines under `visual-regression.spec.ts-snapshots/`
+  (4.3 MB total). Loops 3 onwards now have a CI signal when an
+  unintended pixel diff lands on the app's front door.
+- Spec is chromium-only (`test.skip` on non-chromium) — webkit's
+  font / scrollbar variance doubles the baseline maintenance without
+  proportional signal. Webkit project stays in place for behavioural
+  e2e specs.
+- Theme pinning via `addInitScript` injecting
+  `localStorage["theme"]` *before* every navigation so next-themes'
+  first paint reads the requested theme — no flash-of-wrong-theme
+  on first capture. `page.emulateMedia({ reducedMotion: "reduce" })`
+  + `animations: "disabled"` neutralise motion as a source of diff
+  noise.
+- Thresholds: `maxDiffPixels: 100`, `threshold: 0.2`. Playwright's
+  defaults (zero pixel tolerance) make hosted-webfont anti-aliasing
+  produce false reds. These values absorb the jitter without
+  silently passing real diffs.
+- **Re-blessing baselines** when a loop intentionally changes a
+  render: `docker compose --profile e2e run --rm e2e
+  visual-regression.spec.ts --project=chromium --update-snapshots`.
+  The result doc for that loop must call out which baselines were
+  re-blessed.
+- **Auth-gated baselines** (`/dashboard`, `/profile`, `/studio`,
+  `/admin` × 2 themes = 8 more) deferred to Loop 3 — the login
+  form's `disabled:opacity-50` submit button races the Next.js
+  dev-mode JIT compile on cold `/login`, so first-run captures land
+  on the login page instead of the auth-gated target. Loop 3 lands
+  `useHydrated()` + `<AuthCard>` which collapse the four duplicated
+  hydration gates into one predictable hook; the auth-gated
+  baselines land then. See `docs/redesign/loop-2-result.md`.
+
 ### Added (UI redesign loop 1)
 
 - **Token foundation pass.** `globals.css` grows by the design-token
