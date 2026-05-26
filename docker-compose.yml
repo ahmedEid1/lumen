@@ -226,6 +226,11 @@ services:
       # @playwright/test in package.json. Reached via the
       # /repo/docker-compose.yml symlink resolution in the test.
       - ./docker-compose.yml:/repo/docker-compose.yml:ro
+      # Same mount pattern for the Makefile so the regression
+      # guard in tests/makefile-pnpm-invocation.test.ts can pin
+      # the `test.web` target to `pnpm exec vitest run` (the
+      # broken `pnpm test --run` form errors on pnpm 9.15.0).
+      - ./Makefile:/repo/Makefile:ro
     depends_on:
       api: { condition: service_started }
     command: ["pnpm", "dev"]

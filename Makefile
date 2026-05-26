@@ -109,7 +109,15 @@ test.api: ## Backend tests.
 
 .PHONY: test.web
 test.web: ## Frontend unit tests.
-	$(COMPOSE) exec web pnpm test --run
+	# Direct `pnpm exec vitest run` avoids the pnpm-shorthand-vs-
+	# script-flag ambiguity that breaks on pnpm 9.15.0 (and the
+	# packageManager pin in package.json). `pnpm test --run` is
+	# intercepted by pnpm's CLI as an unknown top-level option;
+	# `pnpm test -- --run` works but is fragile across pnpm bumps.
+	# `pnpm exec vitest run` invokes vitest's CLI directly with
+	# its built-in `run` subcommand, matching the form CI uses
+	# in .github/workflows/ci.yml.
+	$(COMPOSE) exec web pnpm exec vitest run
 
 .PHONY: test.e2e
 test.e2e: ## Playwright end-to-end tests against the live stack (uses the e2e profile).

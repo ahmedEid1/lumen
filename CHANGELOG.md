@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 1)
+
+- **`make test.web` broken on pnpm 9.15.0.** The Makefile target shelled
+  `pnpm test --run` into the web container, which pnpm 9 rejects with
+  `Unknown option: 'run'` before vitest is ever launched. CI was already
+  using the safe form (`pnpm exec vitest run`, see
+  `.github/workflows/ci.yml:145`) with an annotated comment explaining
+  why, but the Makefile target was never updated to match — so the
+  frontend test suite passed in CI and failed locally for every
+  contributor. Aligned the Makefile with CI; added a regression test
+  (`apps/frontend/tests/makefile-pnpm-invocation.test.ts`) that reads
+  the Makefile via a new `./Makefile:/repo/Makefile:ro` read-only mount
+  on the `web` service and asserts the target uses `pnpm exec vitest run`
+  (and explicitly forbids the `pnpm test --run` shape). Now `make test`
+  runs end-to-end on a fresh Linux clone: 632 backend / 140 frontend
+  pass in ~3 min total.
+
 ### Codex + Claude cleanup loop & CI green (2026-05-25)
 
 Three rounds of parallel Codex + Claude reviewers against the post-
