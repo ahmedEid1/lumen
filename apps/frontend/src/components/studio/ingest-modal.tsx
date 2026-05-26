@@ -168,7 +168,7 @@ export function IngestModal({ open, onClose }: IngestModalProps) {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent
-        className="flex w-full max-w-3xl flex-col gap-6 p-6 sm:p-8"
+        className="flex max-h-[90vh] w-full max-w-3xl flex-col gap-6 overflow-y-auto p-6 sm:p-8"
         srLabelClose={t("studio.import.cancel")}
       >
         <DialogHeader>

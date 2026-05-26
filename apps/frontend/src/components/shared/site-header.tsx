@@ -205,6 +205,11 @@ export function SiteHeader() {
                 className="flex flex-col gap-1 pt-2"
                 aria-label={t("header.mobilePrimaryNav")}
               >
+                {/* All interactive elements close the sheet on activation.
+                    The `useEffect([pathname])` covers cross-route nav, but
+                    not: same-route Link clicks (no pathname change), and
+                    not logout (clears auth, may redirect later). Codex
+                    rescue #3 flagged this as a P2 UX regression. */}
                 {links.map((l) => {
                   const active = pathname?.startsWith(l.href);
                   return (
@@ -212,6 +217,7 @@ export function SiteHeader() {
                       key={l.href}
                       href={l.href}
                       aria-current={active ? "page" : undefined}
+                      onClick={() => setMenuOpen(false)}
                       className={`rounded-md px-3 py-2 font-body text-sm hover:bg-muted ${
                         active ? "bg-muted font-medium" : ""
                       }`}
@@ -227,6 +233,7 @@ export function SiteHeader() {
                   <>
                     <Link
                       href="/profile"
+                      onClick={() => setMenuOpen(false)}
                       className="flex items-center gap-2 rounded-md px-3 py-2 font-body text-sm hover:bg-muted"
                     >
                       <Avatar className="h-6 w-6">
@@ -236,7 +243,10 @@ export function SiteHeader() {
                       <span>{user.full_name || user.email}</span>
                     </Link>
                     <button
-                      onClick={() => logout()}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        logout();
+                      }}
                       className="flex items-center gap-2 rounded-md px-3 py-2 text-start font-body text-sm hover:bg-muted"
                     >
                       <LogOut className="h-4 w-4" /> {t("nav.signOut")}
@@ -244,11 +254,16 @@ export function SiteHeader() {
                   </>
                 ) : (
                   <>
-                    <Link href="/login" className="rounded-md px-3 py-2 font-body text-sm hover:bg-muted">
+                    <Link
+                      href="/login"
+                      onClick={() => setMenuOpen(false)}
+                      className="rounded-md px-3 py-2 font-body text-sm hover:bg-muted"
+                    >
                       {t("nav.signIn")}
                     </Link>
                     <Link
                       href="/register"
+                      onClick={() => setMenuOpen(false)}
                       className="rounded-md px-3 py-2 font-body text-sm hover:bg-muted"
                     >
                       {t("nav.signUp")}
