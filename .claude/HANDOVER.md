@@ -79,6 +79,26 @@ When the stack is up and tests are green, summarize: "Bootstrap complete on Linu
 
 ---
 
+## Pre-answered questions (so you don't need to ask)
+
+### Is there an implicit backlog?
+
+**No.** Phase H + Phase I shipped on 2026-05-22 as `1.1.0-agentic` — see the post-execution note at the top of `docs/superpowers/specs/2026-05-22-lumen-v2-agentic-positioning.md` and the `[1.1.0-agentic]` section in `CHANGELOG.md`. The `[Unreleased]` cleanup-loop work (Codex+Claude reviewer rounds, deploy hardening, CI green) also landed. There is no queued task. Wait for the user to set the next one — don't invent work from the spec.
+
+### Ralph or autonomous mode?
+
+**Ralph by default.** One focused fix + regression test + a commit-with-why per iteration; never batch. Flip to autonomous-execution-mode only when the user explicitly hands off control ("you decide, I won't review, keep going until the end" or similar). See `.claude/memory-snapshot/ralph-iteration-style.md` and `.claude/memory-snapshot/autonomous-execution-mode.md`.
+
+### Subagent isolation — fresh worktree or in-process?
+
+The `.claude/settings.json` config (`worktree.baseRef: head`) is already committed and is what your fresh session will pick up at start — the "harness caches at session start" warning in `worktree-gotchas.md` only matters if *you* edit settings mid-session, which you won't. So:
+
+- **Read-only reviewers** (`codex-reviewer`, `pr-review-toolkit:code-reviewer`, `Explore`, `general-purpose` for searches): no worktree, in-process is fine.
+- **Implementation agents that edit files**: use `isolation: "worktree"` if the work is parallel or speculative — they get a clean tree branched off `HEAD`, the user can compare, and an unchanged worktree auto-cleans.
+- **The first task on the new device**: in-process is fine — user is actively driving and reviewing.
+
+---
+
 ## Critical rules (carried from previous sessions)
 
 These are persistent constraints — they override default behaviour:
