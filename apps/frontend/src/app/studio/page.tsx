@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 import { AIOutlineModal } from "@/components/studio/ai-outline-modal";
 import { IngestModal } from "@/components/studio/ingest-modal";
@@ -66,11 +66,6 @@ export default function StudioPage() {
     return c;
   }, [mine.data]);
 
-  const visible = useMemo<CourseListItem[]>(() => {
-    const all = mine.data ?? [];
-    return filter === "all" ? all : all.filter((c) => c.status === filter);
-  }, [mine.data, filter]);
-
   if (!ready || !user || user.role === "student") return null;
 
   return (
@@ -110,7 +105,12 @@ export default function StudioPage() {
       <IngestModal open={importOpen} onClose={() => setImportOpen(false)} />
       {aiOpen && <AIOutlineModal onClose={() => setAiOpen(false)} />}
 
-      {/* Filter tabs — border-b-2 active marker, no pill chips. */}
+      {/* Filter tabs — border-b-2 active marker, no pill chips.
+          Each filter renders inside its own TabsContent so Radix's
+          aria-controls references a real tabpanel (axe-core's
+          aria-valid-attr-value rule fails otherwise). Radix unmounts
+          inactive tabs by default so only the active filter's list
+          is in the DOM at a time. */}
       <Tabs
         value={filter}
         onValueChange={(v) => setFilter(v as FilterValue)}
@@ -131,71 +131,104 @@ export default function StudioPage() {
             </TabsTrigger>
           ))}
         </TabsList>
+        {FILTERS.map((f) => (
+          <TabsContent key={f.value} value={f.value}>
+            <CourseListView
+              loading={mine.isLoading}
+              all={mine.data}
+              visible={
+                f.value === "all"
+                  ? (mine.data ?? [])
+                  : (mine.data ?? []).filter((c) => c.status === f.value)
+              }
+              t={t}
+            />
+          </TabsContent>
+        ))}
       </Tabs>
-
-      {mine.isLoading ? (
-        // Loop-5: skeleton rows that shape-match the populated list
-        // shape below (`surface` block per row at ~h-16). Three rows
-        // is enough to make the loading state read as "the list is
-        // arriving" rather than "the page is broken".
-        <div className="flex flex-col gap-2">
-          <Skeleton variant="card" className="h-16" />
-          <Skeleton variant="card" className="h-16" />
-          <Skeleton variant="card" className="h-16" />
-        </div>
-      ) : !mine.data || mine.data.length === 0 ? (
-        <EmptyState
-          icon={GraduationCap}
-          title={t("studio.empty.none")}
-          cta={
-            <Link href="/studio/new">
-              <Button size="sm">
-                <Plus className="me-2 h-4 w-4" /> {t("studio.newCourse")}
-              </Button>
-            </Link>
-          }
-        />
-      ) : visible.length === 0 ? (
-        <div className="surface p-8">
-          <p className="font-body text-sm text-muted-foreground">{t("studio.empty.filter")}</p>
-        </div>
-      ) : (
-        <ul className="divide-y divide-border border-y border-border">
-          {visible.map((c) => (
-            <li
-              key={c.id}
-              className="flex items-center justify-between gap-4 px-1 py-3 transition-colors duration-[160ms] hover:bg-muted/30"
-            >
-              <div className="flex min-w-0 flex-col gap-1">
-                <Link
-                  href={`/studio/${c.id}`}
-                  className="font-display text-base leading-tight tracking-tight text-foreground transition-colors duration-[160ms] hover:text-muted-foreground"
-                >
-                  {c.title}
-                </Link>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge
-                    variant={
-                      c.status === "published"
-                        ? "default"
-                        : c.status === "archived"
-                          ? "muted"
-                          : "secondary"
-                    }
-                  >
-                    {t(`studio.filter.${c.status}` as MessageKey)}
-                  </Badge>
-                  <Badge variant="outline">{c.subject.title}</Badge>
-                </div>
-              </div>
-              <div className="hidden shrink-0 items-center gap-6 font-mono text-xs tabular-nums text-muted-foreground sm:flex">
-                <span>{t("studio.moduleCount", { n: c.modules_count })}</span>
-                <span>{t("studio.studentCount", { n: c.enrollments_count })}</span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
+  );
+}
+
+function CourseListView({
+  loading,
+  all,
+  visible,
+  t,
+}: {
+  loading: boolean;
+  all: CourseListItem[] | undefined;
+  visible: CourseListItem[];
+  t: ReturnType<typeof useT>;
+}) {
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-2">
+        <Skeleton variant="card" className="h-16" />
+        <Skeleton variant="card" className="h-16" />
+        <Skeleton variant="card" className="h-16" />
+      </div>
+    );
+  }
+  if (!all || all.length === 0) {
+    return (
+      <EmptyState
+        icon={GraduationCap}
+        title={t("studio.empty.none")}
+        cta={
+          <Link href="/studio/new">
+            <Button size="sm">
+              <Plus className="me-2 h-4 w-4" /> {t("studio.newCourse")}
+            </Button>
+          </Link>
+        }
+      />
+    );
+  }
+  if (visible.length === 0) {
+    return (
+      <div className="surface p-8">
+        <p className="font-body text-sm text-muted-foreground">
+          {t("studio.empty.filter")}
+        </p>
+      </div>
+    );
+  }
+  return (
+    <ul className="divide-y divide-border border-y border-border">
+      {visible.map((c) => (
+        <li
+          key={c.id}
+          className="flex items-center justify-between gap-4 px-1 py-3 transition-colors duration-base hover:bg-muted/30"
+        >
+          <div className="flex min-w-0 flex-col gap-1">
+            <Link
+              href={`/studio/${c.id}`}
+              className="font-display text-base leading-tight tracking-tight text-foreground transition-colors duration-base hover:text-muted-foreground"
+            >
+              {c.title}
+            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant={
+                  c.status === "published"
+                    ? "default"
+                    : c.status === "archived"
+                      ? "muted"
+                      : "secondary"
+                }
+              >
+                {t(`studio.filter.${c.status}` as MessageKey)}
+              </Badge>
+              <Badge variant="outline">{c.subject.title}</Badge>
+            </div>
+          </div>
+          <div className="hidden shrink-0 items-center gap-6 font-mono text-xs tabular-nums text-muted-foreground sm:flex">
+            <span>{t("studio.moduleCount", { n: c.modules_count })}</span>
+            <span>{t("studio.studentCount", { n: c.enrollments_count })}</span>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
