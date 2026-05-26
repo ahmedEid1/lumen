@@ -151,32 +151,11 @@ test.describe("visual-regression baselines (loop 2)", () => {
             browserName !== "chromium",
             "visual-regression baselines are pinned to chromium — webkit ships behavioural specs only",
           );
-          // Deferred light-mode auth-gated baselines. Loop 6 named
-          // dashboard-light + admin-light (the storageState applies
-          // on the initial --update-snapshots pass but verification
-          // re-runs land on /login despite valid cookies). Loop 7
-          // re-ran capture under the new light surface ramp;
-          // Codex rescue #2 spotted that studio-light also captured
-          // the sign-in page at 34 KB (vs the expected ~80 KB
-          // populated studio list), so studio-light joins the
-          // deferral list. Three auth-gated light baselines now
-          // deferred; one (profile-light) ships stably. Root cause
-          // is e2e-infrastructure-level (the auth helper's UI-form
-          // submit races the dev-mode JIT compile non-deterministically
-          // for some role × theme combos). Fix wants either API-
-          // based login in auth.setup.ts or the prod-build web
-          // service — both bigger than this loop's design scope.
-          if (
-            theme === "light" &&
-            (route.name === "dashboard" ||
-              route.name === "admin" ||
-              route.name === "studio")
-          ) {
-            test.skip(
-              true,
-              `${route.name} (light) deferred — auth race in e2e setup; see loop-7-result.md`,
-            );
-          }
+          // Loop-8 unblocked the 3 deferred light auth-gated
+          // baselines (dashboard-light, admin-light, studio-light)
+          // by switching auth.setup.ts to direct FastAPI login —
+          // see `docs/redesign/loop-8-result.md`. All 16 baselines
+          // now in-scope.
 
           await page.emulateMedia({
             colorScheme: theme,

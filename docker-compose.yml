@@ -269,6 +269,15 @@ services:
     image: lumen-e2e:dev
     environment:
       E2E_BASE_URL: ${E2E_BASE_URL:-http://web:3000}
+      # Loop 8 — auth.setup.ts logs in via the FastAPI endpoint
+      # directly instead of clicking the /login form, which used to
+      # race the dev-mode JIT compile non-deterministically and was
+      # the root cause of three deferred light-mode auth-gated VR
+      # baselines (dashboard-light, admin-light, studio-light).
+      # localhost from inside the e2e container is the e2e
+      # container itself, not the api container — `api:8000` is the
+      # docker-network name.
+      E2E_API_BASE_URL: ${E2E_API_BASE_URL:-http://api:8000}
     volumes:
       - ./apps/frontend:/work
       # Anonymous volume preserves the image's baked

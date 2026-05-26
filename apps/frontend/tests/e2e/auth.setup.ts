@@ -1,29 +1,33 @@
 /**
- * Loop-6 storageState setup. Runs as the "setup" Playwright project
- * before any chromium/webkit project starts. Logs in once per seeded
- * role and writes the resulting auth state (cookies + localStorage)
- * to disk; downstream specs reach for the right state via
- * `test.use({ storageState: '.auth/<role>.json' })` instead of
- * calling `login()` themselves.
+ * Loop-6 storageState setup, Loop-8 hardened.
  *
- * Why this exists — the `loop-2-result.md` + `loop-4-result.md`
- * deferrals both name the same root cause: per-test `login()` races
- * either the form hydration gate OR the auth-context propagation
- * before `page.goto(target_route)`. Pre-baked storage state eliminates
- * both races: tests start with the user already authenticated, no
- * login click needed.
+ * Logs in once per seeded role and writes the resulting auth state
+ * (cookies + localStorage) to disk; downstream specs reach for the
+ * right state via `test.use({ storageState: '.auth/<role>.json' })`
+ * instead of calling `login()` themselves.
+ *
+ * **Loop 8 — switched from UI-form login to direct FastAPI POST.**
+ * The previous shape clicked the `<form>` submit button in
+ * `/login` to log in. That clicked button has to wait for React
+ * hydration before its `onSubmit` binds; under dev-mode JIT
+ * compile pressure on a cold-started `/login` route, that wait
+ * raced the test's 60s `actionTimeout` non-deterministically.
+ * Three VR baselines (dashboard-light, admin-light, studio-light)
+ * deferred across Loops 2/4/6 because of this exact race. API-
+ * direct login eliminates the race entirely: no form, no
+ * hydration, no JIT compile — just a POST to
+ * `/api/v1/auth/login` that returns cookies on the response.
+ * Playwright's `context.request` shares its cookie jar with
+ * `page`, so a subsequent `page.goto(/dashboard)` arrives
+ * authenticated.
  *
  * Auth state files land under `apps/frontend/tests/e2e/.auth/*.json`
  * and are gitignored — they contain session cookies + JWTs. CI
- * regenerates them on every run via this setup project. The
- * setup runs sequentially (default workers=1 for "setup" project) so
- * three roles take ~3 × cold-login time, which is faster than per-
- * test login × 8 in the previous shape.
+ * regenerates them on every run via this setup project.
  */
 import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { expect, test as setup } from "@playwright/test";
-import { SEED_USERS, preDismissOnboarding, type SeedRole } from "./helpers/login";
+import { SEED_USERS, type SeedRole } from "./helpers/login";
 
 // Playwright runs at the frontend workspace root (cwd === /work in
 // the e2e container). Using a relative path keeps this ESM-safe —
@@ -35,34 +39,48 @@ if (!existsSync(AUTH_DIR)) {
 }
 
 export const STORAGE_PATH = {
-  student: join(AUTH_DIR, "student.json"),
-  teacher: join(AUTH_DIR, "teacher.json"),
-  admin: join(AUTH_DIR, "admin.json"),
+  student: `${AUTH_DIR}/student.json`,
+  teacher: `${AUTH_DIR}/teacher.json`,
+  admin: `${AUTH_DIR}/admin.json`,
 } as const satisfies Record<SeedRole, string>;
 
-for (const role of Object.keys(STORAGE_PATH) as SeedRole[]) {
-  setup(`authenticate as ${role}`, async ({ page }) => {
-    const creds = SEED_USERS[role];
-    // Pre-dismiss the onboarding tour overlay before the first nav
-    // so the resulting localStorage carries the dismissals — every
-    // future test that loads from this state starts past the tour.
-    await preDismissOnboarding(page);
+// Default to the docker-network name; the docker-compose.yml e2e
+// service sets this explicitly. Local Playwright runs (outside
+// docker) can override via E2E_API_BASE_URL=http://localhost:8000.
+const API_BASE = process.env.E2E_API_BASE_URL ?? "http://api:8000";
 
-    await page.goto("/login");
-    await page.getByLabel(/email/i).fill(creds.email);
-    await page.getByLabel(/password/i).fill(creds.password);
-    await page
-      .locator("form")
-      .getByRole("button", { name: /sign in/i })
-      .click();
-    // Wait until the URL settles on /dashboard so the auth context
-    // is fully written (cookies + localStorage). storageState()
-    // snapshots whatever the browser currently has, so timing here
-    // is load-bearing.
-    await expect(page).toHaveURL(/\/dashboard/);
-    // Add a small settle window so any post-login effects flush
-    // (auth/store hydration etc.) before we snapshot.
-    await page.waitForTimeout(500);
+for (const role of Object.keys(STORAGE_PATH) as SeedRole[]) {
+  setup(`authenticate as ${role}`, async ({ page, context }) => {
+    const creds = SEED_USERS[role];
+
+    // Direct FastAPI login — bypasses the /login form entirely.
+    // The response sets the auth cookies on the request's cookie
+    // jar, which `context` shares with all downstream `page` calls.
+    const res = await context.request.post(`${API_BASE}/api/v1/auth/login`, {
+      data: { email: creds.email, password: creds.password },
+      headers: { Accept: "application/json" },
+    });
+    expect(
+      res.ok(),
+      `auth/login for ${role} returned ${res.status()} ${res.statusText()}`,
+    ).toBeTruthy();
+
+    // Pre-dismiss the onboarding tour via direct localStorage
+    // writes before snapshotting. We navigate to the home page
+    // (small, fast, always hydrates cleanly) so the page has a
+    // document for the script to write into; we don't navigate
+    // to /dashboard because that's a longer cold-compile path
+    // and adds no value here — we already have the cookies, the
+    // dashboard render isn't needed for the storageState capture.
+    await page.goto("/");
+    await page.evaluate(() => {
+      try {
+        localStorage.setItem("lumen.onboarding.learner.dismissed", "1");
+        localStorage.setItem("lumen.onboarding.instructor.dismissed", "1");
+      } catch {
+        /* see preDismissOnboarding() in helpers/login.ts */
+      }
+    });
 
     await page.context().storageState({ path: STORAGE_PATH[role] });
   });

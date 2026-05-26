@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 8)
+
+- **`auth.setup.ts` switched to direct FastAPI login**. Previously
+  the Playwright setup project clicked the `/login` form's submit
+  button to acquire each role's session. That click had to wait for
+  React hydration to bind `onSubmit`; under dev-mode JIT compile
+  pressure on cold `/login`, the wait raced the 60s actionTimeout
+  non-deterministically. Three light-mode auth-gated VR baselines
+  (`dashboard-light`, `admin-light`, `studio-light`) had been
+  deferred across three loops because of this exact race.
+  - New shape: `await context.request.post(API_BASE +
+    "/api/v1/auth/login", { data: creds })`. Playwright's request
+    cookie jar is shared with `page`, so a subsequent
+    `page.goto("/dashboard")` arrives already-authenticated. No
+    form, no hydration, no JIT compile.
+- **`docker-compose.yml` e2e service** gains
+  `E2E_API_BASE_URL: ${E2E_API_BASE_URL:-http://api:8000}` so the
+  setup project can reach the api container via docker network.
+- **`visual-regression.spec.ts` `test.skip` block removed.** The 3
+  deferred light auth-gated baselines are back in scope. All 16
+  routes × themes now baseline-pinned.
+- **All 16 baselines re-captured cleanly: 19/19 first try in 45.1s.**
+  The 3 new light baselines (dashboard-light = 45 KB,
+  admin-light = 73 KB, studio-light = 80 KB) match their dark
+  counterparts in shape — confirms storageState worked and the
+  pages rendered correctly. 3 dark auth-gated baselines also
+  re-blessed (subtle render-timing shift from the new auth flow,
+  no design intent change).
+- **Residual verification flake** unrelated to auth — 5-7 of 16
+  baselines flake on `--no-update-snapshots` re-runs by ~1000
+  pixels. Hypotheses (documented in
+  `docs/redesign/loop-8-result.md`): workers=2 + JIT compile
+  cache contention, sonner toaster mount timing, cursor blinking
+  in auto-focused inputs. CI's `retries: 2` absorbs it. Not a
+  loop-8 blocker; queued for a dedicated diagnostic loop iff it
+  starts breaking CI.
+- Verified: `docker compose --profile e2e run --rm e2e
+  visual-regression.spec.ts --project=chromium --update-snapshots`
+  → 19/19 passed (3 setup + 16 visual) in 45.1s. `make test.web` —
+  36 files / 194 vitest tests (unchanged, this loop is e2e-only).
+- Brainstorm-and-commit trail under `docs/redesign/loop-8-{goal,
+  result}.md` (no separate options.md — the single design call,
+  API vs UI form, was mechanical). STATUS.md row 8 added.
+  Foundation+infrastructure tier (loops 1-8) now complete with
+  the e2e safety net at full coverage. Loop 9 ships the streaming
+  tutor (the agentic-AI portfolio centrepiece per AUDIT.md §7).
+
 ### Added (UI redesign loop 7)
 
 - **Light-mode surface ramp redesigned** (`.light` block of

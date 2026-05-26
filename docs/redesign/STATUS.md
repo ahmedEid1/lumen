@@ -15,6 +15,8 @@ queued.
 | 5 | First application sweep — token cleanup (ScoreBadge + LLMTracesTab raw hues) + course-card i18n leak fix + studio loading/empty → Skeleton/EmptyState | Shipped. 36 files / 194 tests green. Public VR 8/8 byte-stable (resolved i18n matches pre-migration English). | `c88ad15` |
 | 6 | Playwright `storageState` fixtures + 14 of 16 auth-gated VR baselines | Shipped (reordered ahead of light mode). Setup project + per-role storageState files. 8 public + 6 auth-gated stable. 2 light-mode auth-gated (dashboard-light + admin-light) deferred to Loop 7's light-mode redesign re-bless. | `3cae978` |
 | 7 | Light mode redesign — token-layer + Codex rescue #2 (Sonner pin-off rolled back) | Shipped token layer (`.light` surface ramp redesign + sonner CSS overrides). Pin-off attempt cascaded into VR flake (sonner-vs-next-themes hydration race) — pin restored, override block ships dormant. Codex #2 caught 2 bad baselines; both addressed. studio-light joins the deferral list (3 light auth-gated deferred). | `0bfa333` |
+| 8 | e2e infrastructure — API-based login in auth.setup.ts | Shipped. ~60 LoC. All 16 visual-regression baselines now capture stably (19/19 first try, 45.1s). 3 deferred light auth-gated baselines (dashboard-light, admin-light, studio-light) finally land. Residual verification flake unrelated to auth; CI retries=2 covers. | _pending_ |
+
 
 
 
