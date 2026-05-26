@@ -79,6 +79,9 @@ export default function OpengraphImage() {
           </div>
           <div
             style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "12px",
               fontSize: "84px",
               fontWeight: 600,
               letterSpacing: "-0.03em",
@@ -86,7 +89,7 @@ export default function OpengraphImage() {
               maxWidth: "900px",
             }}
           >
-            Take a path.{" "}
+            <span>Take a path.</span>
             <span style={{ color: "#7F7F7F" }}>Become it.</span>
           </div>
         </div>
