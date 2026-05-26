@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Download, Plus, Sparkles } from "lucide-react";
+import { Download, GraduationCap, Plus, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 import { AIOutlineModal } from "@/components/studio/ai-outline-modal";
 import { IngestModal } from "@/components/studio/ingest-modal";
@@ -139,18 +141,27 @@ export default function StudioPage() {
       </div>
 
       {mine.isLoading ? (
-        <p className="font-body text-sm text-muted-foreground">{t("common.loading")}</p>
-      ) : !mine.data || mine.data.length === 0 ? (
-        <div className="surface flex flex-col items-start gap-3 p-8">
-          <p className="font-display text-base leading-tight tracking-tight">
-            {t("studio.empty.none")}
-          </p>
-          <Link href="/studio/new">
-            <Button size="sm">
-              <Plus className="me-2 h-4 w-4" /> {t("studio.newCourse")}
-            </Button>
-          </Link>
+        // Loop-5: skeleton rows that shape-match the populated list
+        // shape below (`surface` block per row at ~h-16). Three rows
+        // is enough to make the loading state read as "the list is
+        // arriving" rather than "the page is broken".
+        <div className="flex flex-col gap-2">
+          <Skeleton variant="card" className="h-16" />
+          <Skeleton variant="card" className="h-16" />
+          <Skeleton variant="card" className="h-16" />
         </div>
+      ) : !mine.data || mine.data.length === 0 ? (
+        <EmptyState
+          icon={GraduationCap}
+          title={t("studio.empty.none")}
+          cta={
+            <Link href="/studio/new">
+              <Button size="sm">
+                <Plus className="me-2 h-4 w-4" /> {t("studio.newCourse")}
+              </Button>
+            </Link>
+          }
+        />
       ) : visible.length === 0 ? (
         <div className="surface p-8">
           <p className="font-body text-sm text-muted-foreground">{t("studio.empty.filter")}</p>

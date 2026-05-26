@@ -31,6 +31,7 @@ export const ar: Record<MessageKey, string> = {
   "catalog.filters.all": "الكل",
   "catalog.empty": "لا توجد دورات تطابق هذه المرشحات.",
   "catalog.featuredBadge": "مميّزة",
+  "courseCard.modulesCount": "{n} وحدة",
 
   // Course detail
   "course.enroll": "التسجيل",

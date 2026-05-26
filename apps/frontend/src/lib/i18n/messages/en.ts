@@ -24,6 +24,7 @@ export const en = {
   "catalog.filters.all": "All",
   "catalog.empty": "No courses match those filters.",
   "catalog.featuredBadge": "Featured",
+  "courseCard.modulesCount": "{n} modules",
 
   // Course detail
   "course.enroll": "Enroll",

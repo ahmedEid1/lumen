@@ -126,11 +126,15 @@ export function LLMTracesTab() {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  // Loop-5 token cleanup: the throttled tint used to be the raw
+  // `bg-yellow-500/15 text-yellow-700 dark:text-yellow-400` which
+  // bypassed the Workbench tokens (AUDIT.md §4 #1). Now consumes
+  // `--warning` so it reads under both themes.
   const tint =
     status === "error" || status === "budget_exceeded"
       ? "bg-destructive/15 text-destructive"
       : status === "throttled"
-      ? "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400"
+      ? "bg-warning/15 text-warning"
       : "text-muted-foreground";
   return <span className={`rounded px-1.5 py-0.5 ${tint}`}>{status}</span>;
 }

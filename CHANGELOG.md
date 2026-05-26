@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 5)
+
+- **First terminal application sweep** — four focused cleanups that
+  ship and stay (not "partial migrations of routes the later
+  redesign loops will rewrite"). 50 LoC code change across four
+  files.
+- **Token cleanup — raw Tailwind hues out, semantic tokens in:**
+  - `admin/evals/ScoreBadge.tsx`: `text-emerald-300 / amber-300 /
+    rose-300` → `text-success / warning / destructive`. The
+    pre-migration hex hues read fine on dark but broke under the
+    light theme (cf. AUDIT.md §4 #1). Closing this item.
+  - `admin/observability/LLMTracesTab.tsx` `StatusBadge`:
+    `bg-yellow-500/15 text-yellow-700 dark:text-yellow-400` →
+    `bg-warning/15 text-warning`. Same theme-leakage problem, same
+    fix.
+- **course-card i18n leak fixed (AUDIT.md §4 #2):**
+  - `"Featured"` literal → `t("catalog.featuredBadge")` (the key
+    already existed at en.ts:26 — course-card just hadn't consumed
+    it).
+  - `"modules"` suffix → `t("courseCard.modulesCount", { n })`. New
+    key added to both `messages/en.ts` (`"{n} modules"`) and
+    `messages/ar.ts` (`"{n} وحدة"`) — the `i18n-parity.test.ts`
+    regression enforces the en/ar key set match, so the parity is
+    not optional. (course-card.tsx now imports `useT` and is marked
+    `"use client"` since `useT` requires the LocaleProvider context.)
+- **First Skeleton + EmptyState consumers** —
+  `apps/frontend/src/app/studio/page.tsx`:
+  - Loading branch: was `<p className="font-body text-sm text-muted-foreground">{t("common.loading")}</p>`. Now 3
+    `<Skeleton variant="card" className="h-16" />` rows that
+    shape-match the populated list shape — readers see "the list
+    is arriving" instead of "is the page broken?".
+  - Empty branch: was a hand-rolled `<div className="surface flex
+    flex-col …">…<Link><Button /></Link></div>`. Now
+    `<EmptyState icon={GraduationCap} title cta>` — one primitive,
+    one consistent shape across surfaces that adopt it. Closes
+    AUDIT.md §4 #4 for this surface; other surfaces (dashboard,
+    mastery, reviews, lesson player) ship their proper loading
+    states with their own redesign loops.
+- **No new tests this loop** — the existing
+  `course-card.test.tsx` passes through the migration (the
+  rendered output is i18n-resolved-to-identical-strings).
+  `i18n-parity.test.ts` enforces the en/ar key parity.
+- Visual regression — **8/8 public baselines pass byte-stable**.
+  The i18n keys resolve to the same English strings ("Featured" +
+  "X modules") so no pixel change; no re-blessing required. Studio
+  list page isn't in the VR ROUTES today (auth-gated), so the
+  loading/empty state migration doesn't affect baselines.
+- Verified: `make test.web` → 36 files / 194 tests in 17.09s. No
+  test count drift vs Loop 4. `grep` for the raw hex hues post-
+  migration returns 0 matches.
+- Brainstorm-and-commit trail under
+  `docs/redesign/loop-5-{goal,result}.md` (skipped a separate
+  options.md — each of the four changes was mechanical, no
+  brainstorm leverage). STATUS.md row 5 added. AUDIT.md §4 #1 + #2
+  closed (the two surfaces named); §4 #4 closed for studio
+  specifically.
+
 ### Added (UI redesign loop 4)
 
 - **`<AuthCard cartouche heading subtitle>`** at

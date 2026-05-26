@@ -1,8 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import { Star, Users, Layers, GraduationCap } from "lucide-react";
 import type { CourseListItem } from "@/lib/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useT } from "@/lib/i18n/provider";
 
 /**
  * Workbench course card.
@@ -13,6 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
  * mono+tabular-nums so module / student / rating counts stay aligned.
  */
 export function CourseCard({ course }: { course: CourseListItem }) {
+  const t = useT();
   return (
     <Link
       href={`/courses/${course.slug}`}
@@ -38,7 +42,7 @@ export function CourseCard({ course }: { course: CourseListItem }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="outline">{course.subject.title}</Badge>
           <Badge variant="muted">{course.difficulty}</Badge>
-          {course.is_featured && <Badge>Featured</Badge>}
+          {course.is_featured && <Badge>{t("catalog.featuredBadge")}</Badge>}
         </div>
 
         <h3 className="line-clamp-2 font-display text-base leading-tight tracking-tight text-foreground transition-colors duration-[160ms] group-hover:text-muted-foreground">
@@ -61,7 +65,7 @@ export function CourseCard({ course }: { course: CourseListItem }) {
         <div className="flex items-center justify-between border-t border-border pt-3 font-mono text-xs tabular-nums text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <Layers className="h-3.5 w-3.5" />
-            {course.modules_count} modules
+            {t("courseCard.modulesCount", { n: course.modules_count })}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <Users className="h-3.5 w-3.5" />
