@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 18)
+
+- **`<Kbd>` primitive** — semantic `<kbd>` pill with Workbench
+  mono-uppercase chrome. Used by the header Cmd+K hint button;
+  earmarked for future FSRS shortcut markers and Tiptap editor
+  shortcut hints.
+- **`<CommandPalette>`** — Cmdk-backed palette wrapped in our
+  `<Dialog>` primitive. Opens on Cmd/Ctrl+K from anywhere, or via
+  the `lumen:open-command-palette` CustomEvent dispatched by the
+  header hint button. Sections:
+  - **Navigate** — role-aware route entries (home, catalog,
+    dashboard, reviews, mastery, profile + studio/admin as
+    applicable). Manual `includes()` filter — `shouldFilter={false}`
+    on the Command root.
+  - **Course search** — debounced 200ms against the catalog
+    endpoint, returns top 5 results with title + subject.
+  - **Theme** — toggle dark/light.
+  - **Account** — sign out (when authenticated).
+- **Header Cmd+K hint button** on `lg+` viewports — `"Search
+  courses… ⌘ K"` bordered button that opens the palette. Mobile
+  keeps the existing `<HeaderSearch>` form so non-keyboard users
+  have a search entry point.
+- **`cmdk ^1.1.1`** added.
+- **i18n parity:** 11 new keys × 2 locales (`nav.home`,
+  `common.close`, palette.* family + `palette.openHint`).
+- **Codex rescue #5** (Loops 16-18) returned no actionable
+  findings — strongest rescue verdict so far.
+
 ### Added (UI redesign loop 17)
 
 - **Mastery dashboard polish:** 2-colour bars (completion lime,
