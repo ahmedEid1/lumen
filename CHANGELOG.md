@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 19)
+
+- **OG / Twitter card image** — new `app/opengraph-image.tsx` using
+  Next 15's file-system convention. 1200×630, generated at request
+  time at `/opengraph-image`, auto-wired into the layout's metadata
+  + Twitter `summary_large_image`. Workbench aesthetic: solid
+  `#0A0B0D` background, lime brand mark, "Now open." mono
+  cartouche, display-face "Take a path. Become it." hero, mono URL
+  footer. Pre-Loop-19 the layout had `openGraph: { title, siteName,
+  type }` but no `images: [...]` — social shares rendered as
+  text-only previews.
+
 ### Added (UI redesign loop 18)
 
 - **`<Kbd>` primitive** — semantic `<kbd>` pill with Workbench
