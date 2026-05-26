@@ -24,17 +24,20 @@ export function ScoreBadge({ label, value, showDenominator }: ScoreBadgeProps) {
     );
   }
   // Workbench palette: lime accent reserved for affordances, so we
-  // tone the badge background instead. The exact thresholds match
-  // the judge prompt's anchor ("a 5 means no flaws; most outputs
-  // should land 3-4").
+  // tone the badge text via semantic tokens — success/warning/
+  // destructive — instead of raw Tailwind hues that would break
+  // light mode and fight the surface ramp. The exact thresholds
+  // match the judge prompt's anchor ("a 5 means no flaws; most
+  // outputs should land 3-4"). Loop 14 swapped the prior
+  // text-emerald-300/amber-300/rose-300 literals to these tokens.
   const tone =
     value >= 4
-      ? "text-emerald-300"
+      ? "text-success"
       : value >= 3
       ? "text-foreground"
       : value >= 2
-      ? "text-amber-300"
-      : "text-rose-300";
+      ? "text-warning"
+      : "text-destructive";
   return (
     <span className="inline-flex items-center gap-1.5 font-mono text-xs">
       {label && (

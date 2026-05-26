@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 import { AIOutlineModal } from "@/components/studio/ai-outline-modal";
 import { IngestModal } from "@/components/studio/ingest-modal";
@@ -111,34 +112,27 @@ export default function StudioPage() {
       {aiOpen && <AIOutlineModal onClose={() => setAiOpen(false)} />}
 
       {/* Filter tabs — border-b-2 active marker, no pill chips. */}
-      <div
-        className="mb-6 flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-        role="tablist"
-        aria-label={t("studio.filterAria")}
+      <Tabs
+        value={filter}
+        onValueChange={(v) => setFilter(v as FilterValue)}
+        className="mb-6"
       >
-        {FILTERS.map((f) => {
-          const active = filter === f.value;
-          return (
-            <button
-              key={f.value}
-              role="tab"
-              aria-selected={active}
-              onClick={() => setFilter(f.value)}
-              className={cn(
-                "-mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-3 pb-2 pt-1 font-body text-sm font-medium transition-colors duration-[160ms]",
-                active
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {t(f.labelKey)}
+        <TabsList
+          aria-label={t("studio.filterAria")}
+          className="overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {FILTERS.map((f) => (
+            <TabsTrigger key={f.value} value={f.value}>
+              <span className="font-body text-sm font-medium normal-case">
+                {t(f.labelKey)}
+              </span>
               <span className="font-mono text-xs tabular-nums text-muted-foreground">
                 {counts[f.value]}
               </span>
-            </button>
-          );
-        })}
-      </div>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       {mine.isLoading ? (
         // Loop-5: skeleton rows that shape-match the populated list

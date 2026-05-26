@@ -199,12 +199,15 @@ function StatusBadge({
 }) {
   const judgeError = judge?.judge_error;
   const label = judgeError ? "judge-error" : status;
+  // Loop 14: swapped raw Tailwind hues (amber-700/rose-700) to
+  // semantic borders + text colours so this surface respects
+  // light-mode tokens.
   const tone =
     status === "ok" && !judgeError
       ? "border-border text-muted-foreground"
       : status === "skipped"
-      ? "border-amber-700/40 text-amber-300"
-      : "border-rose-700/40 text-rose-300";
+      ? "border-warning/40 text-warning"
+      : "border-destructive/40 text-destructive";
   return (
     <span
       className={`inline-flex items-center rounded-sm border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${tone}`}

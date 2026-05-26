@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { DataTable, type Column } from "@/components/ui/data-table";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 
@@ -71,50 +72,60 @@ export default function AdminAudit() {
         </h1>
       </header>
 
-      <div className="surface overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/40 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 text-start font-medium">{t("adminAudit.col.when")}</th>
-                <th className="px-4 py-3 text-start font-medium">{t("adminAudit.col.action")}</th>
-                <th className="px-4 py-3 text-start font-medium">{t("adminAudit.col.actor")}</th>
-                <th className="px-4 py-3 text-start font-medium">{t("adminAudit.col.target")}</th>
-                <th className="px-4 py-3 text-start font-medium">{t("adminAudit.col.data")}</th>
-              </tr>
-            </thead>
-            <tbody className="font-mono text-xs">
-              {events.map((e) => (
-                <tr
-                  key={e.id}
-                  className="border-t border-border align-top transition-colors duration-[160ms] hover:bg-muted/30"
-                >
-                  <td className="whitespace-nowrap px-4 py-2 tabular-nums text-muted-foreground">
-                    {new Date(e.created_at).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-2 text-foreground">{e.action}</td>
-                  <td className="px-4 py-2 text-muted-foreground">{e.actor_id ?? "—"}</td>
-                  <td className="px-4 py-2 text-muted-foreground">
-                    {e.target_type ? `${e.target_type}:${e.target_id ?? ""}` : "—"}
-                  </td>
-                  <td className="px-4 py-2 text-muted-foreground">
-                    {Object.keys(e.data).length ? JSON.stringify(e.data) : "—"}
-                  </td>
-                </tr>
-              ))}
-              {!events.length && !pageQ.isLoading && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-12">
-                    <p className="text-center font-body text-sm text-muted-foreground">
-                      {t("adminAudit.empty")}
-                    </p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable<AuditEvent>
+        ariaLabel={t("adminAudit.title")}
+        columns={[
+          {
+            id: "when",
+            header: t("adminAudit.col.when"),
+            cell: (e) => (
+              <span className="whitespace-nowrap font-mono text-xs tabular-nums text-muted-foreground">
+                {new Date(e.created_at).toLocaleString()}
+              </span>
+            ),
+          },
+          {
+            id: "action",
+            header: t("adminAudit.col.action"),
+            cell: (e) => <span className="font-mono text-xs text-foreground">{e.action}</span>,
+          },
+          {
+            id: "actor",
+            header: t("adminAudit.col.actor"),
+            cell: (e) => (
+              <span className="font-mono text-xs text-muted-foreground">
+                {e.actor_id ?? "—"}
+              </span>
+            ),
+          },
+          {
+            id: "target",
+            header: t("adminAudit.col.target"),
+            cell: (e) => (
+              <span className="font-mono text-xs text-muted-foreground">
+                {e.target_type ? `${e.target_type}:${e.target_id ?? ""}` : "—"}
+              </span>
+            ),
+          },
+          {
+            id: "data",
+            header: t("adminAudit.col.data"),
+            cell: (e) => (
+              <span className="font-mono text-xs text-muted-foreground">
+                {Object.keys(e.data).length ? JSON.stringify(e.data) : "—"}
+              </span>
+            ),
+          },
+        ] as Column<AuditEvent>[]}
+        rows={events}
+        rowKey={(e) => e.id}
+        loading={!events.length && pageQ.isLoading}
+        emptyState={
+          <p className="font-body text-sm text-muted-foreground">
+            {t("adminAudit.empty")}
+          </p>
+        }
+      />
       {lastFetchedFull && oldest && (
         <div className="mt-4 flex justify-center">
           <Button

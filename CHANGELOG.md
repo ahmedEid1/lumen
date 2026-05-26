@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 14)
+
+- **Three primitives in one push — Foundation E closes here.**
+  - **`<Tabs>`** (Radix-backed). Workbench border-b-2-on-active
+    visual matches the prior hand-rolled patterns. `Tabs`, `TabsList`,
+    `TabsTrigger`, `TabsContent`.
+  - **`<Breadcrumb>`** (custom; no Radix needed). Semantic
+    `<nav aria-label="breadcrumb">` + `<ol>` + `<li>`. ChevronRight
+    separator (logical-property mirror via `rtl:-scale-x-100`).
+    `BreadcrumbPage` marks the current page with
+    `aria-current="page"`.
+  - **`<DataTable>`** (custom, no tanstack dep). Minimum-viable API:
+    `columns` + `rows` + `rowKey` + optional `sort` + `onSortChange` +
+    `loading` + `emptyState` + `ariaLabel`. Sort is intent-only
+    (chevron indicator + onChange callback; consumer applies the
+    server-side sort). Loading shows 5 skeleton rows.
+- **Tabs migrations:**
+  - `/studio` status filter rail.
+  - `/admin/observability` Celery / LLM Traces / Retrieval tab rail.
+- **DataTable migrations:**
+  - `/admin/users` (preserves role Select + Disable/Enable button
+    in an actions column).
+  - `/admin/courses` (preserves feature/unfeature row action).
+  - `/admin/audit` (cursor pagination wraps the table).
+- **Breadcrumb application:** `/studio/[id]` —
+  `Studio › <course title>`. Closes the AUDIT.md §3 finding
+  "deep studio + admin nesting reads as back-button-only nav".
+- **Token-drift cleanup:**
+  - `ScoreBadge.tsx`: `text-emerald-300 / text-amber-300 / text-rose-300`
+    → `text-success / text-warning / text-destructive`.
+  - `/admin/evals/[suite]/[reportId]/page.tsx` StatusBadge borders:
+    `border-amber-700/40 / border-rose-700/40` → semantic borders.
+- **`@radix-ui/react-tabs ^1.1.13`** added.
+- **`make test.web`:** 46 files / 260 tests green (+3 files / +16
+  tests vs Loop 13).
+- **Loop scope:** ~1500 LoC. Bigger per-iteration target per user
+  feedback ("team-day of work, not single-dev hour").
+
 ### Added (UI redesign loop 13)
 
 - **`<Select>` primitive** (Radix-backed). Full sub-component family:

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DataTable, type Column } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -88,90 +89,95 @@ export default function AdminUsers() {
         </div>
       </header>
 
-      <div className="surface overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/40 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 text-start font-medium">{t("adminUsers.col.user")}</th>
-                <th className="px-4 py-3 text-start font-medium">{t("adminUsers.col.role")}</th>
-                <th className="px-4 py-3 text-start font-medium">{t("adminUsers.col.active")}</th>
-                <th className="px-4 py-3 text-start font-medium">{t("adminUsers.col.lastLogin")}</th>
-                <th className="px-4 py-3 text-end font-medium">{t("adminUsers.col.actions")}</th>
-              </tr>
-            </thead>
-            <tbody className="font-body">
-              {usersQ.data?.map((u) => (
-                <tr
-                  key={u.id}
-                  className="border-t border-border transition-colors duration-[160ms] hover:bg-muted/30"
+      <DataTable<AdminUser>
+        ariaLabel={t("adminUsers.title")}
+        columns={[
+          {
+            id: "user",
+            header: t("adminUsers.col.user"),
+            cell: (u) => (
+              <div>
+                <div className="font-body text-sm font-medium text-foreground">
+                  {u.full_name || "—"}
+                </div>
+                <div className="font-mono text-xs text-muted-foreground">{u.email}</div>
+              </div>
+            ),
+          },
+          {
+            id: "role",
+            header: t("adminUsers.col.role"),
+            cell: (u) => (
+              <Badge variant="muted">{t(`adminUsers.role.${u.role}` as MessageKey)}</Badge>
+            ),
+          },
+          {
+            id: "active",
+            header: t("adminUsers.col.active"),
+            cell: (u) =>
+              u.is_active ? (
+                <Badge>{t("adminUsers.status.active")}</Badge>
+              ) : (
+                <Badge variant="muted">{t("adminUsers.status.disabled")}</Badge>
+              ),
+          },
+          {
+            id: "lastLogin",
+            header: t("adminUsers.col.lastLogin"),
+            cell: (u) => (
+              <span className="font-mono text-xs text-muted-foreground">
+                {u.last_login_at ? new Date(u.last_login_at).toLocaleString() : "—"}
+              </span>
+            ),
+          },
+          {
+            id: "actions",
+            header: t("adminUsers.col.actions"),
+            headerClassName: "text-end",
+            className: "text-end",
+            cell: (u) => (
+              <div className="flex justify-end gap-2">
+                <Select
+                  value={u.role}
+                  disabled={u.id === me?.id}
+                  onValueChange={(v) => setRole.mutate({ id: u.id, role: v })}
                 >
-                  <td className="px-4 py-3">
-                    <div className="font-body text-sm font-medium text-foreground">
-                      {u.full_name || "—"}
-                    </div>
-                    <div className="font-mono text-xs text-muted-foreground">{u.email}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant="muted">{t(`adminUsers.role.${u.role}` as MessageKey)}</Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    {u.is_active ? (
-                      <Badge>{t("adminUsers.status.active")}</Badge>
-                    ) : (
-                      <Badge variant="muted">{t("adminUsers.status.disabled")}</Badge>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                    {u.last_login_at ? new Date(u.last_login_at).toLocaleString() : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <Select
-                        value={u.role}
-                        disabled={u.id === me?.id}
-                        onValueChange={(v) => setRole.mutate({ id: u.id, role: v })}
-                      >
-                        <SelectTrigger
-                          aria-label={t("adminUsers.roleLabel")}
-                          className="h-8 w-auto min-w-[8rem] text-xs"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="student">{t("adminUsers.role.student")}</SelectItem>
-                          <SelectItem value="instructor">{t("adminUsers.role.instructor")}</SelectItem>
-                          <SelectItem value="admin">{t("adminUsers.role.admin")}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {u.id !== me?.id && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setActive.mutate({ id: u.id, is_active: !u.is_active })
-                          }
-                        >
-                          {u.is_active ? t("adminUsers.disable") : t("adminUsers.enable")}
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!usersQ.data?.length && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-12">
-                    <p className="text-center font-body text-sm text-muted-foreground">
-                      {t("adminUsers.empty")}
-                    </p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  <SelectTrigger
+                    aria-label={t("adminUsers.roleLabel")}
+                    className="h-8 w-auto min-w-[8rem] text-xs"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="student">{t("adminUsers.role.student")}</SelectItem>
+                    <SelectItem value="instructor">{t("adminUsers.role.instructor")}</SelectItem>
+                    <SelectItem value="admin">{t("adminUsers.role.admin")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                {u.id !== me?.id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setActive.mutate({ id: u.id, is_active: !u.is_active })
+                    }
+                  >
+                    {u.is_active ? t("adminUsers.disable") : t("adminUsers.enable")}
+                  </Button>
+                )}
+              </div>
+            ),
+          },
+        ] as Column<AdminUser>[]}
+        rows={usersQ.data ?? []}
+        rowKey={(u) => u.id}
+        loading={usersQ.isLoading}
+        emptyState={
+          <p className="font-body text-sm text-muted-foreground">
+            {t("adminUsers.empty")}
+          </p>
+        }
+      />
     </div>
   );
 }

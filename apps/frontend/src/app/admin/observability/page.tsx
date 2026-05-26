@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/store";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CeleryTab } from "@/components/admin/observability/CeleryTab";
 import { LLMTracesTab } from "@/components/admin/observability/LLMTracesTab";
 import { RetrievalTab } from "@/components/admin/observability/RetrievalTab";
@@ -71,30 +72,24 @@ export default function AdminObservability() {
         </p>
       </header>
 
-      <nav className="mb-8 flex flex-wrap items-center gap-2 border-b border-border pb-3">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            aria-selected={tab === t.id}
-            className={
-              "px-3 py-1.5 font-mono text-xs uppercase tracking-wider transition-colors duration-[160ms]" +
-              (tab === t.id
-                ? " border-b-2 border-foreground text-foreground"
-                : " border-b-2 border-transparent text-muted-foreground hover:text-foreground")
-            }
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
-
-      <section role="tabpanel" aria-label={`Observability: ${tab}`}>
-        {tab === "celery" && <CeleryTab />}
-        {tab === "traces" && <LLMTracesTab />}
-        {tab === "retrieval" && <RetrievalTab />}
-      </section>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+        <TabsList>
+          {TABS.map((t) => (
+            <TabsTrigger key={t.id} value={t.id}>
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="celery">
+          <CeleryTab />
+        </TabsContent>
+        <TabsContent value="traces">
+          <LLMTracesTab />
+        </TabsContent>
+        <TabsContent value="retrieval">
+          <RetrievalTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
