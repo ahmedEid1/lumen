@@ -1,6 +1,6 @@
 # Handover for the next Claude Code session
 
-Last updated: **2026-05-26** (commit `fe94ab3` on `Rewrite`).
+Last updated: **2026-05-26** (commit `fe94ab3` on the branch then named `Rewrite`; that branch was renamed to `main` later the same day — see the iteration-3 CHANGELOG entry).
 
 This file is what you (the next Claude Code session, on a new device) read first. It tells you where things stand, what's already known, and what to do before you touch anything.
 
@@ -8,7 +8,7 @@ This file is what you (the next Claude Code session, on a new device) read first
 
 ## TL;DR — where things stand right now
 
-- **Branch**: `Rewrite` (NOT `master`; master is 358+ commits stale and explicitly off-limits).
+- **Branch**: `main` (renamed from `Rewrite` on 2026-05-26). `legacy` (renamed from `master`) is the frozen 358+-commit CS50 Django prototype — read-only history, never push or branch from it.
 - **CI**: all 5 workflows green on `fe94ab3` — CI / Frontend / Build container images / E2E / Accessibility / Eval smoke / Secret scan.
 - **Production**: live at https://lumen.ahmedhobeishy.tech on AWS t4g.small via Terraform (commit `1dc7502`). Groq Llama 3.3 70B + Cloudflare Workers AI embeddings. Deployer IAM access key already rotated.
 - **Pytest**: ~12 min on CI (was timing out at 25 min cap) — parallelized with `pytest-xdist -n 4`, see `.claude/memory-snapshot/pytest-infra.md` for the full reasoning.
@@ -75,9 +75,9 @@ Read `MEMORY.md` (the index) and skim each file once.
 
 ```bash
 git status                  # clean
-git rev-parse --abbrev-ref HEAD   # Rewrite
-git log --oneline -1        # 7311815 chore(handover): ...
-git fetch origin && git status -uno    # up to date with origin/Rewrite
+git rev-parse --abbrev-ref HEAD   # main
+git log --oneline -1        # latest commit on main
+git fetch origin && git status -uno    # up to date with origin/main
 ```
 
 If the tip doesn't match, `git pull` and re-read this file.
@@ -117,7 +117,7 @@ If something breaks during setup or smoke, fix it before asking the user. Common
 
 ### Step 5 — Report back
 
-When the stack is up and tests are green, summarize: "Bootstrap complete on Linux. Stack up, tests green, on Rewrite @ `<sha>`. Ready for the next task."
+When the stack is up and tests are green, summarize: "Bootstrap complete on Linux. Stack up, tests green, on main @ `<sha>`. Ready for the next task."
 
 **Only stop and ask the user when:**
 - A credential is needed (Anthropic / Groq / AWS / GitHub) and it's not already on the new machine
@@ -150,7 +150,7 @@ The `.claude/settings.json` config (`worktree.baseRef: head`) is already committ
 
 These are persistent constraints — they override default behaviour:
 
-1. **`master` is off-limits.** All real work happens on `Rewrite`. Master is the stale merge target for the historical CS50 project. Never push to master, never branch from master.
+1. **`legacy` is off-limits.** All real work happens on `main`. `legacy` is the frozen historical CS50 Django prototype (formerly `master`, renamed 2026-05-26 when `Rewrite` became `main`). Never push to legacy, never branch from legacy.
 2. **No secrets through tool params.** API keys, AWS keys, JWTs, anything sensitive — never pass them as command args. The previous IAM access key was rotated specifically because it was passed through `aws configure set` tool params.
 3. **Free / free-tier first.** When picking a deploy / LLM / DB provider, lead with the free option. Current stack is intentional: Groq free tier + Cloudflare Workers AI free tier + AWS t4g.small (12-month free) + Cloudflare DNS (free) + GHCR (free).
 4. **Ralph cadence is the default** (one focused fix + regression test + commit-with-why per iteration), but flip to autonomous-execution-mode when the user explicitly hands off control. See `.claude/memory-snapshot/ralph-iteration-style.md` and `.claude/memory-snapshot/autonomous-execution-mode.md`.
@@ -206,4 +206,4 @@ If `git log --oneline -10` on the new machine matches this from the top, the clo
 - The repo's `CLAUDE.md` (if present) and `docs/` have the canonical project-level instructions.
 - The `.claude/memory-snapshot/MEMORY.md` is the index; each entry is one line + a link to its detail file. Don't put memory content directly in `MEMORY.md`.
 
-Good luck on the new device. Don't break master.
+Good luck on the new device. Don't break legacy (it's frozen historical state, but still — don't touch it).

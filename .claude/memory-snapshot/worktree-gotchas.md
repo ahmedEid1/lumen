@@ -9,15 +9,15 @@ metadata:
 
 When dispatching parallel `Agent({ isolation: "worktree" })` agents on this repo, two things bite hard if not pre-empted:
 
-### 1. The default worktree base is `origin/master`, which is the LEGACY Django prototype
+### 1. The historical hazard: default worktree base used to land on the LEGACY Django prototype
 
-`origin/HEAD` on this repo points to `master`. The Lumen rewrite lives on the `Rewrite` branch. `worktree.baseRef: "fresh"` (the harness default) branches new worktrees from `origin/<default-branch>` — so every worktree was stranded on commit `a9bfdd4 fixing the readme`, where only legacy Django code exists (`manage.py`, `chat/`, `courses/`, no `apps/backend/` at all).
+Before 2026-05-26, `origin/HEAD` on this repo pointed to `master` (the frozen CS50 Django prototype, now renamed to `legacy`). The Lumen rewrite lived on a branch called `Rewrite` (now renamed to `main`, and now the default). `worktree.baseRef: "fresh"` (the harness default) branches new worktrees from `origin/<default-branch>` — so every worktree was stranded on commit `a9bfdd4 fixing the readme`, where only legacy Django code exists (`manage.py`, `chat/`, `courses/`, no `apps/backend/` at all).
 
-**Fix (long-term):** add `"worktree": { "baseRef": "head" }` to `.claude/settings.json`. That makes new worktrees branch from the current local HEAD (typically `Rewrite`). **Status as of 2026-05-25:** applied and committed on `Rewrite` as `b8e1d07`. The file was previously 0 bytes — the fix had been documented in this memory but never written to disk before that commit.
+**Why this no longer bites a fresh session:** `main` *is* the default branch as of 2026-05-26, so `baseRef: "fresh"` would now produce a correct base. The `"worktree": { "baseRef": "head" }` setting committed in `.claude/settings.json` (as of `b8e1d07`) is still there as defense-in-depth, but the underlying hazard is gone.
 
-**Critical caveat — settings cache:** The harness reads `worktree.baseRef` at *session start* and caches it. Changing settings.json mid-session does **not** affect `Agent({ isolation: "worktree" })` calls in the current session, even if the file change is verified on disk. Verified by 3 failed test spawns in this session after writing the fix: every spawn still landed on master. The setting only takes effect for sessions that start with the file already containing the value. So if you find this memory mid-session and need worktrees to work now, restart Claude Code first or rely on defense-in-depth below.
+**Critical caveat — settings cache (still relevant if you edit settings.json mid-session):** The harness reads `worktree.baseRef` at *session start* and caches it. Changing settings.json mid-session does **not** affect `Agent({ isolation: "worktree" })` calls in the current session, even if the file change is verified on disk. Verified during the original 2026-05-25 work: 3 failed test spawns after writing the fix all still landed on master. The setting only takes effect for sessions that start with the file already containing the value.
 
-**Defense in depth (works regardless of cache state):** every agent prompt should include a first-step sanity check — `pwd && ls apps/backend apps/frontend` — and a recovery if the worktree is stranded (`git fetch origin && git reset --hard Rewrite`). Verified working 2026-05-25: the same session whose harness-cache spawned 3 stranded worktrees recovered the 4th to `b8e1d07` (Rewrite HEAD) with apps/backend present. Some agents will self-recover; others will write to the parent repo via absolute paths and contaminate the main worktree if you don't enforce relative paths (see #2 below).
+**Defense in depth (works regardless of cache state):** every agent prompt should include a first-step sanity check — `pwd && ls apps/backend apps/frontend` — and a recovery if the worktree is stranded (`git fetch origin && git reset --hard origin/main`). Verified working 2026-05-25 on the pre-rename equivalent (Rewrite HEAD); the same pattern keeps working post-rename. Some agents will self-recover; others will write to the parent repo via absolute paths and contaminate the main worktree if you don't enforce relative paths (see #2 below).
 
 ### 2. Agents will use absolute paths if the prompt contains them
 
@@ -38,10 +38,10 @@ If a prompt says `E:\2026\building with AI\updating old projects\E-Learning-Plat
 ### Operating recipe for parallel worktree dispatch on this repo
 
 1. Confirm `.claude/settings.json` has `"worktree": { "baseRef": "head" }`.
-2. Confirm parent worktree is on `Rewrite` (or the branch you want as the integration target).
+2. Confirm parent worktree is on `main` (or the branch you want as the integration target).
 3. Every agent prompt:
    - Relative paths only
-   - First-step sanity check + auto-recovery to `Rewrite` HEAD
+   - First-step sanity check + auto-recovery to `origin/main` HEAD
    - "Do NOT run backend pytest" — frontend vitest only
    - "Commit on your worktree branch, don't push, don't amend"
 4. After all agents return: orchestrator merges each branch into the integration target sequentially, resolving conflicts on the shared files (`CHANGELOG.md`, `models/__init__.py`, `api/router.py`, `i18n/messages/en.ts` and `ar.ts`).

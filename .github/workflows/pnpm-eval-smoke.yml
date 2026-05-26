@@ -17,7 +17,7 @@ name: Eval smoke (tutor)
 
 on:
   push:
-    branches: [Rewrite, master]
+    branches: [main]
   pull_request:
 
 concurrency:

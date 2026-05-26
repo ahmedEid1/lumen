@@ -232,7 +232,7 @@ def authorization_server_metadata(*, base_url: str) -> dict[str, Any]:
             "list_my_progress",
             WILDCARD_SCOPE,
         ],
-        "service_documentation": "https://github.com/ahmedEid1/E-Learning-Platform/blob/Rewrite/docs/mcp.md",
+        "service_documentation": "https://github.com/ahmedEid1/E-Learning-Platform/blob/main/docs/mcp.md",
     }
 
 

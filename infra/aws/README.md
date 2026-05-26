@@ -68,11 +68,11 @@ sudo LUMEN_BOOTSTRAP_NONINTERACTIVE=1 \
 
 # Fallback (script not on box — e.g. you re-imaged and skipped cloud-init).
 # Download then execute, interactive: prompts for ADMIN_USER / APP_DOMAIN /
-# ADMIN_EMAIL on the tty. Pin the branch you're deploying; `Rewrite` is the
-# current canonical working branch, but if you merge to a different default
+# ADMIN_EMAIL on the tty. Pin the branch you're deploying; `main` is the
+# current canonical default. If you fork and deploy from a different
 # branch, update this ref.
 curl -fsSL -o /tmp/aws-bootstrap.sh \
-  https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/Rewrite/scripts/aws-bootstrap.sh
+  https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/main/scripts/aws-bootstrap.sh
 chmod +x /tmp/aws-bootstrap.sh
 sudo /tmp/aws-bootstrap.sh
 ```

@@ -214,7 +214,7 @@ tl;dr after the EC2 instance is running and you've SSHed in:
 
 ```bash
 ssh -i ~/.ssh/lumen-prod.pem ubuntu@<elastic-ip>
-curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/master/scripts/aws-bootstrap.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/main/scripts/aws-bootstrap.sh | sudo bash
 # log out, log back in as the new admin user, then:
 git clone https://github.com/ahmedEid1/E-Learning-Platform.git lumen && cd lumen
 cp .env.example .env.production    # fill APP_DOMAIN + secrets (see runbook step 5)

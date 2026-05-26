@@ -9,7 +9,7 @@ digital products, so this is a release blocker, not a soft check.
 The gate is implemented as a Playwright suite that drives
 [`@axe-core/playwright`](https://github.com/dequelabs/axe-core-npm/tree/develop/packages/playwright)
 against the built Next.js app on every PR and on every push to
-`Rewrite` and `master`. Workflow:
+`main` and `legacy`. Workflow:
 [`.github/workflows/accessibility.yml`](../.github/workflows/accessibility.yml).
 Tests:
 [`apps/frontend/tests/e2e/accessibility.spec.ts`](../apps/frontend/tests/e2e/accessibility.spec.ts).

@@ -10,27 +10,27 @@ name: Deploy to AWS
 # Triggers: **workflow_dispatch only.**
 #
 # An earlier draft of this file also wired a `workflow_run` trigger
-# against CI / E2E / Accessibility on Rewrite for auto-deploy. Two
+# against CI / E2E / Accessibility on `main` for auto-deploy. Two
 # reviewer-caught problems killed that path:
 #
 #   1. `workflow_run` fires once per listed upstream workflow, not
-#      after an AND of all three completing. A single Rewrite push
+#      after an AND of all three completing. A single push to `main`
 #      where all three eventually pass would queue 3 sequential
 #      deploys (each idempotent but each pulling images and re-running
 #      smokes), and the first deploy could fire before E2E had
 #      finished — defeating the whole "all gates green before
 #      shipping" invariant.
 #   2. `workflow_run` only triggers from a workflow file that lives on
-#      the repository's *default branch*. The default here is `master`
-#      (per `gh remote show origin`), and Rewrite hasn't been merged
-#      to master in 358+ commits — so the trigger would have silently
-#      never fired even if (1) were solved.
+#      the repository's *default branch* — historically `master` (the
+#      frozen CS50 prototype, now renamed to `legacy`); since
+#      2026-05-26 `main` is the default. The trigger would have
+#      worked once the rename landed, but option (1) still applies.
 #
 # The right fix for both is to consolidate CI / E2E / Accessibility
 # into one workflow whose final job is a single deploy trigger. That's
 # a separate piece of work (see docs/ci-cd.md "Future enhancements").
 # Until then, deploys are explicit operator clicks — pair with branch
-# protection that requires all gates green before merging to Rewrite
+# protection that requires all gates green before merging to `main`
 # and the loss of "auto-deploy" is mostly cosmetic.
 #
 # To deploy after a green CI run:
@@ -58,16 +58,16 @@ on:
     inputs:
       image_tag:
         # No leading colon — `docker-compose.prod.yml` appends
-        # `:${IMAGE_TAG:-latest}` already. `rewrite` produces
-        # `lumen-api:rewrite`; `:rewrite` would produce
-        # `lumen-api::rewrite` and the pull 404s. Examples mirror what
-        # ci.yml:build-images publishes (latest, rewrite, the 40-char
+        # `:${IMAGE_TAG:-latest}` already. `main` produces
+        # `lumen-api:main`; `:main` would produce
+        # `lumen-api::main` and the pull 404s. Examples mirror what
+        # ci.yml:build-images publishes (latest, main, the 40-char
         # SHA, or a vX.Y.Z release tag).
-        description: "Image tag to deploy (default: latest). Examples: latest, rewrite, <40-char-sha>, vX.Y.Z"
+        description: "Image tag to deploy (default: latest). Examples: latest, main, <40-char-sha>, vX.Y.Z"
         required: false
         default: "latest"
       commit_sha:
-        description: "Commit to check out on the box (default: tip of Rewrite). Set on rollback. MUST be a full 40-char SHA — short SHAs aren't resolvable via `git fetch origin <sha>`."
+        description: "Commit to check out on the box (default: tip of main). Set on rollback. MUST be a full 40-char SHA — short SHAs aren't resolvable via `git fetch origin <sha>`."
         required: false
         default: ""
       run_migrations:
@@ -159,14 +159,14 @@ jobs:
         #
         # If `commit_sha` was passed (rollback case), reset to that
         # exact commit so the compose file matches the image we're
-        # pinning. Otherwise track the tip of `Rewrite`. The previous
-        # version unconditionally reset to `origin/Rewrite`, which
+        # pinning. Otherwise track the tip of `main`. The previous
+        # version unconditionally reset to `origin/main`, which
         # quietly broke rollbacks: an old image was launched against
         # a current compose definition with potentially different
         # services / env vars.
         env:
           # Pass through to the runner shell. Empty string ⇒ "use
-          # Rewrite tip".
+          # main tip".
           COMMIT_SHA: ${{ env.COMMIT_SHA }}
         run: |
           set -euxo pipefail
@@ -198,15 +198,15 @@ jobs:
             set -euo pipefail
             COMMIT_SHA="${1-}"
             cd ~/lumen
-            git fetch --depth=50 origin Rewrite
+            git fetch --depth=50 origin main
             if [ -n "${COMMIT_SHA}" ]; then
               echo "Rolling out specific commit: ${COMMIT_SHA}"
               git fetch --depth=50 origin "${COMMIT_SHA}" || true
               git -c advice.detachedHead=false checkout "${COMMIT_SHA}"
             else
-              echo "Rolling out Rewrite tip"
-              git checkout Rewrite
-              git reset --hard origin/Rewrite
+              echo "Rolling out main tip"
+              git checkout main
+              git reset --hard origin/main
             fi
             git --no-pager log -1 --pretty=format:'deploy commit: %H %s%n'
           REMOTE

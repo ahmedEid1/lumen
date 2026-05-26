@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (iteration 3)
+
+- **Renamed `master` → `legacy` and `Rewrite` → `main`** on GitHub; set
+  `main` as the default branch. The rebuild was promoted in-place rather
+  than via a Rewrite-→-master PR: `main` *is* the production codebase
+  now, and `legacy` is the frozen 358+-commit CS50 Django prototype that
+  used to live as `master`. Updated every active branch reference in the
+  repo to match the new names:
+  - **Workflows:** `branches: [Rewrite, master]` triggers in `ci.yml`,
+    `accessibility.yml`, `e2e.yml`, and `pnpm-eval-smoke.yml` now use
+    `branches: [main]`. `deploy.yml`'s remote-shell block (`git fetch
+    origin Rewrite` / `git reset --hard origin/Rewrite`) now points at
+    `main`. CI image-tag conditional (`github.ref_name == 'Rewrite'`)
+    flipped to `'main'`, so the `:latest` tag moves on `main` pushes.
+  - **Raw-URL paths:** `/master/scripts/aws-bootstrap.sh` and
+    `/Rewrite/...` URLs across `README.md`, `scripts/aws-bootstrap.sh`,
+    `docs/deployment/aws-vps.md`, `infra/aws/README.md`,
+    `apps/backend/app/mcp/registry_metadata.json`, and
+    `apps/backend/app/mcp/auth.py` (MCP `service_documentation`) all
+    rewritten to `/main/`. GitHub's auto-redirect would have kept the
+    old URLs working, but the canonical name should match the live
+    branch.
+  - **Active docs:** branch refs in `docs/ci-cd.md`,
+    `docs/accessibility.md`, `docs/architecture.md`,
+    `docs/release/known-issues-post-1.1.0.md`, and the
+    `docs/release/operator-activation-runbook.md` Step 7 (now marked
+    superseded — the `make publish-rewrite` flow is obsolete).
+  - **Memory & handover:** `.claude/HANDOVER.md` (TL;DR, bootstrap
+    Step 2 commands, "legacy is off-limits" critical rule, closing
+    line), `.claude/memory-snapshot/MEMORY.md`,
+    `.claude/memory-snapshot/aws-deployment-state.md`,
+    `.claude/memory-snapshot/session-handoff.md`,
+    `.claude/memory-snapshot/active-goal.md`,
+    `.claude/memory-snapshot/autonomous-execution-mode.md`,
+    `.claude/memory-snapshot/worktree-gotchas.md` (kept the historical
+    "Before 2026-05-26..." note explaining why the gotcha originally
+    bit), and `.claude/agents/codex-reviewer.md` (`--base master` →
+    `--base main`).
+  - **Removed:** `Makefile :: publish-rewrite` target — it pushed
+    `Rewrite` to `origin/Rewrite` and opened `gh pr create --base master
+    --head Rewrite`. Neither branch exists under those names anymore,
+    and there is no Rewrite-→-master PR to open (`main` IS the
+    codebase). The Makefile keeps a 6-line comment in its place pointing
+    at this CHANGELOG entry and the superseded runbook step.
+- **Stale local refs pruned.** `git fetch --prune` cleared
+  `origin/Rewrite`, `origin/master`, and the long-stale
+  `origin/claude/fervent-wright-d86dac` from local tracking; the local
+  branches `Rewrite` and `master` were renamed to `main` and `legacy`
+  in place to match the remote. `origin/HEAD` was retargeted to `main`.
+
+What was *intentionally left alone* and why:
+- Historical CHANGELOG entries describing past PRs to/from `master` and
+  `Rewrite` — they describe state at the time and rewriting them would
+  falsify the audit trail.
+- `docs/release/1.1.0-agentic-pr-body.md` — frozen historical PR body
+  for a PR that will never be opened now. Renaming its branch refs
+  would mislead anyone reading it for the release-notes substance.
+- The two `docs/superpowers/specs/*.md` files dated 2026-05-22 — spec
+  documents authored *before* the rename, accurate as historical specs.
+- The `on master` test-file docstrings (`test_learner_traces_api.py`
+  etc.) — they describe the orchestrator wiring as it was during the
+  v2 build wave; the comments don't drive behavior.
+
 ### Docs (iteration 2)
 
 - **HANDOVER.md Step 3** now tells the bootstrapping session to

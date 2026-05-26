@@ -8,7 +8,7 @@
 # before mutating.
 #
 # Usage (as root, via sudo):
-#   curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/master/scripts/aws-bootstrap.sh -o bootstrap.sh
+#   curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/main/scripts/aws-bootstrap.sh -o bootstrap.sh
 #   chmod +x bootstrap.sh
 #   sudo ./bootstrap.sh
 #

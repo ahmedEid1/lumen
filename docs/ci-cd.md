@@ -1,10 +1,10 @@
-# CI / CD on the Rewrite branch
+# CI / CD on the main branch
 
 This page documents how code lands in front of users at
 `https://lumen.ahmedhobeishy.tech`. Two pipelines run in lock-step:
 
 - **CI** — `.github/workflows/{ci,e2e,accessibility,pnpm-eval-smoke,gitleaks,codeql}.yml`
-  proves every commit on every PR and every push to `Rewrite` is
+  proves every commit on every PR and every push to `main` is
   green before any image leaves the workshop.
 - **CD** — `.github/workflows/{ci.yml (build-images), deploy.yml,
   release.yml}` builds container images, pushes them to GHCR, and
@@ -12,10 +12,10 @@ This page documents how code lands in front of users at
 
 ```mermaid
 flowchart LR
-    PR[PR to Rewrite] -->|CI gates only| CI[CI / E2E / A11y / Eval / Gitleaks / CodeQL]
-    Push[push to Rewrite] --> CI
+    PR[PR to main] -->|CI gates only| CI[CI / E2E / A11y / Eval / Gitleaks / CodeQL]
+    Push[push to main] --> CI
     CI -->|push only| Build[ci.yml: build-images]
-    Build -->|tag :sha, :rewrite, :latest| GHCR[(ghcr.io)]
+    Build -->|tag :sha, :main, :latest| GHCR[(ghcr.io)]
     Manual[Operator: workflow_dispatch] --> Deploy[deploy.yml]
     GHCR -. pulled by .-> Deploy
     Deploy -->|ssh + docker compose pull + up -d| AWS[(AWS t4g.small)]
@@ -28,8 +28,8 @@ flowchart LR
 
 | Branch / event | What fires | Result |
 |---|---|---|
-| PR (any → `Rewrite` or `main`) | `ci.yml` jobs (backend/frontend lint+test), `e2e.yml`, `accessibility.yml`, `pnpm-eval-smoke.yml`, `gitleaks.yml`, `codeql.yml` | red blocks merge |
-| Push to `Rewrite` | Same as above **plus** `ci.yml:build-images` | new images on GHCR with `:<sha>`, `:rewrite`, `:latest` tags |
+| PR (any → `main` or `main`) | `ci.yml` jobs (backend/frontend lint+test), `e2e.yml`, `accessibility.yml`, `pnpm-eval-smoke.yml`, `gitleaks.yml`, `codeql.yml` | red blocks merge |
+| Push to `main` | Same as above **plus** `ci.yml:build-images` | new images on GHCR with `:<sha>`, `:main`, `:latest` tags |
 | Push to `main` | Same CI but build-images tags only `:main` + `:<sha>` (no `:latest` — see below) | images on GHCR; deploy is **not** automatic |
 | Tag `v*.*.*` | `release.yml` | images tagged `:vX.Y.Z` + `:latest`, GitHub Release drafted |
 | Manual | `workflow_dispatch` on `deploy.yml` | operator picks image tag (defaults `latest`) + optional rollback commit_sha, ships to AWS |
@@ -40,12 +40,12 @@ went green. Two structural problems blocked that path:
 
 1. `workflow_run` fires once *per upstream workflow*, not after all
    succeed. With three workflows in the gate (CI, E2E, A11y), every
-   push to Rewrite would queue 3 sequential deploys, and the first
+   push to main would queue 3 sequential deploys, and the first
    would fire before the slowest gate had finished — defeating
    "ship only after all gates green."
 2. `workflow_run` triggers only fire from workflow files living on
-   the repository's **default branch**. The default here is `master`
-   and Rewrite is 358+ commits ahead; `deploy.yml` lives on Rewrite
+   the repository's **default branch**. The default here is `legacy`
+   and main is 358+ commits ahead; `deploy.yml` lives on main
    only, so the trigger would never fire even if (1) were solved.
 
 Both are solvable (consolidate into one workflow, or query the
@@ -58,11 +58,11 @@ clicking "Deploy" anyway. See "Future enhancements" below.
 
 | Origin | api tag | web tag |
 |---|---|---|
-| Push to `Rewrite` | `:<sha>`, `:rewrite`, `:latest` | `:<sha>`, `:rewrite`, `:latest` |
+| Push to `main` | `:<sha>`, `:main`, `:latest` | `:<sha>`, `:main`, `:latest` |
 | Push to `main` | `:<sha>`, `:main` | `:<sha>`, `:main` |
 | Tag `v1.2.3` (release.yml) | `:v1.2.3`, `:latest` | `:v1.2.3`, `:latest` |
 
-`:latest` only moves on `Rewrite` pushes and tagged releases. Pushes
+`:latest` only moves on `main` pushes and tagged releases. Pushes
 to the stale `main` branch can't accidentally roll back the live
 AWS box by clobbering `:latest`.
 
@@ -85,7 +85,7 @@ specific tag, useful for rollbacks ("redeploy `:v1.2.2`").
 
 `deploy.yml` ssh-es into the box (Phase 1 secrets below), runs:
 
-1. `git fetch origin Rewrite && git reset --hard origin/Rewrite` — keeps the
+1. `git fetch origin main && git reset --hard origin/main` — keeps the
    on-box compose file aligned with the rolled-out commit. Or, on
    rollback (when the operator passes `commit_sha`),
    `git checkout <sha>` in detached-HEAD mode so the compose file
@@ -118,7 +118,7 @@ gh workflow run deploy.yml \
 ```
 
 `commit_sha` is the rollback-critical input — without it, the box
-syncs to `origin/Rewrite` HEAD on every deploy, which means an
+syncs to `origin/main` HEAD on every deploy, which means an
 old-image rollback would launch yesterday's container against
 today's compose definition (new services / renamed env vars /
 adjusted healthchecks). Passing both keeps the rollout coherent.
@@ -149,7 +149,7 @@ are anonymous and there's no PAT to rotate.
 The deploy targets a box already provisioned by
 `scripts/aws-bootstrap.sh` (or `infra/aws/` Terraform). The box must:
 
-- have `~/lumen` cloned at `Rewrite`
+- have `~/lumen` cloned at `main`
 - have `~/.env.production` filled in (`APP_DOMAIN`, `JWT_SECRET`,
   `OPENAI_API_KEY=<groq>`, etc. — see `docs/deployment/aws-vps.md`)
 - run Docker with the `lumen` user in the `docker` group
@@ -165,9 +165,9 @@ re-runs `docker login` each time using `GHCR_PULL_TOKEN`.
   `.github/workflows/`. Since deploys are manual
   (`workflow_dispatch`), there's no auto-trigger to update — but
   consider listing the new gate as a required check in branch
-  protection so it actually blocks merges to Rewrite.
+  protection so it actually blocks merges to main.
 - **Change the canonical branch**: search `.github/workflows/` for
-  `Rewrite` and update. Also update the `:latest` tag conditional in
+  `main` and update. Also update the `:latest` tag conditional in
   `ci.yml:build-images`.
 - **Cut a release**: `git tag v1.2.3 && git push --tags` —
   `release.yml` handles the rest.
@@ -190,22 +190,22 @@ When the project grows past a solo operator, the things worth adding:
 
 - **Auto-deploy on green CI** — consolidate `e2e.yml` + `accessibility.yml`
   into jobs inside `ci.yml` (with shared docker-compose setup), then add
-  a `deploy` job in `ci.yml` that runs after all gates pass on Rewrite.
+  a `deploy` job in `ci.yml` that runs after all gates pass on main.
   Or keep the workflows separate and add a `wait-for-checks` step at
   the top of `deploy.yml` that polls the GitHub API for sibling-workflow
   status on the same SHA. Either move solves the "fires per workflow"
   problem the current setup ducked.
-- **Default-branch flip** — set the GitHub default branch to `Rewrite`
+- **Default-branch flip** — set the GitHub default branch to `main`
   (Settings → Branches → default), and remove the `:main` paths from
-  `ci.yml`. The 358-commit gap to `master` makes the dual-branch
+  `ci.yml`. The 358-commit gap to `legacy` makes the dual-branch
   trigger more confusing than useful.
 - **Staging environment** — second AWS t4g.small (or t4g.micro on
   free tier) at `staging.lumen.ahmedhobeishy.tech`. CD auto-rolls
-  staging on Rewrite push, prod requires manual promote.
+  staging on main push, prod requires manual promote.
 - **Trivy gate** — flip `exit-code` from `"0"` to `"1"` on the
   Trivy scans in `ci.yml:build-images` once the base images are
   pinned to digests so CVE noise stays low.
-- **Branch protection** — `Settings → Branches → Rewrite → Require
+- **Branch protection** — `Settings → Branches → main → Require
   status checks before merging`, list the 5 gates. Loses the ability
-  to push directly to Rewrite but gains the guarantee that every
+  to push directly to main but gains the guarantee that every
   commit reaching the canonical branch has passed all checks.

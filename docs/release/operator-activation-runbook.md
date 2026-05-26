@@ -312,42 +312,11 @@ A silent captioned walkthrough was autonomously recorded against the local Docke
 
 ---
 
-## Step 7 — Push the branch and open the PR (~5 min)
+## Step 7 — Publish the rewrite — ✅ DONE (superseded)
 
-This is the moment everything goes public.
+On 2026-05-26 the rebuild was promoted in-place rather than via a PR: `Rewrite` was renamed to `main` (now the default branch) and the original `master` was renamed to `legacy` (frozen CS50 prototype). There is no longer a Rewrite-→-master PR to open; `main` *is* the production codebase. The `make publish-rewrite` target was removed in the same change (see the iteration-3 CHANGELOG entry).
 
-### 7.1 Verify your local state
-
-```bash
-# In your local worktree:
-git status   # clean
-git log --oneline -3   # HEAD at 8a8eb21 (or wherever Claude's last commit is)
-```
-
-### 7.2 Verify `gh` is logged in
-
-```bash
-gh auth status
-# If "You are not logged into any GitHub hosts":
-gh auth login
-# Pick GitHub.com → HTTPS → Login with browser.
-```
-
-### 7.3 Run the publish target
-
-```bash
-make publish-rewrite
-```
-
-This will:
-1. Show you `git log origin/Rewrite..Rewrite --oneline | head -25` so you can see what's about to be pushed.
-2. Prompt `[y/N]`. **Type `y` and Enter.**
-3. Run `git push origin Rewrite`.
-4. Run `gh pr create --base master --head Rewrite --title "..." --body-file docs/release/1.1.0-agentic-pr-body.md`.
-
-You'll get a PR URL back. Open it in a browser, eyeball it, and **leave it open** (don't merge yet — let it sit for a day so anyone you reach out to can see the PR is fresh).
-
-🛑 Ping Claude with the PR URL so it's in the session log.
+Ongoing development ships via the normal flow: `git push origin <feature-branch>` → PR to `main` → CI gates → merge. The historical release notes that were destined for the never-opened PR body live at [`docs/release/1.1.0-agentic-pr-body.md`](1.1.0-agentic-pr-body.md) as a record of what shipped under `1.1.0-agentic`.
 
 ---
 
@@ -371,7 +340,6 @@ Reference the README's "Built by" section and link the Loom in your cover paragr
 - **Out-of-memory killer reaped a container:** t4g.small is tight. Set `CELERY_CONCURRENCY=1` and `REDIS_MAXMEMORY=64mb` in `.env.production`, or move the Next.js frontend to Vercel free (see "Split deploy" in `docs/deployment/aws-vps.md`). If Postgres is the OOM victim, add `-c shared_buffers=128MB -c effective_cache_size=512MB` to the `db:` service's `command:` in `docker-compose.prod.yml`.
 - **Groq rate-limit during eval:** free tier is 30 req/min on Llama 3.3 70B. The eval runner respects this; if it errors, re-run — it resumes from the report's last line.
 - **Caddy TLS won't issue:** check `docker compose logs proxy`; the most common cause is DNS not propagated yet. `dig <DOMAIN_NAME>` from the VM should return its own IP.
-- **`make publish-rewrite` says "no commits to push":** you're on the wrong local branch. `git checkout Rewrite` first.
 
 ---
 

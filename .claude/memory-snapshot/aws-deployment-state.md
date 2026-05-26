@@ -7,7 +7,7 @@ metadata:
   originSessionId: 4059c30a-7172-4501-9264-82e562516963
 ---
 
-**As of 2026-05-25 (post-cleanup-loop):** Lumen is **LIVE in production** at `https://lumen.ahmedhobeishy.tech` on AWS EC2 t4g.small in `eu-central-1`. Rewrite branch tip is `4b09651` on both local and `origin/Rewrite` (pushed at end of cleanup loop). Three-round Codex + Claude cleanup loop landed `ad03435`, `eb4a9b7`, `4b09651` — both reviewers converged empty in round 4. Loop fixed: EIP race in user_data, hard-coded admin email in compute.tf, Redis broker eviction policy (allkeys-lru → noeviction), noop-embedder docstring inaccuracy, on-box recovery doc that referenced workstation-only Terraform state, plus added `check_embedding_provider` to prod_guards mirroring the LLM guard. Master is still untouched per user rule.
+**As of 2026-05-25 (post-cleanup-loop):** Lumen is **LIVE in production** at `https://lumen.ahmedhobeishy.tech` on AWS EC2 t4g.small in `eu-central-1`. main branch tip is `4b09651` on both local and `origin/main` (pushed at end of cleanup loop). Three-round Codex + Claude cleanup loop landed `ad03435`, `eb4a9b7`, `4b09651` — both reviewers converged empty in round 4. Loop fixed: EIP race in user_data, hard-coded admin email in compute.tf, Redis broker eviction policy (allkeys-lru → noeviction), noop-embedder docstring inaccuracy, on-box recovery doc that referenced workstation-only Terraform state, plus added `check_embedding_provider` to prod_guards mirroring the LLM guard. Master is still untouched per user rule.
 
 - **Domain**: Cloudflare DNS (subdomain of user's `ahmedhobeishy.tech` zone, A record → EIP `3.74.54.147`, DNS-only mode / proxy OFF)
 - **TLS**: Caddy with real Let's Encrypt cert (issuer E7, valid 2026-05-25 → 2026-08-23)

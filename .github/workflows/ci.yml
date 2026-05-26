@@ -1,14 +1,16 @@
 name: CI
 
-# Triggers — push to the canonical working branch (`Rewrite`) and to
-# `main` (kept around as the eventual merge target). Every PR runs the
-# same set so contributors get the full gate before merge. e2e.yml and
-# accessibility.yml run in parallel as separate workflows on the same
-# triggers; deploy.yml waits on this workflow's `build-images` job
-# completing successfully on `Rewrite` to roll the AWS box.
+# Triggers — push to the canonical default branch (`main`) and every
+# PR runs the same set so contributors get the full gate before merge.
+# e2e.yml and accessibility.yml run in parallel as separate workflows
+# on the same triggers; deploy.yml waits on this workflow's
+# `build-images` job completing successfully on `main` to roll the AWS
+# box. (Branch history: `Rewrite` was the rebuild working branch and
+# `master` was the frozen CS50 prototype; on 2026-05-26 `Rewrite` was
+# renamed to `main` and `master` to `legacy`.)
 on:
   push:
-    branches: [Rewrite, main]
+    branches: [main]
   pull_request:
 
 concurrency:
@@ -168,14 +170,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Compute tags
         id: meta
-        # docker-metadata-action handles the canonical-branch / SHA /
-        # latest tagging matrix without us hand-rolling shell expansions.
-        # On push to Rewrite: produces tags `rewrite`, `latest`, `<sha>`.
-        # On push to main:    produces tags `main`, `<sha>` (no latest —
-        #                     `main` is the stale merge target, not the
-        #                     working branch; we don't want a stale main
-        #                     push to clobber `:latest` and accidentally
-        #                     roll AWS back).
+        # Emits canonical-branch / SHA / latest tag inputs without
+        # hand-rolling shell expansions per tag.
+        # On push to main: produces tags `main`, `latest`, `<sha>`.
         #
         # Also emits ``owner_lc`` — GHCR rejects mixed-case repository
         # names (``ghcr.io/ahmedEid1/...`` -> "repository name must be
@@ -190,9 +187,9 @@ jobs:
           owner_lc=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
           echo "owner_lc=${owner_lc}" >> "$GITHUB_OUTPUT"
           echo "Tagging plan for push to ${GITHUB_REF_NAME} (owner=${owner_lc}):"
-          if [ "$GITHUB_REF_NAME" = "Rewrite" ]; then
-            echo "  api: :${GITHUB_SHA}, :rewrite, :latest"
-            echo "  web: :${GITHUB_SHA}, :rewrite, :latest"
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            echo "  api: :${GITHUB_SHA}, :main, :latest"
+            echo "  web: :${GITHUB_SHA}, :main, :latest"
           else
             echo "  api: :${GITHUB_SHA}, :${GITHUB_REF_NAME}"
             echo "  web: :${GITHUB_SHA}, :${GITHUB_REF_NAME}"
@@ -203,12 +200,11 @@ jobs:
           context: apps/backend
           target: prod
           push: true
-          # The `latest` tag only moves on Rewrite pushes — see the meta
-          # step comment for why we don't tag latest from main.
+          # `latest` moves on every push to main.
           tags: |
             ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-api:${{ github.sha }}
             ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-api:${{ github.ref_name }}
-            ${{ github.ref_name == 'Rewrite' && format('ghcr.io/{0}/lumen-api:latest', steps.meta.outputs.owner_lc) || '' }}
+            ${{ github.ref_name == 'main' && format('ghcr.io/{0}/lumen-api:latest', steps.meta.outputs.owner_lc) || '' }}
           cache-from: type=gha,scope=lumen-api
           cache-to: type=gha,mode=max,scope=lumen-api
       - name: Build frontend
@@ -220,7 +216,7 @@ jobs:
           tags: |
             ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-web:${{ github.sha }}
             ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-web:${{ github.ref_name }}
-            ${{ github.ref_name == 'Rewrite' && format('ghcr.io/{0}/lumen-web:latest', steps.meta.outputs.owner_lc) || '' }}
+            ${{ github.ref_name == 'main' && format('ghcr.io/{0}/lumen-web:latest', steps.meta.outputs.owner_lc) || '' }}
           cache-from: type=gha,scope=lumen-web
           cache-to: type=gha,mode=max,scope=lumen-web
       - name: Trivy scan — backend

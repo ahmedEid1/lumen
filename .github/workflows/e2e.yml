@@ -17,14 +17,14 @@ name: E2E (Playwright)
 #     signal to PR authors.
 #
 # Triggers:
-#   - PRs to Rewrite or master
-#   - pushes to Rewrite
+#   - PRs to main
+#   - pushes to main
 
 on:
   push:
-    branches: [Rewrite]
+    branches: [main]
   pull_request:
-    branches: [Rewrite, master]
+    branches: [main]
 
 concurrency:
   group: e2e-${{ github.workflow }}-${{ github.ref }}

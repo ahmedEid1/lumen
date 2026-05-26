@@ -12,7 +12,7 @@ The parent agent will tell you (in some combination):
 
 1. **Scope** — one of:
    - "uncommitted" → use `--uncommitted` (staged + unstaged + untracked)
-   - "branch against <base>" → use `--base <base>` (e.g. `--base master`)
+   - "branch against <base>" → use `--base <base>` (e.g. `--base main`)
    - "commit <sha>" → use `--commit <sha>`
 2. **Focus / instructions** — free-form text describing what to look at (security, perf, a specific file, a known invariant, etc.). Pass this as the PROMPT positional argument to `codex review`.
 3. **Optional title** — if given, pass `--title "<title>"`.
@@ -31,7 +31,7 @@ If the parent did not specify a scope, default to `--uncommitted` and say so in 
    ```
 
    ```
-   codex review --base master --title "Rewrite branch" "Look for regressions in soft-delete behavior and N+1 query patterns."
+   codex review --base main --title "feature branch vs main" "Look for regressions in soft-delete behavior and N+1 query patterns."
    ```
 
    ```

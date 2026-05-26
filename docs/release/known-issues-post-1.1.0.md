@@ -2,7 +2,7 @@
 
 This document captures issues surfaced by the dual code review (Codex + Claude) of the Wave 1+2 portfolio-activation work, but **deliberately deferred** rather than fixed in the current PR. The intent is to keep the release-PR diff focused and tested; each item below has a clear path forward but is either low-impact, larger than a single commit, or operator-decision-shaped.
 
-All items below are post-`1.1.0-agentic` follow-ups and would land as discrete PRs against `master` or a future `1.2.0` chapter.
+All items below are post-`1.1.0-agentic` follow-ups and would land as discrete PRs against `legacy` or a future `1.2.0` chapter.
 
 ---
 

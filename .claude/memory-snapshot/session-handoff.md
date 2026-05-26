@@ -1,15 +1,15 @@
 ---
 name: session-handoff
-description: "Current state as of 2026-05-25 14:50 CEST — PR #6 + #7 merged into Rewrite; three real Groq eval numbers minted; only AWS deploy remains"
+description: "Current state as of 2026-05-25 14:50 CEST — PR #6 + #7 merged into main; three real Groq eval numbers minted; only AWS deploy remains"
 metadata:
   node_type: memory
   type: project
   originSessionId: c24e4fa7-d1d4-44eb-89ca-ea020c9a34f3
 ---
 
-**As of 2026-05-25 ~14:50 CEST:** PR #6 (340 commits — Wave 1+2 + screencast + MCP publish + initial eval) and PR #7 (ingest eval follow-up) both merged into `Rewrite`. Three real Groq eval numbers committed. Only the AWS deploy remains as the unblocked thread.
+**As of 2026-05-25 ~14:50 CEST:** PR #6 (340 commits — Wave 1+2 + screencast + MCP publish + initial eval) and PR #7 (ingest eval follow-up) both merged into `main`. Three real Groq eval numbers committed. Only the AWS deploy remains as the unblocked thread.
 
-## What's merged into Rewrite
+## What's merged into main
 
 - **PR #6** (merge commit `b17e46c`): 340 commits — Wave 1+2 + captioned screencast + MCP registry publish + eval truthing + Oracle/AWS bootstrap scaffolding
 - **PR #7** (merge commit `8cee7c6`): ingest eval follow-up — n=10 Groq run added once #6's youtube-transcript-api fix was live in the runtime image
@@ -40,12 +40,12 @@ docker-compose.yml's `x-api-env` anchor now pass-throughs `LLM_PROVIDER`, `LLM_M
 1. **AWS t4g.small deploy** — see [[aws-deployment-state]]. Operator needs to launch EC2 + run `scripts/aws-bootstrap.sh` + finish the deploy chain. The screencast + MCP publish + eval numbers don't block on this.
 2. **Tutor eval with real embeddings** — install `sentence-transformers` in the API image (~1GB PyTorch deps; not done autonomously), or set `EMBEDDING_PROVIDER=openai` + a real OpenAI key. Either unlocks the tutor n=30 from its current noop-embedder-bounded 2.0/5.
 3. **Ingest chapter detection** — v1 chunker emits one-module-per-video. Real follow-up; not blocking.
-4. **Master merge** — explicitly deferred per user: "we will not go to master until we are fully done."
+4. **Master merge** — explicitly deferred per user: "we will not go to legacy until we are fully done."
 5. **Voiced Loom** — silent captioned walkthrough ships today as [`docs/screencast/walkthrough.mp4`](docs/screencast/walkthrough.mp4). Voiced version waits for a live URL.
 
 ## How to apply when re-entering
 
-- `git log --oneline origin/Rewrite ^origin/master` shows everything queued for the master cut
+- `git log --oneline origin/main ^origin/legacy` shows everything queued for the legacy cut
 - `docs/eval/README.md` lists every checked-in eval artifact + how to mint a new one
 - `.env` already has the Groq config; `docker compose up -d --force-recreate api worker beat` brings it back live
 - The MCP server is live: `io.github.ahmedEid1/lumen` at https://registry.modelcontextprotocol.io/v0/servers?search=io.github.ahmedEid1%2Flumen

@@ -2,7 +2,7 @@
 - [Three gotchas that bite on first `docker compose up`](first-boot-gotchas.md) — CORS_ORIGINS shape, .test TLD, role typing
 - [Ralph iteration style this user expects](ralph-iteration-style.md) — one focused fix + regression test + commit-with-why per iteration; never batch
 - [What "the app works perfectly" means here](verification-criteria.md) — running-the-app evidence beats test-suite-only evidence
-- [Current state at session compact](session-handoff.md) — Lumen 1.0.0-rebuild + Phase G + Phase H + Phase I all shipped on Rewrite as `1.1.0-agentic`; prod live on AWS; no v2 backlog queued — wait for user to set the next task
+- [Current state at session compact](session-handoff.md) — Lumen 1.0.0-rebuild + Phase G + Phase H + Phase I all shipped on main as `1.1.0-agentic`; prod live on AWS; no v2 backlog queued — wait for user to set the next task
 - [Owner positioning brief](owner-positioning.md) — Ahmed Hobeishy is using Lumen as the portfolio anchor for agentic-AI engineering roles; v2 (Phase H + I) shipped 2026-05-22
 - [Design pivot pattern](design-pivot-pattern.md) — user has reversed an entire theme mid-flow; treat visual identity as disposable, keep i18n + primitives + server/client split
 - [Autonomous execution mode](autonomous-execution-mode.md) — when user hands off control ("you decide, I won't review, keep going until the end"), toggle out of ralph-cadence into parallel-waves + frequent commits

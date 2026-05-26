@@ -94,7 +94,7 @@ ssh -i ~/.ssh/lumen-prod.pem ubuntu@<your-elastic-ip>
 Everything from Step 3 onwards can be automated — see **[`scripts/aws-bootstrap.sh`](../../scripts/aws-bootstrap.sh)**, which mirrors steps 3, 4, and the Caddy boot from step 6 in one idempotent script (plus a 4 GB swapfile for the 2 GB RAM constraint). Run it instead of the manual commands below if you want the fast path:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/master/scripts/aws-bootstrap.sh -o bootstrap.sh
+curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/main/scripts/aws-bootstrap.sh -o bootstrap.sh
 chmod +x bootstrap.sh
 sudo ./bootstrap.sh
 ```
