@@ -19,7 +19,7 @@ queued.
 | 9 | `<RadioGroup>` + `<Checkbox>` primitives + quiz radiogroup a11y migration | Shipped. 37 files / 202 tests green (+1 file / +8 tests). Closes AUDIT.md §3 Block-renderer's heaviest a11y finding — quiz options now have role/aria-checked, arrow-key nav, fieldset/legend. | `45f1511` |
 | 7-followup | HOTFIX: revert `--spacing-*` aliases (Tailwind 4 `max-w-*` collision) | Shipped. `max-w-3xl` was resolving to 96px instead of 48rem since Loop 1, breaking every page that constrains content with `max-w-xl/2xl/3xl`. Caught by visual review of the prod deploy. 37 files / 202 tests still green. | `f04efc1` |
 | 10 | Foundation C slice 1 — Dialog + Sheet primitives + tutor-modal migration | Shipped. 38 files / 216 tests green (+1 file / +14 tests). Tutor modal on `/courses/[slug]` now has Radix focus trap, aria-labelledby, Escape, click-outside, focus restore. Sheet primitive lands with 4-side `data-side` variant ready for Loop 11 mobile menu. | `2b16a53` |
-| 11 | Foundation C slice 2 — Popover + DropdownMenu + 3 overlay migrations | Shipped. 40 files / 228 tests green (+2 files / +12 tests). Notifications-bell → Popover; locale-switcher promoted from cycle-button to DropdownMenu with radio-group selection; mobile menu → Sheet (Sheet finally has a consumer). All four hand-rolled overlays inside the shared chrome retired. | _pending_ |
+| 11 | Foundation C slice 2 — Popover + DropdownMenu + 3 overlay migrations | Shipped. 40 files / 228 tests green (+2 files / +12 tests). Notifications-bell → Popover; locale-switcher promoted from cycle-button to DropdownMenu with radio-group selection; mobile menu → Sheet (Sheet finally has a consumer). All four hand-rolled overlays inside the shared chrome retired. | `42955c0` |
 
 
 
