@@ -16,6 +16,45 @@ This file is what you (the next Claude Code session, on a new device) read first
 
 ---
 
+## Read this first — the previous box was Windows + Docker Desktop + WSL2
+
+You are on a **clean Linux server**. Many of the gotchas in the memory snapshot were Windows-host quirks that **probably don't apply to you**. Don't waste cycles chasing them.
+
+### Memory files that are Windows-specific — skim, don't act
+
+| File | Why it doesn't apply on clean Linux |
+|---|---|
+| `windows-reserved-ports.md` | Reservations are set by Hyper-V on every Windows boot. A Linux server has no equivalent. Ignore the port-7700 advice; bind whatever you want. |
+| `worktree-gotchas.md` §1 "settings cache" | Was observed on the Windows harness. The fix (`worktree.baseRef: head`) is already committed in `.claude/settings.json` and a *fresh* session picks it up at start — that's you. The §2 (relative paths only) and §3 (shared Postgres) advice **still applies universally** though. |
+| `worktree-gotchas.md` §6 "Windows leaves an empty dir" | Linux's `rm -rf` cleans up properly. Step is a no-op for you. |
+
+### Setting differences likely to surface
+
+| What | Windows dev box | Clean Linux server |
+|---|---|---|
+| Docker | Docker Desktop, integrated | Probably **not installed** — install Engine + Compose plugin via the distro package manager (`apt install docker.io docker-compose-plugin` / `dnf install moby-engine docker-compose-plugin` / whatever the distro uses). User needs to be in the `docker` group: `sudo usermod -aG docker $USER` then re-login. |
+| `make` | Usually pre-installed via Git Bash | **May be missing** — `apt install build-essential` or `dnf install make`. |
+| Python deps | uv was installed | **May be missing** — `curl -LsSf https://astral.sh/uv/install.sh \| sh` (or however the distro packages uv). |
+| Node + pnpm | Globally installed at v22 / 9.15.0 | Install Node 22 (nvm or distro), then `npm install -g pnpm@9.15.0`. |
+| Filesystem perf | Windows host mounts were slow | Linux native FS is fast; backend pytest local could be **faster** than the 2:42 measured on Windows. |
+| `-n 4` pytest workers | Pinned because a 12-core Windows host saw `KeyError: <WorkerController gw11>` (postgres serializes 12 concurrent CREATE DATABASE) | Linux server may have a different CPU count and different postgres throughput. **Try `-n 4` first** (matches CI), and only revisit if local time is far off from the 2-3 min target. Don't pre-emptively bump to `-n auto` — the per-worker CREATE DATABASE bottleneck is a postgres property, not a Windows quirk. |
+| CRLF line ending warnings | Constant in `git status` | Won't appear on Linux. |
+
+### Things that ARE portable (don't re-investigate)
+
+- `ENV=development` baked into `docker-compose.yml`'s api container — this is project config, applies on Linux too. The conftest forces `ENV=test` to compensate. Already fixed; just letting you know it's intentional.
+- Groq API key, Cloudflare DNS, AWS prod state — these are *production* state, machine-independent.
+- pnpm `-q` / `pnpm test -- --run` flag-parsing flakiness — was real, the fix (`pnpm exec vitest run`) is committed; don't re-investigate.
+- All `[tool.pytest.ini_options]` addopts in pyproject — chosen to work on both this Windows box and the CI ubuntu-24.04 runner. Should work fine on your server.
+
+### Likely first-boot timing on a clean Linux server
+
+- Initial `docker compose up --build -d`: **~10-20 min** for first builds (uv + pip wheels + pnpm install + Next.js build). Subsequent boots: ~30s.
+- Backend pytest: **~2-3 min** wall (same target as Windows; Linux native FS might even shave it).
+- Frontend vitest: ~10s after `pnpm install` (~3m20s the first time).
+
+---
+
 ## First-session bootstrap — Linux
 
 You (Claude) are reading this because the user just landed on a new Linux machine and asked you to pick up where the previous session left off. **Do all of the steps below yourself, in order, without stopping to ask permission for routine setup.** Only halt if you hit a credential / secret / decision that genuinely needs the user.
