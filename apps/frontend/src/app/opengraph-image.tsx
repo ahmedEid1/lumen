@@ -14,7 +14,10 @@ import { ImageResponse } from "next/og";
  * display-face wordmark, no shadow / gradient / mesh.
  */
 
-export const runtime = "edge";
+// Loop 19 hotfix: dropped `runtime = "edge"` — our standalone Next
+// build runs on Node and the edge runtime triggered a 502 through
+// the Caddy proxy. Node runtime is fine for OG images — ImageResponse
+// works in both.
 export const alt = "Lumen — Learn what you actually use.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
