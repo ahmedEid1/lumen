@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 13)
+
+- **`<Select>` primitive** (Radix-backed). Full sub-component family:
+  `Select`, `SelectGroup`, `SelectValue`, `SelectTrigger`, `SelectContent`,
+  `SelectLabel`, `SelectItem`, `SelectSeparator`, `SelectScrollUpButton`,
+  `SelectScrollDownButton`. Trigger reads like an `<Input>` for visual
+  consistency with adjacent text inputs. Selected item shows a `Check`
+  indicator at the `ps-8` slot — same convention as `DropdownMenuRadioItem`.
+- **`<Switch>` primitive** (Radix-backed). Binary toggle with semantic
+  on/off colour (`bg-primary` when on, `bg-muted` when off). Logical-
+  property thumb translate so RTL flips naturally.
+- **Foundation D closes here.** Together with RadioGroup + Checkbox
+  (Loop 9), the form-input primitive family is now complete:
+  Field / Input / Textarea / Select / Switch / Checkbox / RadioGroup.
+- **6 native `<select>` migrations** — the duplicated `selectClass`
+  constant dies across 3 files:
+  - `/studio/new` subject + difficulty selects.
+  - `/studio/[id]` difficulty select.
+  - `/admin/users` per-row role select.
+  - `/profile` 7 notif-prefs dispatch selects.
+  - Lesson editor quiz-kind select.
+- **2 boolean-toggle migrations to `<Switch>`:**
+  - Lesson editor "free preview" toggle.
+  - `/admin/courses` "featured only" filter toggle.
+- **Test infrastructure:** added happy-dom stubs for
+  `Element.hasPointerCapture`, `Element.scrollIntoView`, and
+  `Element.releasePointerCapture` in `tests/setup.ts`. Radix Select +
+  DropdownMenu reach for these during portal positioning; happy-dom
+  doesn't implement them.
+- `@radix-ui/react-select ^2.2.6` and
+  `@radix-ui/react-switch ^1.2.6` added.
+- New i18n key: `adminUsers.roleLabel` (en + ar).
+- **`make test.web`:** 43 files / 244 tests green (+2 files / +12
+  tests vs Loop 12).
+
 ### Added (UI redesign loop 12)
 
 - **`<Tooltip>` primitive** (Radix-backed). Anchored content via

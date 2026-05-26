@@ -8,6 +8,7 @@ import { Search, Star, StarOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api/client";
 import type { CourseListItem } from "@/lib/api/types";
 import { useT } from "@/lib/i18n/provider";
@@ -74,15 +75,14 @@ export default function AdminCourses() {
               className="ps-9"
             />
           </div>
-          <label className="inline-flex items-center gap-2 font-body text-sm">
-            <input
-              type="checkbox"
+          <div className="inline-flex items-center gap-2 font-body text-sm">
+            <Switch
+              id="featured-only"
               checked={onlyFeatured}
-              onChange={(e) => setOnlyFeatured(e.target.checked)}
-              className="h-4 w-4 rounded border-border accent-[hsl(var(--primary))]"
+              onCheckedChange={setOnlyFeatured}
             />
-            {t("adminCourses.featuredOnly")}
-          </label>
+            <label htmlFor="featured-only">{t("adminCourses.featuredOnly")}</label>
+          </div>
         </div>
       </header>
 

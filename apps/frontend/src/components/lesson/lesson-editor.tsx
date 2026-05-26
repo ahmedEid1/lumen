@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { AI, Courses } from "@/lib/api/endpoints";
 import type { LessonOut, LessonType, TextLessonData } from "@/lib/api/types";
 import { BlockEditor } from "@/components/lesson/block-editor";
@@ -182,15 +190,14 @@ export function LessonEditor({
             />
           </div>
         </div>
-        <label className="flex items-center gap-2 font-body text-sm">
-          <input
-            type="checkbox"
+        <div className="flex items-center gap-2 font-body text-sm">
+          <Switch
+            id="lesson-free-preview"
             checked={isPreview}
-            onChange={(e) => setIsPreview(e.target.checked)}
-            className="h-4 w-4 rounded border-border accent-[hsl(var(--primary))]"
+            onCheckedChange={setIsPreview}
           />
-          <span>{t("lessonEdit.freePreview")}</span>
-        </label>
+          <label htmlFor="lesson-free-preview">{t("lessonEdit.freePreview")}</label>
+        </div>
 
         {type === "text" && (
           <div className="space-y-1.5">
@@ -441,22 +448,29 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
             />
             <div className="mb-2 flex items-center gap-2 font-body text-sm">
               <span>{t("quizEdit.type")}</span>
-              <select
-                className="h-9 rounded-md border border-border bg-muted px-2 text-foreground transition-colors duration-[160ms] focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none"
+              <Select
                 value={q.kind}
-                onChange={(e) =>
+                onValueChange={(v) =>
                   updateQ(idx, (cur) => ({
                     ...cur,
-                    kind: e.target.value as QuizQuestion["kind"],
-                    choices: e.target.value === "short" ? [] : cur.choices,
-                    answer_keys: e.target.value === "short" ? cur.answer_keys : [],
+                    kind: v as QuizQuestion["kind"],
+                    choices: v === "short" ? [] : cur.choices,
+                    answer_keys: v === "short" ? cur.answer_keys : [],
                   }))
                 }
               >
-                <option value="single">{t("quizEdit.kindSingle")}</option>
-                <option value="multiple">{t("quizEdit.kindMulti")}</option>
-                <option value="short">{t("quizEdit.kindShort")}</option>
-              </select>
+                <SelectTrigger
+                  aria-label={t("quizEdit.type")}
+                  className="h-9 w-auto min-w-[10rem]"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single">{t("quizEdit.kindSingle")}</SelectItem>
+                  <SelectItem value="multiple">{t("quizEdit.kindMulti")}</SelectItem>
+                  <SelectItem value="short">{t("quizEdit.kindShort")}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {q.kind === "short" ? (

@@ -6,6 +6,13 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageUpload } from "@/components/shared/image-upload";
 import { Catalog, Courses } from "@/lib/api/endpoints";
@@ -64,9 +71,6 @@ export default function NewCoursePage() {
     }
   }
 
-  const selectClass =
-    "flex h-9 w-full rounded-md border border-border bg-muted px-3 py-2 font-body text-sm text-foreground transition-colors duration-[160ms] focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none";
-
   return (
     <div className="container mx-auto max-w-2xl px-6 py-14">
       <header className="mb-8 flex flex-col gap-3">
@@ -95,34 +99,33 @@ export default function NewCoursePage() {
             <label className="font-body text-sm font-medium" htmlFor="subject">
               {t("studioNew.field.subject")}
             </label>
-            <select
-              id="subject"
-              className={selectClass}
-              value={subjectId}
-              onChange={(e) => setSubjectId(e.target.value)}
-              required
-            >
-              {subjectsQ.data?.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.title}
-                </option>
-              ))}
-            </select>
+            <Select value={subjectId} onValueChange={setSubjectId}>
+              <SelectTrigger id="subject">
+                <SelectValue placeholder="" />
+              </SelectTrigger>
+              <SelectContent>
+                {subjectsQ.data?.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <label className="font-body text-sm font-medium" htmlFor="difficulty">
               {t("studioNew.field.difficulty")}
             </label>
-            <select
-              id="difficulty"
-              className={selectClass}
-              value={difficulty}
-              onChange={(e) => setDifficulty(e.target.value)}
-            >
-              <option value="beginner">{t("studioNew.diff.beginner")}</option>
-              <option value="intermediate">{t("studioNew.diff.intermediate")}</option>
-              <option value="advanced">{t("studioNew.diff.advanced")}</option>
-            </select>
+            <Select value={difficulty} onValueChange={setDifficulty}>
+              <SelectTrigger id="difficulty">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="beginner">{t("studioNew.diff.beginner")}</SelectItem>
+                <SelectItem value="intermediate">{t("studioNew.diff.intermediate")}</SelectItem>
+                <SelectItem value="advanced">{t("studioNew.diff.advanced")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <div className="space-y-1.5">

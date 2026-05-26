@@ -14,6 +14,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -397,27 +404,30 @@ export default function ProfilePage() {
                     >
                       {t(`prefs.notifications.kind.${kind}`)}
                     </label>
-                    <select
-                      id={`pref-${kind}`}
+                    <Select
                       value={notifPrefs[kind] ?? "in_app"}
-                      onChange={(e) =>
+                      onValueChange={(v) =>
                         setNotifPrefs((prev) =>
                           prev
                             ? {
                                 ...prev,
-                                [kind]: e.target.value as NotificationDispatch,
+                                [kind]: v as NotificationDispatch,
                               }
                             : prev,
                         )
                       }
-                      className="h-9 rounded-md border border-border bg-background px-3 text-sm transition-colors duration-[160ms] focus:border-foreground focus:outline-none"
                     >
-                      {DISPATCH_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {t(`prefs.notifications.dispatch.${opt}`)}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger id={`pref-${kind}`} className="sm:w-48">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DISPATCH_OPTIONS.map((opt) => (
+                          <SelectItem key={opt} value={opt}>
+                            {t(`prefs.notifications.dispatch.${opt}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 ))}
               </div>

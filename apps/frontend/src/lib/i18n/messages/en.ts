@@ -343,6 +343,7 @@ export const en = {
   "adminUsers.col.active": "Active",
   "adminUsers.col.lastLogin": "Last login",
   "adminUsers.col.actions": "Actions",
+  "adminUsers.roleLabel": "Role",
   "adminUsers.role.student": "student",
   "adminUsers.role.instructor": "instructor",
   "adminUsers.role.admin": "admin",

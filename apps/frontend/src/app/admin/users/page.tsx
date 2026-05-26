@@ -7,6 +7,13 @@ import { Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
@@ -57,9 +64,6 @@ export default function AdminUsers() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
     onError: (e: Error) => toast.error(e?.message ?? t("adminUsers.activeError")),
   });
-
-  const selectClass =
-    "h-8 rounded-md border border-border bg-muted px-2 font-body text-xs text-foreground transition-colors duration-[160ms] focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none";
 
   return (
     <div className="container mx-auto max-w-6xl px-6 py-14">
@@ -123,16 +127,23 @@ export default function AdminUsers() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
-                      <select
-                        className={selectClass}
+                      <Select
                         value={u.role}
                         disabled={u.id === me?.id}
-                        onChange={(e) => setRole.mutate({ id: u.id, role: e.target.value })}
+                        onValueChange={(v) => setRole.mutate({ id: u.id, role: v })}
                       >
-                        <option value="student">{t("adminUsers.role.student")}</option>
-                        <option value="instructor">{t("adminUsers.role.instructor")}</option>
-                        <option value="admin">{t("adminUsers.role.admin")}</option>
-                      </select>
+                        <SelectTrigger
+                          aria-label={t("adminUsers.roleLabel")}
+                          className="h-8 w-auto min-w-[8rem] text-xs"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="student">{t("adminUsers.role.student")}</SelectItem>
+                          <SelectItem value="instructor">{t("adminUsers.role.instructor")}</SelectItem>
+                          <SelectItem value="admin">{t("adminUsers.role.admin")}</SelectItem>
+                        </SelectContent>
+                      </Select>
                       {u.id !== me?.id && (
                         <Button
                           variant="outline"

@@ -18,6 +18,13 @@ import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { CohortCard } from "@/components/course/cohort-card";
 import { ApiError } from "@/lib/api/client";
@@ -356,9 +363,6 @@ function CourseDetailsEditor({
     onError: (e: Error) => toast.error(e?.message ?? t("studioEdit.saveError")),
   });
 
-  const selectClass =
-    "flex h-9 w-full rounded-md border border-border bg-muted px-3 py-2 font-body text-sm text-foreground transition-colors duration-[160ms] focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none";
-
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
@@ -390,16 +394,19 @@ function CourseDetailsEditor({
           <label className="font-body text-sm font-medium" htmlFor="course-difficulty-edit">
             {t("studioNew.field.difficulty")}
           </label>
-          <select
-            id="course-difficulty-edit"
+          <Select
             value={draft.difficulty}
-            onChange={(e) => setDraft({ ...draft, difficulty: e.target.value })}
-            className={selectClass}
+            onValueChange={(v) => setDraft({ ...draft, difficulty: v })}
           >
-            <option value="beginner">{t("studioNew.diff.beginner")}</option>
-            <option value="intermediate">{t("studioNew.diff.intermediate")}</option>
-            <option value="advanced">{t("studioNew.diff.advanced")}</option>
-          </select>
+            <SelectTrigger id="course-difficulty-edit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="beginner">{t("studioNew.diff.beginner")}</SelectItem>
+              <SelectItem value="intermediate">{t("studioNew.diff.intermediate")}</SelectItem>
+              <SelectItem value="advanced">{t("studioNew.diff.advanced")}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1.5">
           <label className="font-body text-sm font-medium" htmlFor="course-cover-edit">

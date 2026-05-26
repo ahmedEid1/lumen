@@ -1,6 +1,24 @@
 import "@testing-library/jest-dom/vitest";
 import { vi } from "vitest";
 
+// happy-dom doesn't implement these Element methods that Radix Select
+// + DropdownMenu reach for during portal positioning + active-item
+// scroll. Stub them as no-ops so the open-content branches actually
+// render and `findByRole("option")` resolves. Without these stubs
+// Radix Select's open flow throws before mounting the portal.
+if (typeof window !== "undefined") {
+  // hasPointerCapture: Radix uses this on focus management.
+  if (!Element.prototype.hasPointerCapture) {
+    Element.prototype.hasPointerCapture = () => false;
+  }
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = () => undefined;
+  }
+  if (!Element.prototype.releasePointerCapture) {
+    Element.prototype.releasePointerCapture = () => undefined;
+  }
+}
+
 // components under test pull `useRouter` /
 // `useSearchParams` / `usePathname` from `next/navigation`. Outside
 // a real Next.js page tree those hooks throw

@@ -350,6 +350,7 @@ export const ar: Record<MessageKey, string> = {
   "adminUsers.col.active": "نشط",
   "adminUsers.col.lastLogin": "آخر دخول",
   "adminUsers.col.actions": "الإجراءات",
+  "adminUsers.roleLabel": "الدور",
   "adminUsers.role.student": "طالب",
   "adminUsers.role.instructor": "مدرّس",
   "adminUsers.role.admin": "مسؤول",
