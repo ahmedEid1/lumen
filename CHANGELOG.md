@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 3)
+
+- **Seven new primitives + one hook** under
+  `apps/frontend/src/components/ui/` and `apps/frontend/src/lib/`:
+  - **`<Skeleton variant="line"|"text"|"card"|"image"|"circle" />`**
+    — cva, shape-based variants. `text` renders three pulse bars at
+    decreasing widths; `image` renders an aspect-`16/10` placeholder
+    matching `course-card.tsx:22`. `aria-hidden` so screen readers
+    skip the loading shape and land on the post-load content.
+  - **`<EmptyState icon title body cta />`** — composed primitive
+    on the existing `surface` utility. Lucide icon at decoration
+    opacity, `font-display` title, `font-body` muted body, optional
+    CTA slot. Replaces the one-off `<div className="surface p-8">`
+    shapes the audit found across catalog, dashboard,
+    notifications, sessions.
+  - **`<Alert tone="info"|"success"|"warning"|"destructive">`** —
+    cva tones with `info` exercising the loop-1 `--info` blue token,
+    others mapping to the existing success/warning/destructive
+    tokens. `role="alert"` reserved for destructive (interrupts
+    assistive tech); the polite tones use `role="status"`. Distinct
+    from form-error text, which lives inside `<Field error="…">` —
+    Alert is for page-level banners only.
+  - **`<Field label htmlFor hint error required>`** — label + hint +
+    error wrapper that splices `aria-invalid` + `aria-describedby`
+    onto the child input via `React.cloneElement`. Hint and error
+    are mutually exclusive (error wins). Required mark renders as a
+    decorative `*` (long-form `(required)` is too noisy for
+    Workbench density). Replaces the
+    `<div className="space-y-1.5"><label …>…</label><Input /></div>`
+    pattern the audit found dozens of times across studio,
+    lesson-editor, profile, and auth.
+  - **`<Spinner size="sm"|"md"|"lg" aria-label?>`** — lucide
+    `Loader2` + `animate-spin` + `role="status"` + accessible name.
+    Default `aria-label="Loading"`; override to describe what's
+    loading. Locks the size scale that was being reinvented inline.
+  - **`<LinkButton href external?>`** — composes `<Button asChild>`
+    + Next's `<Link>` so the result is a single `<a>` with the
+    button's chrome. Solves the four nested-`<Link><Button>` pairs
+    the audit named (`reset-password/page.tsx:92`,
+    `verify-email/page.tsx:113`, `verify/[id]/page.tsx:105`,
+    `course-detail-view.tsx:370`) — nested interactives produce
+    a11y warnings + double-click hazards.
+  - **`useHydrated()`** hook (`apps/frontend/src/lib/use-hydrated.ts`)
+    — returns `false` on SSR + first client render, `true` after
+    `useEffect` flushes. Replaces the four copy-pasted
+    `[mounted, setMounted] = useState(false); useEffect(…)` blocks
+    at login:47-58, register:34-35, forgot:30-31, reset:44-45.
+    Loop 4 will wire the auth surfaces through it; this loop just
+    lands the hook.
+- **`primitives-foundation.test.tsx`** — 247 LoC of vitest covering
+  every primitive: variant rendering, ARIA contracts (Alert's role
+  split, Field's aria-invalid wiring, Spinner's role=status), token
+  consumption (Alert info uses `border-info/40` + `bg-info/10`),
+  composition (LinkButton produces a single anchor element, not a
+  nested pair). +25 tests; suite grows from 34/160 to 35/185.
+- **No application to existing surfaces.** This loop only adds the
+  primitives. Loop 4 composes the auth chrome and migrates the 5
+  different loading conventions across studio/mastery/reviews/
+  dashboard/admin — bundled with the AuthCard work + the
+  Codex-rescue checkpoint for loops 1–4.
+- Visual regression: re-run against the Loop 2 baselines — **8/8
+  stable, zero pixel diff** vs `c72bcc7`. The primitives are
+  unconsumed by any existing surface, so the rendered output is
+  byte-equivalent.
+- Brainstorm-and-commit trail under
+  `docs/redesign/loop-3-{goal,options,spec,result}.md`. STATUS.md
+  row 3 added. AUDIT.md §7 step 2 is now complete; step 3 (Loop 4 —
+  AuthCard composition + auth-surface migration) is next.
+
 ### Added (UI redesign loop 2)
 
 - **Playwright visual-regression baselines** for the four public
