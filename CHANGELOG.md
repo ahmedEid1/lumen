@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (iteration 4)
+
+- **Auto-deploy on green push to `main`, with a `production` GitHub
+  Environment approval gate.** Replaces the previous "every deploy is
+  a manual `gh workflow run`" cadence. The deploy job lives inside
+  `ci.yml`, `needs: [backend, frontend, build-images, e2e, accessibility]`,
+  and fires only on `github.event_name == 'push' && github.ref ==
+  'refs/heads/main'`. It invokes `deploy.yml` as a reusable workflow
+  (`uses: ./.github/workflows/deploy.yml`, `secrets: inherit`),
+  pinning `image_tag` and `commit_sha` to `${{ github.sha }}` so a
+  second push that lands while the deploy is parked at the approval
+  gate can't race the rollout onto a newer image than ci.yml just
+  verified.
+- **Workflow consolidation.** Inlined `e2e.yml` and `accessibility.yml`
+  into ci.yml as `e2e` and `accessibility` jobs (preserving every
+  step verbatim, including the Playwright browser-cache keys and the
+  `docker-compose.ci.yml` overlay logic). Deleted the standalone
+  files — the `needs:` chain replaces them as the single source of
+  truth for "ship-ready." On a `workflow_run`-based auto-deploy this
+  consolidation wasn't optional: `workflow_run` fires once per listed
+  upstream workflow, not after an AND of all of them completing.
+- **`production` environment configured via gh API:**
+  - Required reviewer: `ahmedEid1` (id `53142237`)
+  - Branch policy: deployment restricted to `main` only
+    (`custom_branch_policies` with a single `name=main` entry)
+  - `wait_timer: 0`, `prevent_self_review: false`, `can_admins_bypass: true`
+- **`deploy.yml` gains a `workflow_call` trigger** alongside
+  `workflow_dispatch`, with inputs (`image_tag`, `commit_sha`,
+  `run_migrations`) mirroring the dispatch form. The job carries the
+  `environment: production` block so the approval gate applies to
+  both auto and manual invocations.
+- **Regression test:**
+  `apps/frontend/tests/ci-workflow-shape.test.ts` parses ci.yml +
+  deploy.yml and asserts:
+  - ci.yml's `deploy` job `needs:` contains all five upstream gates
+  - ci.yml's `deploy` job `if:` restricts to push on main
+  - ci.yml's `deploy` job uses `./.github/workflows/deploy.yml`
+  - deploy.yml's `deploy` job has `environment: production`
+  Reads the workflow files via a new mount
+  (`./.github/workflows:/repo/.github/workflows:ro` on the `web`
+  service) so the test runs inside the container. So a "while I'm
+  here" edit that drops `e2e` from the chain or removes the env
+  gate fails the suite loudly before merge.
+- **`docs/ci-cd.md`** rewritten to match the new topology (mermaid
+  diagram, triggers table, "Auto-deploy with a human approval gate"
+  section, future-enhancements pruned).
+
+The Ralph cadence still applies — `gh workflow run deploy.yml -f
+image_tag=<sha> -f commit_sha=<sha> -f run_migrations=false` is the
+rollback path and skips re-running CI but still routes through the
+approval gate (intentional; rollbacks deserve the same audit trail).
+
 ### Changed (iteration 3)
 
 - **Renamed `master` → `legacy` and `Rewrite` → `main`** on GitHub; set

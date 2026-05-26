@@ -231,6 +231,10 @@ services:
       # the `test.web` target to `pnpm exec vitest run` (the
       # broken `pnpm test --run` form errors on pnpm 9.15.0).
       - ./Makefile:/repo/Makefile:ro
+      # And the workflows directory so tests/ci-workflow-shape.test.ts
+      # can pin the deploy job's `needs:` list and the
+      # `environment: production` gate against accidental removal.
+      - ./.github/workflows:/repo/.github/workflows:ro
     depends_on:
       api: { condition: service_started }
     command: ["pnpm", "dev"]

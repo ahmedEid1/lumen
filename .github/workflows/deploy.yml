@@ -7,33 +7,31 @@ name: Deploy to AWS
 # the `/api/v1/health/live` smokes to come back 200 before reporting
 # success.
 #
-# Triggers: **workflow_dispatch only.**
+# Triggers:
+#   - `workflow_call` — invoked as a reusable workflow from ci.yml's
+#     `deploy` job after backend + frontend + build-images + e2e +
+#     accessibility have all gone green on a push to `main`. This is
+#     the auto-deploy path.
+#   - `workflow_dispatch` — manual invocation for rollbacks, pinning a
+#     specific image tag, or skipping migrations.
 #
-# An earlier draft of this file also wired a `workflow_run` trigger
-# against CI / E2E / Accessibility on `main` for auto-deploy. Two
-# reviewer-caught problems killed that path:
+# Both paths run the same `deploy` job below, which is gated on the
+# `production` GitHub Environment — every deploy waits for an
+# explicit approval click in the GitHub UI before the SSH steps fire.
+# That's the human-in-the-loop step that replaces the old "operator
+# manually runs gh workflow run" friction.
 #
-#   1. `workflow_run` fires once per listed upstream workflow, not
-#      after an AND of all three completing. A single push to `main`
-#      where all three eventually pass would queue 3 sequential
-#      deploys (each idempotent but each pulling images and re-running
-#      smokes), and the first deploy could fire before E2E had
-#      finished — defeating the whole "all gates green before
-#      shipping" invariant.
-#   2. `workflow_run` only triggers from a workflow file that lives on
-#      the repository's *default branch* — historically `master` (the
-#      frozen CS50 prototype, now renamed to `legacy`); since
-#      2026-05-26 `main` is the default. The trigger would have
-#      worked once the rename landed, but option (1) still applies.
+# History: an earlier draft wired `workflow_run` for auto-deploy. Two
+# reviewer-caught problems killed that path: (1) `workflow_run` fires
+# once per listed upstream workflow, not after an AND of all of them
+# completing — so three upstream workflows would queue three sequential
+# deploys; (2) `workflow_run` only triggers from a workflow file living
+# on the default branch. Both are sidestepped by the current design:
+# CI / E2E / Accessibility now live in ci.yml as `needs:`-chained jobs,
+# so the AND is enforced naturally, and the deploy invocation is a
+# `uses: ./.github/workflows/deploy.yml` step inside that same workflow.
 #
-# The right fix for both is to consolidate CI / E2E / Accessibility
-# into one workflow whose final job is a single deploy trigger. That's
-# a separate piece of work (see docs/ci-cd.md "Future enhancements").
-# Until then, deploys are explicit operator clicks — pair with branch
-# protection that requires all gates green before merging to `main`
-# and the loss of "auto-deploy" is mostly cosmetic.
-#
-# To deploy after a green CI run:
+# To deploy manually (rollback / pin / skip migrations):
 #   gh workflow run deploy.yml                              # defaults: :latest, run migrations
 #   gh workflow run deploy.yml -f image_tag=<sha>           # rollback / pin
 #   gh workflow run deploy.yml -f run_migrations=false      # skip alembic
@@ -54,6 +52,26 @@ name: Deploy to AWS
 #                        internal compose network.
 
 on:
+  # Reusable-workflow trigger for the auto-deploy path from ci.yml.
+  # Inputs mirror workflow_dispatch so the job body below doesn't have
+  # to care which trigger fired.
+  workflow_call:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy. ci.yml passes the commit SHA so the deploy pins to the same SHA the upstream build produced."
+        required: false
+        type: string
+        default: "latest"
+      commit_sha:
+        description: "Full 40-char commit SHA for the box's git checkout. Empty = use main tip."
+        required: false
+        type: string
+        default: ""
+      run_migrations:
+        description: "Run alembic upgrade head after pull?"
+        required: false
+        type: string
+        default: "true"
   workflow_dispatch:
     inputs:
       image_tag:
@@ -93,6 +111,17 @@ jobs:
     name: Roll AWS
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # GitHub Environment gate. The `production` environment is
+    # configured with a required reviewer (the repo owner) and a
+    # branch policy restricting deployments to `main`. Every
+    # invocation of this workflow — manual or via workflow_call from
+    # ci.yml — pauses here for an explicit approval click in the
+    # GitHub UI before the SSH steps fire. The environment is created
+    # via the gh API; see the iter-4 CHANGELOG entry for the exact
+    # command and chosen settings.
+    environment:
+      name: production
+      url: https://lumen.ahmedhobeishy.tech
     # Inputs hoisted to job-level env are non-secret. The
     # GHCR_PULL_TOKEN secret is intentionally NOT here — exposing a
     # PAT to every step (including third-party actions in this job)

@@ -1,13 +1,26 @@
 name: CI
 
 # Triggers — push to the canonical default branch (`main`) and every
-# PR runs the same set so contributors get the full gate before merge.
-# e2e.yml and accessibility.yml run in parallel as separate workflows
-# on the same triggers; deploy.yml waits on this workflow's
-# `build-images` job completing successfully on `main` to roll the AWS
-# box. (Branch history: `Rewrite` was the rebuild working branch and
-# `master` was the frozen CS50 prototype; on 2026-05-26 `Rewrite` was
-# renamed to `main` and `master` to `legacy`.)
+# PR. Each push/PR walks the full ship-readiness gate as a chain of
+# jobs in this single workflow:
+#
+#   backend ─┐
+#            ├─▶ build-images ─┐
+#   frontend ┤                 │
+#            ├─▶ e2e ──────────┼─▶ deploy (push to main only)
+#            └─▶ accessibility ┘
+#
+# `needs:` enforces the AND naturally — the deploy job only fires after
+# every upstream gate has gone green on the same SHA. On push to main,
+# the deploy job invokes deploy.yml as a reusable workflow, which is
+# gated on the `production` GitHub Environment so a human approves
+# before the SSH steps run.
+#
+# History: e2e + accessibility used to live in their own workflow
+# files; they were inlined here on 2026-05-26 (iter 4) so the deploy
+# gate could `needs:` them without resorting to the `workflow_run`
+# fires-per-upstream-workflow trap. Branch rename: `Rewrite` →
+# `main`, `master` → `legacy`, same day.
 on:
   push:
     branches: [main]
@@ -244,3 +257,363 @@ jobs:
         with:
           sarif_file: .
         continue-on-error: true
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-24.04
+    needs: [backend, frontend]
+    timeout-minutes: 25
+    # COMPOSE_FILE is a Compose-native env var that every `docker
+    # compose …` invocation in this job inherits, so we don't have
+    # to repeat `-f docker-compose.yml -f docker-compose.ci.yml`
+    # on the up / exec / logs / down calls below. The overlay
+    # swaps `web` from dev mode (pnpm dev + JIT compile, the source
+    # of the WebKit hydration race) to the prod standalone build —
+    # same image AWS is running.
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare .env
+        # The e2e suite needs LLM_PROVIDER=noop AND EMBEDDING_PROVIDER=noop
+        # pinned regardless of what's in .env.example. LLM noop keeps the
+        # tutor turns deterministic + free. Embedding noop avoids importing
+        # sentence-transformers — it's not in pyproject.toml's dep list
+        # (only in the type-ignore stubs), so the `local` default would
+        # crash the `Pre-index seeded lesson chunks` step with
+        # ModuleNotFoundError. NoopEmbeddingProvider returns deterministic
+        # L2-normalised unit vectors derived from SHA-256, which is exactly
+        # what the tutor-citations spec needs (a stable vector per chunk
+        # to drive retrieval ordering — semantic quality isn't asserted).
+        # `>>` keeps any other tweaks the operator has made to the
+        # template (e.g. SEED_DEMO=true is already on by default).
+        run: |
+          cp .env.example .env
+          {
+            echo ""
+            echo "# e2e workflow overrides"
+            echo "LLM_PROVIDER=noop"
+            echo "EMBEDDING_PROVIDER=noop"
+          } >> .env
+
+      - name: Start dev stack
+        # Bring up everything the e2e specs touch: db, redis, s3 (for
+        # the ingest preview's image fetches), mailpit (for the auth
+        # spec's token retrieval), api, worker (so embedding ingestion
+        # actually runs against the seeded course), and web.
+        run: |
+          docker compose up -d --build \
+            db redis s3 s3-init mail api worker web
+
+      - name: Wait for api healthy
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8000/api/v1/health/live >/dev/null 2>&1; then
+              echo "api up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "api never became healthy"; docker compose logs api; exit 1
+
+      - name: Wait for web ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3000 >/dev/null 2>&1; then
+              echo "web up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "web never became reachable"; docker compose logs web; exit 1
+
+      - name: Wait for mailpit ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8025/api/v1/info >/dev/null 2>&1; then
+              echo "mailpit up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "mailpit never became reachable"; docker compose logs mail; exit 1
+
+      - name: Migrate + seed
+        run: |
+          docker compose exec -T api alembic upgrade head
+          docker compose exec -T api python -m app.cli seed
+
+      - name: Pre-index seeded lesson chunks
+        # The seed inserts the published course directly, bypassing
+        # the publish hook that normally enqueues
+        # ``index_course_embeddings``. The tutor-citations spec
+        # needs lesson_chunks populated to surface citations, so we
+        # run the indexing inline here.
+        run: |
+          docker compose exec -T api python -c "
+          import asyncio
+          from sqlalchemy import select
+          from app.db.base import get_sessionmaker
+          from app.models.course import Course, CourseStatus
+          from app.services.embeddings_ingest import ingest_course
+
+          async def main():
+              Session = get_sessionmaker()
+              async with Session() as db:
+                  rows = (await db.execute(
+                      select(Course.id).where(
+                          Course.status == CourseStatus.published,
+                          Course.deleted_at.is_(None),
+                      )
+                  )).all()
+                  for (cid,) in rows:
+                      written = await ingest_course(db, cid)
+                      print(f'indexed {cid}: {written} chunks')
+
+          asyncio.run(main())
+          "
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+
+      - name: Install frontend deps
+        working-directory: apps/frontend
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Get Playwright version
+        id: playwright-version
+        working-directory: apps/frontend
+        # Cache key changes when @playwright/test version changes — the
+        # browser binary directory name (e.g. ms-playwright/webkit-2104)
+        # is keyed off the Playwright version, so a stale cache that
+        # matches the lockfile hash but ships old binaries would have
+        # `playwright install-deps` go down the cache-hit branch (system
+        # deps only, no binary install) and the run blows up with
+        # `Executable doesn't exist at .../webkit-2104/pw_run.sh`.
+        run: |
+          v=$(jq -r '.devDependencies["@playwright/test"] // .dependencies["@playwright/test"]' package.json)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          # Browser-set segment `-cw-` (chromium+webkit) — the
+          # accessibility job uses `-c-` (chromium-only). Keeping them
+          # on separate keys is what stops the earlier "a11y populates
+          # cache with chromium, then e2e hits the same key and skips
+          # install, then dies on missing webkit-2104" failure mode.
+          # Plus `pw2` to bust the pre-bump cache that had the same
+          # browser-agnostic problem.
+          key: ${{ runner.os }}-pw2-cw-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('apps/frontend/pnpm-lock.yaml') }}
+
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        working-directory: apps/frontend
+        run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Install Playwright system deps (cache hit path)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        working-directory: apps/frontend
+        run: pnpm exec playwright install-deps chromium webkit
+
+      - name: Run Playwright e2e suite
+        working-directory: apps/frontend
+        env:
+          E2E_BASE_URL: http://localhost:3000
+          E2E_API_BASE_URL: http://localhost:8000
+          MAILPIT_BASE_URL: http://localhost:8025
+        # Pin the golden-path specs explicitly so we don't pick up
+        # the unrelated axe scan in this workflow (that runs in the
+        # accessibility job below).
+        run: |
+          pnpm exec playwright test \
+            tests/e2e/auth.spec.ts \
+            tests/e2e/learner-flow.spec.ts \
+            tests/e2e/instructor-golden.spec.ts \
+            tests/e2e/tutor-citations.spec.ts \
+            tests/e2e/ingest-multimodal.spec.ts
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-e2e-report
+          path: |
+            apps/frontend/playwright-report
+            apps/frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Capture container logs on failure
+        if: failure()
+        run: |
+          mkdir -p /tmp/compose-logs
+          docker compose logs --no-color api > /tmp/compose-logs/api.log || true
+          docker compose logs --no-color worker > /tmp/compose-logs/worker.log || true
+          docker compose logs --no-color web > /tmp/compose-logs/web.log || true
+          docker compose logs --no-color mail > /tmp/compose-logs/mail.log || true
+
+      - name: Upload container logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-compose-logs
+          path: /tmp/compose-logs
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Tear down dev stack
+        if: always()
+        run: docker compose down -v
+
+  accessibility:
+    name: Accessibility (WCAG 2.2 AA)
+    runs-on: ubuntu-24.04
+    needs: [backend, frontend]
+    timeout-minutes: 30
+    # COMPOSE_FILE picks up the overlay that switches `web` from the
+    # dev JIT-compile target to the prod standalone build. Same
+    # rationale as the e2e job — kills the hydration race that was
+    # flaking authenticated routes. See docker-compose.ci.yml for
+    # the full why.
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare .env
+        run: cp .env.example .env
+
+      - name: Start dev stack
+        run: docker compose up -d --build db redis s3 s3-init mail api web
+
+      - name: Wait for api healthy
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8000/api/v1/health/live >/dev/null 2>&1; then
+              echo "api up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "api never became healthy"; docker compose logs api; exit 1
+
+      - name: Wait for web ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3000 >/dev/null 2>&1; then
+              echo "web up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "web never became reachable"; docker compose logs web; exit 1
+
+      - name: Migrate + seed
+        run: |
+          docker compose exec -T api alembic upgrade head
+          docker compose exec -T api python -m app.cli seed
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+
+      - name: Install frontend deps
+        working-directory: apps/frontend
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      # Cache the Playwright browser binaries — they're ~300 MB and
+      # the WCAG suite only needs Chromium, but the install also
+      # pulls system deps via apt. Re-running the install when the
+      # cache hits is a no-op.
+      - name: Get Playwright version
+        id: playwright-version
+        working-directory: apps/frontend
+        # Bake the Playwright version into the cache key so a lockfile-
+        # hash hit on stale binaries can't poison the run. See the
+        # e2e job for the full rationale.
+        run: |
+          v=$(jq -r '.devDependencies["@playwright/test"] // .dependencies["@playwright/test"]' package.json)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          # Browser-set segment `-c-` (chromium-only) distinguishes
+          # this cache from the e2e job's `-cw-` (chromium+webkit).
+          # Per-browser-set keys keep the two installs from poisoning
+          # each other's cache hits.
+          key: ${{ runner.os }}-pw2-c-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('apps/frontend/pnpm-lock.yaml') }}
+
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        working-directory: apps/frontend
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cache hit path)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        working-directory: apps/frontend
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Run axe accessibility suite
+        working-directory: apps/frontend
+        env:
+          E2E_BASE_URL: http://localhost:3000
+        # Project-pinned to chromium — axe-core's rule set is
+        # browser-agnostic and running every spec across chromium +
+        # webkit doubles wallclock for no extra signal.
+        run: pnpm exec playwright test tests/e2e/accessibility.spec.ts --project=chromium
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-axe-report
+          path: |
+            apps/frontend/playwright-report
+            apps/frontend/test-results
+          if-no-files-found: ignore
+
+      - name: Tear down dev stack
+        if: always()
+        run: docker compose down -v
+
+  deploy:
+    name: Deploy to AWS
+    # Fan-in of every ship-readiness gate. Adding a sixth gate?
+    # Append its job name here so the deploy only fires after it
+    # passes. The regression test
+    # apps/frontend/tests/ci-workflow-shape.test.ts pins this list
+    # so a future "while I'm here" edit can't silently drop one.
+    needs: [backend, frontend, build-images, e2e, accessibility]
+    # Push-to-main only — PRs would attempt a deploy that has no
+    # business firing, and `workflow_dispatch` on this composite
+    # workflow isn't supported. Manual deploys (rollback / pin)
+    # go via `gh workflow run deploy.yml` directly, which keeps
+    # all gates skippable for emergency operator use.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Reusable-workflow call. deploy.yml's `deploy` job carries the
+    # `environment: production` gate, so the approval click happens
+    # there regardless of caller.
+    uses: ./.github/workflows/deploy.yml
+    with:
+      # Pin to the exact SHA the build-images job published so a
+      # subsequent push to main can't race the deploy onto a newer
+      # `:latest` image than this CI run actually verified.
+      image_tag: ${{ github.sha }}
+      commit_sha: ${{ github.sha }}
+      run_migrations: "true"
+    secrets: inherit

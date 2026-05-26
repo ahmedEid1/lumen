@@ -1,70 +1,86 @@
 # CI / CD on the main branch
 
 This page documents how code lands in front of users at
-`https://lumen.ahmedhobeishy.tech`. Two pipelines run in lock-step:
+`https://lumen.ahmedhobeishy.tech`. The whole gate is one workflow:
 
-- **CI** — `.github/workflows/{ci,e2e,accessibility,pnpm-eval-smoke,gitleaks,codeql}.yml`
-  proves every commit on every PR and every push to `main` is
-  green before any image leaves the workshop.
-- **CD** — `.github/workflows/{ci.yml (build-images), deploy.yml,
-  release.yml}` builds container images, pushes them to GHCR, and
-  rolls the AWS VM.
+- **`.github/workflows/ci.yml`** — six chained jobs (backend, frontend,
+  build-images, e2e, accessibility, deploy) wired together by `needs:`.
+  Every PR and every push to `main` walks the chain; only push-to-main
+  runs build-images and deploy.
+- **`.github/workflows/deploy.yml`** — reusable workflow invoked from
+  ci.yml's `deploy` job (and still callable manually via
+  `workflow_dispatch` for rollbacks). Gated on the **`production`
+  GitHub Environment**, which pauses every run for an explicit
+  approval click before the SSH steps fire.
+- **`.github/workflows/{release,pnpm-eval-smoke,gitleaks,codeql}.yml`**
+  — tagged-release publish + the lower-priority security/eval gates.
 
 ```mermaid
 flowchart LR
-    PR[PR to main] -->|CI gates only| CI[CI / E2E / A11y / Eval / Gitleaks / CodeQL]
+    PR[PR to main] --> CI
     Push[push to main] --> CI
-    CI -->|push only| Build[ci.yml: build-images]
-    Build -->|tag :sha, :main, :latest| GHCR[(ghcr.io)]
-    Manual[Operator: workflow_dispatch] --> Deploy[deploy.yml]
-    GHCR -. pulled by .-> Deploy
-    Deploy -->|ssh + docker compose pull + up -d| AWS[(AWS t4g.small)]
+    subgraph CI [ci.yml]
+        Backend[backend] --> BuildImages[build-images]
+        Frontend[frontend] --> BuildImages
+        Backend --> E2E[e2e]
+        Frontend --> E2E
+        Backend --> A11y[accessibility]
+        Frontend --> A11y
+        BuildImages --> Deploy[deploy]
+        E2E --> Deploy
+        A11y --> Deploy
+    end
+    BuildImages -->|tag :sha, :main, :latest| GHCR[(ghcr.io)]
+    Deploy -->|uses: deploy.yml| Approval{{prod env: human approves}}
+    Approval -->|ssh + compose pull + up -d| AWS[(AWS t4g.small)]
+    Manual[Operator: workflow_dispatch] -.->|rollback path| Approval
     Tag["tag v*.*.*"] --> Release[release.yml]
     Release -->|tag :vX.Y.Z + :latest| GHCR
-    Release --> GHRelease[GitHub Release notes]
 ```
 
 ## Branches and triggers
 
 | Branch / event | What fires | Result |
 |---|---|---|
-| PR (any → `main` or `main`) | `ci.yml` jobs (backend/frontend lint+test), `e2e.yml`, `accessibility.yml`, `pnpm-eval-smoke.yml`, `gitleaks.yml`, `codeql.yml` | red blocks merge |
-| Push to `main` | Same as above **plus** `ci.yml:build-images` | new images on GHCR with `:<sha>`, `:main`, `:latest` tags |
-| Push to `main` | Same CI but build-images tags only `:main` + `:<sha>` (no `:latest` — see below) | images on GHCR; deploy is **not** automatic |
+| PR (any → `main`) | ci.yml's `backend`, `frontend`, `e2e`, `accessibility` jobs + `pnpm-eval-smoke.yml`, `gitleaks.yml`, `codeql.yml`. **No** `build-images` or `deploy`. | red blocks merge |
+| Push to `main` | Same as above **plus** `build-images` (publishes `:<sha>`, `:main`, `:latest`) **plus** `deploy` (gated on `production` environment approval) | new images on GHCR; deploy pauses for a human click in the GitHub UI |
 | Tag `v*.*.*` | `release.yml` | images tagged `:vX.Y.Z` + `:latest`, GitHub Release drafted |
-| Manual | `workflow_dispatch` on `deploy.yml` | operator picks image tag (defaults `latest`) + optional rollback commit_sha, ships to AWS |
+| Manual | `workflow_dispatch` on `deploy.yml` | operator picks image tag + optional rollback commit_sha; same approval gate applies |
 
-**Deploy is manual on purpose.** The previous design used GitHub's
-`workflow_run` to chain CI → Deploy automatically once every gate
-went green. Two structural problems blocked that path:
+**Auto-deploy with a human approval gate.** The `deploy` job in
+ci.yml fires automatically on every green push to `main` (it
+`needs:` every upstream gate, so it can't fire until all five
+predecessors pass). But it doesn't immediately SSH to the box —
+`environment: production` parks the run in the GitHub UI and waits
+for the configured reviewer (`ahmedEid1`) to click **Approve and
+deploy**. That gives the operator one place to glance at "what's
+about to ship" before it actually ships, without the friction of
+typing `gh workflow run` every time.
 
-1. `workflow_run` fires once *per upstream workflow*, not after all
-   succeed. With three workflows in the gate (CI, E2E, A11y), every
-   push to main would queue 3 sequential deploys, and the first
-   would fire before the slowest gate had finished — defeating
-   "ship only after all gates green."
-2. `workflow_run` triggers only fire from workflow files living on
-   the repository's **default branch**. The default here is `legacy`
-   and main is 358+ commits ahead; `deploy.yml` lives on main
-   only, so the trigger would never fire even if (1) were solved.
+The environment also enforces a branch policy: only refs that match
+`main` can deploy to `production`. So a stray push to a personal
+branch can't accidentally route through the deploy job even if
+some future edit relaxes the `if:` condition.
 
-Both are solvable (consolidate into one workflow, or query the
-GitHub API for sibling-workflow status on the same SHA before
-proceeding). They're worth doing for a multi-engineer setup but
-not for a solo portfolio anchor where the operator is the one
-clicking "Deploy" anyway. See "Future enhancements" below.
+For emergency rollbacks the operator still invokes deploy.yml
+directly via `gh workflow run deploy.yml -f image_tag=<sha>` — that
+path also routes through the same approval gate (intentional; it's
+the operator's audit trail of "yes I really want to roll back"),
+but skips re-running ci.yml since the gate has already passed for
+that older SHA.
 
 ## Image-tag matrix
 
 | Origin | api tag | web tag |
 |---|---|---|
 | Push to `main` | `:<sha>`, `:main`, `:latest` | `:<sha>`, `:main`, `:latest` |
-| Push to `main` | `:<sha>`, `:main` | `:<sha>`, `:main` |
 | Tag `v1.2.3` (release.yml) | `:v1.2.3`, `:latest` | `:v1.2.3`, `:latest` |
 
-`:latest` only moves on `main` pushes and tagged releases. Pushes
-to the stale `main` branch can't accidentally roll back the live
-AWS box by clobbering `:latest`.
+`:latest` moves on every push to `main` and every tagged release.
+The auto-deploy job pins to `:<sha>` (passed via `with:` to
+deploy.yml) rather than `:latest` so a second push that lands while
+this run is paused at the approval gate can't race the deploy onto
+a newer image than ci.yml actually verified.
 
 ## What the AWS VM actually consumes
 
@@ -161,47 +177,44 @@ re-runs `docker login` each time using `GHCR_PULL_TOKEN`.
 
 ## Editing the pipelines
 
-- **Add a new CI gate**: drop a new workflow file in
-  `.github/workflows/`. Since deploys are manual
-  (`workflow_dispatch`), there's no auto-trigger to update — but
-  consider listing the new gate as a required check in branch
-  protection so it actually blocks merges to main.
-- **Change the canonical branch**: search `.github/workflows/` for
-  `main` and update. Also update the `:latest` tag conditional in
-  `ci.yml:build-images`.
+- **Add a new CI gate**: add a job to `ci.yml` and append its name to
+  the `deploy` job's `needs:` list. The vitest regression
+  `apps/frontend/tests/ci-workflow-shape.test.ts` pins the existing
+  five-gate list, so a "while I'm here" deletion fails CI loudly
+  before merge.
+- **Change who can approve a deploy**: `Settings → Environments →
+  production → Required reviewers`. Add another reviewer (or a team)
+  rather than removing the current one.
+- **Loosen the deploy branch policy**: `Settings → Environments →
+  production → Deployment branches and tags`. The current policy
+  allows `main` only.
 - **Cut a release**: `git tag v1.2.3 && git push --tags` —
-  `release.yml` handles the rest.
+  `release.yml` handles the rest. The auto-deploy chain doesn't
+  fire on tags; release-tag deploys still go via manual
+  `workflow_dispatch` for that controlled cadence.
 
 ## Why this shape
 
 For a single-operator portfolio anchor with one production box,
-"green CI, then click Deploy" is the right cadence. The gates in
-front (CI + E2E + A11y) catch the things that bite, the manual
-`workflow_dispatch` gives a panic button for rollbacks, and
-`release.yml` exists so you can stamp a versioned image when
-something is worth pinning. No staging environment, no blue/green —
-the VM has 2 GB RAM and one Caddy reverse-proxy in front; the
-operational cost of a more elaborate setup outweighs the benefit
-at this scale.
+"every green CI run auto-queues a deploy, the operator clicks once
+to ship" is the right cadence. The five `needs:`-chained gates in
+ci.yml catch the things that bite; the `production` environment
+turns the SSH steps into a one-click affair while preserving an
+audit trail of who approved each deploy; and `release.yml` exists
+so you can stamp a versioned image when something is worth
+pinning. No staging environment, no blue/green — the VM has 2 GB
+RAM and one Caddy reverse-proxy in front; the operational cost of
+a more elaborate setup outweighs the benefit at this scale.
 
 ## Future enhancements
 
 When the project grows past a solo operator, the things worth adding:
 
-- **Auto-deploy on green CI** — consolidate `e2e.yml` + `accessibility.yml`
-  into jobs inside `ci.yml` (with shared docker-compose setup), then add
-  a `deploy` job in `ci.yml` that runs after all gates pass on main.
-  Or keep the workflows separate and add a `wait-for-checks` step at
-  the top of `deploy.yml` that polls the GitHub API for sibling-workflow
-  status on the same SHA. Either move solves the "fires per workflow"
-  problem the current setup ducked.
-- **Default-branch flip** — set the GitHub default branch to `main`
-  (Settings → Branches → default), and remove the `:main` paths from
-  `ci.yml`. The 358-commit gap to `legacy` makes the dual-branch
-  trigger more confusing than useful.
 - **Staging environment** — second AWS t4g.small (or t4g.micro on
   free tier) at `staging.lumen.ahmedhobeishy.tech`. CD auto-rolls
-  staging on main push, prod requires manual promote.
+  staging on main push (no approval gate); prod still requires the
+  human click. Define a second GitHub Environment (`staging`,
+  no required reviewers) and a second deploy job in ci.yml.
 - **Trivy gate** — flip `exit-code` from `"0"` to `"1"` on the
   Trivy scans in `ci.yml:build-images` once the base images are
   pinned to digests so CVE noise stays low.
@@ -209,3 +222,8 @@ When the project grows past a solo operator, the things worth adding:
   status checks before merging`, list the 5 gates. Loses the ability
   to push directly to main but gains the guarantee that every
   commit reaching the canonical branch has passed all checks.
+- **Auto-approve from CI bots** — the environment currently requires
+  a human click. For a multi-engineer setup, add a CI bot identity
+  as an additional reviewer and set `prevent_self_review: false` so
+  the bot can approve its own builds after a soak time; humans still
+  approve the rest.
