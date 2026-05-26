@@ -16,7 +16,7 @@ Public deploy on AWS t4g.small (Graviton2 ARM, 2 vCPU + 2 GB RAM) — Caddy 2 fr
 *Silent 1:50 captioned walkthrough — landing → multi-agent tutor → agent reasoning panel → observable trace → self-critique authoring replay → admin observability. A voiced Loom is queued for re-record once the live demo lands; script at [`docs/release/loom-recording-script.md`](docs/release/loom-recording-script.md).*
 <!-- LOOM_URL_TBD: replace this captioned-walkthrough block with a Loom URL once the voiced version is recorded against the live demo -->
 
-![Lumen tutor with agent reasoning trace](docs/screenshots/hero.png)
+![Lumen home — Workbench UI redesign, lime accent on a dark canvas](docs/screenshots/hero.png)
 
 ---
 

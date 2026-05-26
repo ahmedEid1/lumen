@@ -47,20 +47,25 @@ export const STORAGE_PATH = {
 // Default to `localhost:8000` — works on the GHA runner host where
 // the ci.yml e2e + accessibility jobs run playwright directly (the
 // api container's 8000 is port-mapped to the host). Inside the e2e
-// PROFILE container (docker-compose.yml --profile e2e), the
-// docker-compose.yml service env overrides this to `http://api:8000`
-// because in-container `localhost` is the container itself, not the
-// api service. Both shapes resolve to the same FastAPI process.
-const API_BASE = process.env.E2E_API_BASE_URL ?? "http://localhost:8000";
+// Loop 20 (Codex rescue #6): login goes through the **web origin**
+// not the API origin. The Next config rewrites `/api/v1/*` to the
+// internal API URL, so a POST to `baseURL/api/v1/auth/login` lands
+// on the same FastAPI endpoint but writes the Set-Cookie back on
+// the web host. Previously this ran against `E2E_API_BASE_URL`
+// directly which, in the docker-compose e2e profile, set cookies
+// for host=`api` — the browser then navigated to `web:3000` and
+// dropped them. Worked accidentally on host-runs (localhost shared
+// across :8000/:3000) but was wrong on cross-host runs.
 
 for (const role of Object.keys(STORAGE_PATH) as SeedRole[]) {
-  setup(`authenticate as ${role}`, async ({ page, context }) => {
+  setup(`authenticate as ${role}`, async ({ page, request }) => {
     const creds = SEED_USERS[role];
 
-    // Direct FastAPI login — bypasses the /login form entirely.
-    // The response sets the auth cookies on the request's cookie
-    // jar, which `context` shares with all downstream `page` calls.
-    const res = await context.request.post(`${API_BASE}/api/v1/auth/login`, {
+    // Login through the web origin so cookies are scoped to
+    // baseURL (web:3000 in docker, lumen.ahmedhobeishy.tech in
+    // prod-visual mode). `request` here is fixture-scoped and
+    // shares cookies with the browser context.
+    const res = await request.post("/api/v1/auth/login", {
       data: { email: creds.email, password: creds.password },
       headers: { Accept: "application/json" },
     });

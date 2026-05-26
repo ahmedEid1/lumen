@@ -51,11 +51,19 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
       dependencies: ["setup"],
+      // Loop 20 (Codex rescue #6): without `testIgnore`, Playwright's
+      // glob discovery picks up `auth.setup.ts` here too, and the
+      // setup tests then run a SECOND time per browser project,
+      // overwriting `.auth/*.json` while real specs are starting.
+      // Race risk → flaky auth-gated tests. Scope setup tests to the
+      // `setup` project only.
+      testIgnore: /auth\.setup\.ts/,
     },
     {
       name: "webkit",
       use: { ...devices["Desktop Safari"] },
       dependencies: ["setup"],
+      testIgnore: /auth\.setup\.ts/,
     },
   ],
 });

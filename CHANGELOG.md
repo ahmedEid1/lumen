@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (UI redesign loop 20 — FINAL)
+
+- **Redesign complete.** 20 loops, 41 commits, 194 files changed
+  (+14,815 / −1,743 LoC) across `c3450a8 → HEAD`. Full diff
+  summary in `docs/redesign/FINAL-REPORT.md`. Closing Codex pass
+  (`docs/redesign/codex-review-final.md`) returned only 2 P2
+  test-infra findings; both fixed in-loop.
+- **`docs/screenshots/hero.png`** refreshed from a live prod
+  capture of the Workbench home page (dark theme, lime CTA,
+  Cmd+K hint visible in header). Replaces the pre-redesign hero
+  image that the README referenced.
+- **`apps/frontend/tests/e2e/auth.setup.ts`** logs in through the
+  web origin (`baseURL + /api/v1/auth/login`) instead of direct
+  to the API host. The Next config rewrites `/api/v1/*` so the
+  request still hits FastAPI but cookies are scoped to the web
+  host. Fixes a cookie-domain mismatch in docker-compose runs
+  where API + web were different hosts.
+- **`apps/frontend/playwright.config.ts`** adds
+  `testIgnore: /auth\.setup\.ts/` to the chromium + webkit
+  projects so the setup tests run **only** in the `setup`
+  project, exactly once per session. Removes a race where the
+  browser projects would re-run setup and overwrite
+  `.auth/*.json` mid-test.
+
 ### Added (UI redesign loop 19)
 
 - **OG / Twitter card image** — new `app/opengraph-image.tsx` using
