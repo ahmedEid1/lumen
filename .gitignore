@@ -20,6 +20,10 @@ out/
 coverage/
 playwright-report/
 test-results/
+# Loop-6 Playwright storageState files — session cookies + JWTs that
+# the `auth.setup.ts` project writes before chromium/webkit projects
+# run. Re-created on every test run; never useful to commit.
+apps/frontend/tests/e2e/.auth/
 # A5 — Playwright screenshot capture writes here from inside the
 # `e2e` profile container (which can't write above its /work mount).
 # The operator copies the captures into docs/screenshots/ once happy.

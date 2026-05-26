@@ -39,7 +39,23 @@ export default defineConfig({
     actionTimeout: 60_000,
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "webkit", use: { ...devices["Desktop Safari"] } },
+    // Loop-6 "setup" project — logs in each seeded role once and
+    // writes auth state to `.auth/*.json`. Downstream projects
+    // depend on this so a per-role login() race never bites tests
+    // that consume `storageState`. See `tests/e2e/auth.setup.ts`.
+    {
+      name: "setup",
+      testMatch: /auth\.setup\.ts/,
+    },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup"],
+    },
+    {
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
+      dependencies: ["setup"],
+    },
   ],
 });
