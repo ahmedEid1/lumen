@@ -227,6 +227,25 @@ jobs:
             set -euo pipefail
             COMMIT_SHA="${1-}"
             cd ~/lumen
+
+            # Self-heal a broken git checkout. The box was originally
+            # seeded by rsync from a Windows `git worktree add` tree,
+            # which copies a `.git` *file* (not directory) containing
+            # `gitdir: E:/.../.git/worktrees/<name>`. That pointer is
+            # invalid on Linux, so `git fetch` errors with
+            # "fatal: not a git repository". Detect and re-clone in
+            # place. ~/.env.production lives at $HOME, outside ~/lumen,
+            # so dropping the working tree is safe. Docker volumes
+            # (db-data, redis-data, s3-data, etc.) live under
+            # /var/lib/docker on the host and are not affected.
+            if ! git rev-parse --git-dir >/dev/null 2>&1; then
+              echo "::warning::~/lumen is not a working git checkout — re-cloning from origin"
+              cd ~
+              rm -rf lumen
+              git clone --depth=50 https://github.com/ahmedEid1/E-Learning-Platform.git lumen
+              cd lumen
+            fi
+
             git fetch --depth=50 origin main
             if [ -n "${COMMIT_SHA}" ]; then
               echo "Rolling out specific commit: ${COMMIT_SHA}"

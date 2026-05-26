@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (iteration 5)
+
+- **`deploy.yml` :: Sync repo on the box** now self-heals when
+  `~/lumen/.git` is not a usable git directory. Surfaced on the very
+  first auto-deploy (run `26433392868` against commit `604cea93d0`)
+  which failed with `fatal: not a git repository: /home/lumen/lumen/E:/2026/...`.
+  The prod box was originally seeded by rsync from a Windows
+  `git worktree add` tree — that copy writes a `.git` *file* (not
+  directory) whose contents are `gitdir: E:/.../.git/worktrees/<name>`.
+  The Windows pointer target doesn't exist on the Linux box, so
+  every `git fetch origin main` invocation has been a no-op error
+  since deploy.yml was authored. The previous Phase A6 / pre-rename
+  deploy flow didn't exercise the `git fetch` path (the deploys
+  shipped images without re-syncing the on-box repo), so the rot
+  was invisible until the iter-4 auto-deploy step actually walked
+  it. Detect via `git rev-parse --git-dir`; on failure, drop and
+  re-clone from `https://github.com/ahmedEid1/E-Learning-Platform.git`
+  with the same `--depth=50` shallow shape the previous step expected.
+  `.env.production` lives at `~/.env.production` (outside `~/lumen`)
+  and Docker volumes live under `/var/lib/docker`, so dropping the
+  working tree doesn't touch persistent state.
+
 ### Added (iteration 4)
 
 - **Auto-deploy on green push to `main`, with a `production` GitHub
