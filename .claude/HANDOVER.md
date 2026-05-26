@@ -16,34 +16,66 @@ This file is what you (the next Claude Code session, on a new device) read first
 
 ---
 
-## First-session bootstrap
+## First-session bootstrap — Linux
 
-Run this **once** from the repo root to import the saved memories into your local Claude Code state:
+You (Claude) are reading this because the user just landed on a new Linux machine and asked you to pick up where the previous session left off. **Do all of the steps below yourself, in order, without stopping to ask permission for routine setup.** Only halt if you hit a credential / secret / decision that genuinely needs the user.
+
+### Step 1 — Import the memory snapshot into your own state
+
+Claude Code stores project memory at `~/.claude/projects/<slug>/memory/`. The slug is the absolute repo path with `/` replaced by `-`. Don't compute it by sed — list `~/.claude/projects/` and pick the directory that matches this repo's path (it will already exist if you've written or read any memory this session). If it doesn't exist yet, create it. Then:
 
 ```bash
-# 1. Find your Claude project memory directory. Claude Code derives it from
-#    the absolute repo path by replacing `/` and `\` with `-` and prefixing
-#    with `~/.claude/projects/`. Adjust if your repo lives elsewhere.
-
-# macOS / Linux:
-PROJECT_SLUG=$(pwd | sed 's|^/|-|; s|/|-|g')
-MEM_DIR="$HOME/.claude/projects/${PROJECT_SLUG}/memory"
-
-# Windows PowerShell equivalent:
-#   $slug = (Get-Location).Path -replace '\\','-' -replace '^([A-Z]):','-$1-'
-#   $memDir = "$env:USERPROFILE\.claude\projects\$slug\memory"
-
-# 2. Copy the snapshot in
-mkdir -p "$MEM_DIR"
-cp .claude/memory-snapshot/*.md "$MEM_DIR/"
-
-# 3. Verify
-ls "$MEM_DIR" | wc -l   # should print 15
+mkdir -p ~/.claude/projects/<slug>/memory
+cp .claude/memory-snapshot/*.md ~/.claude/projects/<slug>/memory/
+ls ~/.claude/projects/<slug>/memory/ | wc -l   # expect 15
 ```
 
-Then tell Claude in the first message:
+Read `MEMORY.md` (the index) and skim each file once.
 
-> "I'm continuing the previous session on a new device. Read `.claude/HANDOVER.md` for the state snapshot, and the memory files at `.claude/memory-snapshot/` (also copied into the standard Claude memory dir). Branch is `Rewrite`. Don't touch master."
+### Step 2 — Verify the clone is at the right state
+
+```bash
+git status                  # clean
+git rev-parse --abbrev-ref HEAD   # Rewrite
+git log --oneline -1        # 7311815 chore(handover): ...
+git fetch origin && git status -uno    # up to date with origin/Rewrite
+```
+
+If the tip doesn't match, `git pull` and re-read this file.
+
+### Step 3 — Bring up the local dev stack
+
+```bash
+docker compose up --build -d
+docker compose ps        # api, web, db, redis, s3, mail, worker, beat — all running / healthy
+```
+
+If `docker` is missing, install Docker Engine + Compose plugin via the distro package manager. If `make` is missing, install build-essential.
+
+Smoke-check:
+
+```bash
+curl -fsS http://localhost:8000/healthz       # {"status":"ok"} or similar
+curl -fsS http://localhost:3000 | head -3     # any HTML
+```
+
+### Step 4 — Verify the test suite still passes
+
+```bash
+make test.api    # pytest, ~3 min wall locally with xdist
+make test.web    # frontend vitest, ~10s
+```
+
+If something breaks during setup or smoke, fix it before asking the user. Common first-boot trip-ups are in `.claude/memory-snapshot/first-boot-gotchas.md` — consult that file BEFORE googling.
+
+### Step 5 — Report back
+
+When the stack is up and tests are green, summarize: "Bootstrap complete on Linux. Stack up, tests green, on Rewrite @ `<sha>`. Ready for the next task."
+
+**Only stop and ask the user when:**
+- A credential is needed (Anthropic / Groq / AWS / GitHub) and it's not already on the new machine
+- A decision is needed that isn't already documented in the handover or memory files
+- Something is genuinely broken in a way the handover didn't predict
 
 ---
 
