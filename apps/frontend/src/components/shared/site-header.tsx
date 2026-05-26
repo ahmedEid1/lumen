@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import { Moon, Sun, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Kbd } from "@/components/ui/kbd";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HeaderSearch } from "@/components/shared/header-search";
@@ -140,7 +141,21 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <HeaderSearch className="hidden md:block" />
+          <HeaderSearch className="hidden md:block lg:hidden" />
+          <button
+            type="button"
+            onClick={() =>
+              document.dispatchEvent(new CustomEvent("lumen:open-command-palette"))
+            }
+            aria-label={t("palette.openHint")}
+            className="hidden h-9 items-center gap-2 rounded-md border border-border bg-muted/40 px-3 font-body text-sm text-muted-foreground transition-colors duration-base hover:bg-muted hover:text-foreground lg:inline-flex"
+          >
+            <span>{t("nav.search.placeholder")}</span>
+            <span className="ms-2 flex items-center gap-1">
+              <Kbd>⌘</Kbd>
+              <Kbd>K</Kbd>
+            </span>
+          </button>
           <LocaleSwitcher />
           <ThemeToggle />
           {!ready ? (

@@ -5,6 +5,7 @@ import { QueryProvider } from "@/lib/query/client";
 import { AuthProvider } from "@/lib/auth/store";
 import { LocaleProvider } from "@/lib/i18n/provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { CommandPalette } from "@/components/shared/command-palette";
 import { SiteHeader } from "@/components/shared/site-header";
 import { SiteFooter } from "@/components/shared/site-footer";
 import { interDisplay, interBody, jetbrainsMono } from "@/lib/fonts";
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </main>
                   <SiteFooter />
                 </div>
+                <CommandPalette />
                 {/* theme="dark" pinned explicitly. Pre-Loop-7 the
                     pin was needed because the library's default
                     light palette failed axe-core (`#008a2e` on

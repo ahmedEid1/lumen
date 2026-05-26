@@ -12,6 +12,7 @@ import type { MessageKey } from "./en";
  */
 export const ar: Record<MessageKey, string> = {
   // Navigation / header
+  "nav.home": "الرئيسية",
   "nav.catalog": "الدورات",
   "nav.dashboard": "لوحة التحكم",
   "nav.studio": "الاستوديو",
@@ -820,6 +821,19 @@ export const ar: Record<MessageKey, string> = {
 
   // Generic
   "common.loading": "جارٍ التحميل…",
+  "common.close": "إغلاق",
+
+  // Command palette
+  "palette.title": "لوحة الأوامر",
+  "palette.placeholder": "ابحث أو نفّذ أمرًا…",
+  "palette.empty": "لا توجد نتائج.",
+  "palette.section.navigate": "تنقّل",
+  "palette.section.courses": "الدورات",
+  "palette.section.theme": "السمة",
+  "palette.section.account": "الحساب",
+  "palette.theme.dark": "التبديل إلى الداكن",
+  "palette.theme.light": "التبديل إلى الفاتح",
+  "palette.openHint": "فتح لوحة الأوامر",
   "common.save": "حفظ",
   "common.saving": "جارٍ الحفظ…",
   "common.cancel": "إلغاء",

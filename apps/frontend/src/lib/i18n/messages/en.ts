@@ -5,6 +5,7 @@
  */
 export const en = {
   // Navigation / header
+  "nav.home": "Home",
   "nav.catalog": "Catalog",
   "nav.dashboard": "Dashboard",
   "nav.studio": "Studio",
@@ -813,6 +814,19 @@ export const en = {
 
   // Generic
   "common.loading": "Loading…",
+  "common.close": "Close",
+
+  // Command palette
+  "palette.title": "Command palette",
+  "palette.placeholder": "Search or run a command…",
+  "palette.empty": "No matches.",
+  "palette.section.navigate": "Navigate",
+  "palette.section.courses": "Courses",
+  "palette.section.theme": "Theme",
+  "palette.section.account": "Account",
+  "palette.theme.dark": "Switch to dark",
+  "palette.theme.light": "Switch to light",
+  "palette.openHint": "Open command palette",
   "common.save": "Save",
   "common.saving": "Saving…",
   "common.cancel": "Cancel",
