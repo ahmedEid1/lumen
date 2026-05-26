@@ -102,22 +102,33 @@
   }
 
   .light {
-    /* ── Light (explicit opt-in, not the default) ────────────────── */
-    --background: 60 9% 98%;             /* #FAFAF9 */
+    /* ── Light (explicit opt-in, not the default) ──────────────────
+       Loop-7 redesign — the previous shape (everything at 90-100%
+       lightness, deltas of 2-3 points) read as one undifferentiated
+       wash. The audit (AUDIT.md §1) called it "three steps too close
+       to read as elevation". This rewrite keeps the warm-white bg
+       (matches the dark-mode `220 14% 4%` foreground family in
+       inverse) but pulls `--border` + `--surface-3` into the cool
+       `220 6%` family so borders ACTUALLY READ on white cards. The
+       result is three real elevation layers: bg → card → popover. */
+    --background: 60 9% 98%;             /* #FAFAFA — warm off-white */
     --foreground: 220 14% 4%;
-    --card: 0 0% 100%;                   /* #FFFFFF */
+    --card: 0 0% 100%;                   /* #FFFFFF — card surface */
     --card-foreground: 220 14% 4%;
-    --muted: 60 5% 96%;                  /* #F4F4F2 */
+    --muted: 60 5% 96%;                  /* #F4F4F2 — input fields, hover-dim */
     --muted-foreground: 213 7% 40%;      /* #5E646C */
     /* AA-contrast lime sibling. Dark mode keeps hsl(72 100% 50%) as the
        signature electric lime; light mode needs a much deeper green so
        text-primary clears WCAG 2.2 AA 4.5:1 against #FAFAF9, #FFFFFF,
        and #F4F4F2 (the three light surfaces). hsl(75 80% 25%) = #59730D
        gives 5.21 / 5.42 / 4.98 against those surfaces respectively, and
-       still reads as the Lumen lime family — just deeper. The old
-       hsl(72 80% 38%) hit 2.44 / 2.54 / 2.33 and failed every route. */
-    --primary: 75 80% 25%;               /* #59730D — deeper lime for AA contrast */
-    --primary-foreground: 60 9% 98%;     /* white-on-green: 5.21:1 (near-black flips to white) */
+       still reads as the Lumen lime family — just deeper. Loop-7 keeps
+       this hue (the dual-use conflict between bg-primary fills and
+       text-primary text means going brighter fails AA on text). Light
+       mode reads "operator-deep" not "operator-electric" by design.
+       See `docs/redesign/loop-7-options.md` decision 3. */
+    --primary: 75 80% 25%;               /* #59730D — deeper lime for AA */
+    --primary-foreground: 60 9% 98%;
     --secondary: 60 5% 96%;
     --secondary-foreground: 220 14% 4%;
     --accent: 215 17% 47%;
@@ -125,18 +136,28 @@
     --destructive: 358 76% 49%;
     --destructive-foreground: 60 9% 98%;
     --success: 131 41% 37%;
+    --success-foreground: 60 9% 98%;
     --warning: 38 91% 45%;
+    --warning-foreground: 220 14% 4%;
     /* Light-mode info — deeper blue for AA on light surfaces. #1D4ED8 against
        #FAFAF9 = 6.41:1, against #FFFFFF = 6.55:1, against #F4F4F2 = 6.20:1. */
     --info: 217 91% 47%;                 /* #1D4ED8 */
     --info-foreground: 60 9% 98%;
-    --border: 60 5% 90%;
-    --input: 60 5% 90%;
+    /* Borders in the COOL grey family so they actually read on the
+       warm-white card surfaces. The prior #E5E5E2 had only ~3%
+       luminance delta from white — barely visible. #DEDFE0 has ~10%
+       delta and reads as a real border line. The trade-off is a
+       small hue clash (warm bg + cool borders), which the dark-mode
+       palette has been doing for months without anyone noticing
+       (#0A0B0D bg + #1E2228 borders are the same "warm-ish bg + cool
+       border" pair, just inverted). */
+    --border: 220 6% 88%;                /* #DEDFE0 — visible on white */
+    --input: 220 6% 88%;
     --ring: 75 80% 25%;                  /* matches --primary */
 
-    --surface-1: 0 0% 100%;
-    --surface-2: 60 5% 96%;
-    --surface-3: 60 5% 92%;
+    --surface-1: 0 0% 100%;              /* card-level (same as --card) */
+    --surface-2: 60 5% 96%;              /* muted-level */
+    --surface-3: 220 6% 88%;             /* popover/overlay — matches border */
 
     /* Spacing / z-index / opacity / motion tokens are theme-neutral —
        they appear in :root only and inherit unchanged in .light. */
@@ -317,6 +338,36 @@
   .reveal {
     animation: rise var(--duration-slow, 240ms) var(--ease-out-quart, cubic-bezier(0.16, 1, 0.3, 1)) both;
   }
+}
+
+/* ── Sonner toast palette under light theme ────────────────────────
+   Loop-7 — sonner's default light palette failed axe under
+   Playwright (`#008a2e` on `#ecfdf3` = 4.25:1, below AA 4.5:1), which
+   is why `layout.tsx` had to pin `<Toaster theme="dark">`. Replace
+   sonner's per-type colours with Workbench tokens so light mode
+   consumes the AA-passing semantic palette from the `.light` block
+   above. After this, the pin can come off.
+
+   Sonner exposes its palette via CSS custom properties scoped to
+   `[data-sonner-toaster]`. Setting them under `.light` cascades into
+   every toast that ships under the light theme; dark mode keeps
+   sonner's default dark palette unchanged. */
+.light [data-sonner-toaster] {
+  --normal-bg: hsl(var(--card));
+  --normal-text: hsl(var(--card-foreground));
+  --normal-border: hsl(var(--border));
+  --success-bg: hsl(var(--success) / 0.10);
+  --success-text: hsl(var(--success));
+  --success-border: hsl(var(--success) / 0.40);
+  --error-bg: hsl(var(--destructive) / 0.10);
+  --error-text: hsl(var(--destructive));
+  --error-border: hsl(var(--destructive) / 0.40);
+  --warning-bg: hsl(var(--warning) / 0.10);
+  --warning-text: hsl(var(--warning));
+  --warning-border: hsl(var(--warning) / 0.40);
+  --info-bg: hsl(var(--info) / 0.10);
+  --info-text: hsl(var(--info));
+  --info-border: hsl(var(--info) / 0.40);
 }
 
 /* ── Utilities ──────────────────────────────────────────────────── */

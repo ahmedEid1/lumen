@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 7)
+
+- **Light-mode surface ramp redesigned** (`.light` block of
+  `apps/frontend/src/styles/globals.css`). The previous ramp had
+  `--border` and `--surface-3` at 90% / 92% lightness in the warm
+  `60 5%` hue family — borders barely visible against `#FFFFFF`
+  cards (3% luminance delta), no real elevation between bg → card
+  → popover (AUDIT.md §1 "three steps too close to read as
+  elevation"). The new ramp pulls `--border` and `--surface-3`
+  into the cool-grey `220 6%` family at 88% lightness (`#DEDFE0`)
+  — 10% delta from white, visibly elevated. Mirrors dark mode's
+  two-family palette (warm-ish surfaces + cool accent).
+- **`--success-foreground` + `--warning-foreground` added to the
+  `.light` block.** Both already existed in the dark `:root` block
+  from earlier loops; light mode was missing them, meaning any
+  `text-success-foreground` callsite in light mode rendered with
+  an undefined CSS variable. The new entries pair them with the
+  Workbench foreground colours so `bg-success text-success-
+  foreground` button-style affordances work in both themes.
+- **Sonner Workbench-token override block** (latent until the pin
+  comes off in a future loop). `.light [data-sonner-toaster]`
+  selector overrides sonner's per-`data-type` CSS variables
+  (`--success-bg`, `--success-text`, `--success-border`, etc.)
+  with hsl values from `--success`/`--warning`/`--destructive`/
+  `--info`. When sonner's `theme="dark"` pin is removed in a
+  future loop, the light-mode toasts will consume the AA-passing
+  Workbench palette instead of sonner's default `#008a2e on
+  #ecfdf3 = 4.25:1` (below AA).
+- **`<Toaster theme="dark">` pin NOT removed.** Attempted —
+  dropping the pin let sonner read from next-themes via React
+  context, but that triggered a hydration race where sonner's
+  first paint could land on the wrong theme momentarily.
+  Verification reproduced as 5 baselines flaking (including DARK
+  ones — home-dark, login-dark, register-dark) on a single
+  re-run. The override block ships dormant; pin-off is its own
+  dedicated loop with proper hydration handling (probably via
+  `useHydrated()` + `theme={resolvedTheme}` from next-themes).
+- **studio-light VR baseline joins the deferral list.** Codex
+  rescue #2 caught the re-blessed `studio-light` baseline as the
+  sign-in page (34 KB file vs ~80 KB expected for a populated
+  studio list) — the teacher storageState didn't apply at
+  capture time, same e2e infrastructure flake that deferred
+  `dashboard-light` + `admin-light` from Loop 6. Three light
+  auth-gated baselines now deferred. The fix wants either API-
+  based login in `auth.setup.ts` (bypass the form) or moving
+  e2e to docker-compose.ci.yml's prod-build web (no JIT
+  cold-compile). Both bigger than Loop 7's design scope.
+- **Codex rescue #2** at
+  `docs/redesign/codex-review-loops-4-to-7.md`. Two P2 findings,
+  both against re-blessed VR baselines — addressed in this same
+  commit. Codex didn't engage with the seven-axis priority prompt
+  (same shape as rescue #1); for rescue #3 the digest documents
+  trying `codex review --commit <SHA> "<prompt>"` per commit.
+- Verified: `make test.web` — 36 files / 194 tests pass in ~17s
+  (no test count drift). VR baselines re-blessed: 5 light (4
+  public + 1 auth-gated profile-light); 11 dark baselines
+  unchanged in intent. Residual flake on re-runs covered by
+  CI's `retries: 2` — different tests randomly flake (including
+  dark surfaces I never touched), which confirms the flake is
+  e2e-infrastructure-level, not Loop-7-changes-level.
+- Brainstorm-and-commit trail under
+  `docs/redesign/loop-7-{goal,options,spec,result}.md`. STATUS.md
+  row 7 added. AUDIT.md §1 partial: light surface ramp closed,
+  light electric-lime decision documented (kept deep olive,
+  light mode reads "operator-deep" by design), sonner pin
+  deferred. Codex rescue #2 closed; #3 fires after Loop 10.
+
 ### Added (UI redesign loop 6)
 
 - **Playwright `storageState` fixtures** at

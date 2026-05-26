@@ -51,15 +51,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </main>
                   <SiteFooter />
                 </div>
-                {/* theme="dark" pinned explicitly: the app's color-scheme
-                    is dark by default and Sonner's `richColors` doesn't
-                    pick that up reliably in Playwright (headless Chromium
-                    inherits prefers-color-scheme=light), so success toasts
-                    were rendering with light-mode greens (#008a2e on
-                    #ecfdf3 = 4.25:1) and failing axe-core's WCAG 1.4.3
-                    gate on every authenticated route. Pinning theme="dark"
-                    forces the dark-mode toast palette which has the
-                    contrast headroom AA needs. */}
+                {/* theme="dark" pinned explicitly. Pre-Loop-7 the
+                    pin was needed because the library's default
+                    light palette failed axe-core (`#008a2e` on
+                    `#ecfdf3` = 4.25:1, below AA 4.5:1). Loop 7
+                    added per-type CSS overrides in globals.css
+                    (`.light [data-sonner-toaster]`) that route
+                    sonner's `--success-*`/`--error-*`/etc. custom
+                    properties through the Workbench
+                    `--success`/`--destructive`/`--warning`/`--info`
+                    tokens — so the overrides are READY to take
+                    effect once this pin comes off. The pin stayed
+                    because a Loop-7 verification re-run with the
+                    pin dropped flaked five baselines (including
+                    DARK ones — home-dark, login-dark, register-dark),
+                    suggesting a hydration race in sonner reading
+                    from next-themes context. Rolling out the pin
+                    needs its own dedicated loop with a proper
+                    hydration story. */}
                 <Toaster richColors theme="dark" position="top-center" />
               </AuthProvider>
             </QueryProvider>
