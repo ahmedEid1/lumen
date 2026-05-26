@@ -1,0 +1,13 @@
+- [Windows port reservations on this machine](windows-reserved-ports.md) — 7681-7780 is reserved, do not bind host ports in that range
+- [Three gotchas that bite on first `docker compose up`](first-boot-gotchas.md) — CORS_ORIGINS shape, .test TLD, role typing
+- [Ralph iteration style this user expects](ralph-iteration-style.md) — one focused fix + regression test + commit-with-why per iteration; never batch
+- [What "the app works perfectly" means here](verification-criteria.md) — running-the-app evidence beats test-suite-only evidence
+- [Current state at session compact](session-handoff.md) — Lumen 1.0.0-rebuild + Phase G shipped on Rewrite (38 commits since spec); v2 spec written for next session
+- [Owner positioning brief](owner-positioning.md) — Ahmed Hobeishy is using Lumen as the portfolio anchor for agentic-AI engineering roles; v2 spec targets production-grade hardening + MCP/multi-agent/eval-suite features
+- [Design pivot pattern](design-pivot-pattern.md) — user has reversed an entire theme mid-flow; treat visual identity as disposable, keep i18n + primitives + server/client split
+- [Autonomous execution mode](autonomous-execution-mode.md) — when user hands off control ("you decide, I won't review, keep going until the end"), toggle out of ralph-cadence into parallel-waves + frequent commits
+- [Worktree gotchas](worktree-gotchas.md) — `worktree.baseRef: head` now applied + committed (b8e1d07), but harness caches it at session start so mid-session changes don't help; agent prompts need defense-in-depth auto-recovery either way
+- [Cost preferences](cost-preferences.md) — lead with free/free-tier paths; v2 locked on Groq Llama 3.3 70B (via OpenAI-compat) + free-tier stack (Vercel+Fly+Supabase+Upstash+R2)
+- [Oracle deployment state](oracle-deployment-state.md) — user's personal Oracle journey, out-of-band: PAYG unlocked but Frankfurt out of capacity; Stockholm sub blocked at tenant region cap; retry loop still hunting in background (no longer the project's deploy target)
+- [AWS deployment state](aws-deployment-state.md) — Lumen LIVE IN PRODUCTION at https://lumen.ahmedhobeishy.tech (Cloudflare DNS subdomain, DNS-only) on AWS t4g.small via Terraform (commit 1dc7502); ENV=production, Groq Llama 3.3 70B wired; deployer IAM access key already rotated
+- [Backend pytest infrastructure](pytest-infra.md) — xdist `-n 4` + `--timeout=120` + forced `ENV=test`; full suite ~3 min local / ~12 min CI; don't bump to `-n auto`
