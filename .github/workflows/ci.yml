@@ -216,7 +216,7 @@ jobs:
           cache-from: type=gha,scope=lumen-web
           cache-to: type=gha,mode=max,scope=lumen-web
       - name: Trivy scan — backend
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/${{ github.repository_owner }}/lumen-api:${{ github.sha }}
           format: sarif
@@ -228,7 +228,7 @@ jobs:
           # noise stays low.
           exit-code: "0"
       - name: Trivy scan — frontend
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/${{ github.repository_owner }}/lumen-web:${{ github.sha }}
           format: sarif
