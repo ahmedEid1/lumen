@@ -8,6 +8,7 @@ import { Moon, Sun, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HeaderSearch } from "@/components/shared/header-search";
 import { LocaleSwitcher } from "@/components/shared/locale-switcher";
 import { NotificationsBell } from "@/components/shared/notifications-bell";
@@ -44,16 +45,21 @@ function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const t = useT();
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      aria-label={t("header.themeToggle")}
-      className="text-muted-foreground hover:text-foreground"
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-    >
-      <Sun className="h-5 w-5 dark:hidden" />
-      <Moon className="hidden h-5 w-5 dark:block" />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t("header.themeToggle")}
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        >
+          <Sun className="h-5 w-5 dark:hidden" />
+          <Moon className="hidden h-5 w-5 dark:block" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{t("header.themeToggle")}</TooltipContent>
+    </Tooltip>
   );
 }
 

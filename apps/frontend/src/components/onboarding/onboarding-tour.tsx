@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useT } from "@/lib/i18n/provider";
 import { useOnboarding } from "@/lib/onboarding/use-onboarding";
 import type { TourStep } from "@/lib/onboarding/steps";
@@ -57,37 +63,34 @@ export function OnboardingTour({
     onDone?.();
   }, [dismiss, onDone]);
 
-  // Global keyboard shortcuts while the tour is open. Bound to
-  // ``document`` (not the card) because the card receives autofocus on
-  // Next but a user may have clicked anywhere on the overlay.
+  // ArrowRight advances. Escape close is handled by Radix Dialog
+  // (calls onOpenChange(false) → handleSkip). We keep an
+  // ArrowRight listener bound to document because the card has
+  // autofocus on the Next button initially, but a user may have
+  // clicked elsewhere on the overlay.
   useEffect(() => {
     if (!visible) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        handleSkip();
-      } else if (e.key === "ArrowRight") {
+      if (e.key === "ArrowRight") {
         e.preventDefault();
         handleNext();
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [visible, handleNext, handleSkip]);
+  }, [visible, handleNext]);
 
   if (!visible || total === 0) return null;
 
   const step = steps[index];
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="onboarding-title"
-      aria-describedby="onboarding-body"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 px-6 backdrop-blur-sm"
-    >
-      <div className="surface flex w-full max-w-md flex-col gap-5 p-6 sm:p-8">
+    <Dialog open onOpenChange={(o) => { if (!o) handleSkip(); }}>
+      <DialogContent
+        className="flex w-full max-w-md flex-col gap-5 p-6 sm:p-8"
+        srLabelClose={t("onboarding.dismiss")}
+        hideCloseButton
+      >
         <div className="flex items-center justify-between gap-3">
           <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
             {t("onboarding.step", { n: index + 1, total })}
@@ -95,25 +98,19 @@ export function OnboardingTour({
           <button
             type="button"
             onClick={handleSkip}
-            className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors duration-[160ms] hover:text-foreground"
+            className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors duration-base hover:text-foreground"
             aria-label={t("onboarding.dismiss")}
           >
             {t("onboarding.skip")}
           </button>
         </div>
 
-        <h2
-          id="onboarding-title"
-          className="font-display text-2xl leading-tight tracking-tight"
-        >
+        <DialogTitle className="font-display text-2xl leading-tight tracking-tight">
           {t(step.title)}
-        </h2>
-        <p
-          id="onboarding-body"
-          className="font-body text-sm leading-relaxed text-muted-foreground"
-        >
+        </DialogTitle>
+        <DialogDescription className="font-body text-sm leading-relaxed text-muted-foreground">
           {t(step.body)}
-        </p>
+        </DialogDescription>
 
         {/* Step indicator + primary CTA. The dots are a passive
             position cue — clicking them does not jump steps (we always
@@ -128,8 +125,8 @@ export function OnboardingTour({
                 key={i}
                 className={
                   i === index
-                    ? "h-1.5 w-6 rounded-full bg-foreground transition-colors duration-[160ms]"
-                    : "h-1.5 w-1.5 rounded-full bg-border transition-colors duration-[160ms]"
+                    ? "h-1.5 w-6 rounded-full bg-foreground transition-colors duration-base"
+                    : "h-1.5 w-1.5 rounded-full bg-border transition-colors duration-base"
                 }
               />
             ))}
@@ -138,7 +135,7 @@ export function OnboardingTour({
             {isLast ? t("onboarding.done") : t("onboarding.next")}
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

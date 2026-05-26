@@ -1,11 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ApiError } from "@/lib/api/client";
@@ -35,10 +42,9 @@ import { cn } from "@/lib/utils";
  *      ``/studio/new``) and immediately runs ``Ingest.commit`` to
  *      append the modules + lessons.
  *
- * The modal is a bespoke ``role="dialog"`` element rather than a
- * shared primitive because the project's ``components/ui`` doesn't
- * ship a Dialog. We match the visual language of the rest of the
- * Workbench (bordered surface, mono-cartouche header).
+ * Loop 12 migrated this from a hand-rolled `fixed inset-0` dialog to
+ * the shared `<Dialog>` primitive — Radix gives us a real focus trap,
+ * aria-labelledby, Escape, click-outside, and focus restore.
  */
 
 interface IngestModalProps {
@@ -56,7 +62,6 @@ const SOURCE_LABEL_KEY: Record<IngestSource, "studio.import.source.youtube" | "s
 export function IngestModal({ open, onClose }: IngestModalProps) {
   const t = useT();
   const router = useRouter();
-  const titleId = useId();
   const subjectsQ = useQuery({
     queryKey: qk.subjects,
     queryFn: () => Catalog.subjects(),
@@ -92,16 +97,6 @@ export function IngestModal({ open, onClose }: IngestModalProps) {
     }
     setSource(detectSourceLocal(trimmed));
   }, [url]);
-
-  // Close on Escape so we don't trap keyboard users.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
 
   const totalLessons = useMemo(() => {
     if (!payload) return 0;
@@ -167,46 +162,26 @@ export function IngestModal({ open, onClose }: IngestModalProps) {
     }
   }, [onClose, payload, router, subjectsQ.data, t]);
 
-  if (!open) return null;
-
   const sourceLabel = t(SOURCE_LABEL_KEY[source]);
   const canPreview = url.trim().length > 0 && source !== "unknown" && !previewing;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 px-4 py-10 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      onClick={(e) => {
-        // Clicks on the backdrop close, clicks on the panel don't.
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="surface relative flex w-full max-w-3xl flex-col gap-6 p-6 sm:p-8">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t("studio.import.cancel")}
-          className="absolute end-4 top-4 rounded-md p-1 text-muted-foreground transition-colors duration-[160ms] hover:bg-muted hover:text-foreground"
-        >
-          <X className="h-4 w-4" />
-        </button>
-
-        <header className="flex flex-col gap-2">
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent
+        className="flex w-full max-w-3xl flex-col gap-6 p-6 sm:p-8"
+        srLabelClose={t("studio.import.cancel")}
+      >
+        <DialogHeader>
           <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
             {t("studio.cartouche")}
           </p>
-          <h2
-            id={titleId}
-            className="font-display text-2xl leading-tight tracking-tight"
-          >
+          <DialogTitle className="font-display text-2xl leading-tight tracking-tight">
             {t("studio.import.title")}
-          </h2>
-          <p className="font-body text-sm text-muted-foreground">
+          </DialogTitle>
+          <DialogDescription>
             {t("studio.import.subtitle")}
-          </p>
-        </header>
+          </DialogDescription>
+        </DialogHeader>
 
         <div className="flex flex-col gap-3">
           <label className="font-body text-sm font-medium" htmlFor="ingest-url">
@@ -289,8 +264,8 @@ export function IngestModal({ open, onClose }: IngestModalProps) {
             </div>
           </footer>
         ) : null}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

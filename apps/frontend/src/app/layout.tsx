@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { QueryProvider } from "@/lib/query/client";
 import { AuthProvider } from "@/lib/auth/store";
 import { LocaleProvider } from "@/lib/i18n/provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { SiteHeader } from "@/components/shared/site-header";
 import { SiteFooter } from "@/components/shared/site-footer";
 import { interDisplay, interBody, jetbrainsMono } from "@/lib/fonts";
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <LocaleProvider>
             <QueryProvider>
               <AuthProvider>
+                <TooltipProvider delayDuration={300} skipDelayDuration={150}>
                 <a
                   href="#main-content"
                   className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
@@ -70,6 +72,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     needs its own dedicated loop with a proper
                     hydration story. */}
                 <Toaster richColors theme="dark" position="top-center" />
+                </TooltipProvider>
               </AuthProvider>
             </QueryProvider>
           </LocaleProvider>

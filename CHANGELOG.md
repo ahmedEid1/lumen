@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 12)
+
+- **`<Tooltip>` primitive** (Radix-backed). Anchored content via
+  Radix Portal + Floating UI. Focus + hover triggers, Escape
+  closes. Workbench chrome: mono-caps text on a card surface.
+- **`TooltipProvider`** wraps the app in `layout.tsx` —
+  `delayDuration={300}`, `skipDelayDuration={150}`.
+- **Theme toggle in `<SiteHeader>` gets a Tooltip.** First consumer.
+  Icon-only triggers with `aria-label` now show a visible hint to
+  sighted users without a screen reader.
+- **4 hand-rolled modals migrated to `<Dialog>`:**
+  - `ai-outline-modal.tsx` — Studio AI outline generator (3-phase
+    state machine preserved). Removes the bespoke Escape listener
+    and the `fixed inset-0` chrome.
+  - `ingest-modal.tsx` — Studio import-from-URL flow (multi-step
+    preview→commit preserved). Removes the bespoke Escape listener
+    and absolute-positioned close X.
+  - `onboarding-tour.tsx` — Was the closest to compliant (already
+    had `role="dialog"`/`aria-modal`); now uses Radix's primitives
+    so it gets focus trap + restore for free. ArrowRight-to-advance
+    listener kept; Escape-to-skip routed through Dialog's
+    `onOpenChange`.
+  - Profile delete-confirm: was an inline expand (the audit's "no
+    Dialog primitive for an irreversible action" finding); now a
+    proper modal with destructive + cancel buttons.
+- **Animation infrastructure:** `data-state="delayed-open"` rule
+  added for `data-wb-tooltip-content`. Same `fade-in` keyframe
+  family.
+- `@radix-ui/react-tooltip ^1.2.8` added.
+- **`make test.web`:** 41 files / 232 tests green (+1 file / +4
+  tests vs Loop 11).
+
 ### Added (UI redesign loop 11)
 
 - **`<Popover>` primitive** (Radix-backed). Anchored to its trigger

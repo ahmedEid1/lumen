@@ -366,7 +366,8 @@
    block. No rise transform: these float close to their trigger
    and a translateY at this distance reads as jitter, not entrance. */
 [data-state="open"][data-wb-popover-content],
-[data-state="open"][data-wb-dropdown-content] {
+[data-state="open"][data-wb-dropdown-content],
+[data-state="delayed-open"][data-wb-tooltip-content] {
   animation: fade-in var(--duration-base) var(--ease-out-quart) both;
 }
 [data-state="open"][data-wb-sheet-content][data-side="right"] {

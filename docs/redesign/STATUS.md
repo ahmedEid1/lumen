@@ -20,6 +20,7 @@ queued.
 | 7-followup | HOTFIX: revert `--spacing-*` aliases (Tailwind 4 `max-w-*` collision) | Shipped. `max-w-3xl` was resolving to 96px instead of 48rem since Loop 1, breaking every page that constrains content with `max-w-xl/2xl/3xl`. Caught by visual review of the prod deploy. 37 files / 202 tests still green. | `f04efc1` |
 | 10 | Foundation C slice 1 — Dialog + Sheet primitives + tutor-modal migration | Shipped. 38 files / 216 tests green (+1 file / +14 tests). Tutor modal on `/courses/[slug]` now has Radix focus trap, aria-labelledby, Escape, click-outside, focus restore. Sheet primitive lands with 4-side `data-side` variant ready for Loop 11 mobile menu. | `2b16a53` |
 | 11 | Foundation C slice 2 — Popover + DropdownMenu + 3 overlay migrations | Shipped. 40 files / 228 tests green (+2 files / +12 tests). Notifications-bell → Popover; locale-switcher promoted from cycle-button to DropdownMenu with radio-group selection; mobile menu → Sheet (Sheet finally has a consumer). All four hand-rolled overlays inside the shared chrome retired. | `42955c0` |
+| 12 | Foundation C slice 3 — Tooltip + 4 modal migrations + Codex rescue #3 | Shipped. 41 files / 232 tests green (+1 file / +4 tests). Tooltip primitive lands w/ theme-toggle as first consumer. ai-outline-modal, ingest-modal, onboarding-tour, profile-delete-confirm all migrated from hand-rolled `fixed inset-0` to `<Dialog>`. Closes out Foundation C — every overlay surface in the audit now uses a Radix primitive. | _pending_ |
 
 
 

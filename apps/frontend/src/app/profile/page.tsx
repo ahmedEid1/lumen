@@ -5,6 +5,14 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -437,30 +445,55 @@ export default function ProfilePage() {
           {t("profile.section.deleteDesc")}
         </p>
         <div className="mt-4">
-          {!confirmDelete ? (
-            <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
-              {t("profile.delete.button")}
-            </Button>
-          ) : (
-            <div className="space-y-3">
-              <Input
-                type="password"
-                placeholder={t("profile.delete.confirmPlaceholder")}
-                value={deletePwd}
-                onChange={(e) => setDeletePwd(e.target.value)}
-              />
-              <div className="flex gap-2">
-                <Button variant="destructive" onClick={deleteAccount} disabled={!deletePwd}>
-                  {t("profile.delete.confirm")}
-                </Button>
-                <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-                  {t("common.cancel")}
-                </Button>
-              </div>
-            </div>
-          )}
+          <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
+            {t("profile.delete.button")}
+          </Button>
         </div>
       </section>
+
+      <Dialog
+        open={confirmDelete}
+        onOpenChange={(o) => {
+          setConfirmDelete(o);
+          if (!o) setDeletePwd("");
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">
+              {t("profile.delete.button")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("profile.section.deleteDesc")}
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            type="password"
+            placeholder={t("profile.delete.confirmPlaceholder")}
+            value={deletePwd}
+            onChange={(e) => setDeletePwd(e.target.value)}
+            aria-label={t("profile.delete.confirmPlaceholder")}
+          />
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setConfirmDelete(false);
+                setDeletePwd("");
+              }}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={deleteAccount}
+              disabled={!deletePwd}
+            >
+              {t("profile.delete.confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

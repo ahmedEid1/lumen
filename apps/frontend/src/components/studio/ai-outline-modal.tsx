@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -57,19 +63,6 @@ export function AIOutlineModal({ onClose }: { onClose: () => void }) {
   const [generating, setGenerating] = useState(false);
   const [outline, setOutline] = useState<CourseOutline | null>(null);
 
-  // Escape closes the modal regardless of phase — same affordance the
-  // onboarding tour uses, so the keyboard pattern stays consistent.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   async function handleGenerate() {
     if (!brief.trim()) return;
     setGenerating(true);
@@ -117,32 +110,19 @@ export function AIOutlineModal({ onClose }: { onClose: () => void }) {
   );
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="ai-outline-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 px-4 py-8 backdrop-blur-sm"
-      onClick={(e) => {
-        // Click on the dim layer (but not inside the card) closes.
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="surface flex max-h-[90vh] w-full max-w-3xl flex-col gap-4 overflow-hidden p-6 sm:p-8">
-        <header className="flex items-start justify-between gap-3">
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent
+        className="flex max-h-[90vh] w-full max-w-3xl flex-col gap-4 overflow-hidden p-6 sm:p-8"
+        srLabelClose={t("common.cancel")}
+      >
+        <DialogHeader>
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-muted-foreground" />
-            <h2 id="ai-outline-title" className="font-display text-2xl tracking-tight">
+            <DialogTitle className="font-display text-2xl tracking-tight">
               {t("ai.outline.title")}
-            </h2>
+            </DialogTitle>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors duration-[160ms] hover:text-foreground"
-          >
-            {t("common.cancel")}
-          </button>
-        </header>
+        </DialogHeader>
 
         {phase === "brief" && (
           <div className="flex flex-col gap-4">
@@ -328,8 +308,8 @@ export function AIOutlineModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
