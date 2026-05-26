@@ -6,8 +6,9 @@ import type { LessonOut, TextLessonData } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Download } from "lucide-react";
+import { Check, Download } from "lucide-react";
 import { api, ApiError } from "@/lib/api/client";
 import { type QuizQuestion } from "@/lib/quiz";
 import { BlockRenderer } from "@/components/lesson/block-renderer";
@@ -29,27 +30,13 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
       return <BlockRenderer value={resolveTextLessonDoc(data as TextLessonData)} />;
     case "video":
       return (
-        <div className="aspect-video w-full overflow-hidden rounded-md border border-border bg-black">
-          <video
-            controls
-            crossOrigin={data.captions_url ? "anonymous" : undefined}
-            className="h-full w-full"
-            src={String(data.url ?? "")}
-          >
-            {data.captions_url && (
-              // Instructor-uploaded WebVTT. `default` so
-              // captions are on out of the gate — accessibility is
-              // an opt-out, not an opt-in.
-              <track
-                kind="captions"
-                src={String(data.captions_url)}
-                srcLang={String(data.captions_lang ?? "en")}
-                label={String(data.captions_label ?? "English")}
-                default
-              />
-            )}
-          </video>
-        </div>
+        <LessonVideo
+          src={String(data.url ?? "")}
+          poster={typeof data.poster_url === "string" ? data.poster_url : undefined}
+          captionsUrl={typeof data.captions_url === "string" ? data.captions_url : undefined}
+          captionsLang={typeof data.captions_lang === "string" ? data.captions_lang : "en"}
+          captionsLabel={typeof data.captions_label === "string" ? data.captions_label : "English"}
+        />
       );
     case "image":
       return (
@@ -86,6 +73,85 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
         </p>
       );
   }
+}
+
+/**
+ * Loop 16: lesson video with poster + buffering UI + error fallback.
+ *
+ * Previously the raw <video src=...> showed a black box while
+ * loading and surfaced no chrome if the MinIO URL 401/403'd. Now:
+ * - <Skeleton> while metadata loads (onLoadedMetadata clears it)
+ * - error state shows a fallback message + retry-as-direct-link
+ * - poster (if supplied) renders before play
+ *
+ * `crossOrigin="anonymous"` only when captions are present —
+ * captions need same-origin/CORS for the <track>, but adding the
+ * attr when not needed causes CORS preflight failures on bare-
+ * presigned MinIO URLs.
+ */
+function LessonVideo({
+  src,
+  poster,
+  captionsUrl,
+  captionsLang,
+  captionsLabel,
+}: {
+  src: string;
+  poster?: string;
+  captionsUrl?: string;
+  captionsLang?: string;
+  captionsLabel?: string;
+}) {
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const t = useT();
+  return (
+    <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border bg-black">
+      {state === "error" ? (
+        <div className="flex h-full flex-col items-center justify-center gap-3 bg-card p-6 text-center">
+          <p className="font-body text-sm text-destructive">
+            {t("player.videoError")}
+          </p>
+          <a
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors duration-base hover:text-foreground"
+          >
+            {t("player.videoTryDirect")}
+          </a>
+        </div>
+      ) : (
+        <>
+          {state === "loading" && (
+            <div className="absolute inset-0 grid place-items-center bg-card/40">
+              <div className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                {t("common.loading")}
+              </div>
+            </div>
+          )}
+          <video
+            controls
+            poster={poster}
+            crossOrigin={captionsUrl ? "anonymous" : undefined}
+            className="h-full w-full"
+            src={src}
+            onLoadedMetadata={() => setState("ready")}
+            onError={() => setState("error")}
+          >
+            {captionsUrl && (
+              <track
+                kind="captions"
+                src={captionsUrl}
+                srcLang={captionsLang ?? "en"}
+                label={captionsLabel ?? "English"}
+                default
+              />
+            )}
+          </video>
+        </>
+      )}
+    </div>
+  );
 }
 
 type QuizResult = {
@@ -195,7 +261,10 @@ function Quiz({
                 ].join(" ")}
                 title={new Date(a.submitted_at).toLocaleString()}
               >
-                {a.score}% {a.passed ? "✓" : ""}
+                {a.score}%
+                {a.passed && (
+                  <Check className="ms-1 h-3 w-3" aria-label={t("player.completed")} />
+                )}
               </li>
             ))}
           </ol>
@@ -234,12 +303,11 @@ function Quiz({
               </div>
             </div>
             {q.kind === "short" ? (
-              <input
+              <Input
                 type="text"
                 value={typeof given === "string" ? given : ""}
                 onChange={(e) => setAnswers((p) => ({ ...p, [q.id]: e.target.value }))}
                 disabled={submitted}
-                className="flex h-9 w-full rounded-md border border-border bg-muted px-3 py-2 font-body text-sm text-foreground transition-colors duration-base focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none disabled:opacity-60"
                 placeholder={t("quiz.shortPlaceholder")}
               />
             ) : q.kind === "single" ? (

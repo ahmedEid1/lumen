@@ -313,6 +313,8 @@ export const ar: Record<MessageKey, string> = {
   // Lesson player — text/video/image/file/quiz
   "player.unsupported": "نوع درس غير مدعوم: {type}",
   "player.download": "تحميل {name}",
+  "player.videoError": "تعذّر تحميل الفيديو.",
+  "player.videoTryDirect": "افتح الفيديو مباشرة",
   "quiz.pastAttempts": "محاولات سابقة ({n})",
   "quiz.questionNumber": "س{n}.",
   "quiz.correct": "صحيح",
@@ -557,6 +559,9 @@ export const ar: Record<MessageKey, string> = {
   // Course detail
   "courseDetail.cartouche": "الدورة",
   "courseDetail.notFound": "الدورة غير موجودة.",
+  "courseDetail.notFoundBody": "تعذّر العثور على هذه الدورة. ربما لم تُنشر بعد أو تغيّر الرابط.",
+  "courseDetail.browseCatalog": "تصفّح القائمة",
+  "courseDetail.certError": "تعذّر تنزيل الشهادة.",
   "courseDetail.instructor": "المدرّس",
   "courseDetail.noModules": "لا توجد وحدات بعد.",
   "courseDetail.module": "الوحدة {n}",

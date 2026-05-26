@@ -306,6 +306,8 @@ export const en = {
   // Lesson player — text/video/image/file/quiz
   "player.unsupported": "Unsupported lesson type: {type}",
   "player.download": "Download {name}",
+  "player.videoError": "Video couldn't load.",
+  "player.videoTryDirect": "Open the video directly",
   "quiz.pastAttempts": "Past attempts ({n})",
   "quiz.questionNumber": "Q{n}.",
   "quiz.correct": "correct",
@@ -550,6 +552,9 @@ export const en = {
   // Course detail page
   "courseDetail.cartouche": "Course",
   "courseDetail.notFound": "Course not found.",
+  "courseDetail.notFoundBody": "We couldn't find that course. It might be unpublished or the link may have changed.",
+  "courseDetail.browseCatalog": "Browse the catalog",
+  "courseDetail.certError": "Couldn't download the certificate.",
   "courseDetail.instructor": "Instructor",
   "courseDetail.noModules": "No modules yet.",
   "courseDetail.module": "Module {n}",

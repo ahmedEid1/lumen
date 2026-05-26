@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { HighlightedCode } from "@/components/lesson/highlighted-code";
 import type { BlockDoc, BlockMark, BlockNode } from "@/lib/lesson/blocks";
 
 /**
@@ -80,18 +81,15 @@ function RenderNode({ node }: { node: BlockNode }) {
     case "codeBlock": {
       const lang =
         (node.attrs as { language?: unknown } | undefined)?.language;
-      // Code blocks intentionally render as plain monospaced text —
-      // the editor wires up lowlight for syntax highlighting at
-      // authoring time, but the player keeps the read path simple
-      // (no highlighter shipped to the learner bundle). The
-      // language attribute is preserved for downstream tools that
-      // want to colourise later.
+      // Loop 16: Shiki client-side highlighting via <HighlightedCode>.
+      // Dynamic-imported so text-only lessons don't pay the bundle
+      // cost. Theme tracks next-themes resolvedTheme. Falls back to
+      // plain <pre><code> while shiki loads or on error.
       return (
-        <pre>
-          <code className={typeof lang === "string" ? `language-${lang}` : undefined}>
-            {textOf(node.content)}
-          </code>
-        </pre>
+        <HighlightedCode
+          code={textOf(node.content)}
+          lang={typeof lang === "string" ? lang : undefined}
+        />
       );
     }
     case "horizontalRule":
@@ -99,29 +97,39 @@ function RenderNode({ node }: { node: BlockNode }) {
     case "image": {
       const attrs = (node.attrs ?? {}) as { src?: unknown; alt?: unknown; title?: unknown };
       if (typeof attrs.src !== "string" || attrs.src.length === 0) return null;
+      // Loop 16: wrap in an aspect-ratio container so the image
+      // reserves space while it loads (no CLS on every image
+      // lesson). We keep <img> (not next/image) because lesson
+      // image URLs are instructor-controlled S3/MinIO URLs that
+      // aren't on our Next.js image-domain allowlist; next/image
+      // would 400 on every external host without per-host
+      // configuration.
       return (
-        // eslint-disable-next-line @next/next/no-img-element -- instructor-controlled URLs, no next/image needed
-        <img
-          src={attrs.src}
-          alt={typeof attrs.alt === "string" ? attrs.alt : ""}
-          title={typeof attrs.title === "string" ? attrs.title : undefined}
-        />
+        <span className="my-4 block overflow-hidden rounded-md border border-border bg-muted/40 [aspect-ratio:16/9]">
+          {/* eslint-disable-next-line @next/next/no-img-element -- instructor-controlled S3/MinIO URLs not on next/image domain allowlist */}
+          <img
+            src={attrs.src}
+            alt={typeof attrs.alt === "string" ? attrs.alt : ""}
+            title={typeof attrs.title === "string" ? attrs.title : undefined}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+        </span>
       );
     }
     case "callout": {
-      // Notion-style note block. Stored shape mirrors how Tiptap
-      // serialises custom blocks: `attrs.variant` ∈ "info" | "warn"
-      // | "success" — but treated tolerantly here so an unknown
-      // variant degrades to the neutral info style instead of
-      // disappearing.
+      // Notion-style note block. `attrs.variant` ∈ "info" | "warn"
+      // | "success" — unknown variants degrade to neutral.
+      // Loop 16: swapped raw Tailwind hues (amber-500/emerald-500)
+      // for semantic warning/success tokens so light mode works.
       const variant = String(
         (node.attrs as { variant?: unknown } | undefined)?.variant ?? "info",
       );
       const cls =
         variant === "warn"
-          ? "border-amber-500/40 bg-amber-500/10"
+          ? "border-warning/40 bg-warning/10"
           : variant === "success"
-            ? "border-emerald-500/40 bg-emerald-500/10"
+            ? "border-success/40 bg-success/10"
             : "border-border bg-muted";
       return (
         <aside className={`my-4 rounded-md border p-4 font-body text-sm ${cls}`}>

@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 16)
+
+- **Shiki syntax highlighting in block renderer.** New
+  `<HighlightedCode>` client component dynamic-imports `shiki` so
+  text-only lessons don't pay the bundle cost — only lessons with
+  a code block load the highlighter. Theme tracks
+  `next-themes.resolvedTheme` (github-dark / github-light).
+  Fallback to plain `<pre><code>` while loading or on error.
+- **Lesson image polish.** Wraps `<img>` in a
+  `[aspect-ratio:16/9]` container so the slot reserves space
+  while the image loads — no more CLS on every image lesson.
+  Adds `loading="lazy"` + bordered surface chrome.
+- **Lesson video — `<LessonVideo>`.** Replaces the bare `<video>`
+  with: poster attr, loading indicator while metadata loads,
+  explicit error UI with a "open directly" fallback if the MinIO
+  URL 401/403s.
+- **Past-attempt pills** swap the literal `"✓"` glyph for a
+  lucide `Check` icon with `aria-label`.
+- **Quiz short-answer** swaps the raw `<input>` for `<Input>`
+  primitive.
+- **Callout token-drift fix.** `border-amber-500/40 bg-amber-500/10`
+  + `border-emerald-500/40 bg-emerald-500/10` → semantic
+  `border-warning/40 bg-warning/10` + `border-success/40 bg-success/10`.
+- **Course detail decompose** — 444-LoC monolith → 218 LoC
+  orchestrator + 5 new components under `@/components/course/`:
+  `CourseHeader`, `CourseOutcomes`, `CourseSyllabus`,
+  `CourseReviews`, `CourseSidebar`.
+- **Course detail load state** — replaces the centred "Loading…"
+  string with a shape-matching `<Skeleton>` block.
+- **Course detail error branch** — `AlertCircle` icon + heading +
+  body + "Browse the catalog" + "Try again" retry button.
+- **Course detail unauth-enroll uses `router.push`** instead of
+  `window.location.href` so scroll/auth-store state isn't dropped.
+- **PDF certificate download** now goes through `fetch` (carries
+  auth cookie), redirects to /login on 401, builds an explicit
+  blob download.
+- **`shiki ^4.1.0`** added.
+- **i18n parity:** new keys added en + ar.
+
 ### Added (UI redesign loop 15)
 
 - **`<PasswordInput>` primitive** wraps `<Input>` + adds an Eye/EyeOff
