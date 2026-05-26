@@ -97,9 +97,7 @@ async def _engine():
         admin = create_async_engine(admin_url, isolation_level="AUTOCOMMIT")
         try:
             async with admin.connect() as conn:
-                await conn.execute(
-                    text(f'DROP DATABASE IF EXISTS "{test_db}" WITH (FORCE)')
-                )
+                await conn.execute(text(f'DROP DATABASE IF EXISTS "{test_db}" WITH (FORCE)'))
         finally:
             await admin.dispose()
 
@@ -149,7 +147,7 @@ def _all_table_names() -> str:
     from ``Base.metadata.tables`` means new tables join the truncate
     set automatically the moment they're declared.
     """
-    return ", ".join(f'"{t}"' for t in db_base.Base.metadata.tables.keys())
+    return ", ".join(f'"{t}"' for t in db_base.Base.metadata.tables)
 
 
 @pytest_asyncio.fixture
@@ -161,9 +159,7 @@ async def db_session(_engine) -> AsyncIterator[AsyncSession]:
         # via the metadata catches the case where a new table has no
         # FK to anything we *do* list (e.g. ``agent_traces``) and would
         # otherwise quietly accumulate rows across tests.
-        await session.execute(
-            text(f"TRUNCATE {_all_table_names()} RESTART IDENTITY CASCADE")
-        )
+        await session.execute(text(f"TRUNCATE {_all_table_names()} RESTART IDENTITY CASCADE"))
         await session.commit()
         yield session
 
