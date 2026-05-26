@@ -17,7 +17,7 @@ test.describe("learner journey", () => {
     // Login (prefilled in dev).
     await page.goto("/login");
     await page.getByLabel(/email/i).fill("student@lumen.test");
-    await page.getByLabel(/password/i).fill("Learn!2026");
+    await page.getByLabel("Password", { exact: true }).fill("Learn!2026");
     // scope to the form so we hit the submit button
     // rather than the navbar's "Sign in" link (strict mode tie).
     await page.locator("form").getByRole("button", { name: /sign in/i }).click();

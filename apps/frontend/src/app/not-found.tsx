@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/link-button";
 import { useT } from "@/lib/i18n/provider";
 
 /**
@@ -27,9 +26,7 @@ export default function NotFound() {
           {t("notFound.body")}
         </p>
         <div className="mt-6">
-          <Link href="/">
-            <Button>{t("verifyCert.goHome")}</Button>
-          </Link>
+          <LinkButton href="/">{t("verifyCert.goHome")}</LinkButton>
         </div>
       </div>
     </div>

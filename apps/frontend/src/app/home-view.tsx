@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/link-button";
 import { CourseCard } from "@/components/course/course-card";
 import type { Page, CourseListItem } from "@/lib/api/types";
 import { useT } from "@/lib/i18n/provider";
@@ -128,14 +128,12 @@ export function HomeView({ featured }: { featured: Page<CourseListItem> }) {
               {t("home.ctaBody")}
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/register">
-                <Button size="lg">{t("home.beginApprenticeship")}</Button>
-              </Link>
-              <Link href="/courses">
-                <Button size="lg" variant="ghost">
-                  {t("home.browseFirst")}
-                </Button>
-              </Link>
+              <LinkButton href="/register" size="lg">
+                {t("home.beginApprenticeship")}
+              </LinkButton>
+              <LinkButton href="/courses" size="lg" variant="ghost">
+                {t("home.browseFirst")}
+              </LinkButton>
             </div>
           </div>
         </div>
@@ -165,16 +163,12 @@ function Hero({ t }: { t: ReturnType<typeof useT> }) {
             {t("home.heroSubline")}
           </p>
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-            <Link href="/courses">
-              <Button size="lg">
-                {t("home.enterLibrary")} <ArrowRight className="ms-1 h-4 w-4" />
-              </Button>
-            </Link>
-            <Link href="/register">
-              <Button size="lg" variant="ghost">
-                {t("home.inscribeYourself")}
-              </Button>
-            </Link>
+            <LinkButton href="/courses" size="lg">
+              {t("home.enterLibrary")} <ArrowRight className="ms-1 h-4 w-4" />
+            </LinkButton>
+            <LinkButton href="/register" size="lg" variant="ghost">
+              {t("home.inscribeYourself")}
+            </LinkButton>
           </div>
         </div>
       </div>

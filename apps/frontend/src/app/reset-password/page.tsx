@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AuthCard } from "@/components/ui/auth-card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { LinkButton } from "@/components/ui/link-button";
+import { PasswordInput } from "@/components/ui/password-input";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 import { useHydrated } from "@/lib/use-hydrated";
@@ -91,9 +91,8 @@ function ResetForm() {
             <label htmlFor="password" className="font-body text-sm font-medium">
               {t("auth.login.password")}
             </label>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               placeholder={t("auth.reset.passwordPlaceholder")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}

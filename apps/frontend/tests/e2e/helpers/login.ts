@@ -81,7 +81,7 @@ export async function loginAs(
   await preDismissOnboarding(page);
   await page.goto("/login");
   await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/password/i).fill(password);
+  await page.getByLabel("Password", { exact: true }).fill(password);
   await page
     .locator("form")
     .getByRole("button", { name: /sign in/i })

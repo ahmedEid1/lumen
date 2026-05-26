@@ -60,7 +60,7 @@ const BEATS: Beat[] = [
       // Log in as student
       await page.goto(`${BASE}/login`);
       await page.getByLabel(/email/i).fill("student@lumen.test");
-      await page.getByLabel(/password/i).fill("Learn!2026");
+      await page.getByLabel("Password", { exact: true }).fill("Learn!2026");
       await page.click('button[type="submit"]');
       await page.waitForURL(/dashboard|\/$/, { timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(800);
@@ -124,7 +124,7 @@ const BEATS: Beat[] = [
       // Re-login as teacher
       await page.goto(`${BASE}/login`);
       await page.getByLabel(/email/i).fill("teacher@lumen.test");
-      await page.getByLabel(/password/i).fill("Teach!2026");
+      await page.getByLabel("Password", { exact: true }).fill("Teach!2026");
       await page.click('button[type="submit"]');
       await page.waitForTimeout(1200);
       await page.goto(`${BASE}/studio/draft/${DRAFT_COURSE_ID}/replay`);
@@ -141,7 +141,7 @@ const BEATS: Beat[] = [
       // Re-login as admin
       await page.goto(`${BASE}/login`);
       await page.getByLabel(/email/i).fill("admin@lumen.test");
-      await page.getByLabel(/password/i).fill("Admin!2026");
+      await page.getByLabel("Password", { exact: true }).fill("Admin!2026");
       await page.click('button[type="submit"]');
       await page.waitForTimeout(1200);
       await page.goto(`${BASE}/admin/observability`);

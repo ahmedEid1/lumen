@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import { AuthCard } from "@/components/ui/auth-card";
@@ -42,6 +42,9 @@ function VerifyEmailInner() {
   const token = params.get("token") ?? "";
   const [status, setStatus] = useState<Status>("checking");
   const [message, setMessage] = useState<string>("");
+  // Loop 15: idempotency guard so React 19 strict-mode double-invoke
+  // OR a refresh doesn't burn the token by submitting it twice.
+  const calledRef = useRef(false);
 
   useEffect(() => {
     if (!token) {
@@ -49,6 +52,8 @@ function VerifyEmailInner() {
       setMessage(t("verifyEmail.error.missingToken"));
       return;
     }
+    if (calledRef.current) return;
+    calledRef.current = true;
     let cancelled = false;
     (async () => {
       try {

@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 15)
+
+- **`<PasswordInput>` primitive** wraps `<Input>` + adds an Eye/EyeOff
+  toggle on the trailing edge. Translated `aria-label` ("Show
+  password" / "Hide password"). `aria-pressed` reflects state. Value
+  preserved across toggle.
+- **`<PasswordStrengthMeter>` primitive** — 4-segment visual + label
+  ("Weak" / "Fair" / "Good" / "Strong"). No zxcvbn dep — small
+  heuristic (length tiers × class diversity × common-prefix penalty).
+- **`/register` polish:** PasswordInput + StrengthMeter + required
+  confirm-password with inline mismatch error + T&C Checkbox gating
+  submit. `canSubmit` re-derived per render — guards against
+  intermediate states.
+- **`/login`, `/reset-password`:** native password input swapped for
+  PasswordInput.
+- **Idempotency guards** on `/verify-email` and
+  `/confirm-email-change`. `useRef(false)` early-return at the top
+  of the verify effect — React 19 strict-mode double-mount + manual
+  refresh both no-op the second call.
+- **Nested `<Link><Button>` sweep:** home-view.tsx hero + closing
+  CTAs, not-found.tsx, error.tsx all migrated to `<LinkButton>`.
+- **`<Button>` import removed** from home-view.tsx (no longer used).
+
+### Fixed (UI redesign loop 15)
+
+- **8 e2e `getByLabel(/password/i)` callsites** were matching 2
+  elements after PasswordInput shipped (the input + the Eye-toggle
+  button's `aria-label="Show password"`). Swept to
+  `getByLabel("Password", { exact: true })` across:
+  record-walkthrough.ts, auth.spec.ts, instructor-flow.spec.ts,
+  accessibility.spec.ts, learner-journey.spec.ts, helpers/login.ts.
+- **`auth.spec.ts` register golden-path** was broken by the new
+  required confirm + T&C gating — submit click hit a disabled
+  button. Test now fills the confirm field and clicks the T&C
+  checkbox (via `getByRole("checkbox")` — Radix Checkbox is
+  button-backed, label-for-button doesn't bubble reliably under
+  Playwright).
+
 ### Added (UI redesign loop 14)
 
 - **Three primitives in one push — Foundation E closes here.**

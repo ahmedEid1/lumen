@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/link-button";
 import { useT } from "@/lib/i18n/provider";
 
 /**
@@ -42,9 +42,9 @@ export default function Error({
         ) : null}
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <Button onClick={reset}>{t("common.tryAgain")}</Button>
-          <Link href="/">
-            <Button variant="ghost">{t("verifyCert.goHome")}</Button>
-          </Link>
+          <LinkButton href="/" variant="ghost">
+            {t("verifyCert.goHome")}
+          </LinkButton>
         </div>
       </div>
     </div>

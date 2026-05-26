@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { AuthCard } from "@/components/ui/auth-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useAuth } from "@/lib/auth/store";
 import { ApiError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
@@ -93,9 +94,8 @@ function LoginForm() {
           <label htmlFor="password" className="font-body text-sm font-medium">
             {t("auth.login.password")}
           </label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="current-password"
             required
             value={password}

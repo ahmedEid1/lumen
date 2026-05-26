@@ -63,7 +63,18 @@ test.describe("auth golden path — register → verify → reset → login", ()
     // Use the form locator to disambiguate from any "email/password"
     // label that bleeds into the navbar / locale switcher copy.
     await page.locator("form").getByLabel(/^email$/i).fill(email);
-    await page.locator("form").getByLabel(/password/i).fill(initialPassword);
+    await page.locator("form").getByLabel("Password", { exact: true }).fill(initialPassword);
+    // Loop 15 added a required confirm-password field + T&C checkbox.
+    // Without both, canSubmit stays false and clicking the disabled
+    // "Create account" button is a no-op.
+    await page
+      .locator("form")
+      .getByLabel(/confirm password/i)
+      .fill(initialPassword);
+    // Radix Checkbox renders as role="checkbox" (button-backed, not
+    // a native input). Click it directly via role; label-for-button
+    // bubbling doesn't fire reliably under Playwright.
+    await page.getByRole("checkbox", { name: /I agree to the/i }).click();
     await page
       .locator("form")
       .getByRole("button", { name: /create|sign up|register/i })
@@ -123,7 +134,7 @@ test.describe("auth golden path — register → verify → reset → login", ()
     // didn't match the original /reset|submit|update/i and let
     // Playwright spin for the whole 60s actionTimeout before failing.
     await page.goto(`/reset-password?token=${encodeURIComponent(resetToken)}`);
-    await page.getByLabel(/password/i).fill(resetPassword);
+    await page.getByLabel("Password", { exact: true }).fill(resetPassword);
     await page
       .locator("form")
       .getByRole("button", { name: /set|reset|submit|update/i })

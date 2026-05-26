@@ -20,8 +20,14 @@ describe("LoginPage", () => {
   it("renders the email and password fields empty on mount (no prefilled dev creds)", async () => {
     render(<LoginPage />);
     const email = await screen.findByLabelText(/email/i);
-    const password = await screen.findByLabelText(/password/i);
+    // Loop 15 added a PasswordInput with an Eye toggle button whose
+    // aria-label is "Show password". That makes `/password/i` match
+    // 2 elements. Disambiguate by selecting the actual input element.
+    const password = document.querySelector(
+      'input[id="password"]',
+    ) as HTMLInputElement;
     expect(email).toHaveValue("");
-    expect(password).toHaveValue("");
+    expect(password).toBeTruthy();
+    expect(password.value).toBe("");
   });
 });

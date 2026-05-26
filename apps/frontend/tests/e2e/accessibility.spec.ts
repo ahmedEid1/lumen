@@ -119,7 +119,7 @@ async function signIn(
   });
   await page.goto("/login");
   await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/password/i).fill(password);
+  await page.getByLabel("Password", { exact: true }).fill(password);
   // Scope to the form to avoid the navbar's "Sign in" link tying with
   // the submit button under Playwright strict mode (same pattern as
   // smoke.spec.ts and instructor-flow.spec.ts).

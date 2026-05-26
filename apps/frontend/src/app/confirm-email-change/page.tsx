@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
@@ -30,6 +30,11 @@ export default function ConfirmEmailChangePage() {
   const t = useT();
   const { logout } = useAuth();
   const [result, setResult] = useState<ConfirmResult>({ state: "idle" });
+  // Loop 15: idempotency guard. The confirm-email endpoint
+  // invalidates the token server-side; a strict-mode double-mount
+  // would send it twice and the second call would fail as
+  // "email_change.invalid".
+  const calledRef = useRef(false);
 
   useEffect(() => {
     const token = params.get("token");
@@ -37,6 +42,8 @@ export default function ConfirmEmailChangePage() {
       setResult({ state: "error", message: t("confirmEmail.missingToken") });
       return;
     }
+    if (calledRef.current) return;
+    calledRef.current = true;
     setResult({ state: "loading" });
     (async () => {
       try {
