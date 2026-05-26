@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { api } from "@/lib/api/client";
 import { qk } from "@/lib/query/keys";
 import { formatRelative } from "@/lib/utils";
@@ -70,83 +75,78 @@ export function NotificationsBell() {
   const unread = (q.data ?? []).filter((n) => !n.read_at).length;
 
   return (
-    <div className="relative">
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={
-          unread ? t("notif.ariaWithCount", { n: unread }) : t("nav.notifications.aria")
-        }
-        onClick={() => setOpen((v) => !v)}
-        className="text-muted-foreground hover:text-foreground"
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={
+            unread ? t("notif.ariaWithCount", { n: unread }) : t("nav.notifications.aria")
+          }
+          className="relative text-muted-foreground hover:text-foreground"
+        >
+          <Bell className="h-5 w-5" />
+          {unread > 0 && (
+            <span className="absolute end-1.5 top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-semibold tabular-nums text-primary-foreground">
+              {unread > 9 ? "9+" : unread}
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="w-80 overflow-hidden p-0"
       >
-        <Bell className="h-5 w-5" />
-        {unread > 0 && (
-          <span className="absolute end-1.5 top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-semibold tabular-nums text-primary-foreground">
-            {unread > 9 ? "9+" : unread}
+        <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
+          <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+            {t("notif.title")}
           </span>
-        )}
-      </Button>
-
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
-          <div className="surface absolute end-0 z-40 mt-2 w-80 overflow-hidden">
-            <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
-              <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                {t("notif.title")}
-              </span>
-              {unread > 0 && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    markAllRead.mutate();
+          {unread > 0 && (
+            <button
+              type="button"
+              onClick={() => markAllRead.mutate()}
+              disabled={markAllRead.isPending}
+              className="font-body text-xs text-muted-foreground transition-colors duration-base hover:text-foreground disabled:opacity-50"
+            >
+              {markAllRead.isPending ? t("notif.marking") : t("notif.markAllRead")}
+            </button>
+          )}
+        </div>
+        <ul className="max-h-96 overflow-y-auto font-body">
+          {q.data?.length ? (
+            q.data.map((n) => {
+              const href = targetHref(n);
+              return (
+                <li
+                  key={n.id}
+                  className={`flex flex-col gap-1 border-b border-border px-3 py-2.5 text-sm last:border-0 transition-colors duration-base ${
+                    href ? "cursor-pointer hover:bg-muted/40" : ""
+                  } ${!n.read_at ? "bg-muted/30" : ""}`}
+                  onClick={() => {
+                    if (!n.read_at) markRead.mutate(n.id);
+                    if (href) {
+                      setOpen(false);
+                      router.push(href);
+                    }
                   }}
-                  disabled={markAllRead.isPending}
-                  className="font-body text-xs text-muted-foreground transition-colors duration-[160ms] hover:text-foreground disabled:opacity-50"
                 >
-                  {markAllRead.isPending ? t("notif.marking") : t("notif.markAllRead")}
-                </button>
-              )}
-            </div>
-            <ul className="max-h-96 overflow-y-auto font-body">
-              {q.data?.length ? (
-                q.data.map((n) => {
-                  const href = targetHref(n);
-                  return (
-                    <li
-                      key={n.id}
-                      className={`flex flex-col gap-1 border-b border-border px-3 py-2.5 text-sm last:border-0 transition-colors duration-[160ms] ${
-                        href ? "cursor-pointer hover:bg-muted/40" : ""
-                      } ${!n.read_at ? "bg-muted/30" : ""}`}
-                      onClick={() => {
-                        if (!n.read_at) markRead.mutate(n.id);
-                        if (href) {
-                          setOpen(false);
-                          router.push(href);
-                        }
-                      }}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <strong className="truncate font-medium text-foreground">{n.title}</strong>
-                        <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                          {formatRelative(n.created_at)}
-                        </span>
-                      </div>
-                      {n.body && <p className="text-xs text-muted-foreground">{n.body}</p>}
-                    </li>
-                  );
-                })
-              ) : (
-                <li className="px-3 py-8 text-center font-body text-sm text-muted-foreground">
-                  {t("notif.empty")}
+                  <div className="flex items-center justify-between gap-2">
+                    <strong className="truncate font-medium text-foreground">{n.title}</strong>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                      {formatRelative(n.created_at)}
+                    </span>
+                  </div>
+                  {n.body && <p className="text-xs text-muted-foreground">{n.body}</p>}
                 </li>
-              )}
-            </ul>
-          </div>
-        </>
-      )}
-    </div>
+              );
+            })
+          ) : (
+            <li className="px-3 py-8 text-center font-body text-sm text-muted-foreground">
+              {t("notif.empty")}
+            </li>
+          )}
+        </ul>
+      </PopoverContent>
+    </Popover>
   );
 }

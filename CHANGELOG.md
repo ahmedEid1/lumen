@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 11)
+
+- **`<Popover>` primitive** (Radix-backed). Anchored to its trigger
+  via Radix Portal + Floating UI; Escape closes; click-outside
+  closes; focus restores to trigger on close. Default `align="end"`
+  matches the most-common header-anchored use.
+- **`<DropdownMenu>` primitive** with full sub-component family:
+  `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuItem`,
+  `DropdownMenuLabel`, `DropdownMenuSeparator`, `DropdownMenuRadioGroup`,
+  `DropdownMenuRadioItem`, `DropdownMenuCheckboxItem`. Same surface
+  chrome as Popover; arrow-key navigation + type-to-search inherited
+  from Radix.
+- **`notifications-bell` migrated to `<Popover>`.** Was a hand-rolled
+  `fixed inset-0 z-30` overlay + `absolute end-0 z-40` panel with no
+  Escape and no focus restore. Now Radix-backed.
+- **`locale-switcher` promoted from cycle-button to `<DropdownMenu>`.**
+  Was cycling `en → ar → en → …` because "adding a Radix dropdown
+  for two options is silly" (per the prior source comment). With
+  DropdownMenu now in the kit the cost-of-real-dropdown dropped to
+  ~25 LoC; screen-reader users now hear "menu, 2 items" instead of
+  a label that mutates on each click. Active locale shows a check
+  via `DropdownMenuRadioGroup`.
+- **Mobile menu in `<SiteHeader>` migrated to `<Sheet>`.** Was a
+  hand-rolled `border-t` slide-down inside the header element. Now
+  slides in from the end of the screen with focus trap, Escape close,
+  click-outside dismiss, and the close X. Closes the AUDIT.md §2
+  "no slide-in animation, no swipe-close, no portal" complaint.
+- **Test coverage:** 2 new spec files (`popover.test.tsx`,
+  `dropdown-menu.test.tsx`) — 12 new tests. `make test.web` now
+  40 files / 228 tests green (+2 files / +12 tests vs Loop 10).
+- **Animation infrastructure:** `data-state="open"` rules for
+  `data-wb-popover-content` and `data-wb-dropdown-content` re-use
+  the existing `fade-in` keyframe (`var(--duration-base)` +
+  `var(--ease-out-quart)`). No rise transform on anchored content —
+  short-distance translate at trigger range reads as jitter.
+- `@radix-ui/react-popover ^1.1.15` and
+  `@radix-ui/react-dropdown-menu ^2.1.16` added.
+
 ### Added (UI redesign loop 10)
 
 - **`<Dialog>` primitive** (Radix-backed) ships with full sub-component

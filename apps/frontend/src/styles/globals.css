@@ -362,6 +362,13 @@
 [data-state="open"][data-wb-dialog-content] {
   animation: rise var(--duration-base) var(--ease-out-quart) both;
 }
+/* Popover + DropdownMenu — same fade-in on the anchored content
+   block. No rise transform: these float close to their trigger
+   and a translateY at this distance reads as jitter, not entrance. */
+[data-state="open"][data-wb-popover-content],
+[data-state="open"][data-wb-dropdown-content] {
+  animation: fade-in var(--duration-base) var(--ease-out-quart) both;
+}
 [data-state="open"][data-wb-sheet-content][data-side="right"] {
   animation: sheet-in-right var(--duration-base) var(--ease-out-quart) both;
 }

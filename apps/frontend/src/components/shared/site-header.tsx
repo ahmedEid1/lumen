@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Moon, Sun, LogOut, Menu, X } from "lucide-react";
+import { Moon, Sun, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { HeaderSearch } from "@/components/shared/header-search";
 import { LocaleSwitcher } from "@/components/shared/locale-switcher";
 import { NotificationsBell } from "@/components/shared/notifications-bell";
@@ -174,84 +175,85 @@ export function SiteHeader() {
             </>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            aria-label={menuOpen ? t("header.closeMenu") : t("header.openMenu")}
-            aria-expanded={menuOpen}
-            aria-controls="mobile-nav"
-            onClick={() => setMenuOpen((v) => !v)}
-          >
-            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden"
+                aria-label={menuOpen ? t("header.closeMenu") : t("header.openMenu")}
+                aria-expanded={menuOpen}
+                aria-controls="mobile-nav-sheet"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent
+              id="mobile-nav-sheet"
+              side="right"
+              className="w-72 p-4"
+              srLabelClose={t("header.closeMenu")}
+            >
+              <SheetTitle className="sr-only">{t("header.mobileMenu")}</SheetTitle>
+              <nav
+                className="flex flex-col gap-1 pt-2"
+                aria-label={t("header.mobilePrimaryNav")}
+              >
+                {links.map((l) => {
+                  const active = pathname?.startsWith(l.href);
+                  return (
+                    <Link
+                      key={l.href}
+                      href={l.href}
+                      aria-current={active ? "page" : undefined}
+                      className={`rounded-md px-3 py-2 font-body text-sm hover:bg-muted ${
+                        active ? "bg-muted font-medium" : ""
+                      }`}
+                    >
+                      {t(l.labelKey)}
+                    </Link>
+                  );
+                })}
+                <div className="my-2 border-t border-border/60" />
+                <HeaderSearch className="px-1 py-1" />
+                <div className="my-2 border-t border-border/60" />
+                {ready && user ? (
+                  <>
+                    <Link
+                      href="/profile"
+                      className="flex items-center gap-2 rounded-md px-3 py-2 font-body text-sm hover:bg-muted"
+                    >
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={user.avatar_url ?? undefined} alt={user.full_name} />
+                        <AvatarFallback>{initials(user.full_name)}</AvatarFallback>
+                      </Avatar>
+                      <span>{user.full_name || user.email}</span>
+                    </Link>
+                    <button
+                      onClick={() => logout()}
+                      className="flex items-center gap-2 rounded-md px-3 py-2 text-start font-body text-sm hover:bg-muted"
+                    >
+                      <LogOut className="h-4 w-4" /> {t("nav.signOut")}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link href="/login" className="rounded-md px-3 py-2 font-body text-sm hover:bg-muted">
+                      {t("nav.signIn")}
+                    </Link>
+                    <Link
+                      href="/register"
+                      className="rounded-md px-3 py-2 font-body text-sm hover:bg-muted"
+                    >
+                      {t("nav.signUp")}
+                    </Link>
+                  </>
+                )}
+              </nav>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
-
-      {menuOpen && (
-        <div
-          id="mobile-nav"
-          className="border-t border-border/60 bg-background md:hidden"
-          role="dialog"
-          aria-label={t("header.mobileMenu")}
-        >
-          <nav
-            className="container mx-auto flex flex-col gap-1 px-4 py-3"
-            aria-label={t("header.mobilePrimaryNav")}
-          >
-            {links.map((l) => {
-              const active = pathname?.startsWith(l.href);
-              return (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  aria-current={active ? "page" : undefined}
-                  className={`rounded-md px-3 py-2 font-body text-sm hover:bg-muted ${
-                    active ? "bg-muted font-medium" : ""
-                  }`}
-                >
-                  {t(l.labelKey)}
-                </Link>
-              );
-            })}
-            <div className="my-2 border-t border-border/60" />
-            <HeaderSearch className="px-1 py-1" />
-            <div className="my-2 border-t border-border/60" />
-            {ready && user ? (
-              <>
-                <Link
-                  href="/profile"
-                  className="flex items-center gap-2 rounded-md px-3 py-2 font-body text-sm hover:bg-muted"
-                >
-                  <Avatar className="h-6 w-6">
-                    <AvatarImage src={user.avatar_url ?? undefined} alt={user.full_name} />
-                    <AvatarFallback>{initials(user.full_name)}</AvatarFallback>
-                  </Avatar>
-                  <span>{user.full_name || user.email}</span>
-                </Link>
-                <button
-                  onClick={() => logout()}
-                  className="flex items-center gap-2 rounded-md px-3 py-2 text-start font-body text-sm hover:bg-muted"
-                >
-                  <LogOut className="h-4 w-4" /> {t("nav.signOut")}
-                </button>
-              </>
-            ) : (
-              <>
-                <Link href="/login" className="rounded-md px-3 py-2 font-body text-sm hover:bg-muted">
-                  {t("nav.signIn")}
-                </Link>
-                <Link
-                  href="/register"
-                  className="rounded-md px-3 py-2 font-body text-sm hover:bg-muted"
-                >
-                  {t("nav.signUp")}
-                </Link>
-              </>
-            )}
-          </nav>
-        </div>
-      )}
     </header>
   );
 }
