@@ -166,6 +166,12 @@ jobs:
     # Only build on push (not PR) — PRs from the same repo would
     # produce dupes; PRs from forks can't push to ghcr anyway.
     if: github.event_name == 'push'
+    # Multi-arch (amd64 native + arm64 via QEMU emulation) makes this
+    # job ~3-4x longer than the previous amd64-only build. A cold
+    # GHA cache + emulated `uv sync` / `pnpm install` / Next.js
+    # build can push 25-35 min. 60 min hard cap so a hung emulation
+    # fails loud well before the 6-hour default ceiling.
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -175,6 +181,22 @@ jobs:
       sha: ${{ steps.meta.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
+      # QEMU registers binfmt_misc handlers on the runner so buildx can
+      # cross-build for non-host architectures. Required for the
+      # `linux/arm64` half of the multi-arch build below — the AWS
+      # production box is a t4g.small (Graviton / aarch64), and the
+      # default amd64-only image was throwing `no matching manifest
+      # for linux/arm64/v8` on every `docker compose pull` in
+      # deploy.yml (see run 26433960527, 2026-05-26). The amd64 build
+      # runs natively on the ubuntu-24.04 runner; the arm64 build runs
+      # under QEMU emulation — slower, but keeps everything on one
+      # runner and produces a single multi-arch manifest. If build
+      # time becomes a problem, the alternative is a matrix with
+      # ubuntu-24.04 + ubuntu-24.04-arm and a separate manifest-merge
+      # step.
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -213,6 +235,10 @@ jobs:
           context: apps/backend
           target: prod
           push: true
+          # Multi-arch manifest: amd64 builds natively, arm64 builds
+          # under QEMU emulation (set up via setup-qemu-action above).
+          # GHA cache is scoped per-arch automatically by buildx.
+          platforms: linux/amd64,linux/arm64
           # `latest` moves on every push to main.
           tags: |
             ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-api:${{ github.sha }}
@@ -226,6 +252,7 @@ jobs:
           context: apps/frontend
           target: prod
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-web:${{ github.sha }}
             ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-web:${{ github.ref_name }}
