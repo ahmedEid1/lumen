@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 1)
+
+- **Token foundation pass.** `globals.css` grows by the design-token
+  surface the next ~19 redesign loops will reference:
+  - `--info` / `--info-foreground` — semantic colour sibling to
+    success / warning / destructive. Dark `hsl(217 91% 60%)` clears
+    8.06–8.42:1 against the documented surfaces; light
+    `hsl(217 91% 47%)` clears 6.20–6.55:1. Both AA-passing.
+  - `--space-{xs,sm,md,lg,xl,2xl,3xl}` — 8px-aligned named scale,
+    additive to Tailwind's 4px scale. Primitives shipping in later
+    loops use these for `density` / `padding` component props.
+  - `--z-{base,sticky,overlay,modal,popover,toast,tooltip}` — semantic
+    layer ramp. Magic-number migrations (`site-header.tsx:103 z-40`
+    etc.) follow in a later loop.
+  - `--opacity-{disabled,hover,overlay,decoration}` — semantic state
+    ramp. `opacity-disabled` ≡ `opacity-50` numerically but names the
+    intent.
+  - `--ease-spring-soft`, `--ease-spring-firm` — spring easings for
+    dialogs / sheets / dropdowns alongside the existing
+    `--ease-out-quart`.
+  - `--motion-rise-distance` (8px), `--motion-press-scale` (0.97) —
+    movement constants for re-usable keyframes / press feedback.
+- `@theme inline` aliases for everything except the spring easings +
+  motion constants (those live in `:root` only — they're consumed
+  via `[transition-timing-function:var(--ease-spring-soft)]` style
+  Tailwind arbitrary values). The motion-variant aliasing would
+  have produced a self-referential `--ease-spring-soft:
+  var(--ease-spring-soft)` entry in `@theme inline`; sticking with
+  the file's existing pattern (motion lives in `@theme` as literals,
+  spring siblings only in `:root`) keeps the namespace clean.
+- **Duration-literal sweep.** `button.tsx:21`, `input.tsx:20`,
+  `textarea.tsx:17` move from `duration-[160ms]` arbitrary-value
+  utility to the named `duration-base` class (Tailwind 4 generates it
+  from the `@theme inline --duration-base` entry that already
+  existed). `progress.tsx:36-37` swaps the inline-style
+  `"transform 240ms cubic-bezier(0.16, 1, 0.3, 1)"` literal for
+  `"transform var(--duration-slow) var(--ease-out-quart)"`.
+- **Regression test:** `apps/frontend/tests/tokens-foundation.test.ts`
+  asserts every new token name exists in the right CSS block
+  (`:root` for theme-neutral + dark colour defaults, `.light` for the
+  light-mode `--info` override, `@theme inline` for the Tailwind
+  utility aliases) and pins the four duration-literal sweeps. Values
+  are intentionally *not* asserted — future loops are free to swap
+  the `--info` hue or re-tune the spring curve. Token *removal* is
+  what we guard. Reads source files directly via `__dirname`-relative
+  paths (vitest already runs at `/app` inside the `web` container's
+  workspace mount); the `/repo` mount used by
+  `ci-workflow-shape.test.ts` and `makefile-pnpm-invocation.test.ts`
+  doesn't expose the frontend source, only the Makefile + workflows.
+- **No visible diff.** This loop ships tokens dormant until consumed.
+  Existing component renders are byte-equivalent through the
+  `duration-[160ms]` → `duration-base` swap because Tailwind resolves
+  both to `transition-duration: 160ms`. The dev-server smoke (curl
+  `/` → HTTP 200, 47 KB, contains the `duration-base` class) +
+  `make test.web` (34 files / 160 tests, +1 file / +13 tests vs.
+  pre-loop) confirms.
+- **Design contract docs:** `docs/redesign/loop-1-{goal,options,spec,result}.md`
+  capture the loop's brainstorm-and-commit trail. `docs/redesign/STATUS.md`
+  gains the first row.
+
 ### Fixed (iteration 5)
 
 - **`deploy.yml` :: Sync repo on the box** now self-heals when

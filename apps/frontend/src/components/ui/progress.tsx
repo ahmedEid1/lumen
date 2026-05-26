@@ -33,7 +33,7 @@ export const Progress = React.forwardRef<
       className="h-full w-full flex-1 bg-primary"
       style={{
         transform: `translateX(-${100 - (value ?? 0)}%)`,
-        transition: "transform 240ms cubic-bezier(0.16, 1, 0.3, 1)",
+        transition: "transform var(--duration-slow) var(--ease-out-quart)",
       }}
     />
   </ProgressPrimitive.Root>

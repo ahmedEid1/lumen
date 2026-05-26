@@ -40,6 +40,11 @@
     --success-foreground: 220 9% 92%;
     --warning: 38 91% 55%;               /* #F5A524 amber */
     --warning-foreground: 220 14% 4%;
+    /* Info — sibling to success/warning/destructive. Tailwind blue-500 family.
+       Dark value clears AA on every documented surface (8.42:1 on --background,
+       8.06:1 on --card, 7.61:1 on --muted). */
+    --info: 217 91% 60%;                 /* #3B82F6 */
+    --info-foreground: 220 9% 92%;
     --border: 220 14% 14%;               /* #1E2228 — border = surface-2 */
     --input: 220 14% 14%;
     --ring: 72 100% 50%;                 /* lime focus ring */
@@ -49,6 +54,51 @@
     --surface-1: 220 14% 7%;             /* #111316 */
     --surface-2: 220 14% 11%;            /* #171A1F */
     --surface-3: 220 14% 14%;            /* #1E2228 */
+
+    /* ── Spacing scale (theme-neutral) ────────────────────────────────
+       8px-aligned named tokens. Coexists with Tailwind's 4px scale —
+       primitives consume these for `density` / `padding` props
+       (`<EmptyState padding="md">`), hand-written one-offs may still
+       use raw Tailwind utilities when a non-8px gap is intentional. */
+    --space-xs: 0.5rem;                  /*  8px — single grid unit */
+    --space-sm: 1rem;                    /* 16px */
+    --space-md: 1.5rem;                  /* 24px */
+    --space-lg: 2rem;                    /* 32px */
+    --space-xl: 3rem;                    /* 48px */
+    --space-2xl: 4rem;                   /* 64px */
+    --space-3xl: 6rem;                   /* 96px */
+
+    /* ── Z-index ramp (theme-neutral) ─────────────────────────────────
+       Semantic layers. The page body is always at --z-base; the only
+       layer above tooltips is the browser's own chrome. Migrations of
+       existing magic numbers (site-header.tsx:103 z-40, etc.) follow
+       in their own loops; this loop only adds the scale. */
+    --z-base: 0;
+    --z-sticky: 10;                      /* sticky chrome (header, filter rails) */
+    --z-overlay: 20;                     /* full-page overlays beneath modals */
+    --z-modal: 30;                       /* dialogs, sheets */
+    --z-popover: 40;                     /* popovers, dropdown menus, command palette */
+    --z-toast: 50;                       /* sonner toasts */
+    --z-tooltip: 60;                     /* always-on-top hint chrome */
+
+    /* ── Opacity ramp (theme-neutral) ─────────────────────────────────
+       Semantic states. Primitives prefer the named form
+       (`opacity-disabled` over `opacity-50`) so a future tweak to the
+       disabled feel is one var edit, not a sweep. */
+    --opacity-disabled: 0.5;             /* matches existing disabled:opacity-50 */
+    --opacity-hover: 0.9;                /* hover on a fill (primary/90 etc.) */
+    --opacity-overlay: 0.6;              /* modal backdrops */
+    --opacity-decoration: 0.4;           /* faded icons, decorative chrome */
+
+    /* ── Motion variants (theme-neutral) ──────────────────────────────
+       Sibling easings to --ease-out-quart for surface-specific feel:
+       soft spring overshoots gently (sheets, dropdowns), firm spring
+       settles immediately (dialogs). Movement constants pin the
+       rise-distance and press-scale used by reusable keyframes. */
+    --ease-spring-soft: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-spring-firm: cubic-bezier(0.22, 1, 0.36, 1);
+    --motion-rise-distance: 8px;         /* matches the `rise` keyframe translateY */
+    --motion-press-scale: 0.97;          /* scale on :active for press-feedback */
   }
 
   .light {
@@ -76,6 +126,10 @@
     --destructive-foreground: 60 9% 98%;
     --success: 131 41% 37%;
     --warning: 38 91% 45%;
+    /* Light-mode info — deeper blue for AA on light surfaces. #1D4ED8 against
+       #FAFAF9 = 6.41:1, against #FFFFFF = 6.55:1, against #F4F4F2 = 6.20:1. */
+    --info: 217 91% 47%;                 /* #1D4ED8 */
+    --info-foreground: 60 9% 98%;
     --border: 60 5% 90%;
     --input: 60 5% 90%;
     --ring: 75 80% 25%;                  /* matches --primary */
@@ -83,6 +137,9 @@
     --surface-1: 0 0% 100%;
     --surface-2: 60 5% 96%;
     --surface-3: 60 5% 92%;
+
+    /* Spacing / z-index / opacity / motion tokens are theme-neutral —
+       they appear in :root only and inherit unchanged in .light. */
   }
 
   * {
@@ -164,6 +221,8 @@
   --color-success-foreground: hsl(var(--success-foreground));
   --color-warning: hsl(var(--warning));
   --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -183,12 +242,49 @@
   --font-mono: var(--font-jetbrains-mono), ui-monospace, "JetBrains Mono", monospace;
 
   /* Motion: cubic-bezier(0.16, 1, 0.3, 1), durations 80 / 160 / 240ms.
-     Components reference these via Tailwind's transition utilities;
-     the variable form keeps them swappable per-theme later. */
+     The literal --ease-out-quart and durations live here so Tailwind's
+     transition / ease / duration utilities pick them up directly. The
+     spring siblings (--ease-spring-{soft,firm}) and motion constants
+     (--motion-rise-distance, --motion-press-scale) live in :root and are
+     consumed via arbitrary Tailwind values, e.g.
+     `[transition-timing-function:var(--ease-spring-soft)]`. They're not
+     aliased here to avoid a self-referential @theme entry. */
   --ease-out-quart: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-fast: 80ms;
   --duration-base: 160ms;
   --duration-slow: 240ms;
+
+  /* Spacing scale aliases — Tailwind reads --spacing-* to extend the
+     p-/m-/gap- utility set. After this, `p-md` / `gap-lg` / `m-xs`
+     resolve to the named tokens defined in :root. The existing
+     Tailwind 4px scale (`p-2` = 8px etc.) keeps working alongside. */
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 1rem;
+  --spacing-md: 1.5rem;
+  --spacing-lg: 2rem;
+  --spacing-xl: 3rem;
+  --spacing-2xl: 4rem;
+  --spacing-3xl: 6rem;
+
+  /* Z-index aliases — `z-sticky` / `z-modal` / `z-popover` etc. become
+     valid Tailwind utilities. Numeric values are literals here so the
+     @theme entry isn't self-referential; the :root copies in
+     --z-{sticky,modal,…} are kept for components that want to read the
+     raw layer via `var(--z-modal)` in arbitrary values. */
+  --z-index-sticky: 10;
+  --z-index-overlay: 20;
+  --z-index-modal: 30;
+  --z-index-popover: 40;
+  --z-index-toast: 50;
+  --z-index-tooltip: 60;
+
+  /* Opacity aliases — `opacity-disabled` / `opacity-hover` etc. become
+     valid Tailwind utilities. The numeric Tailwind defaults (opacity-50
+     etc.) continue to work; primitives should prefer the named form. */
+  --opacity-disabled: 0.5;
+  --opacity-hover: 0.9;
+  --opacity-overlay: 0.6;
+  --opacity-decoration: 0.4;
 }
 
 @keyframes fade-in {

@@ -8,3 +8,4 @@ queued.
 
 | Loop | Surface | Outcome | Commit |
 |------|---------|---------|--------|
+| 1 | Foundation A — token scale (info / space / z / opacity / motion) + duration-literal sweep | Shipped. 34 vitest files / 160 tests green. No visible diff. | _pending_ |
