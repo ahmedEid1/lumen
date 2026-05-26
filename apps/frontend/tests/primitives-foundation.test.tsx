@@ -269,6 +269,38 @@ describe("loop-3 primitives", () => {
       expect(a.className).toContain("border");
       expect(a.className).toContain("h-10");
     });
+
+    // Codex rescue #1 finding — anchors don't match :disabled, so
+    // Button's disabled:* Tailwind variants are no-ops. LinkButton
+    // has to explicitly drop the href, set aria-disabled + tabIndex,
+    // and prevent default on click. Pin the contract.
+    it("disabled drops href, sets aria-disabled, sets tabIndex=-1, and prevents click navigation", () => {
+      const { container } = render(
+        <LinkButton href="/courses" disabled>
+          Browse
+        </LinkButton>,
+      );
+      const a = container.querySelector("a") as HTMLAnchorElement;
+      expect(a).toBeTruthy();
+      expect(a.hasAttribute("href")).toBe(false);
+      expect(a.getAttribute("aria-disabled")).toBe("true");
+      expect(a.tabIndex).toBe(-1);
+      // Visual styling — Tailwind classes apply when disabled.
+      expect(a.className).toContain("opacity-50");
+      expect(a.className).toContain("pointer-events-none");
+    });
+
+    it("disabled click handler prevents default", () => {
+      const { container } = render(
+        <LinkButton href="/courses" disabled>
+          Browse
+        </LinkButton>,
+      );
+      const a = container.querySelector("a") as HTMLAnchorElement;
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+      a.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+    });
   });
 
   describe("useHydrated", () => {

@@ -1,22 +1,28 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
+import { AuthCard } from "@/components/ui/auth-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth/store";
 import { ApiError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
+import { useHydrated } from "@/lib/use-hydrated";
 
 /**
- * Sign-in surface — Workbench repaint.
+ * Sign-in surface — Workbench repaint, loop-4 AuthCard migration.
  *
- * Operator-login feel: one centered card on `bg-background`, a single
- * lime CTA, no mesh / gradient / glow chrome. Eyebrow uses the mono
- * label treatment (font-mono uppercase tracking-wider text-xs
- * text-muted-foreground); the `.cartouche` i18n key name is legacy.
+ * Chrome lives in `<AuthCard>`; hydration gate lives in `useHydrated()`
+ * (was four copy-pasted paragraphs across login/register/forgot/reset
+ * — see AUDIT.md cross-cutting #1). The submit button's disabled gate
+ * is the load-bearing reason the hook exists: Playwright's click()
+ * auto-waits for `disabled=false`, which only flips post-hydration
+ * once the React onSubmit handler is bound; without it the native
+ * form-submit fallback GETs `/login?` with empty fields and the URL
+ * never advances to /dashboard.
  */
 export default function LoginPage() {
   return (
@@ -40,22 +46,11 @@ function LoginForm() {
   const next = params.get("next") || "/dashboard";
   const { login } = useAuth();
   const t = useT();
+  const hydrated = useHydrated();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Hydration gate. The form is wrapped in <Suspense>, so the `onSubmit`
-  // handler doesn't bind until React hydrates the LoginForm boundary —
-  // which can take a beat on a cold dev server. Without this gate,
-  // Playwright (and a fast human) could click "Sign in" before
-  // hydration; the native form-submit fallback then fires a GET to
-  // `/login?` with empty fields (the Inputs have no `name` attr), the
-  // API returns 422, and the URL never advances to /dashboard. Gating
-  // the submit button on `mounted` makes Playwright's click() auto-wait
-  // for `disabled=false`, which only flips true post-hydration when the
-  // handler is bound.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -75,74 +70,64 @@ function LoginForm() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[440px] flex-col px-6 py-20">
-      <div className="rounded-md border border-border bg-card p-8">
-        <p className="mb-6 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          {t("auth.login.cartouche")}
-        </p>
-        <header className="mb-7 space-y-2">
-          <h1 className="font-display text-3xl leading-tight tracking-tight">
-            {t("auth.login.heading")}
-          </h1>
-          <p className="font-body text-sm text-muted-foreground">
-            {t("auth.login.subtitle")}
-          </p>
-        </header>
+    <AuthCard
+      cartouche={t("auth.login.cartouche")}
+      heading={t("auth.login.heading")}
+      subtitle={t("auth.login.subtitle")}
+    >
+      <form className="space-y-4" onSubmit={onSubmit} noValidate>
+        <div className="space-y-1.5">
+          <label htmlFor="email" className="font-body text-sm font-medium">
+            {t("auth.login.email")}
+          </label>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="password" className="font-body text-sm font-medium">
+            {t("auth.login.password")}
+          </label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
 
-        <form className="space-y-4" onSubmit={onSubmit} noValidate>
-          <div className="space-y-1.5">
-            <label htmlFor="email" className="font-body text-sm font-medium">
-              {t("auth.login.email")}
-            </label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label htmlFor="password" className="font-body text-sm font-medium">
-              {t("auth.login.password")}
-            </label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
+        <div className="min-h-[1.25rem]" aria-live="polite">
+          {error ? (
+            <p className="font-body text-sm text-destructive">{error}</p>
+          ) : null}
+        </div>
 
-          <div className="min-h-[1.25rem]" aria-live="polite">
-            {error ? (
-              <p className="font-body text-sm text-destructive">{error}</p>
-            ) : null}
-          </div>
+        <Button type="submit" className="w-full" disabled={submitting || !hydrated}>
+          {submitting ? t("auth.login.submitting") : t("auth.login.submit")}
+        </Button>
 
-          <Button type="submit" className="w-full" disabled={submitting || !mounted}>
-            {submitting ? t("auth.login.submitting") : t("auth.login.submit")}
-          </Button>
-
-          <div className="flex items-center justify-between pt-2 font-body text-sm">
-            <Link
-              href="/forgot-password"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {t("auth.forgotPassword")}
-            </Link>
-            <Link
-              href="/register"
-              className="font-medium text-foreground underline-offset-4 hover:underline"
-            >
-              {t("auth.register.title")}
-            </Link>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex items-center justify-between pt-2 font-body text-sm">
+          <Link
+            href="/forgot-password"
+            className="text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {t("auth.forgotPassword")}
+          </Link>
+          <Link
+            href="/register"
+            className="font-medium text-foreground underline-offset-4 hover:underline"
+          >
+            {t("auth.register.title")}
+          </Link>
+        </div>
+      </form>
+    </AuthCard>
   );
 }

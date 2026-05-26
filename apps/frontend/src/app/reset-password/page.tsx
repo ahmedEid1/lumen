@@ -1,20 +1,23 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
+import { AuthCard } from "@/components/ui/auth-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LinkButton } from "@/components/ui/link-button";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
+import { useHydrated } from "@/lib/use-hydrated";
 
 /**
- * Reset password — Workbench repaint.
+ * Reset password — Workbench repaint, loop-4 AuthCard migration.
  *
  * Token comes from the email link as `?token=…`. We keep the
- * single-card pattern and route errors / missing-token states inline
- * rather than into a separate surface.
+ * single-card pattern and route errors / missing-token states inline.
+ * Missing-token branch now uses `<LinkButton>` instead of the
+ * `<Link><Button>` pair the audit flagged at line 92.
  */
 export default function ResetPasswordPage() {
   return (
@@ -36,13 +39,11 @@ function ResetForm() {
   const router = useRouter();
   const params = useSearchParams();
   const t = useT();
+  const hydrated = useHydrated();
   const token = params.get("token") ?? "";
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Hydration gate — see /login/page.tsx for the rationale.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -70,61 +71,49 @@ function ResetForm() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[440px] flex-col px-6 py-20">
-      <div className="rounded-md border border-border bg-card p-8">
-        <p className="mb-6 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          {t("auth.reset.cartouche")}
-        </p>
-        <header className="mb-7 space-y-2">
-          <h1 className="font-display text-3xl leading-tight tracking-tight">
-            {t("auth.reset.heading")}
-          </h1>
-          <p className="font-body text-sm text-muted-foreground">
-            {t("auth.reset.subtitle")}
+    <AuthCard
+      cartouche={t("auth.reset.cartouche")}
+      heading={t("auth.reset.heading")}
+      subtitle={t("auth.reset.subtitle")}
+    >
+      {!token ? (
+        <div className="space-y-4">
+          <p className="font-body text-sm text-destructive" aria-live="polite">
+            {t("auth.reset.missingToken")}
           </p>
-        </header>
-
-        {!token ? (
-          <div className="space-y-4">
-            <p className="font-body text-sm text-destructive" aria-live="polite">
-              {t("auth.reset.missingToken")}
-            </p>
-            <Link href="/forgot-password">
-              <Button variant="outline" className="w-full">
-                {t("auth.reset.requestNew")}
-              </Button>
-            </Link>
+          <LinkButton href="/forgot-password" variant="outline" className="w-full">
+            {t("auth.reset.requestNew")}
+          </LinkButton>
+        </div>
+      ) : (
+        <form className="space-y-4" onSubmit={onSubmit} noValidate>
+          <div className="space-y-1.5">
+            <label htmlFor="password" className="font-body text-sm font-medium">
+              {t("auth.login.password")}
+            </label>
+            <Input
+              id="password"
+              type="password"
+              placeholder={t("auth.reset.passwordPlaceholder")}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={12}
+              autoComplete="new-password"
+              required
+            />
           </div>
-        ) : (
-          <form className="space-y-4" onSubmit={onSubmit} noValidate>
-            <div className="space-y-1.5">
-              <label htmlFor="password" className="font-body text-sm font-medium">
-                {t("auth.login.password")}
-              </label>
-              <Input
-                id="password"
-                type="password"
-                placeholder={t("auth.reset.passwordPlaceholder")}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={12}
-                autoComplete="new-password"
-                required
-              />
-            </div>
 
-            <div className="min-h-[1.25rem]" aria-live="polite">
-              {error ? (
-                <p className="font-body text-sm text-destructive">{error}</p>
-              ) : null}
-            </div>
+          <div className="min-h-[1.25rem]" aria-live="polite">
+            {error ? (
+              <p className="font-body text-sm text-destructive">{error}</p>
+            ) : null}
+          </div>
 
-            <Button type="submit" className="w-full" disabled={submitting || !mounted}>
-              {submitting ? t("auth.reset.submitting") : t("auth.reset.submit")}
-            </Button>
-          </form>
-        )}
-      </div>
-    </div>
+          <Button type="submit" className="w-full" disabled={submitting || !hydrated}>
+            {submitting ? t("auth.reset.submitting") : t("auth.reset.submit")}
+          </Button>
+        </form>
+      )}
+    </AuthCard>
   );
 }

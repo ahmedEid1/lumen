@@ -2,20 +2,22 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { CheckCircle2, AlertCircle } from "lucide-react";
+import { AuthCard } from "@/components/ui/auth-card";
 import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/link-button";
 import { api, ApiError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 
 type Status = "checking" | "success" | "error";
 
 /**
- * Email verification (post-register link target) — Workbench repaint.
- *
- * Same single-card pattern; status icon is a Lucide glyph at 20px in
- * the semantic colour, not a hero badge. `aria-live="polite"` so the
- * checking → success / error transition is announced.
+ * Email verification (post-register link target) — Workbench repaint,
+ * loop-4 AuthCard migration. Status icon is a Lucide glyph at 20px in
+ * the semantic colour. `aria-live="polite"` so the checking → success
+ * / error transition is announced. Error branch uses `<LinkButton>`
+ * (was the `<Link><Button>` nested-interactive at line 113 in the
+ * pre-migration version, audit cross-cutting #3).
  */
 export default function VerifyEmailPage() {
   return (
@@ -68,56 +70,43 @@ function VerifyEmailInner() {
   }, [token, t]);
 
   return (
-    <div className="mx-auto flex w-full max-w-[440px] flex-col px-6 py-20">
-      <div className="rounded-md border border-border bg-card p-8">
-        <p className="mb-6 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          {t("verifyEmail.cartouche")}
-        </p>
-        <header className="mb-7 space-y-2">
-          <h1 className="font-display text-3xl leading-tight tracking-tight">
-            {t("verifyEmail.title")}
-          </h1>
-        </header>
-
-        <div className="space-y-4" aria-live="polite">
-          <div className="flex items-start gap-3">
-            {status === "success" && (
-              <CheckCircle2
-                className="mt-0.5 h-5 w-5 flex-none text-primary"
-                aria-hidden
-              />
-            )}
-            {status === "error" && (
-              <AlertCircle
-                className="mt-0.5 h-5 w-5 flex-none text-destructive"
-                aria-hidden
-              />
-            )}
-            <p
-              className={
-                status === "error"
-                  ? "font-body text-sm text-destructive"
-                  : "font-body text-sm text-muted-foreground"
-              }
-            >
-              {status === "checking" ? t("verifyEmail.checking") : message}
-            </p>
-          </div>
-
+    <AuthCard cartouche={t("verifyEmail.cartouche")} heading={t("verifyEmail.title")}>
+      <div className="space-y-4" aria-live="polite">
+        <div className="flex items-start gap-3">
           {status === "success" && (
-            <Button className="w-full" onClick={() => router.push("/dashboard")}>
-              {t("verifyEmail.continue")}
-            </Button>
+            <CheckCircle2
+              className="mt-0.5 h-5 w-5 flex-none text-primary"
+              aria-hidden
+            />
           )}
           {status === "error" && (
-            <Link href="/login">
-              <Button variant="outline" className="w-full">
-                {t("verifyEmail.goSignIn")}
-              </Button>
-            </Link>
+            <AlertCircle
+              className="mt-0.5 h-5 w-5 flex-none text-destructive"
+              aria-hidden
+            />
           )}
+          <p
+            className={
+              status === "error"
+                ? "font-body text-sm text-destructive"
+                : "font-body text-sm text-muted-foreground"
+            }
+          >
+            {status === "checking" ? t("verifyEmail.checking") : message}
+          </p>
         </div>
+
+        {status === "success" && (
+          <Button className="w-full" onClick={() => router.push("/dashboard")}>
+            {t("verifyEmail.continue")}
+          </Button>
+        )}
+        {status === "error" && (
+          <LinkButton href="/login" variant="outline" className="w-full">
+            {t("verifyEmail.goSignIn")}
+          </LinkButton>
+        )}
       </div>
-    </div>
+    </AuthCard>
   );
 }

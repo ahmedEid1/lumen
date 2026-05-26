@@ -29,15 +29,17 @@
 import { expect, test, type Page } from "@playwright/test";
 import { login, preDismissOnboarding, type SeedRole } from "./helpers/login";
 
-// Public-only routes for the loop-2 first baseline pass. Auth-gated
-// routes (/dashboard, /profile, /studio, /admin) defer to a later
-// loop — the login form's hydration gate races the dev-mode cold
-// compile in the docker e2e environment, which causes some screenshots
-// to land on the login page instead of the post-login target. Loop 3
-// ships the `<AuthCard>` + `useHydrated()` primitives that will make
-// the form's enabled-state predictable, and the auth-gated baselines
-// land then (or once we wire the e2e suite to the docker-compose.ci.yml
-// overlay's prod-build web service, whichever comes first).
+// Public-only routes for the loop-2 first baseline pass — STILL.
+// Loop 4 tried to extend ROUTES with the four auth-gated surfaces
+// (dashboard/profile/studio/admin) after loop 3's `useHydrated()`
+// fixed the disabled-submit race. The captures landed but a re-run
+// was flaky: 6 of 8 failed, profile in particular consistently
+// captured at ~33 KB which is the login page's size — meaning the
+// auth context propagation between login() and page.goto(target) is
+// a separate race that useHydrated doesn't fix. Deferred again to a
+// loop that wires storageState (Playwright's per-test pre-logged-in
+// fixture) or moves the e2e suite to docker-compose.ci.yml's
+// prod-build web service. See loop-4-result.md for the full retro.
 const ROUTES = [
   { name: "home", path: "/", auth: null as SeedRole | null },
   { name: "catalog", path: "/courses", auth: null },

@@ -4,7 +4,8 @@ import { use } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Award, CheckCircle2, ShieldCheck, ShieldX } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AuthCard } from "@/components/ui/auth-card";
+import { LinkButton } from "@/components/ui/link-button";
 import { api, ApiError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 
@@ -65,50 +66,40 @@ export default function VerifyCertificatePage({
   });
 
   return (
-    <div className="mx-auto flex w-full max-w-[520px] flex-col px-6 py-20">
-      <div className="rounded-md border border-border bg-card p-8">
-        <p className="mb-6 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          {t("verifyCert.cartouche")}
-        </p>
-        <header className="mb-7 space-y-2">
-          <h1 className="font-display text-3xl leading-tight tracking-tight">
-            {t("verifyCert.title")}
-          </h1>
+    <AuthCard
+      cartouche={t("verifyCert.cartouche")}
+      heading={t("verifyCert.title")}
+      subtitle={t("verifyCert.subtitle")}
+      className="max-w-[520px]"
+    >
+      <div aria-live="polite">
+        {q.isLoading && (
           <p className="font-body text-sm text-muted-foreground">
-            {t("verifyCert.subtitle")}
+            {t("verifyCert.checking")}
           </p>
-        </header>
+        )}
 
-        <div aria-live="polite">
-          {q.isLoading && (
-            <p className="font-body text-sm text-muted-foreground">
-              {t("verifyCert.checking")}
-            </p>
-          )}
-
-          {q.error && (
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <ShieldX
-                  className="mt-0.5 h-5 w-5 flex-none text-destructive"
-                  aria-hidden
-                />
-                <p className="font-body text-sm text-destructive">
-                  {q.error instanceof ApiError && q.error.status === 404
-                    ? t("verifyCert.notFound")
-                    : (q.error as Error).message}
-                </p>
-              </div>
-              <code className="block break-all rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
-                {id}
-              </code>
-              <Link href="/">
-                <Button variant="outline" className="w-full">
-                  {t("verifyCert.goHome")}
-                </Button>
-              </Link>
+        {q.error && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <ShieldX
+                className="mt-0.5 h-5 w-5 flex-none text-destructive"
+                aria-hidden
+              />
+              <p className="font-body text-sm text-destructive">
+                {q.error instanceof ApiError && q.error.status === 404
+                  ? t("verifyCert.notFound")
+                  : (q.error as Error).message}
+              </p>
             </div>
-          )}
+            <code className="block break-all rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
+              {id}
+            </code>
+            <LinkButton href="/" variant="outline" className="w-full">
+              {t("verifyCert.goHome")}
+            </LinkButton>
+          </div>
+        )}
 
           {q.data && (
             <div className="space-y-5">
@@ -176,8 +167,7 @@ export default function VerifyCertificatePage({
               )}
             </div>
           )}
-        </div>
       </div>
-    </div>
+    </AuthCard>
   );
 }

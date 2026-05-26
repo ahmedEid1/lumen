@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 4)
+
+- **`<AuthCard cartouche heading subtitle>`** at
+  `apps/frontend/src/components/ui/auth-card.tsx` — owns the seven
+  byte-identical auth chromes the audit named (cross-cutting #1).
+  Outer wrapper at `max-w-[440px]` with `px-6 py-20`, bordered card
+  on `bg-card` at `p-8`, mono cartouche eyebrow, `font-display`
+  heading, optional subtitle. Pages drop their form / status content
+  into `children`. The hydration gate is deliberately NOT owned by
+  this primitive — pages call `useHydrated()` directly (some auth
+  surfaces auto-fire on mount and don't have a submit button to
+  gate). See `docs/redesign/loop-4-options.md` decision 2.
+- **Seven auth surfaces migrated to AuthCard + useHydrated:**
+  `/login`, `/register`, `/forgot-password`, `/reset-password`,
+  `/verify-email`, `/verify/[id]`, `/confirm-email-change`. Each
+  page loses ~25-30 lines of duplicated chrome + the hydration-gate
+  paragraph. Net code change is ~-165 LoC across all seven pages
+  (with the corresponding +52 LoC AuthCard primitive netting still
+  negative).
+- **Three nested `<Link><Button>` patterns converted to
+  `<LinkButton>`:** `reset-password/page.tsx` missing-token branch,
+  `verify-email/page.tsx` error branch, `verify/[id]/page.tsx` 404
+  branch. Removes the nested-interactive a11y warnings the audit
+  flagged. (`course-detail-view.tsx:370` deferred — moves with the
+  course-detail polish loop.)
+- **Codex rescue #1 finding addressed.** Codex CLI's review pass on
+  the loops 1–3 diff surfaced one P2: `<LinkButton>` inherited
+  `disabled` from `ButtonProps`, but `<a>` doesn't match the
+  `:disabled` pseudo-selector, so `Button`'s `disabled:*` Tailwind
+  variants were no-ops on a Link-rendered child. `<LinkButton
+  disabled>` would still navigate on click. Fixed in
+  `link-button.tsx`: when `disabled`, render a bare `<a>` with NO
+  `href` (navigation impossible), set `aria-disabled="true"`, set
+  `tabIndex={-1}`, and add `onClick={e => e.preventDefault()}` as
+  defence in depth. Applied `opacity-50 pointer-events-none` via
+  the component's own className so the visual disabled state still
+  matches Button. Two new vitest cases in
+  `primitives-foundation.test.tsx` pin the contract. The full
+  rescue digest lives at
+  `docs/redesign/codex-review-loops-1-to-3.md`.
+- **`auth-card.test.tsx`** (108 LoC) — pins the AuthCard shape:
+  cartouche / heading / subtitle order, default width, className
+  override semantics (tailwind-merge replaces `max-w-*` rather than
+  composing — relied on by `/verify/[id]` to widen the chrome to
+  520px), Workbench-typeface class contracts on cartouche +
+  heading, byte-identical card chrome.
+- **Auth-gated visual-regression baselines deferred AGAIN** (eight
+  baselines: dashboard/profile/studio/admin × 2 themes). The
+  `useHydrated()` hook from Loop 3 fixed the disabled-submit race
+  documented in `loop-2-result.md`, but a verification re-run after
+  capture flunked 6 of 8 — a *second* race exists between
+  `login()` resolving and `page.goto(target)` reading the right
+  auth state. `profile` captures landed at 33 KB (login-page size,
+  consistently wrong). The proper fix is Playwright `storageState`
+  fixtures (login once, save cookie+localStorage, reuse across
+  tests), which is a ~100-LoC dedicated loop slotted before the
+  dashboard re-imagining (AUDIT.md §7 step 14). Full retro at
+  `docs/redesign/loop-4-result.md`.
+- Verified: `make test.web` → 36 files / 194 tests passed in
+  16.49s. All 5 sampled migrated pages serve HTTP 200. `pnpm
+  typecheck` clean. Public VR baselines: 8/8 byte-stable
+  (no re-blessing required, which proves the AuthCard composition
+  preserves chrome rather than approximating it).
+- Brainstorm-and-commit trail under
+  `docs/redesign/loop-4-{goal,options,spec,result}.md`. STATUS.md
+  row 4 added. AUDIT.md cross-cutting #1 (auth chrome collapse)
+  closed; #3 (nested-interactive `<Link><Button>`) closed for
+  auth surfaces (course-detail follow-up). Codex rescue #2 fires
+  after Loop 6.
+
 ### Added (UI redesign loop 3)
 
 - **Seven new primitives + one hook** under
