@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs (iteration 2)
+
+- **HANDOVER.md Step 3** now tells the bootstrapping session to
+  `cp .env.example .env` *before* `docker compose up`. Without it,
+  several vars in `docker-compose.yml` (e.g. `S3_FORCE_PATH_STYLE`,
+  `SMTP_PORT`) are substituted as empty strings and api/worker/beat
+  crashloop on pydantic `bool_parsing` / `int_parsing` errors at
+  startup. Discovered re-running the bootstrap on a clean Linux
+  server.
+- Replaced the smoke `curl http://localhost:8000/healthz` (returns
+  404; that path was never wired) with the two endpoints that are
+  actually exposed: `/api/v1/health/live` and `/api/v1/health/ready`
+  — the latter is the more useful one because it surfaces the db +
+  redis check.
+
 ### Fixed (iteration 1)
 
 - **`make test.web` broken on pnpm 9.15.0.** The Makefile target shelled

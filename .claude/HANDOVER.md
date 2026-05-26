@@ -84,7 +84,14 @@ If the tip doesn't match, `git pull` and re-read this file.
 
 ### Step 3 — Bring up the local dev stack
 
+`.env` is gitignored, but `docker-compose.yml` references variables
+that have no inline default (e.g. `S3_FORCE_PATH_STYLE`, `SMTP_PORT`).
+Without a `.env` file these are passed in as empty strings and
+api/worker/beat crashloop with pydantic `bool_parsing` / `int_parsing`
+errors. Copy the example first:
+
 ```bash
+cp .env.example .env
 docker compose up --build -d
 docker compose ps        # api, web, db, redis, s3, mail, worker, beat — all running / healthy
 ```
@@ -94,8 +101,9 @@ If `docker` is missing, install Docker Engine + Compose plugin via the distro pa
 Smoke-check:
 
 ```bash
-curl -fsS http://localhost:8000/healthz       # {"status":"ok"} or similar
-curl -fsS http://localhost:3000 | head -3     # any HTML
+curl -fsS http://localhost:8000/api/v1/health/live   # {"status":"ok"}
+curl -fsS http://localhost:8000/api/v1/health/ready  # {"status":"ok","checks":{"db":"ok","redis":"ok"}}
+curl -fsS http://localhost:3000 | head -3            # any HTML
 ```
 
 ### Step 4 — Verify the test suite still passes
