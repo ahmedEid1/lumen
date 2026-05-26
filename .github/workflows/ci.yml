@@ -176,12 +176,20 @@ jobs:
         #                     working branch; we don't want a stale main
         #                     push to clobber `:latest` and accidentally
         #                     roll AWS back).
+        #
+        # Also emits ``owner_lc`` — GHCR rejects mixed-case repository
+        # names (``ghcr.io/ahmedEid1/...`` -> "repository name must be
+        # lowercase"). ``${{ github.repository_owner }}`` preserves the
+        # original GitHub casing, so we have to lowercase it ourselves
+        # before splicing into the image tags below.
         run: |
           # Long form so it's obvious what the tags will be in the run
           # log instead of buried inside a third-party action's output.
           sha7=${GITHUB_SHA::7}
           echo "sha=${sha7}" >> "$GITHUB_OUTPUT"
-          echo "Tagging plan for push to ${GITHUB_REF_NAME}:"
+          owner_lc=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          echo "owner_lc=${owner_lc}" >> "$GITHUB_OUTPUT"
+          echo "Tagging plan for push to ${GITHUB_REF_NAME} (owner=${owner_lc}):"
           if [ "$GITHUB_REF_NAME" = "Rewrite" ]; then
             echo "  api: :${GITHUB_SHA}, :rewrite, :latest"
             echo "  web: :${GITHUB_SHA}, :rewrite, :latest"
@@ -198,9 +206,9 @@ jobs:
           # The `latest` tag only moves on Rewrite pushes — see the meta
           # step comment for why we don't tag latest from main.
           tags: |
-            ghcr.io/${{ github.repository_owner }}/lumen-api:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/lumen-api:${{ github.ref_name }}
-            ${{ github.ref_name == 'Rewrite' && format('ghcr.io/{0}/lumen-api:latest', github.repository_owner) || '' }}
+            ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-api:${{ github.sha }}
+            ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-api:${{ github.ref_name }}
+            ${{ github.ref_name == 'Rewrite' && format('ghcr.io/{0}/lumen-api:latest', steps.meta.outputs.owner_lc) || '' }}
           cache-from: type=gha,scope=lumen-api
           cache-to: type=gha,mode=max,scope=lumen-api
       - name: Build frontend
@@ -210,15 +218,15 @@ jobs:
           target: prod
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/lumen-web:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/lumen-web:${{ github.ref_name }}
-            ${{ github.ref_name == 'Rewrite' && format('ghcr.io/{0}/lumen-web:latest', github.repository_owner) || '' }}
+            ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-web:${{ github.sha }}
+            ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-web:${{ github.ref_name }}
+            ${{ github.ref_name == 'Rewrite' && format('ghcr.io/{0}/lumen-web:latest', steps.meta.outputs.owner_lc) || '' }}
           cache-from: type=gha,scope=lumen-web
           cache-to: type=gha,mode=max,scope=lumen-web
       - name: Trivy scan — backend
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ghcr.io/${{ github.repository_owner }}/lumen-api:${{ github.sha }}
+          image-ref: ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-api:${{ github.sha }}
           format: sarif
           output: trivy-api.sarif
           severity: CRITICAL,HIGH
@@ -230,7 +238,7 @@ jobs:
       - name: Trivy scan — frontend
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ghcr.io/${{ github.repository_owner }}/lumen-web:${{ github.sha }}
+          image-ref: ghcr.io/${{ steps.meta.outputs.owner_lc }}/lumen-web:${{ github.sha }}
           format: sarif
           output: trivy-web.sarif
           severity: CRITICAL,HIGH

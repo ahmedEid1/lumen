@@ -19,6 +19,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lowercase repository owner
+        id: owner
+        # GHCR rejects mixed-case repository names. ``github.repository_owner``
+        # preserves GitHub's original casing (``ahmedEid1``), which buildx
+        # surfaces as ``ERROR: invalid tag ... : repository name must be
+        # lowercase``. Compute the lowercase form once here and splice
+        # it into the image tags below.
+        run: echo "lc=$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
       - name: Build & push backend
         uses: docker/build-push-action@v6
         with:
@@ -26,8 +34,8 @@ jobs:
           target: prod
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/lumen-api:${{ github.ref_name }}
-            ghcr.io/${{ github.repository_owner }}/lumen-api:latest
+            ghcr.io/${{ steps.owner.outputs.lc }}/lumen-api:${{ github.ref_name }}
+            ghcr.io/${{ steps.owner.outputs.lc }}/lumen-api:latest
           sbom: true
           provenance: true
       - name: Build & push frontend
@@ -37,8 +45,8 @@ jobs:
           target: prod
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/lumen-web:${{ github.ref_name }}
-            ghcr.io/${{ github.repository_owner }}/lumen-web:latest
+            ghcr.io/${{ steps.owner.outputs.lc }}/lumen-web:${{ github.ref_name }}
+            ghcr.io/${{ steps.owner.outputs.lc }}/lumen-web:latest
           sbom: true
           provenance: true
       - name: Extract changelog slice
