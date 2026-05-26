@@ -94,7 +94,8 @@ jobs:
         run: uv run mypy app
       - name: Pytest
         # No `-q` — pytest's pyproject.toml addopts pins `-v --durations=10
-        # --timeout=60 -n 4 --dist=loadfile`. Quiet mode would
+        # --timeout=120 -n 4 --dist=loadfile --max-worker-restart=0`.
+        # Quiet mode would
         # suppress the live test-name stream, which is what kept the
         # previous "hung suite" diagnosis blind for 34 minutes. With
         # the streaming verbose output a future hang surfaces in the

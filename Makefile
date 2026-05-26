@@ -100,8 +100,9 @@ test: test.api test.web ## Run all tests.
 .PHONY: test.api
 test.api: ## Backend tests.
 	# Drop the historical ``-q``: pyproject.toml addopts now pin
-	# ``-v --durations=10 --timeout=60 -n 4 --dist=loadfile``
-	# (streaming output + parallel workers + per-test timeout). A
+	# ``-v --durations=10 --timeout=120 -n 4 --dist=loadfile
+	# --max-worker-restart=0`` (streaming + parallel + per-test
+	# timeout + fail-loud on worker crash). A
 	# leading ``-q`` on the CLI would override that and silently
 	# regress us to the old serial behaviour.
 	$(COMPOSE) exec api pytest

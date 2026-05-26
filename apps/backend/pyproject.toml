@@ -307,19 +307,40 @@ testpaths = ["tests"]
 #                               within-file ordering assumptions; loadfile
 #                               keeps them honest without us having to
 #                               audit 107 files.
-#  --timeout=60 + thread method per-test hard cap. 60s is well over the slowest
-#                               legitimate test (longest observed ~12s for
-#                               test_certificate_pdf*); a real hang fails
-#                               loud in <2min instead of dragging the job.
+#  --timeout=120 + thread method per-test hard cap. We picked 60s first,
+#                               which was fine locally (longest legit test
+#                               ~6s end-to-end) but caught a 10x slowdown
+#                               on CI's 4-vCPU runner: tests that share
+#                               the runner with pytest workers + postgres
+#                               + redis service containers compete for
+#                               CPU enough that
+#                               test_dashboard_progress_is_batched (six
+#                               seconds local) ran for 60+ seconds on CI
+#                               run 26425095009 before tripping the
+#                               timeout. 120s leaves headroom for the
+#                               legitimately-slow CI side without making
+#                               a real hang invisible.
 #                               `thread` method (vs `signal`) is required
 #                               for asyncio tests — SIGALRM interacts
 #                               badly with the asyncio loop's selector.
+#  --max-worker-restart=0       on worker crash, fail the whole run
+#                               immediately instead of spawning a
+#                               replacement. The default replacement
+#                               behaviour deadlocks under our session-
+#                               scoped event-loop + pytest-cov combo
+#                               (CI run 26425095009 sat in
+#                               "replacing crashed worker gw2" for 14
+#                               minutes before the 25min job cap fired).
+#                               Worker crashes only happen on a real
+#                               timeout-method=thread os._exit, so this
+#                               is a fail-loud safety valve: pick the
+#                               crash up in <2 minutes, not <25.
 #  -v + --durations=10          stream test names as they run (no more
 #                               apparent-hang while pytest's progress bar
 #                               buffers 100s of lines) + surface the 10
 #                               slowest tests at the end so we can keep
 #                               attacking wall-time hot-spots.
-addopts = "-ra --strict-markers --cov=app --cov-report=term-missing --cov-fail-under=70 -n 4 --dist=loadfile --timeout=60 --timeout-method=thread -v --durations=10"
+addopts = "-ra --strict-markers --cov=app --cov-report=term-missing --cov-fail-under=70 -n 4 --dist=loadfile --max-worker-restart=0 --timeout=120 --timeout-method=thread -v --durations=10"
 filterwarnings = [
   # dropped strict "error" mode. The Python ecosystem
   # upgraded faster than the code (starlette 1, httpx 0.28+,
