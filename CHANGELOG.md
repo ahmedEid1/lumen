@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 10)
+
+- **`<Dialog>` primitive** (Radix-backed) ships with full sub-component
+  family: `Dialog`, `DialogTrigger`, `DialogPortal`, `DialogOverlay`,
+  `DialogContent`, `DialogHeader`, `DialogFooter`, `DialogTitle`,
+  `DialogDescription`, `DialogClose`. Workbench-styled — no shadow,
+  border + surface-card + dimmed body backdrop carry elevation.
+  Z-index from the Loop 1 ramp (`z-overlay` / `z-modal`). Built-in
+  close X with `srLabelClose` prop for i18n and `hideCloseButton`
+  escape hatch.
+- **`<Sheet>` primitive** — side-anchored Dialog. `side="right|left|top|bottom"`
+  drives both anchoring and the slide-in keyframe via `data-side` +
+  CSS rules in `globals.css`. Shares Radix Dialog's a11y story.
+- **Tutor modal on `/courses/[slug]`** migrated from a hand-rolled
+  `fixed inset-0` overlay to `<Dialog>`. Adds focus trap,
+  `aria-labelledby` to the (sr-only) `DialogTitle`, Escape-to-close,
+  focus restore to the trigger on close. Existing visual chrome
+  preserved.
+- **Dialog + Sheet test coverage:** 14 unit tests in
+  `apps/frontend/tests/dialog.test.tsx`. `make test.web`: 38 files /
+  216 tests green (+1 file / +14 tests vs Loop 9).
+- **Animation infrastructure:** 4 sheet-in keyframes (right/left/top/bottom)
+  + 6 `data-state="open"`-keyed rules under the existing motion
+  tokens (`--duration-base` + `--ease-out-quart`). No close
+  animations — Workbench skips exit flourishes by design.
+- `@radix-ui/react-dialog ^1.1.15` added to `apps/frontend` deps.
+
 ### Fixed (UI redesign — loop-7-followup hotfix)
 
 - **`max-w-3xl` (and `max-w-xl`/`max-w-2xl` etc.) was resolving to

@@ -13,12 +13,16 @@ import {
   Star,
   Users,
   ArrowRight,
-  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Courses, Me, Reviews } from "@/lib/api/endpoints";
 import { MyReviewEditor } from "@/components/course/my-review-editor";
@@ -414,31 +418,18 @@ export function CourseDetailView({ slug }: { slug: string }) {
         </aside>
       </div>
 
-      {/* Tutor overlay — modal-style so we don't disrupt the existing
-          syllabus layout. Enrolled-only by gate above (the button
-          doesn't render for non-enrolled visitors). Click outside or
-          the close button to dismiss. */}
-      {tutorOpen && course.is_enrolled && (
-        <div
-          className="fixed inset-0 z-40 flex items-end justify-end bg-foreground/20 p-4 sm:items-center sm:justify-center sm:p-6"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setTutorOpen(false);
-          }}
+      <Dialog
+        open={tutorOpen && course.is_enrolled}
+        onOpenChange={setTutorOpen}
+      >
+        <DialogContent
+          className="h-[80vh] max-w-xl overflow-hidden p-0"
+          srLabelClose={t("tutor.closeButton")}
         >
-          <div className="relative h-[80vh] w-full max-w-xl">
-            <Button
-              variant="outline"
-              size="sm"
-              className="absolute -top-3 -right-3 z-10 h-8 w-8 rounded-full p-0"
-              onClick={() => setTutorOpen(false)}
-              aria-label={t("tutor.closeButton")}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-            <TutorPanel courseId={course.id} />
-          </div>
-        </div>
-      )}
+          <DialogTitle className="sr-only">{t("tutor.askButton")}</DialogTitle>
+          <TutorPanel courseId={course.id} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

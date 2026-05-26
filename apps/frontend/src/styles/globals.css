@@ -329,6 +329,52 @@
   50%      { opacity: 0.55; }
 }
 
+/* Sheet entrance animations — one per side. Loop 10: Dialog + Sheet
+   primitives. Workbench keeps these short (var(--duration-base) =
+   160ms) and uses --ease-out-quart so they settle, not bounce. */
+@keyframes sheet-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes sheet-in-left {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes sheet-in-top {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes sheet-in-bottom {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Workbench Dialog / Sheet open animations — wired by data attributes
+   on the primitives in `components/ui/{dialog,sheet}.tsx`, not by
+   Tailwind utilities. Tailwind 4 has no built-in `animate-in` family
+   without the tailwindcss-animate plugin, and we'd rather keep the
+   primitive markup tidy than scatter long arbitrary-value classnames.
+   Close animations are intentionally absent — Radix unmounts on
+   close, and Workbench skips closing flourishes by design. */
+[data-state="open"][data-wb-dialog-overlay] {
+  animation: fade-in var(--duration-base) var(--ease-out-quart) both;
+}
+[data-state="open"][data-wb-dialog-content] {
+  animation: rise var(--duration-base) var(--ease-out-quart) both;
+}
+[data-state="open"][data-wb-sheet-content][data-side="right"] {
+  animation: sheet-in-right var(--duration-base) var(--ease-out-quart) both;
+}
+[data-state="open"][data-wb-sheet-content][data-side="left"] {
+  animation: sheet-in-left var(--duration-base) var(--ease-out-quart) both;
+}
+[data-state="open"][data-wb-sheet-content][data-side="top"] {
+  animation: sheet-in-top var(--duration-base) var(--ease-out-quart) both;
+}
+[data-state="open"][data-wb-sheet-content][data-side="bottom"] {
+  animation: sheet-in-bottom var(--duration-base) var(--ease-out-quart) both;
+}
+
 /* Scroll-driven reveal — kept but tightened. Workbench doesn't do
    big entrance animations; this is a 160ms settle for content as it
    enters the viewport, not a marketing flourish. */
