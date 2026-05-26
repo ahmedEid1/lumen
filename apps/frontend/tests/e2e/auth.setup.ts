@@ -58,14 +58,22 @@ export const STORAGE_PATH = {
 // across :8000/:3000) but was wrong on cross-host runs.
 
 for (const role of Object.keys(STORAGE_PATH) as SeedRole[]) {
-  setup(`authenticate as ${role}`, async ({ page, request }) => {
+  setup(`authenticate as ${role}`, async ({ page, context }) => {
     const creds = SEED_USERS[role];
 
-    // Login through the web origin so cookies are scoped to
-    // baseURL (web:3000 in docker, lumen.ahmedhobeishy.tech in
-    // prod-visual mode). `request` here is fixture-scoped and
-    // shares cookies with the browser context.
-    const res = await request.post("/api/v1/auth/login", {
+    // Login through the web origin via context.request — its cookie
+    // jar is SHARED with the browser context, so Set-Cookie lands in
+    // the same jar storageState captures. Loop 20 hotfix: my first
+    // pass used the fixture-scoped `request` which is an ISOLATED
+    // APIRequestContext per Playwright docs ("Isolated
+    // APIRequestContext instance for each test") — cookies set there
+    // don't propagate to the browser context, so consumer tests
+    // landed unauthenticated. context.request is the right tool.
+    //
+    // Relative URL → `baseURL` (web:3000 in docker, prod URL in
+    // prod-visual mode), so cookies are scoped to the web host
+    // regardless of where the API actually lives.
+    const res = await context.request.post("/api/v1/auth/login", {
       data: { email: creds.email, password: creds.password },
       headers: { Accept: "application/json" },
     });
