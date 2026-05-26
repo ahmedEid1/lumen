@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import type { LessonOut, TextLessonData } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Download } from "lucide-react";
 import { api, ApiError } from "@/lib/api/client";
 import { type QuizQuestion } from "@/lib/quiz";
@@ -202,15 +204,26 @@ function Quiz({
       {questions.map((q, idx) => {
         const given = answers[q.id];
         const questionCorrect = correctByQuestion.get(q.id);
+        const promptId = `${q.id}-prompt`;
         return (
-          <div key={q.id} className="surface p-5">
+          // Loop-9 a11y: each question is a <fieldset> with the
+          // prompt as its <legend>. Screen readers now announce
+          // "Question 3 of N, radio group, 4 options" before
+          // walking the choices — the audit's heaviest a11y
+          // finding (AUDIT.md §3 Block-renderer) closes here.
+          <fieldset
+            key={q.id}
+            className="surface m-0 border-0 p-5"
+            aria-labelledby={promptId}
+            disabled={submitted}
+          >
             <div className="mb-3 flex items-start justify-between gap-2">
-              <p className="font-body text-sm font-medium text-foreground">
+              <legend id={promptId} className="font-body text-sm font-medium text-foreground">
                 <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                   {t("quiz.questionNumber", { n: idx + 1 })}
                 </span>{" "}
                 {q.prompt}
-              </p>
+              </legend>
               <div className="flex items-center gap-2">
                 {submitted && (
                   <Badge variant={questionCorrect ? "default" : "destructive"}>
@@ -226,35 +239,68 @@ function Quiz({
                 value={typeof given === "string" ? given : ""}
                 onChange={(e) => setAnswers((p) => ({ ...p, [q.id]: e.target.value }))}
                 disabled={submitted}
-                className="flex h-9 w-full rounded-md border border-border bg-muted px-3 py-2 font-body text-sm text-foreground transition-colors duration-[160ms] focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none disabled:opacity-60"
+                className="flex h-9 w-full rounded-md border border-border bg-muted px-3 py-2 font-body text-sm text-foreground transition-colors duration-base focus-visible:border-ring focus-visible:bg-background focus-visible:outline-none disabled:opacity-60"
                 placeholder={t("quiz.shortPlaceholder")}
               />
-            ) : (
-              <ul className="space-y-2">
+            ) : q.kind === "single" ? (
+              // Single-select → RadioGroup with arrow-key nav +
+              // aria-checked on each item, enforced by Radix.
+              <RadioGroup
+                value={(given as string[] | undefined)?.[0] ?? ""}
+                onValueChange={(v) => toggle(q, v)}
+                disabled={submitted}
+              >
                 {q.choices?.map((c) => {
-                  const selected = (given as string[] | undefined)?.includes(c.id);
                   const isCorrect = submitted && q.answer_keys.includes(c.id);
                   return (
+                    <RadioGroupItem
+                      key={c.id}
+                      value={c.id}
+                      label={c.text}
+                      className={
+                        isCorrect ? "border-primary/60 bg-primary/10" : ""
+                      }
+                    />
+                  );
+                })}
+              </RadioGroup>
+            ) : (
+              // Multi-select → independent checkboxes; each is its
+              // own labeled input so space-to-toggle + screen-reader
+              // announcement work per option.
+              <ul className="flex flex-col gap-2">
+                {q.choices?.map((c) => {
+                  const selected = (given as string[] | undefined)?.includes(c.id) ?? false;
+                  const isCorrect = submitted && q.answer_keys.includes(c.id);
+                  const checkboxId = `${q.id}-${c.id}`;
+                  return (
                     <li key={c.id}>
-                      <button
-                        onClick={() => toggle(q, c.id)}
-                        disabled={submitted}
+                      <label
+                        htmlFor={checkboxId}
                         className={[
-                          "w-full rounded-md border px-3 py-2 text-start font-body text-sm transition-colors duration-[160ms]",
+                          "flex w-full cursor-pointer items-start gap-3 rounded-md border px-3 py-2 text-start font-body text-sm transition-colors duration-base",
                           selected
                             ? "border-foreground/40 bg-muted text-foreground"
                             : "border-border hover:border-foreground/30",
                           isCorrect ? "border-primary/60 bg-primary/10 text-primary" : "",
+                          submitted ? "cursor-not-allowed opacity-60" : "",
                         ].join(" ")}
                       >
-                        {c.text}
-                      </button>
+                        <Checkbox
+                          id={checkboxId}
+                          checked={selected}
+                          onCheckedChange={() => toggle(q, c.id)}
+                          disabled={submitted}
+                          className="mt-0.5"
+                        />
+                        <span className="flex-1">{c.text}</span>
+                      </label>
                     </li>
                   );
                 })}
               </ul>
             )}
-          </div>
+          </fieldset>
         );
       })}
       <div className="flex items-center justify-between gap-3">

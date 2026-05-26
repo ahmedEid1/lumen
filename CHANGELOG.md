@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 9)
+
+- **`<RadioGroup>` + `<RadioGroupItem>` primitives** at
+  `apps/frontend/src/components/ui/radio-group.tsx`. Radix-backed
+  (`@radix-ui/react-radio-group ^1.3.8` added). The item exposes a
+  `label` prop that the primitive wraps in a `<label>` element
+  alongside the actual radio input — so clicking the choice text
+  selects the radio (label-for-input semantics) without any
+  explicit `htmlFor`/`id` boilerplate at call sites.
+- **`<Checkbox>` primitive** at
+  `apps/frontend/src/components/ui/checkbox.tsx`. Radix-backed
+  (`@radix-ui/react-checkbox ^1.3.3` added). Renders a `Check`
+  indicator only when checked.
+- **Quiz options in `lesson-player.tsx:202-260` migrated** from
+  bare `<button>` rows to the new primitives + a `<fieldset>` per
+  question with the prompt as `<legend>`. Before this loop a
+  screen reader heard "button, button, button, button" with no
+  question context; after: "Question 3 of 5, radio group, 4
+  options" before the choices, plus per-item `aria-checked`.
+  Closes the heaviest a11y finding in AUDIT.md §3 Block-renderer:
+  > Quiz options are not a radiogroup — bare `<button>` rows, no
+  > `role="radio"`/`role="checkbox"`, no arrow-key nav, no
+  > `aria-checked`, no fieldset/legend.
+  - `q.kind === "single"` → `<RadioGroup>` + `<RadioGroupItem>`
+    per choice (Radix's RovingFocusGroup provides arrow-key nav
+    + single-selection enforcement).
+  - `q.kind === "multi"` → `<ul>` of `<Checkbox>` + `<label>` rows
+    (each independently toggleable, space-to-toggle, screen reader
+    announces each one).
+  - `q.kind === "short"` → unchanged native `<input>` (already
+    accessible).
+- **`apps/frontend/tests/quiz-radiogroup.test.tsx`** (+130) —
+  vitest coverage for the new primitives. Covers role +
+  aria-checked wiring, click-to-select, label-click semantics,
+  disabled state, indicator-renders-when-checked. Two
+  keyboard-navigation tests intentionally omitted — happy-dom
+  (the vitest env) doesn't simulate Radix's RovingFocusGroup or
+  the checkbox's space-press; those contracts are exercised by
+  Radix's own test suite + downstream Playwright e2e.
+- Visual regression untouched this loop — `/learn/[slug]` has no
+  baseline today (data-dependent media), and the quiz primitives
+  are visually byte-equivalent to the previous buttons by
+  intent (bordered row, hover shifts border, selected lights bg).
+- Verified: `make test.web` — 37 files / 202 tests in 16.96s
+  (+1 file / +8 tests vs loop 8's 36/194).
+- Brainstorm-and-commit trail under
+  `docs/redesign/loop-9-{goal,result}.md` (no separate
+  options.md — the design call was mechanical, all decisions
+  documented inline in the goal). STATUS.md row 9 added.
+  AUDIT.md §3 Block-renderer quiz-radiogroup finding closes.
+
 ### Added (UI redesign loop 8)
 
 - **`auth.setup.ts` switched to direct FastAPI login**. Previously

@@ -44,10 +44,14 @@ export const STORAGE_PATH = {
   admin: `${AUTH_DIR}/admin.json`,
 } as const satisfies Record<SeedRole, string>;
 
-// Default to the docker-network name; the docker-compose.yml e2e
-// service sets this explicitly. Local Playwright runs (outside
-// docker) can override via E2E_API_BASE_URL=http://localhost:8000.
-const API_BASE = process.env.E2E_API_BASE_URL ?? "http://api:8000";
+// Default to `localhost:8000` — works on the GHA runner host where
+// the ci.yml e2e + accessibility jobs run playwright directly (the
+// api container's 8000 is port-mapped to the host). Inside the e2e
+// PROFILE container (docker-compose.yml --profile e2e), the
+// docker-compose.yml service env overrides this to `http://api:8000`
+// because in-container `localhost` is the container itself, not the
+// api service. Both shapes resolve to the same FastAPI process.
+const API_BASE = process.env.E2E_API_BASE_URL ?? "http://localhost:8000";
 
 for (const role of Object.keys(STORAGE_PATH) as SeedRole[]) {
   setup(`authenticate as ${role}`, async ({ page, context }) => {
