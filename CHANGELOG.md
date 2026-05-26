@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (UI redesign loop 17)
+
+- **Mastery dashboard polish:** 2-colour bars (completion lime,
+  mastery `--info`); lucide icons on weak-spot signal pills
+  (XCircle / Clock / AlertCircle / MessageCircle); shape-matching
+  `<Skeleton variant="card">` rows replacing the `h-32 animate-pulse`
+  placeholder; dropped `course_id.slice(0,12)` debug ID leak.
+- **Path dashboard polish:** new `slugToTitle` helper
+  (`@/lib/lesson/slug-to-title`) converts `data-structures-essentials`
+  → `Data Structures Essentials` for MilestoneTable row titles;
+  dropped the truncated `course_id` debug span; trimmed the
+  `TODO(orchestrator)` literal from the page-header comment.
+
+### Fixed (UI redesign loop 17)
+
+- **RTL sweep — 4 leaks** (closes audit §4 cross-cutting #10):
+  - `TraceTimeline.tsx:146,152` — `left-3` → `start-3`.
+  - `draft-trace-timeline.tsx:83,86` — `left-3` → `start-3`.
+  - `TraceStepCard.tsx:107` — `text-left` → `text-start`.
+  - `agent-reasoning-panel.tsx:117` — `text-left` → `text-start`.
+
 ### Added (UI redesign loop 16)
 
 - **Shiki syntax highlighting in block renderer.** New
