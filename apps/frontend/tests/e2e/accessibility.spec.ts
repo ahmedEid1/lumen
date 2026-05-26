@@ -104,6 +104,19 @@ async function signIn(
   email: string,
   password: string,
 ): Promise<void> {
+  // Pre-dismiss onboarding tours so the first-login Dialog doesn't
+  // cover the page heading on /dashboard or /studio. Loop 12 migrated
+  // the OnboardingTour from a hand-rolled `fixed inset-0` to a Radix
+  // <Dialog>, which (correctly) sets `aria-hidden="true"` on siblings
+  // when open — that made `getByRole("heading", …)` queries against
+  // the dashboard H1 fail because the H1 is hidden from a11y while
+  // the modal is open. Injecting the localStorage flag BEFORE the
+  // app boots dismisses the tour at hook-mount time, restoring the
+  // landing-page accessibility queries.
+  await page.addInitScript(() => {
+    window.localStorage.setItem("lumen.onboarding.learner.dismissed", "1");
+    window.localStorage.setItem("lumen.onboarding.instructor.dismissed", "1");
+  });
   await page.goto("/login");
   await page.getByLabel(/email/i).fill(email);
   await page.getByLabel(/password/i).fill(password);
