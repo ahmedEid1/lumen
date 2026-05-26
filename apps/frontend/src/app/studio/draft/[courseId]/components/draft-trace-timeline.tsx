@@ -80,10 +80,10 @@ function TraceRow({
     >
       {/* Connector line between rows — purely decorative. */}
       {!isFirst && (
-        <div className="absolute -top-2 left-3 h-2 w-px bg-border" aria-hidden />
+        <div className="absolute -top-2 start-3 h-2 w-px bg-border" aria-hidden />
       )}
       {!isLast && (
-        <div className="absolute -bottom-2 left-3 h-2 w-px bg-border" aria-hidden />
+        <div className="absolute -bottom-2 start-3 h-2 w-px bg-border" aria-hidden />
       )}
       <button
         type="button"

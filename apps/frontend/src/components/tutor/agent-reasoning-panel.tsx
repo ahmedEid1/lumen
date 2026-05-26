@@ -114,7 +114,7 @@ export function AgentReasoningPanel({
         >
           <table className="w-full border-separate border-spacing-0 font-body text-xs">
             <thead>
-              <tr className="text-left font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              <tr className="text-start font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                 <th className="border-b border-border/60 pb-1.5 pe-3">
                   {t("tutor.agentTrace.colTool")}
                 </th>

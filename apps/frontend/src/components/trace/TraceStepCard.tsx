@@ -104,7 +104,7 @@ export function TraceStepCard({
         aria-expanded={open}
         aria-controls={`trace-step-body-${step.trace_id}`}
         className={cn(
-          "group flex w-full items-center gap-3 px-3 py-2 text-left",
+          "group flex w-full items-center gap-3 px-3 py-2 text-start",
           isError ? "hover:bg-destructive/5" : "hover:bg-muted/40",
         )}
       >

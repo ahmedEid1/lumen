@@ -143,13 +143,13 @@ export function TraceTimeline({
           <li key={step.trace_id} className="relative">
             {idx > 0 ? (
               <div
-                className="absolute -top-2 left-3 h-2 w-px bg-border"
+                className="absolute -top-2 start-3 h-2 w-px bg-border"
                 aria-hidden
               />
             ) : null}
             {idx < steps.length - 1 ? (
               <div
-                className="absolute -bottom-2 left-3 h-2 w-px bg-border"
+                className="absolute -bottom-2 start-3 h-2 w-px bg-border"
                 aria-hidden
               />
             ) : null}

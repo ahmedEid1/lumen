@@ -33,6 +33,7 @@ import { Check, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api/client";
+import { slugToTitle } from "@/lib/lesson/slug-to-title";
 import {
   pathKeys,
   type LearningPathStepOut,
@@ -180,13 +181,10 @@ function StepRow({
         <div className="flex items-baseline gap-3">
           <Link
             href={`/courses/${step.course_slug}`}
-            className={`font-display text-base leading-tight tracking-tight transition-colors duration-[160ms] hover:text-muted-foreground ${completed ? "text-muted-foreground line-through" : ""}`}
+            className={`font-display text-base leading-tight tracking-tight transition-colors duration-base hover:text-muted-foreground ${completed ? "text-muted-foreground line-through" : ""}`}
           >
-            {step.course_slug}
+            {slugToTitle(step.course_slug)}
           </Link>
-          <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-            {step.course_id.slice(0, 12)}
-          </span>
         </div>
         <div className="mt-1.5">
           <Badge variant={statusVariant(step.status)}>

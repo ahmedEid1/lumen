@@ -6,43 +6,40 @@
  * Rebuild Phase E7. Two stacked sections, in priority order:
  *
  * 1. "Weak spots — start here." Bordered rows, mono eyebrows, signal
- *    pills, single lime CTA per row. The list is the actionable bit
- *    of the page — a learner with three failed quizzes and a stale
- *    FSRS card should see them all at a glance and pick one to
- *    address. We list lessons, not courses, because the unit of
- *    "thing I can revisit right now" is a lesson.
+ *    pills (now with lucide icons per signal — colour-only meaning
+ *    was the audit's signal-severity finding), single lime CTA per
+ *    row.
  *
- * 2. "Mastery per course." A row per enrolled course with two thin
- *    progress bars (completion + mastery) and the percentage in mono.
- *    No CTAs in this section — the row title links into the course,
- *    that's it; clicking somewhere else on the row would be a fake
- *    affordance.
+ * 2. "Mastery per course." A row per enrolled course with two
+ *    progress bars (completion = lime, mastery = info-blue so the
+ *    measurements read as distinct) and the percentage in mono.
  *
- * Workbench rules applied:
- * - Single lime accent: the "Review now" CTAs in the weak-spots list
- *   and the lime progress fills under "Mastery per course".
- * - Mono for percentages, signal badge text, lesson ids, course
- *   eyebrows. Display for lesson titles + section headings. Body for
- *   subtitle/empty-state copy.
- * - Borders do the lifting; no shadows on rows.
- * - "Mastery" and "Completion" bars get the same visual treatment
- *   (no second accent for mastery) because the dashboard is not
- *   trying to rank them — the learner reads both side-by-side.
+ * Loop 17 polish:
+ * - 2-colour bars: completion stays lime; mastery uses --info.
+ * - Lucide icons on weak-spot signal pills.
+ * - Shape-matching Skeleton rows replace the placeholder
+ *   `<div className="h-32 animate-pulse">` blocks.
+ * - Dropped the `course_id.slice(0, 12)` debug ID leak.
  *
- * Note: the page bundles the API into a single fetch
- * (``Me.mastery()``) so the surface paints both sections on one
- * loading state. Splitting would mean either a flash between two
- * loading rectangles or an awkward "wait for both before rendering"
- * dance.
+ * Workbench rules applied: single lime accent on the actionable CTA
+ * and completion fills; mono for percentages + signal text + course
+ * eyebrows; borders do the lifting, no shadows.
  */
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { ArrowRight } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  Clock,
+  MessageCircle,
+  XCircle,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Me } from "@/lib/api/endpoints";
 import type {
   MasteryCourse,
@@ -52,12 +49,10 @@ import type {
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
+import { cn } from "@/lib/utils";
 
 // ---------- helpers ----------
 
-/** Pick a Badge variant per signal code. ``quiz_failed`` is the
- *  loudest (destructive); the others sit somewhere between info
- *  and muted so the row doesn't read like a christmas tree. */
 function signalVariant(
   signal: MasterySignal,
 ): "destructive" | "warning" | "default" | "muted" {
@@ -73,9 +68,21 @@ function signalVariant(
   }
 }
 
-/** Build the user-facing pill text for one signal + the numeric
- *  context the service attached. We deliberately don't pre-compose
- *  on the server — i18n lives here, the API ships raw values. */
+/** Loop 17: per-signal lucide icon so meaning isn't colour-only.
+ *  Closes the audit's signal-severity finding. */
+function signalIcon(signal: MasterySignal) {
+  switch (signal) {
+    case "quiz_failed":
+      return XCircle;
+    case "card_overdue":
+      return Clock;
+    case "quiz_low":
+      return AlertCircle;
+    case "tutor_repeat":
+      return MessageCircle;
+  }
+}
+
 function signalLabel(
   signal: MasterySignal,
   details: Record<string, string>,
@@ -148,7 +155,13 @@ export default function MasteryPage() {
         </div>
 
         {masteryQ.isLoading ? (
-          <div className="surface h-32 animate-pulse" aria-hidden />
+          <ul className="flex flex-col gap-3">
+            {[0, 1, 2].map((i) => (
+              <li key={i}>
+                <Skeleton variant="card" className="h-24" />
+              </li>
+            ))}
+          </ul>
         ) : weakSpots.length === 0 ? (
           <WeakSpotsEmpty />
         ) : (
@@ -173,7 +186,13 @@ export default function MasteryPage() {
         </div>
 
         {masteryQ.isLoading ? (
-          <div className="surface h-32 animate-pulse" aria-hidden />
+          <ul className="flex flex-col gap-3">
+            {[0, 1].map((i) => (
+              <li key={i}>
+                <Skeleton variant="card" className="h-28" />
+              </li>
+            ))}
+          </ul>
         ) : courses.length === 0 ? (
           <CoursesEmpty />
         ) : (
@@ -199,11 +218,6 @@ function WeakSpotRow({
   spot: MasteryWeakSpot;
   t: ReturnType<typeof useT>;
 }) {
-  // If the FSRS queue has a card for this lesson, the "Review now"
-  // CTA deep-links into the spaced-repetition surface where the
-  // learner can grade and recover the schedule. Otherwise the CTA
-  // opens the course detail so the learner can revisit the lesson
-  // directly — there's no specific card to surface.
   const cta = spot.review_card_id
     ? { href: "/dashboard/reviews", label: t("mastery.reviewNow") }
     : {
@@ -222,16 +236,24 @@ function WeakSpotRow({
             {spot.lesson.title}
           </h3>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {spot.signals.map((signal) => (
-              <Badge key={signal} variant={signalVariant(signal)}>
-                {signalLabel(signal, spot.signal_details, t)}
-              </Badge>
-            ))}
+            {spot.signals.map((signal) => {
+              const Icon = signalIcon(signal);
+              return (
+                <Badge
+                  key={signal}
+                  variant={signalVariant(signal)}
+                  className="inline-flex items-center gap-1"
+                >
+                  <Icon className="h-3 w-3" aria-hidden />
+                  {signalLabel(signal, spot.signal_details, t)}
+                </Badge>
+              );
+            })}
           </div>
         </div>
         <Link
           href={cta.href}
-          className="inline-flex shrink-0 items-center gap-1 self-start rounded-sm border border-primary/40 bg-primary/10 px-3 py-1.5 font-body text-sm text-primary transition-colors duration-[160ms] hover:bg-primary/15"
+          className="inline-flex shrink-0 items-center gap-1 self-start rounded-sm border border-primary/40 bg-primary/10 px-3 py-1.5 font-body text-sm text-primary transition-colors duration-base hover:bg-primary/15"
         >
           {cta.label}
           <ArrowRight className="h-3.5 w-3.5" />
@@ -250,18 +272,15 @@ function CourseRow({
 }) {
   return (
     <article className="surface p-5">
-      <div className="mb-4 flex items-baseline justify-between gap-3">
+      <div className="mb-4">
         <h3 className="font-display text-base leading-tight tracking-tight">
           <Link
             href={`/courses/${course.slug}`}
-            className="transition-colors duration-[160ms] hover:text-muted-foreground"
+            className="transition-colors duration-base hover:text-muted-foreground"
           >
             {course.title}
           </Link>
         </h3>
-        <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-          {course.course_id.slice(0, 12)}
-        </span>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -289,17 +308,29 @@ function CourseBar({
   value: number;
   t: ReturnType<typeof useT>;
 }) {
+  // Loop 17: completion stays lime; mastery uses --info so the two
+  // bars read as distinct measurements at a glance.
+  const isMastery = labelKey === "mastery.courses.mastery";
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
           {t(labelKey)}
         </span>
-        <span className="font-mono text-xs tabular-nums text-foreground">
+        <span
+          className={cn(
+            "font-mono text-xs tabular-nums",
+            isMastery ? "text-info" : "text-foreground",
+          )}
+        >
           {value.toFixed(0)}%
         </span>
       </div>
-      <Progress value={value} aria-label={t(labelKey)} />
+      <Progress
+        value={value}
+        aria-label={t(labelKey)}
+        className={isMastery ? "[&>div]:bg-info" : undefined}
+      />
     </div>
   );
 }
@@ -326,7 +357,7 @@ function CoursesEmpty() {
         {t("mastery.courses.empty")}{" "}
         <Link
           href="/courses"
-          className="text-foreground underline-offset-4 transition-colors duration-[160ms] hover:underline"
+          className="text-foreground underline-offset-4 transition-colors duration-base hover:underline"
         >
           {t("mastery.courses.browse")}
         </Link>
