@@ -13,7 +13,7 @@ import { AuthCard } from "@/components/ui/auth-card";
 
 describe("AuthCard", () => {
   it("renders the cartouche, heading, and subtitle in the documented order", () => {
-    const { container } = render(
+    render(
       <AuthCard
         cartouche="AUTH.LOGIN.CARTOUCHE"
         heading="Sign in"

@@ -19,7 +19,6 @@ import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 import { instructorSteps } from "@/lib/onboarding/steps";
-import { cn } from "@/lib/utils";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
 /**

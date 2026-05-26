@@ -18,7 +18,7 @@
  * This spec pins the new primitives' contracts + the quiz markup
  * shape end-to-end.
  */
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
