@@ -62,6 +62,42 @@ class RateLimitedError(AppError):
     code = "rate_limited"
 
 
+class TutorUserCapError(AppError):
+    """L33 — the calling user has exhausted their per-user microcent
+    reservation for the rolling window. Frontend renders the
+    cost-cap closing CTA (L23) on this code."""
+
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "tutor.user_cap"
+
+
+class TutorIpCapError(AppError):
+    """L33 — the calling IP has exhausted its per-IP microcent
+    reservation. Catches anonymous-burst abuse where many user
+    accounts share one IP."""
+
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "tutor.ip_cap"
+
+
+class TutorGlobalCapError(AppError):
+    """L33 — the global daily microcent budget is exhausted. Kills
+    the demo for the day so a runaway loop or coordinated abuse
+    can't bankrupt the prod LLM key."""
+
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "tutor.global_cap"
+
+
+class TutorConcurrencyLimitError(AppError):
+    """L33 — the user already has `tutor_max_concurrent` streaming
+    turns in flight. Returns 429 with a `Retry-After: 5` so the
+    client can naturally back off."""
+
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "tutor.too_many_concurrent"
+
+
 class BudgetExceededError(AppError):
     """Raised when a user has burned through their 24h LLM budget.
 

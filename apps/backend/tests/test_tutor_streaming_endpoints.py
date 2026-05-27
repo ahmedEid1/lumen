@@ -35,6 +35,29 @@ def _stub_celery_enqueue():
         yield m
 
 
+@pytest.fixture(autouse=True)
+def _stub_cost_scripts():
+    """L33 — stub the cost-cap + concurrency Lua wrappers so HTTP
+    tests don't need a live Redis. The default returns let every
+    request through; tests that want to exercise the cap branches
+    monkey-patch these per-test via the yielded dict."""
+    from unittest.mock import AsyncMock
+
+    conc_mock = AsyncMock(return_value=(True, 1))
+    res_mock = AsyncMock(return_value=(True, "ok"))
+    rel_mock = AsyncMock(return_value=0)
+    with (
+        patch("app.api.v1.tutor_streaming.check_concurrency", conc_mock),
+        patch("app.api.v1.tutor_streaming.reserve_cost", res_mock),
+        patch("app.api.v1.tutor_streaming.release_concurrency", rel_mock),
+    ):
+        yield {
+            "check_concurrency": conc_mock,
+            "reserve_cost": res_mock,
+            "release_concurrency": rel_mock,
+        }
+
+
 async def test_post_returns_503_when_streaming_disabled(client: AsyncClient, auth_headers) -> None:
     """Default state: flag OFF → 503 with the documented error code."""
     headers = await auth_headers(role=Role.student)
@@ -159,6 +182,128 @@ async def test_post_with_unknown_course_slug_returns_404(
         headers=headers,
     )
     assert r.status_code == 404, r.text
+
+
+async def test_post_429_when_concurrency_cap_hit(
+    client: AsyncClient,
+    auth_headers,
+    monkeypatch,
+    _stub_cost_scripts,
+) -> None:
+    """L33 — concurrency check returns (False, N) → 429
+    tutor.too_many_concurrent. Reserve_cost is never called because
+    the concurrency check fences ahead of it (cheaper)."""
+    s = get_settings()
+    monkeypatch.setattr(s, "feature_tutor_streaming", True)
+    _stub_cost_scripts["check_concurrency"].return_value = (False, 3)
+
+    headers = await auth_headers(role=Role.student)
+    r = await client.post(
+        "/api/v1/tutor/turns",
+        json={"content": "q"},
+        headers=headers,
+    )
+    assert r.status_code == 429, r.text
+    assert r.json()["error"]["code"] == "tutor.too_many_concurrent"
+    _stub_cost_scripts["reserve_cost"].assert_not_called()
+
+
+async def test_post_429_when_user_cost_cap_hit_releases_concurrency(
+    client: AsyncClient,
+    auth_headers,
+    monkeypatch,
+    _stub_cost_scripts,
+) -> None:
+    """L33 — reserve_cost rejects with `user_cap` → 429
+    tutor.user_cap. The handler MUST release the concurrency slot
+    it just acquired (else the next retry consumes the slot too
+    and the user can lock themselves out)."""
+    s = get_settings()
+    monkeypatch.setattr(s, "feature_tutor_streaming", True)
+    _stub_cost_scripts["reserve_cost"].return_value = (False, "user_cap")
+
+    headers = await auth_headers(role=Role.student)
+    r = await client.post(
+        "/api/v1/tutor/turns",
+        json={"content": "q"},
+        headers=headers,
+    )
+    assert r.status_code == 429, r.text
+    assert r.json()["error"]["code"] == "tutor.user_cap"
+    _stub_cost_scripts["release_concurrency"].assert_called_once()
+
+
+async def test_post_429_when_ip_cost_cap_hit(
+    client: AsyncClient,
+    auth_headers,
+    monkeypatch,
+    _stub_cost_scripts,
+) -> None:
+    """L33 — ip_cap rejection surfaces as tutor.ip_cap."""
+    s = get_settings()
+    monkeypatch.setattr(s, "feature_tutor_streaming", True)
+    _stub_cost_scripts["reserve_cost"].return_value = (False, "ip_cap")
+
+    headers = await auth_headers(role=Role.student)
+    r = await client.post(
+        "/api/v1/tutor/turns",
+        json={"content": "q"},
+        headers=headers,
+    )
+    assert r.status_code == 429, r.text
+    assert r.json()["error"]["code"] == "tutor.ip_cap"
+
+
+async def test_post_429_when_global_cost_cap_hit(
+    client: AsyncClient,
+    auth_headers,
+    monkeypatch,
+    _stub_cost_scripts,
+) -> None:
+    """L33 — global_cap rejection surfaces as tutor.global_cap."""
+    s = get_settings()
+    monkeypatch.setattr(s, "feature_tutor_streaming", True)
+    _stub_cost_scripts["reserve_cost"].return_value = (False, "global_cap")
+
+    headers = await auth_headers(role=Role.student)
+    r = await client.post(
+        "/api/v1/tutor/turns",
+        json={"content": "q"},
+        headers=headers,
+    )
+    assert r.status_code == 429, r.text
+    assert r.json()["error"]["code"] == "tutor.global_cap"
+
+
+async def test_post_persists_reserved_cost_on_row(
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    monkeypatch,
+) -> None:
+    """L33 — the persisted reserved_cost_usd equals
+    `tutor_estimate_microcents / 1e6` as a Decimal. The Celery task
+    converts back to integer microcents at reconcile time."""
+    from decimal import Decimal
+
+    s = get_settings()
+    monkeypatch.setattr(s, "feature_tutor_streaming", True)
+    monkeypatch.setattr(s, "tutor_estimate_microcents", 7_500)  # $0.0075
+
+    headers = await auth_headers(role=Role.student)
+    r = await client.post(
+        "/api/v1/tutor/turns",
+        json={"content": "q"},
+        headers=headers,
+    )
+    assert r.status_code == 201, r.text
+    turn_id = r.json()["id"]
+
+    row = await db_session.execute(select(TutorTurnJob).where(TutorTurnJob.id == turn_id))
+    turn = row.scalar_one_or_none()
+    assert turn is not None
+    # Decimal equality is sensitive to scale; compare via subtraction.
+    assert abs(turn.reserved_cost_usd - Decimal("0.0075")) < Decimal("0.0000001")
 
 
 async def test_status_idor_collapses_to_404(

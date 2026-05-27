@@ -191,6 +191,34 @@ class Settings(BaseSettings):
     # /tutor/conversations/{id}/messages path stays canonical.
     feature_tutor_streaming: bool = False
 
+    # ---------- L33 — Tutor cost caps & concurrency ----------
+    # Per-turn estimate the POST handler reserves up-front. The
+    # real cost gets reconciled on turn_complete (reconcile_cost
+    # adjusts the bucket by `actual - estimate`). A conservative
+    # estimate makes the demo "fail fast" for runaway users; too
+    # low an estimate burns budget before the cap kicks in.
+    # Default $0.005 = 5_000 microcents — covers a typical
+    # Llama-3.3 70B Groq turn (~300 output tokens at $0.79/1M
+    # output = ~$0.00024) with 20× headroom for outlier turns.
+    tutor_estimate_microcents: int = 5_000
+
+    # Per-user rolling-24h cap in microcents. $0.50 = 500_000.
+    # ~100 typical turns/day before the user-cap kicks in.
+    tutor_cap_user_microcents: int = 500_000
+
+    # Per-IP rolling-24h cap. $2.00 = 2_000_000. Catches abuse
+    # where one IP cycles many anonymous-shaped accounts.
+    tutor_cap_ip_microcents: int = 2_000_000
+
+    # Global rolling-24h cap. $20.00 = 20_000_000. The demo's
+    # hard daily ceiling — exceeding it shuts the streaming
+    # endpoint off until the bucket TTL expires.
+    tutor_cap_global_microcents: int = 20_000_000
+
+    # Max concurrent streaming turns per user. Beyond this the
+    # POST returns 429 tutor.too_many_concurrent.
+    tutor_max_concurrent: int = 3
+
     # ---------- L21-Sec deploy cutoff (Codex rescue) ----------
     # When the boot-hook backstop runs the email-verify grandfather
     # query, it must ONLY backfill rows whose ``created_at`` is older

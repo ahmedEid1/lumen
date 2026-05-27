@@ -73,6 +73,20 @@ x-api-env: &api-env
   RATE_LIMIT_ANON_PER_MINUTE: ${RATE_LIMIT_ANON_PER_MINUTE:-60}
   RATE_LIMIT_AUTH_PER_MINUTE: ${RATE_LIMIT_AUTH_PER_MINUTE:-10}
   RATE_LIMIT_USER_PER_MINUTE: ${RATE_LIMIT_USER_PER_MINUTE:-240}
+  # L21a/b — streaming tutor feature flag. OFF by default so a deploy
+  # lands inert; the operator flips via `flip-flag.yml`. Default
+  # `false` mirrors `Settings.feature_tutor_streaming`.
+  FEATURE_TUTOR_STREAMING: ${FEATURE_TUTOR_STREAMING:-false}
+  # L33 — tutor cost-cap + concurrency knobs. Defaults match
+  # Settings; operators tune via .env.production without a code
+  # change. All microcent integers (USD * 1e6).
+  TUTOR_ESTIMATE_MICROCENTS: ${TUTOR_ESTIMATE_MICROCENTS:-5000}
+  TUTOR_CAP_USER_MICROCENTS: ${TUTOR_CAP_USER_MICROCENTS:-500000}
+  TUTOR_CAP_IP_MICROCENTS: ${TUTOR_CAP_IP_MICROCENTS:-2000000}
+  TUTOR_CAP_GLOBAL_MICROCENTS: ${TUTOR_CAP_GLOBAL_MICROCENTS:-20000000}
+  TUTOR_MAX_CONCURRENT: ${TUTOR_MAX_CONCURRENT:-3}
+  # L21-Sec deploy cutoff for the email-verify grandfather backstop.
+  L21SEC_DEPLOY_TIMESTAMP: ${L21SEC_DEPLOY_TIMESTAMP:-2026-05-27T00:00:00Z}
 
 services:
   proxy:

@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 33 — cost-reserve + concurrency at POST /tutor/turns)
+
+- **Cost cap + concurrency reservation on the streaming POST.** The
+  POST handler now runs `check_concurrency` then `reserve_cost`
+  against the three L21-Sec rolling-24h microcent buckets. Tagged
+  rejections surface as 429 with `tutor.too_many_concurrent`,
+  `tutor.user_cap`, `tutor.ip_cap`, or `tutor.global_cap`. The
+  existing L23 frontend cost-cap closing CTA renders on these codes.
+- **Reconcile-on-terminal in the Celery task.** After the orchestrator
+  yields `turn_complete`, the worker calls `reconcile_cost` with the
+  delta between actual LLM cost and the conservative estimate. On
+  failure/abort the actual is zero, so reconcile releases the full
+  reservation.
+- **Five new tutor cost knobs** in `Settings` (`tutor_estimate_microcents`
+  + per-user / per-IP / global caps + max concurrent). Defaults sized
+  for the public demo on Groq Llama 3.3 70B: $0.50 per user / day,
+  $2 per IP / day, $20 global / day, 3 concurrent streams per user.
+
+### Fixed (deploy plumbing — feature flag wasn't forwarded to container)
+
+- **`x-api-env` anchor in `docker-compose.prod.yml`** now includes
+  `FEATURE_TUTOR_STREAMING`, all `TUTOR_*_MICROCENTS` knobs,
+  `TUTOR_MAX_CONCURRENT`, and `L21SEC_DEPLOY_TIMESTAMP`. The anchor
+  enumerates passthrough env vars by name; without this addition,
+  setting `FEATURE_TUTOR_STREAMING=true` in `.env.production` had no
+  effect on the running api container. This is why the L32 deploy
+  verified green but `/api/v1/runtime-flags` still reported
+  `tutor_streaming: false`.
+
 ### Added (post-redesign loop 32 — pgvector retrieval in streaming orchestrator)
 
 - **Real lesson-chunk grounding in the streaming tutor.**

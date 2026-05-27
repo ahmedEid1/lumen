@@ -31,7 +31,20 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.api.deps import CurrentUser, DBSession
 from app.core.config import get_settings
-from app.core.errors import AppError, NotFoundError
+from app.core.cost_scripts import (
+    USD_TO_MICROCENTS,
+    check_concurrency,
+    release_concurrency,
+    reserve_cost,
+)
+from app.core.errors import (
+    AppError,
+    NotFoundError,
+    TutorConcurrencyLimitError,
+    TutorGlobalCapError,
+    TutorIpCapError,
+    TutorUserCapError,
+)
 from app.models.tutor_turn_job import TERMINAL_TURN_STATUSES, TURN_STATUS_ABORTED
 from app.services.redis_streams import check_trim, consume_stream
 from app.services.tutor_turn_service import (
@@ -112,11 +125,57 @@ async def post_turn(
 ) -> TurnOut:
     _require_streaming_enabled()
 
-    # L21-Sec primitives are wired in but the cost-cap RESERVE is
-    # deferred to a follow-up — we want the wire shape live first,
-    # then layer the reservation in once the orchestrator is doing
-    # real LLM work. For now the row's reserved_cost is 0.
+    settings = get_settings()
     client_ip = request.client.host if request.client else "unknown"
+
+    # L33 — cost-cap + concurrency reservation. The order matters:
+    # check_concurrency first (cheap, no Lua write happens until ok),
+    # then reserve_cost. If the cost reserve fails after the
+    # concurrency slot was acquired, we release it before raising.
+    redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=False)
+    user_concurrency_key = f"concurrent:user:{user.id}"
+    try:
+        conc_ok, _conc_count = await check_concurrency(
+            redis_client,
+            user_key=user_concurrency_key,
+            max_concurrent=settings.tutor_max_concurrent,
+        )
+        if not conc_ok:
+            raise TutorConcurrencyLimitError("Too many concurrent streaming turns for this user.")
+
+        reserve_ok, reserve_tag = await reserve_cost(
+            redis_client,
+            user_key=f"tutor_cost:user:{user.id}",
+            ip_key=f"tutor_cost:ip:{client_ip}",
+            global_key="tutor_cost:global",
+            estimate_microcents=settings.tutor_estimate_microcents,
+            max_user_microcents=settings.tutor_cap_user_microcents,
+            max_ip_microcents=settings.tutor_cap_ip_microcents,
+            max_global_microcents=settings.tutor_cap_global_microcents,
+        )
+        if not reserve_ok:
+            # Release the slot we just acquired before raising —
+            # otherwise a flat-out-broke caller would slowly drain
+            # their own concurrency budget by retrying.
+            await release_concurrency(redis_client, user_key=user_concurrency_key)
+            if reserve_tag == "user_cap":
+                raise TutorUserCapError("Per-user cost cap reached.")
+            if reserve_tag == "ip_cap":
+                raise TutorIpCapError("Per-IP cost cap reached.")
+            if reserve_tag == "global_cap":
+                raise TutorGlobalCapError("Global cost cap reached for the day.")
+            # invalid_estimate — caller misuse, treat as 4xx.
+            raise TutorUserCapError(f"reservation rejected: {reserve_tag}")
+    finally:
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            await redis_client.aclose()
+
+    # The reservation's microcent value converted to USD for the row.
+    # Decimal arithmetic so we don't accrue float drift across
+    # reconcile + sweep paths.
+    reserved_usd = Decimal(settings.tutor_estimate_microcents) / Decimal(USD_TO_MICROCENTS)
 
     # L32 — resolve course_slug to course_id. We do NOT enforce
     # enrollment here: the streaming demo is intentionally open to
@@ -143,7 +202,7 @@ async def post_turn(
         db,
         user_id=user.id,
         conversation_id=body.conversation_id,
-        reserved_cost_usd=Decimal("0"),
+        reserved_cost_usd=reserved_usd,
         reservation_ip_key=client_ip,
         prompt_template_hash=None,
         user_message=body.content,

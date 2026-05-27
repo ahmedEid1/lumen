@@ -31,7 +31,11 @@ from celery.utils.log import get_task_logger
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.core.cost_scripts import release_concurrency
+from app.core.cost_scripts import (
+    USD_TO_MICROCENTS,
+    reconcile_cost,
+    release_concurrency,
+)
 from app.db.base import get_sessionmaker
 from app.models.course import Course
 from app.models.tutor_turn_job import TURN_STATUS_COMPLETE, TURN_STATUS_FAILED
@@ -71,6 +75,12 @@ async def _run_turn_async(turn_id: str) -> None:
     conversation_id: str | None = None
     retrieved_chunks: list[RetrieverChunk] = []
     retrieval_latency_ms: int | None = None
+    # L33 — reservation metadata captured at claim time so we can
+    # reconcile the bucket whether the turn completes, fails, or is
+    # cancelled mid-stream.
+    reserved_microcents: int = 0
+    reservation_ip_key: str | None = None
+    actual_cost_microcents: int = 0
 
     try:
         async with Session() as db:
@@ -82,6 +92,10 @@ async def _run_turn_async(turn_id: str) -> None:
             conversation_id = turn.conversation_id
             course_id = turn.course_id
             user_message_content = turn.user_message or ""
+            reservation_ip_key = turn.reservation_ip_key
+            # The row stores USD as Decimal; convert back to the
+            # integer microcent shape the reconcile Lua expects.
+            reserved_microcents = int(turn.reserved_cost_usd * USD_TO_MICROCENTS)
             await db.commit()
 
         # L32 — pgvector retrieval. Best-effort: a retrieval failure
@@ -114,6 +128,8 @@ async def _run_turn_async(turn_id: str) -> None:
 
         # Orchestrate + emit events to the Redis stream. The
         # orchestrator yields events; we relay each to Redis.
+        # L33 — intercept turn_complete to capture the real cost
+        # so the finally block can reconcile the reservation.
         async for ev in orchestrate_stream(
             turn_id=turn_id,
             user_id=user_id,
@@ -122,6 +138,9 @@ async def _run_turn_async(turn_id: str) -> None:
             retrieved_chunks=retrieved_chunks or None,
             retrieval_latency_ms=retrieval_latency_ms,
         ):
+            if ev["event"] == "turn_complete":
+                cost_usd = float(ev["data"].get("cost_usd", 0.0) or 0.0)
+                actual_cost_microcents = int(cost_usd * USD_TO_MICROCENTS)
             await emit_event(
                 redis_client,
                 turn_id=turn_id,
@@ -163,6 +182,23 @@ async def _run_turn_async(turn_id: str) -> None:
         raise
 
     finally:
+        # L33 — reconcile the reservation. delta = actual - reserved.
+        # On failure/abort, actual is 0 (no LLM tokens spent) so we
+        # release the full reservation. On success the delta closes
+        # the gap between the conservative estimate and reality.
+        # Wrapped in suppress so a Redis flake during reconcile
+        # doesn't trip another exception before the slot release.
+        if user_id is not None and reserved_microcents > 0 and reservation_ip_key is not None:
+            delta = actual_cost_microcents - reserved_microcents
+            with contextlib.suppress(Exception):
+                await reconcile_cost(
+                    redis_client,
+                    user_key=f"tutor_cost:user:{user_id}",
+                    ip_key=f"tutor_cost:ip:{reservation_ip_key}",
+                    global_key="tutor_cost:global",
+                    delta_microcents=delta,
+                )
+
         # Release the per-user concurrency slot — plan-v7 §V7-F1 made
         # this user-scoped (was wrongly drafted as turn-scoped in v5).
         if user_id is not None:
