@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import UTC, datetime
 
 import typer
 from rich.console import Console
 from sqlalchemy import select
 
-from app.core.config import get_settings
+from app.core.config import Environment, get_settings
 from app.core.security import hash_password
 from app.db.base import get_sessionmaker
 from app.models.course import (
@@ -27,6 +28,39 @@ from app.models.user import Role, User
 
 cli = typer.Typer(no_args_is_help=True)
 console = Console()
+
+
+def _refuse_prod_seed_or_pass(command: str) -> None:
+    """L21-Sec — refuse to run a destructive/credential-exposing seed
+    command against production unless the operator explicitly opts in
+    with ``LUMEN_ALLOW_PROD_SEED=1``.
+
+    The demo seed in particular drops a fixed-password demo learner
+    (``demo@lumen.test`` / ``Demo!2026``) into the database. Running
+    that against prod is the kind of operator mistake that turns
+    "weekend deploy" into "Hacker News headline." A 2-line guard is
+    much cheaper than the incident.
+
+    The override env var is intentional, named, and undocumented in
+    the public README — the only people who'd know to set it are
+    operators reading this very source code.
+    """
+    s = get_settings()
+    if s.env != Environment.production:
+        return
+    if os.environ.get("LUMEN_ALLOW_PROD_SEED") == "1":
+        console.print(
+            f"[yellow]WARNING: {command} is running against PRODUCTION because "
+            "LUMEN_ALLOW_PROD_SEED=1 is set. Demo credentials will be inserted.[/yellow]"
+        )
+        return
+    console.print(
+        f"[red]{command} refuses to run against production by default.[/red]\n"
+        "If you really mean it, re-run with LUMEN_ALLOW_PROD_SEED=1.\n"
+        "If you did NOT mean to seed production — congratulations, you just "
+        "avoided shipping a fixed-password demo account to prod."
+    )
+    raise typer.Exit(code=2)
 
 
 async def _get_or_create(db, model, *, lookup: dict, defaults: dict):
@@ -78,6 +112,7 @@ async def _bootstrap_admin(email: str, password: str, full_name: str) -> None:
 @cli.command()
 def seed() -> None:
     """Load demo subjects, tags, instructor, student, and a course."""
+    _refuse_prod_seed_or_pass("seed")
     asyncio.run(_seed())
 
 
@@ -274,11 +309,13 @@ def reindex() -> None:
 @cli.command(name="demo-seed")
 def demo_seed() -> None:
     """Load the demo bundle (3 courses + demo student).
+    L21-Sec — refuses in production unless ``LUMEN_ALLOW_PROD_SEED=1``.
 
     Sits on top of ``seed``: run ``seed`` first if you want the full
     subject / tag / instructor / student dev fixtures; ``demo-seed`` is
     additive and idempotent on its own. See ``app/seeds/demo.py``.
     """
+    _refuse_prod_seed_or_pass("demo-seed")
     from app.seeds.demo import run as _demo_run
 
     asyncio.run(_demo_run())

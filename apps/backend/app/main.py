@@ -268,12 +268,59 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     warnings = assert_production_safe(settings)
     for msg in warnings:
         log.warning("prod_guard_warning", message=msg)
+
+    # L21-Sec — idempotent grandfather backstop. The migration ran on
+    # deploy, but the deploy window (rolling restart of API containers)
+    # is wide enough that a user can register between the migration
+    # completing and the verification gate activating on every replica.
+    # Re-running the COALESCE on boot covers that window. It's a no-op
+    # in 99.9% of boots (every user already has the column set).
+    try:
+        await _grandfather_unverified_on_boot()
+    except Exception as exc:  # pragma: no cover - boot-path safety net
+        # Refuse to boot only on schema mismatch (Alembic must have
+        # been run). Any other failure is logged and ignored so we
+        # don't take the API down for a non-critical backstop.
+        log.warning("l21sec_grandfather_boot_failed", error=str(exc))
+
     log.info("startup", env=settings.env.value, app=settings.app_name)
     try:
         yield
     finally:
         await dispose_engine()
         log.info("shutdown")
+
+
+async def _grandfather_unverified_on_boot() -> None:
+    """Idempotent: any pre-L21-Sec user whose email_verified_at is
+    still NULL gets backfilled with their created_at. Mirrors the
+    Alembic migration; needed because the deploy window between
+    migration-complete and full-restart is wide enough for new
+    registrations to slip through (plan-v7 §V7-F9).
+
+    Runs unconditionally; the WHERE clause makes it a no-op when no
+    rows match.
+    """
+    from sqlalchemy import text
+
+    from app.db.base import get_sessionmaker
+
+    Session = get_sessionmaker()
+    async with Session() as db:
+        result = await db.execute(
+            text(
+                """
+                UPDATE users
+                SET email_verified_at = COALESCE(email_verified_at, created_at)
+                WHERE email_verified_at IS NULL
+                RETURNING id
+                """
+            )
+        )
+        rows = result.fetchall()
+        if rows:
+            log.info("l21sec_grandfather_boot", count=len(rows))
+        await db.commit()
 
 
 def create_app() -> FastAPI:
@@ -356,8 +403,15 @@ def create_app() -> FastAPI:
     if settings.sentry_dsn:  # pragma: no cover - depends on env
         import sentry_sdk
 
+        from app.core.sentry_scrubber import before_send
+
         sentry_sdk.init(
-            dsn=settings.sentry_dsn, traces_sample_rate=0.1, environment=settings.env.value
+            dsn=settings.sentry_dsn,
+            traces_sample_rate=0.1,
+            environment=settings.env.value,
+            # L21-Sec — zero out tutor-namespace locals + request bodies
+            # before the event ships. See app/core/sentry_scrubber.py.
+            before_send=before_send,
         )
 
     # OpenTelemetry — opt-in via OTEL_EXPORTER_OTLP_ENDPOINT. No-op

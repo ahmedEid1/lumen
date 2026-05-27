@@ -32,10 +32,27 @@ from app.models.tutor_conversation import (
     TutorMessage,
     TutorMessageRole,
 )
+from app.models.tutor_turn_job import (
+    TERMINAL_TURN_STATUSES,
+    TURN_STATUS_ABORTED,
+    TURN_STATUS_COMPLETE,
+    TURN_STATUS_FAILED,
+    TURN_STATUS_PENDING,
+    TURN_STATUS_RUNNING,
+    TURN_STATUS_STREAMING,
+    TutorTurnJob,
+)
 from app.models.user import RefreshToken, Role, User
 
 __all__ = [
     "EMBEDDING_DIM",
+    "TERMINAL_TURN_STATUSES",
+    "TURN_STATUS_ABORTED",
+    "TURN_STATUS_COMPLETE",
+    "TURN_STATUS_FAILED",
+    "TURN_STATUS_PENDING",
+    "TURN_STATUS_RUNNING",
+    "TURN_STATUS_STREAMING",
     "AgentTrace",
     "Asset",
     "AuditEvent",
@@ -69,6 +86,7 @@ __all__ = [
     "TutorConversation",
     "TutorMessage",
     "TutorMessageRole",
+    "TutorTurnJob",
     "User",
     "course_tags",
 ]

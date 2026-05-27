@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (post-redesign loop 21-Sec — hardening without streaming)
+
+- **Llama 3.x special-token sanitizer** (`app/core/llm_sanitize.py`):
+  strips `<|...|>` shapes from tool outputs before they hit the LLM
+  prompt. Defends against indirect prompt injection via web search /
+  ingest payloads. Includes a nonce-fenced `<lumen-data>` wrapper for
+  the orchestrator to mark untrusted-source content.
+- **Sentry/Glitchtip scrubber** (`app/core/sentry_scrubber.py`):
+  `before_send` hook zeros tutor-namespace locals (prompt,
+  system_prompt, user_message, messages, tool_output, …) across every
+  captured frame; drops request bodies on /tutor URLs; scrubs
+  category=tutor breadcrumbs. Wired into `main.py` next to the
+  existing `sentry_sdk.init()`.
+- **Lua cost-cap + concurrency scripts** (`app/core/lua/*.lua`,
+  `app/core/cost_scripts.py`):
+  - `reserve_cost` — atomic 3-bucket (user/IP/global) reservation in
+    microcents with TTL-only-on-creation (no sliding window).
+  - `reconcile_cost` — delta-adjust floored at zero; DEL when landing
+    at zero so no permanent zero keys; preserves remaining TTL.
+  - `check_concurrency` / `release_concurrency` — per-user
+    concurrent-stream counter (user-scoped per plan-v7 §V7-F1).
+  Pure utility; the L21a streaming POST wires the callers.
+- **Code-runner subprocess hardening** (`app/services/code_runner_subprocess.py`):
+  spawns a Python child with `RLIMIT_CPU=2s` + `RLIMIT_AS=256MB` set
+  *before* importing RestrictedPython, then runs the same sandbox.
+  Wall-clock-timeout + SIGKILL on process-group overrun. Defends
+  against `while True: pass` (eats CPU) and `"a" * 10**9` (eats RAM)
+  that the in-process runner couldn't stop.
+- **Email-verify grandfather migration** (Alembic 0027): backfills
+  every existing user's `email_verified_at = COALESCE(email_verified_at,
+  created_at)`. Writes an `auth.bulk_grandfather_email_verify` audit
+  row. Boot hook in `main.py` lifespan re-runs the COALESCE on every
+  container start to cover the deploy-window race (plan-v7 §V7-F9).
+- **Empty `tutor_turn_jobs` table** (Alembic 0027) per ADR-0019:
+  `id, user_id (CASCADE FK), conversation_id, status (default
+  pending), error_code, prompt_template_hash, reserved_cost_usd,
+  reservation_ip_key, created_at, updated_at`. Plus partial index on
+  active states + per-user-created index. SQLAlchemy model +
+  status-string constants re-exported via `app/models/__init__.py`.
+- **Seed-in-prod refusal** (`app/cli.py::_refuse_prod_seed_or_pass`):
+  `seed` and `demo-seed` commands exit with code 2 in `ENV=production`
+  unless `LUMEN_ALLOW_PROD_SEED=1`. Defends against shipping the
+  fixed-password demo learner to a real prod DB.
+- **IDOR contract tests** for the existing tutor endpoints
+  (`tests/test_tutor_idor.py`): learner B cannot POST to learner A's
+  conversation; cross-user listing scoped to current user. Locks the
+  contract so a refactor that drops the `WHERE user_id=` filter can't
+  ship silently.
+
 ### Added (post-redesign loop 20.6 — RAG course + demo library + streaming obs tile)
 
 - **Building a RAG system from scratch** — new seeded demo course
