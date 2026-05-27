@@ -93,20 +93,25 @@ export function AgentReplayHero() {
           {/* Assistant bubble — tools list + text appearing in stages. */}
           <div className="motion-replay__assistant flex flex-col gap-3 items-start">
             <ul
-              className="flex flex-col gap-1 font-mono text-[11px] uppercase tracking-wider text-muted-foreground"
+              className="flex flex-col gap-1 font-mono text-[11px] uppercase tracking-wider text-foreground"
               aria-label="Tools used"
             >
+              {/* Codex/axe rescue: the tool-row labels need full
+                  text-foreground contrast against the surface bg —
+                  inherited `text-muted-foreground` was 1.38:1 in
+                  dark mode, well below the 4.5:1 WCAG AA threshold.
+                  Latency badges step down to /80 (still > 4.5:1). */}
               <li className="motion-replay__tool motion-replay__tool-1 flex items-center gap-2">
                 <Search className="h-3 w-3 text-primary" aria-hidden />
                 <span>retriever</span>
-                <span className="motion-replay__tool-latency tabular-nums text-muted-foreground/70">
+                <span className="motion-replay__tool-latency tabular-nums text-foreground/80">
                   82 ms
                 </span>
               </li>
               <li className="motion-replay__tool motion-replay__tool-2 flex items-center gap-2">
                 <Code2 className="h-3 w-3 text-primary" aria-hidden />
                 <span>code_runner</span>
-                <span className="motion-replay__tool-latency tabular-nums text-muted-foreground/70">
+                <span className="motion-replay__tool-latency tabular-nums text-foreground/80">
                   214 ms
                 </span>
               </li>

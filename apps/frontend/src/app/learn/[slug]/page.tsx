@@ -16,12 +16,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Courses, Me } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { LessonPlayer } from "@/components/lesson/lesson-player";
@@ -303,49 +297,25 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
           the conversation isn't opened (= no LLM round-trip) before
           they actually ask.
 
-          L24 — mobile/tablet pass: below `lg` the panel lives in a
-          bottom Sheet instead of as an inline column. The Sheet
-          surface gives the panel ~85vh of room on iPhone 13 (Safari
-          17) without competing with the lesson outline for vertical
-          space. At `lg+` the panel stays inline as the third column
-          per the existing two-/three-col layout. */}
+          L24 attempted a mobile-only bottom Sheet + desktop inline
+          column dual-mount, but Playwright's strict `getByTestId`
+          flagged two `tutor-panel` elements (the Sheet portals to
+          body regardless of viewport, so both copies sit in the DOM
+          at the same time). Reverted to the single inline rendering
+          here; the L24 mobile-bottom-Sheet improvement re-lands when
+          we have a useMediaQuery-style mount gate that's SSR-safe.
+          The L24 review-grade-buttons h-11 touch-target fix stays. */}
       {tutorOpen && (
-        <>
-          {/* Mobile/tablet — slide-up bottom sheet. */}
-          <Sheet
-            open={tutorOpen}
-            onOpenChange={(open) => setTutorOpen(open)}
-          >
-            <SheetContent
-              side="bottom"
-              className="h-[90vh] p-0 lg:hidden"
-              aria-label={t("tutor.heading")}
-            >
-              <SheetHeader className="sr-only">
-                <SheetTitle>{t("tutor.heading")}</SheetTitle>
-              </SheetHeader>
-              <div className="h-full">
-                <TutorPanel
-                  courseId={course.id}
-                  initialDraft={initialDraft}
-                  courseSlug={slug}
-                />
-              </div>
-            </SheetContent>
-          </Sheet>
-
-          {/* Desktop (lg+) — inline column. */}
-          <aside
-            className="order-3 hidden min-w-0 lg:order-none lg:sticky lg:top-20 lg:block lg:h-[calc(100vh-7rem)]"
-            aria-label={t("tutor.heading")}
-          >
-            <TutorPanel
-              courseId={course.id}
-              initialDraft={initialDraft}
-              courseSlug={slug}
-            />
-          </aside>
-        </>
+        <aside
+          className="order-3 min-w-0 lg:order-none lg:sticky lg:top-20 lg:h-[calc(100vh-7rem)]"
+          aria-label={t("tutor.heading")}
+        >
+          <TutorPanel
+            courseId={course.id}
+            initialDraft={initialDraft}
+            courseSlug={slug}
+          />
+        </aside>
       )}
     </div>
   );
