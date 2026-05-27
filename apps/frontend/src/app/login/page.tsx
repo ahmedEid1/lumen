@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
@@ -63,16 +63,37 @@ function LoginForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Codex rescue for QA-loop iter 1: when an already-signed-in user
-  // arrives at /login (especially via the new /demo redirect), forward
-  // them to `next` without showing the form. Without this, a signed-in
-  // visitor clicking the demo CTA would be invited to sign in as the
-  // demo learner — which would clobber their real session. The check
-  // gates on `ready` so we don't redirect mid-hydration.
+  // QA-loop iter 1 — Codex rescue + webkit E2E fix.
+  //
+  // When an already-signed-in user arrives at /login (especially via
+  // the new /demo redirect), forward them to `next` without showing
+  // the form. Without this, a signed-in visitor clicking the demo
+  // CTA would be invited to sign in as the demo learner — clobbering
+  // their real session.
+  //
+  // The check is intentionally *one-shot at first ready=true*: we
+  // snapshot `user` the moment hydration completes, and only redirect
+  // if they were ALREADY signed in. Later transitions to signed-in
+  // (e.g., the form's own `await login()` populating user state)
+  // belong to the form's `router.push(next)`, not to this effect.
+  // Earlier (re-firing on every `user` change) the effect raced with
+  // the form's router.push on webkit specifically — the CI E2E
+  // `tutor-citations` spec got stuck at /login through 3 retries on
+  // webkit only, with both navigations targeting the same URL but
+  // neither one actually taking. Once-on-ready avoids the race
+  // entirely.
+  const alreadySignedInRef = useRef<boolean | null>(null);
   useEffect(() => {
-    if (ready && user) router.replace(next);
+    if (!ready) return;
+    if (alreadySignedInRef.current === null) {
+      alreadySignedInRef.current = !!user;
+    }
+    if (alreadySignedInRef.current && user) {
+      router.replace(next);
+    }
   }, [ready, user, next, router]);
-  const alreadySignedIn = ready && !!user;
+  const alreadySignedIn =
+    ready && alreadySignedInRef.current === true && !!user;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
