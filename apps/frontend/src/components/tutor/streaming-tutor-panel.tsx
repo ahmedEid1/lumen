@@ -47,18 +47,24 @@ interface PostTurnResponse {
   status: string;
 }
 
-async function postTurn(content: string, token: string | null): Promise<PostTurnResponse> {
+async function postTurn(
+  content: string,
+  courseSlug: string | null,
+  token: string | null,
+): Promise<PostTurnResponse> {
+  const body: Record<string, string> = { content };
+  if (courseSlug) body.course_slug = courseSlug;
   const res = await fetch("/api/v1/tutor/turns", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body?.error?.message ?? `POST /tutor/turns failed (${res.status})`);
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error(errBody?.error?.message ?? `POST /tutor/turns failed (${res.status})`);
   }
   return res.json() as Promise<PostTurnResponse>;
 }
@@ -79,7 +85,7 @@ export function StreamingTutorPanel({
   const stream = useTutorStream(currentTurnId);
 
   const sendMut = useMutation({
-    mutationFn: (content: string) => postTurn(content, token),
+    mutationFn: (content: string) => postTurn(content, courseSlug ?? null, token),
     onSuccess: (resp, content) => {
       setCurrentTurnId(resp.id);
       setSentPrompt(content);
@@ -112,11 +118,11 @@ export function StreamingTutorPanel({
     sendMut.mutate(text);
   }
 
-  // courseId is not yet consumed by the new turn path (the backend
-  // doesn't take a course_id on POST /tutor/turns yet — that's a
-  // follow-up). Keep it in the prop signature so the call sites
-  // don't have to know the difference between this panel and the
-  // legacy one.
+  // L32 — courseSlug now threads through to the backend which
+  // resolves it to a course_id and runs pgvector retrieval against
+  // that course's lessons. courseId stays in the prop signature for
+  // parity with the legacy panel; it isn't sent on the wire because
+  // the backend resolves the slug.
   void courseId;
 
   return (

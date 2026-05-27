@@ -76,6 +76,11 @@ class NewTurnIn(BaseModel):
 
     content: str
     conversation_id: str | None = None
+    # L32 — optional course context. When set, the Celery worker runs
+    # pgvector retrieval against this course's lessons before
+    # synthesising. When unset, the orchestrator runs synth-only
+    # (degraded mode — fine for /demo).
+    course_slug: str | None = None
 
 
 class TurnOut(BaseModel):
@@ -112,6 +117,28 @@ async def post_turn(
     # then layer the reservation in once the orchestrator is doing
     # real LLM work. For now the row's reserved_cost is 0.
     client_ip = request.client.host if request.client else "unknown"
+
+    # L32 — resolve course_slug to course_id. We do NOT enforce
+    # enrollment here: the streaming demo is intentionally open to
+    # logged-in users so recruiters can drive it without seeding an
+    # enrollment row. Authorisation belongs in the legacy
+    # /tutor/conversations path; the streaming path is a thin demo.
+    course_id: str | None = None
+    if body.course_slug:
+        from sqlalchemy import select
+
+        from app.models.course import Course
+
+        result = await db.execute(
+            select(Course.id).where(
+                Course.slug == body.course_slug,
+                Course.deleted_at.is_(None),
+            )
+        )
+        course_id = result.scalar_one_or_none()
+        if course_id is None:
+            raise NotFoundError("course not found")
+
     turn = await create_turn(
         db,
         user_id=user.id,
@@ -119,6 +146,8 @@ async def post_turn(
         reserved_cost_usd=Decimal("0"),
         reservation_ip_key=client_ip,
         prompt_template_hash=None,
+        user_message=body.content,
+        course_id=course_id,
     )
     # Commit so the after_commit listener fires the Celery enqueue.
     await db.commit()

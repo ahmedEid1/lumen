@@ -1,4 +1,4 @@
-"""Celery task that runs a tutor turn end-to-end (L21a).
+"""Celery task that runs a tutor turn end-to-end (L21a → L32).
 
 Per ADR-0017/0019:
 
@@ -13,22 +13,32 @@ Per ADR-0017/0019:
 - ``finally`` block wraps every cleanup in ``contextlib.suppress``
   so a Redis flake doesn't skip the next cleanup step (plan-v7
   §V7-F7).
+
+L32 — pgvector retrieval runs HERE (not inside orchestrate_stream)
+so the orchestrator stays a pure async generator with no DB session.
+After the phase-fence we resolve the course row + run the retriever
+sub-agent + then pass the chunks to ``orchestrate_stream``.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import time
 
 import redis.asyncio as redis
 from celery.utils.log import get_task_logger
+from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.cost_scripts import release_concurrency
 from app.db.base import get_sessionmaker
+from app.models.course import Course
 from app.models.tutor_turn_job import TURN_STATUS_COMPLETE, TURN_STATUS_FAILED
 from app.services.redis_streams import emit_event, set_stream_ttl
 from app.services.tutor_orchestrator_stream import orchestrate_stream
+from app.services.tutor_subagents.retriever import RetrieverChunk
+from app.services.tutor_subagents.retriever import run as run_retriever
 from app.services.tutor_turn_service import claim_pending_turn, mark_terminal
 from app.workers.celery_app import celery
 
@@ -57,7 +67,10 @@ async def _run_turn_async(turn_id: str) -> None:
     redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=False)
     user_id: str | None = None
     user_message_content = ""
+    course_id: str | None = None
     conversation_id: str | None = None
+    retrieved_chunks: list[RetrieverChunk] = []
+    retrieval_latency_ms: int | None = None
 
     try:
         async with Session() as db:
@@ -67,7 +80,37 @@ async def _run_turn_async(turn_id: str) -> None:
                 return
             user_id = turn.user_id
             conversation_id = turn.conversation_id
+            course_id = turn.course_id
+            user_message_content = turn.user_message or ""
             await db.commit()
+
+        # L32 — pgvector retrieval. Best-effort: a retrieval failure
+        # degrades to "no course context" but doesn't fail the turn.
+        # The orchestrator decides whether to ground synth on the
+        # chunks based on whether we hand any in.
+        if course_id and user_message_content.strip():
+            with contextlib.suppress(Exception):
+                async with Session() as db:
+                    course = (
+                        await db.execute(select(Course).where(Course.id == course_id))
+                    ).scalar_one_or_none()
+                    if course is not None:
+                        t0 = time.monotonic()
+                        # Course-scoped retrieval. ``audit=True`` (the
+                        # default) inside the sub-agent writes a
+                        # retrieval_audits row so the admin
+                        # observability surface gets a real trace.
+                        result = await run_retriever(
+                            db,
+                            course=course,
+                            query=user_message_content,
+                            user_id=user_id,
+                            top_k=6,
+                            feature="tutor.streaming",
+                        )
+                        retrieval_latency_ms = int((time.monotonic() - t0) * 1000)
+                        retrieved_chunks = list(result.chunks)
+                        await db.commit()
 
         # Orchestrate + emit events to the Redis stream. The
         # orchestrator yields events; we relay each to Redis.
@@ -75,7 +118,9 @@ async def _run_turn_async(turn_id: str) -> None:
             turn_id=turn_id,
             user_id=user_id,
             user_message=user_message_content,
-            course_id=None,
+            course_id=course_id,
+            retrieved_chunks=retrieved_chunks or None,
+            retrieval_latency_ms=retrieval_latency_ms,
         ):
             await emit_event(
                 redis_client,

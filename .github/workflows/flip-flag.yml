@@ -134,10 +134,13 @@ jobs:
                mv \$TMP .env.production; \
                grep '^${FLAG}=' .env.production"
 
-      - name: Restart services
-        # `docker compose restart` is the lighter-weight cousin of
-        # `up -d`. We want restart (not up) so the running images +
-        # volumes are preserved — only the env reload happens.
+      - name: Recreate services
+        # `docker compose restart` does NOT re-read --env-file — it
+        # only stops + starts the existing container with its existing
+        # env. To pick up the new flag value we need `up -d`, which
+        # recreates the container with the freshly-read env. The
+        # `--no-deps` flag scopes the recreate to the listed services
+        # so postgres/redis aren't bounced.
         env:
           SERVICES: ${{ inputs.services }}
         run: |
@@ -146,7 +149,7 @@ jobs:
               ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
               "cd ~/lumen && \
                docker compose -f docker-compose.prod.yml \
-                 --env-file ~/.env.production restart ${SERVICES}"
+                 --env-file ~/.env.production up -d --no-deps ${SERVICES}"
 
       - name: Smoke test
         # Hit /health/live so we know the restart didn't break the
@@ -157,17 +160,19 @@ jobs:
           APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
         run: |
           set -euo pipefail
-          # 5x retries with 6s backoff = 30s budget for the api
-          # container to finish restarting. Most restarts complete
-          # within 10s; the budget covers a worst-case cold start
-          # on the Graviton box.
-          for attempt in 1 2 3 4 5; do
+          # 12x retries with 10s backoff = 120s budget for the api
+          # container to finish recreating. `up -d` is a full
+          # stop+rm+create cycle (not just a stop+start like
+          # `restart`), so a cold Graviton boot can take 60-90s when
+          # the image needs a re-pull. 30s was the old budget — too
+          # tight, missed on the first L32 flip-flag run.
+          for attempt in $(seq 1 12); do
             if curl -fsS "https://${APP_DOMAIN}/api/v1/health/live" >/dev/null; then
               echo "::notice::api health OK on attempt $attempt"
               exit 0
             fi
-            echo "::warning::api health failed on attempt $attempt; retrying in 6s"
-            sleep 6
+            echo "::warning::api health failed on attempt $attempt; retrying in 10s"
+            sleep 10
           done
-          echo "::error::api health did not come back after 5 retries"
+          echo "::error::api health did not come back after 12 retries"
           exit 1

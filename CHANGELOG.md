@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 32 — pgvector retrieval in streaming orchestrator)
+
+- **Real lesson-chunk grounding in the streaming tutor.**
+  `orchestrate_stream(...)` now folds retrieved chunks into the synth
+  SYSTEM message with an explicit `[L:<lesson_id>]` citation contract,
+  so answers cite real lessons (and the eval suite can verify those
+  citations against the retrieved set).
+- **`course_slug` on `POST /api/v1/tutor/turns`.** Optional; resolved
+  server-side to a `course_id` and persisted on `tutor_turn_jobs`.
+  Unknown slug returns 404 (clean error for typos in the URL bar).
+  The streaming `StreamingTutorPanel` threads `courseSlug` through
+  automatically.
+- **Course context columns on `tutor_turn_jobs`** (Alembic 0028) —
+  `course_id` (FK → `courses.id`, `ON DELETE SET NULL`) +
+  `user_message` (text). The Celery task reads both and runs the
+  retriever before invoking the orchestrator, keeping the
+  orchestrator a pure async generator with no DB session.
+
+### Fixed (ops — flip-flag workflow)
+
+- **`flip-flag.yml` now recreates instead of restarting.**
+  `docker compose restart` doesn't re-read `--env-file`, so the first
+  flag-flip run (`FEATURE_TUTOR_STREAMING=true`) wrote the value to
+  `.env.production` but the running container never picked it up.
+  Workflow now uses `docker compose up -d --no-deps` for a full
+  container recreate. Smoke budget bumped from 30s → 120s to cover
+  a Graviton cold start.
+
 ### Fixed (post-redesign codex rescue — L26→L31 arc)
 
 - **`<Link><Button>` invalid nested interactive content** on every

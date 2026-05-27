@@ -21,7 +21,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, Numeric, String, text
+from sqlalchemy import ForeignKey, Index, Numeric, String, Text, text
 from sqlalchemy.dialects.postgresql import DOUBLE_PRECISION  # noqa: F401  (future use)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -63,6 +63,13 @@ class TutorTurnJob(IdMixin, TimestampMixin, Base):
 
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     conversation_id: Mapped[str | None] = mapped_column(String(24), nullable=True)
+
+    # L32 — course context for pgvector retrieval. Nullable so demo /
+    # course-less turns still flow through the same shape.
+    course_id: Mapped[str | None] = mapped_column(
+        ForeignKey("courses.id", ondelete="SET NULL"), nullable=True
+    )
+    user_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     status: Mapped[str] = mapped_column(String(24), nullable=False, default=TURN_STATUS_PENDING)
     error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)

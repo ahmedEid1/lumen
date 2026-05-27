@@ -41,6 +41,8 @@ async def create_turn(
     reserved_cost_usd: Decimal,
     reservation_ip_key: str,
     prompt_template_hash: str | None = None,
+    user_message: str | None = None,
+    course_id: str | None = None,
     enqueue_task: bool = True,
 ) -> TutorTurnJob:
     """Insert a new turn row.
@@ -49,10 +51,16 @@ async def create_turn(
     listener on the underlying sync session fires the Celery task —
     via :func:`_safe_enqueue` so a broker outage doesn't 500 the
     POST handler (plan-v7 §V7-F6).
+
+    L32 — ``user_message`` and ``course_id`` are persisted so the
+    Celery task can run pgvector retrieval without a second
+    round-trip to the POST body (which we don't keep).
     """
     turn = TutorTurnJob(
         user_id=user_id,
         conversation_id=conversation_id,
+        course_id=course_id,
+        user_message=user_message,
         status=TURN_STATUS_PENDING,
         reserved_cost_usd=reserved_cost_usd,
         reservation_ip_key=reservation_ip_key,
