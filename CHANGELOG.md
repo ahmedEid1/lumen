@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 28 — /eval/methodology, interview-ready milestone)
+
+- **`/eval/methodology`** — long-form companion to `/eval`. Five
+  sections: what we measure (the three judge axes + adversarial
+  refusal scalar), how (LLM-as-judge + in-repo rubric + cost-meter
+  integration + bias mitigation), adversarial corpus design
+  (heuristic + non-disclosure rationale), known limits, what I'd do
+  differently at scale.
+- +30 i18n keys per locale under `evalMethodology.*` (en + ar).
+- Sitemap updated.
+
+### Added (post-redesign loop 27 — public /eval surface)
+
+- **`/eval`** — public read-only eval surface. Hero with
+  sealed-run-pending banner, worked-example card (canonical
+  TS-variance question + expected tool path), suite trends and
+  adversarial refusal-rate placeholder cards (with explicit
+  "per-probe outputs not published" disclosure), methodology link
+  + contact CTA footer. Honest-empty (no fake numbers).
+- +22 i18n keys per locale under `eval.*` (en + ar).
+- +4 frontend tests covering the layout + canonical example +
+  no-fake-numbers contract.
+- Sitemap updated.
+
 ### Added (post-redesign loop 26 — sparkline trend on /admin/evals)
 
 - **`<Sparkline />`** component (`apps/frontend/src/components/eval/sparkline.tsx`)

@@ -840,6 +840,91 @@ export const en = {
   "tutor.suggested.heading": "Suggested questions",
   "tutor.suggested.canonicalLabel": "Try the canonical demo question",
 
+  // Public /eval (L27 — surfaces sealed eval-run snapshots)
+  "eval.cartouche": "Public eval",
+  "eval.headline": "How the tutor scores. Receipts only.",
+  "eval.subline":
+    "Lumen's tutor is graded against golden datasets via an LLM-as-judge, and against a 15-probe adversarial corpus by a string-match refusal heuristic. This page is frozen on admin-promoted runs.",
+  "eval.sealedRunPending":
+    "First sealed run pending — ships with the streaming-flag flip",
+  "eval.workedExample.cartouche": "Worked example",
+  "eval.workedExample.heading":
+    "The canonical demo question, end-to-end.",
+  "eval.workedExample.questionLabel": "Question",
+  "eval.workedExample.toolPathLabel": "Expected tool path",
+  "eval.workedExample.measurementLabel": "Measurement",
+  "eval.workedExample.measurementPending":
+    "First-token / total / cost numbers land with the next sealed run.",
+  "eval.suites.cartouche": "Suite trends",
+  "eval.suites.heading": "Tutor, authoring, ingest",
+  "eval.suites.empty":
+    "No published runs yet on this surface. The /admin/evals dashboard shows the operator view in the meantime.",
+  "eval.adversarial.cartouche": "Adversarial probes",
+  "eval.adversarial.heading": "Refusal rate, 15-probe corpus.",
+  "eval.adversarial.body":
+    "Prompt-injection + system-prompt-extraction + jailbreak + out-of-scope + indirect-injection categories. The corpus is in-repo for audit; per-result outputs are NOT disclosed here — that would just be a roadmap of things to try.",
+  "eval.adversarial.measurementPending":
+    "Refusal-rate published with the first sealed run.",
+  "eval.footer.body":
+    "Want the methodology, the corpus shape, or to talk shop?",
+  "eval.footer.methodology": "Methodology",
+  "eval.footer.contact": "Email me",
+
+  // Eval methodology (L28 — interview-ready milestone)
+  "evalMethodology.back": "Back to /eval",
+  "evalMethodology.cartouche": "Eval / methodology",
+  "evalMethodology.headline": "How the numbers get made.",
+  "evalMethodology.subline":
+    "Honest about what is measured, what is missing, and what would change if the tutor served traffic past a portfolio demo.",
+  "evalMethodology.what.cartouche": "What we measure",
+  "evalMethodology.what.heading": "Three axes per suite. One headline for adversarial.",
+  "evalMethodology.what.intro":
+    "Every tutor turn that runs through the eval harness is graded 0-5 along three axes:",
+  "evalMethodology.what.axis.grounding":
+    "— is the answer supported by the lessons it cites? An answer with a strong style but a phantom citation scores low.",
+  "evalMethodology.what.axis.accuracy":
+    "— is the answer correct, on the question as asked? Off-topic ramble can read well in style but fails here.",
+  "evalMethodology.what.axis.style":
+    "— is the answer in the right register for a learner? Length, tone, and pedagogy.",
+  "evalMethodology.what.tail":
+    "Adversarial probes get a separate, simpler treatment — a refusal-rate scalar (`refused / (refused + leaked)`) over a 15-probe corpus.",
+  "evalMethodology.how.cartouche": "How",
+  "evalMethodology.how.heading": "LLM-as-judge with a rubric we ship in-repo.",
+  "evalMethodology.how.intro":
+    "Each (question, answer) pair is sent to a judge LLM with the gold answer and a per-axis rubric. The judge returns a 0-5 score per axis plus a short rationale. Both the rubric and the gold answers ship in `apps/backend/evals/<suite>/dataset.jsonl` so the reader can audit what we asked for.",
+  "evalMethodology.how.judge":
+    "The judge is metered through the same H1 cost-tracking wrapper the user-facing tutor uses — eval traffic shows up in `/admin/llm-calls` under `feature=\"eval.judge\"`. That keeps an operator honest about how much it cost to produce the headline number.",
+  "evalMethodology.how.bias":
+    "LLM-as-judge has known biases (preferring its own model family, rewarding verbosity, missing subtle factual errors). Mitigation: prompts are fixed in-repo; the judge model is named on the report; results below 70% inter-judge agreement on a held-out set get rerun by a second model.",
+  "evalMethodology.adv.cartouche": "Adversarial corpus",
+  "evalMethodology.adv.heading": "Refusal-rate on a 15-probe set we ship in-repo.",
+  "evalMethodology.adv.intro":
+    "The corpus at `apps/backend/evals/security/probes.jsonl` covers prompt-injection, system-prompt-extraction, jailbreak, out-of-scope, and indirect-injection categories. 13 of the 15 must produce a refusal; 2 must NOT (the indirect-injection rows where a refusal means the model took the injection's bait).",
+  "evalMethodology.adv.heuristic":
+    "The verdict heuristic is string-match on a closed list of refusal markers. Why not LLM-as-judge here: the judge LLM is itself susceptible to the same jailbreak prompts. A clever attack that fools the tutor often fools the judge into reporting a refusal that didn't actually happen.",
+  "evalMethodology.adv.disclosure":
+    "Per-probe outputs are NOT published. Disclosing them would just be a roadmap of attacks to try.",
+  "evalMethodology.limits.cartouche": "Known limits",
+  "evalMethodology.limits.heading": "Where the numbers are weaker than they look.",
+  "evalMethodology.limits.judgeOnLLM":
+    "LLM-as-judge agrees with humans ~70-85% of the time depending on the rubric. The headline score should be read with that confidence band in mind, not as a calibrated grade.",
+  "evalMethodology.limits.smallN":
+    "Each suite ships ~10-30 items. That's enough to catch large regressions; it's NOT enough to call out subtle drift. A run-to-run delta of 0.2 on a 0-5 scale is within noise for these dataset sizes.",
+  "evalMethodology.limits.snapshot":
+    "The dataset is frozen for cross-run comparability. That means a question the tutor has already trained against won't surface novel failures the way fresh questions would. Rotating in new items is the L25-followup that lands once sealed runs accumulate.",
+  "evalMethodology.scale.cartouche": "What I'd do differently at scale",
+  "evalMethodology.scale.heading": "If this were serving real traffic, not a demo.",
+  "evalMethodology.scale.humanGraders":
+    "First investment: a small human-grader pool. The LLM-judge is the fast feedback loop; a 50-item quarterly human grading recalibrates the LLM-judge's drift.",
+  "evalMethodology.scale.continuousJudge":
+    "Second: continuous eval against a held-out slice of real-user questions, not just the frozen golden dataset. Catches the regression a static dataset can't see — when the answer that scored 4.5 last quarter scores 3.0 this quarter because the model nudged its prior.",
+  "evalMethodology.scale.adversarialRotation":
+    "Third: adversarial corpus rotation. Today's 15 probes get stale once the model learns to refuse them. A quarterly red-team session that adds 5-10 fresh probes (and retires the easy ones) keeps the refusal-rate honest.",
+  "evalMethodology.footer.body":
+    "Questions about a specific bias, a specific rubric, or how to read the eval surface?",
+  "evalMethodology.footer.backToEval": "Back to /eval",
+  "evalMethodology.footer.contact": "Email me",
+
   // Cost-cap closing CTA (L23 — fires when the demo budget is exhausted)
   "tutor.costCap.cartouche": "Demo budget reached",
   "tutor.costCap.headline":

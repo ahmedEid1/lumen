@@ -847,6 +847,89 @@ export const ar: Record<MessageKey, string> = {
   "tutor.suggested.heading": "أسئلة مقترحة",
   "tutor.suggested.canonicalLabel": "جرّب السؤال التجريبي القياسي",
 
+  // Public /eval (L27)
+  "eval.cartouche": "تقييم عام",
+  "eval.headline": "كيف يُقاس أداء المعلم. الأرقام فقط.",
+  "eval.subline":
+    "يُقيَّم معلم Lumen مقابل مجموعات بيانات قياسية عبر LLM-as-judge، ومقابل مجموعة عدوانية من 15 محفّزًا بفحص رفض نصي. هذه الصفحة مُجمّدة على عمليات أحدها مسؤول.",
+  "eval.sealedRunPending": "أول جولة مختومة قيد الانتظار — مع تفعيل البث",
+  "eval.workedExample.cartouche": "مثال موثّق",
+  "eval.workedExample.heading": "السؤال التجريبي القياسي، من البداية إلى النهاية.",
+  "eval.workedExample.questionLabel": "السؤال",
+  "eval.workedExample.toolPathLabel": "مسار الأدوات المتوقّع",
+  "eval.workedExample.measurementLabel": "القياس",
+  "eval.workedExample.measurementPending":
+    "أرقام الزمن الأول / الإجمالي / التكلفة تُنشر مع الجولة المختومة التالية.",
+  "eval.suites.cartouche": "اتجاهات المجموعات",
+  "eval.suites.heading": "المعلم، التأليف، الاستيراد",
+  "eval.suites.empty":
+    "لا توجد جولات منشورة على هذه الواجهة بعد. لوحة /admin/evals تعرض رؤية المشغّل في هذه الأثناء.",
+  "eval.adversarial.cartouche": "المحفّزات العدوانية",
+  "eval.adversarial.heading": "نسبة الرفض، 15 محفّزًا.",
+  "eval.adversarial.body":
+    "تشمل الفئات: حقن المحفّز، استخراج محفّز النظام، كسر القيود، خارج النطاق، الحقن غير المباشر. المجموعة داخل المستودع للمراجعة؛ النتائج التفصيلية لا تُكشف هنا — وإلا تحوّلت إلى خارطة لما يجب تجربته.",
+  "eval.adversarial.measurementPending":
+    "تُنشر نسبة الرفض مع الجولة المختومة الأولى.",
+  "eval.footer.body":
+    "تريد المنهجية، شكل المجموعة، أو نقاش مهني؟",
+  "eval.footer.methodology": "المنهجية",
+  "eval.footer.contact": "راسلني",
+
+  // Eval methodology (L28)
+  "evalMethodology.back": "العودة إلى /eval",
+  "evalMethodology.cartouche": "تقييم / منهجية",
+  "evalMethodology.headline": "كيف تُصنع الأرقام.",
+  "evalMethodology.subline":
+    "صريح حول ما يُقاس، وما هو ناقص، وما سيتغيّر لو كان المعلم يخدم حركة فعلية لا عرضًا توضيحيًا.",
+  "evalMethodology.what.cartouche": "ما الذي نقيسه",
+  "evalMethodology.what.heading": "ثلاثة محاور لكل مجموعة. عنوان واحد للعدواني.",
+  "evalMethodology.what.intro":
+    "كل دور تجريبي يمر عبر منصة التقييم يُقيَّم 0-5 على ثلاثة محاور:",
+  "evalMethodology.what.axis.grounding":
+    "— هل الإجابة مدعومة من الدروس المُستشهد بها؟ إجابة بأسلوب جيد واستشهاد وهمي تحصل على درجة منخفضة.",
+  "evalMethodology.what.axis.accuracy":
+    "— هل الإجابة صحيحة على السؤال كما طُرح؟ الإطالة خارج الموضوع قد تبدو جيدة بالأسلوب لكنها تفشل هنا.",
+  "evalMethodology.what.axis.style":
+    "— هل الإجابة بالأسلوب المناسب للمتعلّم؟ الطول، النبرة، البيداغوجيا.",
+  "evalMethodology.what.tail":
+    "المحفّزات العدوانية تأخذ علاجًا أبسط — معدّل رفض عددي (`refused / (refused + leaked)`) على مجموعة من 15 محفّزًا.",
+  "evalMethodology.how.cartouche": "الكيف",
+  "evalMethodology.how.heading": "LLM-as-judge بميزان نشحنه داخل المستودع.",
+  "evalMethodology.how.intro":
+    "كل زوج (سؤال، إجابة) يُرسل إلى نموذج حَكَم مع الإجابة الذهبية وميزان لكل محور.",
+  "evalMethodology.how.judge":
+    "تُحسب كلفة الحَكَم عبر نفس غلاف H1 لتتبّع التكلفة.",
+  "evalMethodology.how.bias":
+    "LLM-as-judge له تحيّزات معروفة (تفضيل عائلة نموذجه، مكافأة الإطالة، تجاهل الأخطاء الواقعية الدقيقة).",
+  "evalMethodology.adv.cartouche": "المجموعة العدوانية",
+  "evalMethodology.adv.heading": "نسبة الرفض على مجموعة 15 محفّزًا داخل المستودع.",
+  "evalMethodology.adv.intro":
+    "المجموعة في `apps/backend/evals/security/probes.jsonl` تغطي حقن المحفّز، استخراج محفّز النظام، كسر القيود، خارج النطاق، الحقن غير المباشر.",
+  "evalMethodology.adv.heuristic":
+    "حُكم القرار مطابقة نصية على قائمة مغلقة من مؤشرات الرفض.",
+  "evalMethodology.adv.disclosure":
+    "النتائج التفصيلية لكل محفّز غير منشورة.",
+  "evalMethodology.limits.cartouche": "حدود معروفة",
+  "evalMethodology.limits.heading": "أين تكون الأرقام أضعف ممّا تبدو.",
+  "evalMethodology.limits.judgeOnLLM":
+    "LLM-as-judge يتفق مع البشر ~70-85% حسب الميزان.",
+  "evalMethodology.limits.smallN":
+    "كل مجموعة تشحن ~10-30 عنصرًا. يكفي لاكتشاف التراجعات الكبيرة؛ لا يكفي لرصد الانحراف الدقيق.",
+  "evalMethodology.limits.snapshot":
+    "المجموعة مُجمّدة لقابلية المقارنة عبر الجولات.",
+  "evalMethodology.scale.cartouche": "ما سأفعله مختلفًا عند التوسّع",
+  "evalMethodology.scale.heading": "لو كان يخدم حركة حقيقية لا عرضًا.",
+  "evalMethodology.scale.humanGraders":
+    "أول استثمار: مجموعة صغيرة من المُقيّمين البشر.",
+  "evalMethodology.scale.continuousJudge":
+    "ثانيًا: تقييم مستمر على شريحة محتجزة من أسئلة المستخدمين الحقيقيين.",
+  "evalMethodology.scale.adversarialRotation":
+    "ثالثًا: تدوير المجموعة العدوانية.",
+  "evalMethodology.footer.body":
+    "أسئلة حول تحيّز محدّد، أو ميزان معيّن، أو كيفية قراءة واجهة التقييم؟",
+  "evalMethodology.footer.backToEval": "العودة إلى /eval",
+  "evalMethodology.footer.contact": "راسلني",
+
   // Cost-cap closing CTA (L23)
   "tutor.costCap.cartouche": "تم بلوغ ميزانية العرض التوضيحي",
   "tutor.costCap.headline":
