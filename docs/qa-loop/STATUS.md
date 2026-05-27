@@ -77,5 +77,82 @@ healthy at https://lumen.ahmedhobeishy.tech. Working tree clean.
 
 ---
 
-**Walk complete.** Moving to apply.
+**Walk complete.** Applied + shipped over four commits (`bd61b97`,
+`ea67155`, `0fc9980`, `928bde2`, `edd215c`, `cdf10db`, `d6ca043`).
+Codex review came back clean on the qa-iter1 batch after two rescue
+rounds (#1: signed-in /demo bypass; #2: open-redirect guard on
+`?next=`).
+
+### CI-only follow-ups uncovered during the deploy chase
+
+- **`tutor-citations.spec.ts` on webkit** — pre-existing race
+  between the login form's `router.push("/dashboard")` and webkit's
+  Next.js client router. Original failure: stuck at /login for the
+  full 5s `toHaveURL` poll; failed all 3 CI retries. Fix shipped in
+  `cdf10db` + `d6ca043`:
+    1. `data-hydrated="true"` attribute on the auth forms so the
+       e2e helpers can wait for React's controlled-input handlers
+       to bind before filling (prevents the field-stays-empty path).
+    2. `expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 })`
+       in the post-login helper so webkit's slower hydration has
+       headroom (the default 5s was the immediate trip-wire).
+    3. `verify-email/page.tsx` cancellation race: the effect-local
+       `cancelled = false` flag was being flipped to true by
+       strict-mode's mount → cleanup → re-mount cycle, leaving the
+       page pinned on "Confirming…". Swapped for an `unmountedRef`
+       set only by the empty-deps mount/unmount effect, plus a
+       `tRef` so the effect doesn't re-run on every locale render.
+    4. `auth.setup.ts` pre-warms /login, /register, /forgot,
+       /reset, /verify-email, /dashboard so the first cold Next.js
+       dev compile happens once before any browser project starts
+       (matters on slow VMs; harmless on CI).
+  Outcome: webkit still flakes attempt 1+2 of the test in CI but
+  passes on attempt 3. Job reports it as 1 flaky → 9 passed → job
+  green. Real win: prior run failed all 3 retries hard. Acceptable
+  for now; if it stops self-healing, the next narrowing is
+  building the local web container with `target: prod` (E2E hits
+  pre-compiled bundles instead of dev JIT) — Docker Compose's
+  `volumes: []` merging makes the override non-trivial, deferred.
+
+### Open / deferred from this iteration
+
+- **`test.fixme` markers (4 skipped in CI):**
+  `instructor-golden.spec.ts:39` and `ingest-multimodal.spec.ts:77`,
+  each on chromium + webkit. Both need a real LLM provider to
+  return structured outline / preview JSON; CI's noop provider
+  returns plain text. Un-skipping cost: ~30-60 min — either special
+  -case the noop provider to emit canned structured JSON for these
+  two task tags, or route just these tests against Groq with bumped
+  retries. Both surfaces are covered by the eval harness against
+  the real provider, so the E2E gap is shape-regression only.
+  **Decision: leave as is for now.** Revisit when a UI change in
+  `/studio/draft` or the ingest preview breaks the layout — the
+  E2E would be the regression net at that point.
+
+- **Dashboard sub-route metadata** (mastery / path / reviews) —
+  inherit "Dashboard · Lumen" from `dashboard/layout.tsx` today;
+  could be more specific. Next iteration polish.
+
+- **Dynamic `/admin/evals/[suite]/[reportId]` metadata** — would
+  need server-side fetch of the report id. Next iteration.
+
+- **Permanent picsum.photos replacement** — see above; onError
+  fallback is the band-aid, bundled SVGs is the proper fix.
+
+- **Local-vs-CI parallel webkit gap** — the QA VM can't sustain
+  4 concurrent webkit + chromium contexts hitting cold Next.js dev
+  compiles; `data-hydrated` waitFor times out at 60s under heavy
+  parallel load. CI's dedicated runners handle it fine. Not a code
+  fix — environmental. Documented for the next time the test
+  reliability question comes up.
+
+### Commits
+
+`bd61b97` feat(qa-iter1): UX polish from a 3-persona walk of prod
+`ea67155` fix(qa-iter1): /login forwards already-signed-in users to ?next
+`0fc9980` sec(qa-iter1): clamp /login ?next= to same-origin paths
+`928bde2` fix(qa-iter1): /reset-password logs out before pushing to /login
+`edd215c` fix(qa-iter1): one-shot auto-forward on /login (kills webkit race)
+`cdf10db` fix(qa-iter1): data-hydrated marker so E2E waits for React onChange
+`d6ca043` fix(qa-iter1): tighten E2E auth race-fixes for CI webkit
 
