@@ -15,11 +15,17 @@ name: Deploy to AWS
 #   - `workflow_dispatch` — manual invocation for rollbacks, pinning a
 #     specific image tag, or skipping migrations.
 #
-# Both paths run the same `deploy` job below, which is gated on the
-# `production` GitHub Environment — every deploy waits for an
-# explicit approval click in the GitHub UI before the SSH steps fire.
-# That's the human-in-the-loop step that replaces the old "operator
-# manually runs gh workflow run" friction.
+# Both paths run the same `deploy` job below. As of 2026-05-28 the
+# `production` GitHub Environment no longer carries a required-
+# reviewers protection rule (removed via the environments API after
+# the manual approval click was costing 1+ minute per push without
+# adding signal — CI's full gate of backend + frontend + e2e +
+# accessibility + image build is the human-equivalent check). The
+# environment block stays on the job for two reasons: (1) it scopes
+# deployment-history entries under "production" in the GitHub UI,
+# and (2) future env-scoped secrets / vars (if any) would land here
+# without re-plumbing. To re-add the manual gate later, configure
+# Settings → Environments → production → Required reviewers.
 #
 # History: an earlier draft wired `workflow_run` for auto-deploy. Two
 # reviewer-caught problems killed that path: (1) `workflow_run` fires
