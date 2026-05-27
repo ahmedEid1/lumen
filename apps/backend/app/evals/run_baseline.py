@@ -211,7 +211,12 @@ def run(
         )
 
     ts = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-    report_id = f"baseline-{suite}-{ts}"
+    # NB: leading token MUST be `suite` so the existing
+    # `list_reports(suite=...)` filter (which splits on "-" and
+    # compares the first token to the requested suite) finds this
+    # file. `-baseline-` is the infix that marks it as a comparison
+    # run rather than the single-provider L25 runner output.
+    report_id = f"{suite}-baseline-{ts}"
     typer.echo(f"running {len(items)} items: {primary} vs {baseline}, judge={judge_model}")
 
     pairs = asyncio.run(

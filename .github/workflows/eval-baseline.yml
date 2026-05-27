@@ -118,7 +118,8 @@ jobs:
 
           # The CLI prints the report path on its own line.
           # Extract just the basename minus .jsonl as report_id.
-          REPORT_ID=$(echo "$OUT" | grep -oE 'baseline-[a-z]+-[0-9]+-[0-9]+' | head -1)
+          # Pattern: <suite>-baseline-<YYYYMMDD>-<HHMMSS>
+          REPORT_ID=$(echo "$OUT" | grep -oE '[a-z]+-baseline-[0-9]+-[0-9]+' | head -1)
           if [ -z "$REPORT_ID" ]; then
             echo "::error::failed to parse report_id from CLI output"
             exit 1
