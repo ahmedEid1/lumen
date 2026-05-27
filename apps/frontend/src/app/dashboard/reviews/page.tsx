@@ -324,7 +324,11 @@ function ReviewRow({
                 variant="outline"
                 onClick={() => onGrade(g.rating)}
                 disabled={pending}
-                className="font-mono uppercase tracking-wider"
+                // L24 — mobile pass: review grade buttons go h-11 so
+                // they hit the WCAG 2.2 AA minimum 44×44px touch
+                // target. Default Button h-9 is fine on desktop but
+                // too small for thumb-grade on iPhone 13.
+                className="h-11 font-mono uppercase tracking-wider"
               >
                 {t(g.labelKey as never)}
               </Button>
