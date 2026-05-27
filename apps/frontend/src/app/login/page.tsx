@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
@@ -54,13 +54,24 @@ function LoginForm() {
   const params = useSearchParams();
   const next = params.get("next") || "/dashboard";
   const isDemo = params.get("demo") === "1";
-  const { login } = useAuth();
+  const { login, user, ready } = useAuth();
   const t = useT();
   const hydrated = useHydrated();
   const [email, setEmail] = useState(isDemo ? DEMO_EMAIL : "");
   const [password, setPassword] = useState(isDemo ? DEMO_PASSWORD : "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Codex rescue for QA-loop iter 1: when an already-signed-in user
+  // arrives at /login (especially via the new /demo redirect), forward
+  // them to `next` without showing the form. Without this, a signed-in
+  // visitor clicking the demo CTA would be invited to sign in as the
+  // demo learner — which would clobber their real session. The check
+  // gates on `ready` so we don't redirect mid-hydration.
+  useEffect(() => {
+    if (ready && user) router.replace(next);
+  }, [ready, user, next, router]);
+  const alreadySignedIn = ready && !!user;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -79,6 +90,12 @@ function LoginForm() {
     }
   }
 
+  if (alreadySignedIn) {
+    // The effect above is forwarding the user to `next`. Render the
+    // same skeleton the Suspense fallback uses so there's no flash
+    // of the login form during the redirect.
+    return <LoginFallback />;
+  }
   return (
     <AuthCard
       cartouche={t("auth.login.cartouche")}
