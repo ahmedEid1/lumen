@@ -14,4 +14,5 @@ export const qk = {
   runtimeFlags: ["runtime-flags"] as const,
   demoQuestions: (courseSlug?: string) =>
     ["demo-questions", courseSlug ?? "all"] as const,
+  evalPublic: ["eval-public"] as const,
 };

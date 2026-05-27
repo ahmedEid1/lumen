@@ -856,6 +856,10 @@ export const en = {
     "Lumen's tutor is graded against golden datasets via an LLM-as-judge, and against a 15-probe adversarial corpus by a string-match refusal heuristic. This page is frozen on admin-promoted runs.",
   "eval.sealedRunPending":
     "First sealed run pending — ships with the streaming-flag flip",
+  "eval.sealedRunLive": "Sealed run",
+  "eval.suites.deltaCaption":
+    "Δ = Lumen score − baseline score; positive favours Lumen",
+  "eval.suites.judge": "Judge",
   "eval.workedExample.cartouche": "Worked example",
   "eval.workedExample.heading":
     "The canonical demo question, end-to-end.",

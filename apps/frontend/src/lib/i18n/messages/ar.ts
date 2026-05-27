@@ -862,6 +862,9 @@ export const ar: Record<MessageKey, string> = {
   "eval.subline":
     "يُقيَّم معلم Lumen مقابل مجموعات بيانات قياسية عبر LLM-as-judge، ومقابل مجموعة عدوانية من 15 محفّزًا بفحص رفض نصي. هذه الصفحة مُجمّدة على عمليات أحدها مسؤول.",
   "eval.sealedRunPending": "أول جولة مختومة قيد الانتظار — مع تفعيل البث",
+  "eval.sealedRunLive": "جولة مختومة",
+  "eval.suites.deltaCaption": "Δ = نتيجة Lumen − نتيجة المنافس؛ الموجب لصالح Lumen",
+  "eval.suites.judge": "الحَكَم",
   "eval.workedExample.cartouche": "مثال موثّق",
   "eval.workedExample.heading": "السؤال التجريبي القياسي، من البداية إلى النهاية.",
   "eval.workedExample.questionLabel": "السؤال",

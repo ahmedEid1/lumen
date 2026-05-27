@@ -20,6 +20,7 @@
 import { Clock, ExternalLink, Mail, ShieldCheck, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useEvalPublic, type PublicSuiteSummary } from "@/lib/api/eval-public";
 import { useT } from "@/lib/i18n/provider";
 
 const CANONICAL_QUESTION_SLUG = "ts-variance-canonical";
@@ -31,6 +32,13 @@ const EXPECTED_TOOL_PATH = ["retriever", "code_runner"] as const;
 
 export function EvalPublicView() {
   const t = useT();
+  const evalQ = useEvalPublic();
+  const promotedSuites: [string, PublicSuiteSummary][] = evalQ.data
+    ? Object.entries(evalQ.data.suites).filter(
+        (entry): entry is [string, PublicSuiteSummary] => entry[1] !== null,
+      )
+    : [];
+  const hasPromoted = promotedSuites.length > 0;
   return (
     <div className="container mx-auto max-w-5xl px-6 py-14">
       {/* Hero */}
@@ -44,13 +52,26 @@ export function EvalPublicView() {
         <p className="max-w-3xl font-body text-sm text-muted-foreground">
           {t("eval.subline")}
         </p>
-        <div
-          className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-2.5 py-1 font-mono text-xs uppercase tracking-wider text-muted-foreground"
-          data-testid="eval-sealed-pending"
-        >
-          <Clock className="h-3 w-3" aria-hidden />
-          <span>{t("eval.sealedRunPending")}</span>
-        </div>
+        {hasPromoted ? (
+          <div
+            className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-border bg-muted/30 px-2.5 py-1 font-mono text-xs uppercase tracking-wider text-foreground"
+            data-testid="eval-sealed-live"
+          >
+            <Clock className="h-3 w-3 text-primary" aria-hidden />
+            <span>
+              {t("eval.sealedRunLive")} ·{" "}
+              {promotedSuites[0][1].finished_at?.slice(0, 10) ?? "—"}
+            </span>
+          </div>
+        ) : (
+          <div
+            className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-2.5 py-1 font-mono text-xs uppercase tracking-wider text-muted-foreground"
+            data-testid="eval-sealed-pending"
+          >
+            <Clock className="h-3 w-3" aria-hidden />
+            <span>{t("eval.sealedRunPending")}</span>
+          </div>
+        )}
       </header>
 
       {/* Worked example */}
@@ -105,7 +126,7 @@ export function EvalPublicView() {
         </dl>
       </section>
 
-      {/* Suite trends — placeholder while sealed runs are pending */}
+      {/* Suite trends — honest-empty until a sealed run is promoted */}
       <section
         className="surface mb-10 p-6"
         aria-labelledby="eval-suites-heading"
@@ -116,9 +137,20 @@ export function EvalPublicView() {
         <h2 className="mb-3 font-display text-lg leading-tight tracking-tight">
           {t("eval.suites.heading")}
         </h2>
-        <p className="font-body text-sm text-muted-foreground">
-          {t("eval.suites.empty")}
-        </p>
+        {hasPromoted ? (
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {promotedSuites.map(([name, summary]) => (
+              <SuiteCard key={name} name={name} summary={summary} />
+            ))}
+          </ul>
+        ) : (
+          <p
+            className="font-body text-sm text-muted-foreground"
+            data-testid="eval-suites-empty"
+          >
+            {t("eval.suites.empty")}
+          </p>
+        )}
       </section>
 
       {/* Adversarial refusal-rate — placeholder; never shows the prompts */}
@@ -165,5 +197,60 @@ export function EvalPublicView() {
         </div>
       </footer>
     </div>
+  );
+}
+
+
+/**
+ * L41-followup — one suite's measured numbers, rendered as a card.
+ *
+ * Headline: mean_overall (the cross-axis average). Below that, the
+ * three axes as labeled rows. mean_overall sits in [-5, 5] (deltas
+ * are primary − baseline on a 0-5 judge scale); positive means
+ * Lumen out-performs the baseline on that axis.
+ */
+function SuiteCard({
+  name,
+  summary,
+}: {
+  name: string;
+  summary: PublicSuiteSummary;
+}) {
+  const t = useT();
+  const fmt = (n: number | null | undefined) =>
+    n === null || n === undefined ? "—" : (n >= 0 ? "+" : "") + n.toFixed(2);
+  return (
+    <li
+      className="rounded-md border border-border bg-muted/30 p-4"
+      data-testid={`eval-suite-card-${name}`}
+    >
+      <div className="mb-2 flex items-baseline justify-between">
+        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          {name}
+        </p>
+        <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          n={summary.items_judged ?? 0}
+        </p>
+      </div>
+      <p className="mb-1 font-display text-2xl leading-none tracking-tight">
+        Δ {fmt(summary.mean_overall)}
+      </p>
+      <p className="mb-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+        {t("eval.suites.deltaCaption")}
+      </p>
+      <dl className="grid grid-cols-3 gap-2 text-xs">
+        {Object.entries(summary.axes).map(([axis, delta]) => (
+          <div key={axis}>
+            <dt className="font-mono uppercase tracking-wider text-muted-foreground">
+              {axis}
+            </dt>
+            <dd className="font-mono text-foreground">{fmt(delta)}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        {t("eval.suites.judge")}: {summary.judge_model ?? "—"}
+      </p>
+    </li>
   );
 }
