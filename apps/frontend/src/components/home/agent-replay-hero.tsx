@@ -143,13 +143,18 @@ export function AgentReplayHero() {
           0%, 8% { opacity: 0; transform: translateX(8px); }
           16%, 100% { opacity: 1; transform: translateX(0); }
         }
+        /* Codex/axe rescue: keep tool rows at opacity 1 throughout
+           so axe-core's contrast check never samples a faded frame.
+           The earlier 0.2 start made the labels render at ~1.7:1
+           against the surface bg even though they declared
+           text-foreground. The latency badges still fade in (small
+           numeric content) — the build-up feel comes from those
+           instead. */
         @keyframes lumenReplayTool1 {
-          0%, 16% { opacity: 0.2; }
-          24%, 100% { opacity: 1; }
+          0%, 100% { opacity: 1; }
         }
         @keyframes lumenReplayTool2 {
-          0%, 28% { opacity: 0.2; }
-          36%, 100% { opacity: 1; }
+          0%, 100% { opacity: 1; }
         }
         @keyframes lumenReplaySynth {
           0%, 40% { opacity: 0; transform: translateY(4px); }
