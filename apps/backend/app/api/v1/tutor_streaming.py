@@ -128,12 +128,59 @@ async def post_turn(
     settings = get_settings()
     client_ip = request.client.host if request.client else "unknown"
 
+    # L32 — resolve course_slug to course_id BEFORE the reservation
+    # (Codex L33-rescue P1). If we reserved first and then 404'd on
+    # an unknown slug, the reservation would leak until its 24h TTL.
+    # Restrict to PUBLISHED courses for the demo path (Codex L32 P1):
+    # the streaming surface shouldn't expose draft/archived lessons
+    # to logged-in non-owners.
+    course_id: str | None = None
+    if body.course_slug:
+        from sqlalchemy import select
+
+        from app.models.course import Course, CourseStatus
+
+        result = await db.execute(
+            select(Course.id).where(
+                Course.slug == body.course_slug,
+                Course.deleted_at.is_(None),
+                Course.status == CourseStatus.published,
+            )
+        )
+        course_id = result.scalar_one_or_none()
+        if course_id is None:
+            raise NotFoundError("course not found")
+
     # L33 — cost-cap + concurrency reservation. The order matters:
     # check_concurrency first (cheap, no Lua write happens until ok),
     # then reserve_cost. If the cost reserve fails after the
     # concurrency slot was acquired, we release it before raising.
     redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=False)
     user_concurrency_key = f"concurrent:user:{user.id}"
+
+    async def _release_reservation() -> None:
+        """L33-rescue P1: full reservation rollback on post-reserve
+        failures. Releases both the cost budget (negative-delta
+        reconcile) and the concurrency slot. Wrapped in suppress
+        because a Redis flake during cleanup shouldn't mask the
+        underlying error."""
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            from app.core.cost_scripts import reconcile_cost
+
+            await reconcile_cost(
+                redis_client,
+                user_key=f"cost:user:{user.id}",
+                ip_key=f"cost:ip:{client_ip}",
+                global_key="cost:global",
+                delta_microcents=-settings.tutor_estimate_microcents,
+            )
+        with contextlib.suppress(Exception):
+            await release_concurrency(redis_client, user_key=user_concurrency_key)
+
+    reservation_holds_concurrency = False
+    reservation_holds_cost = False
     try:
         conc_ok, _conc_count = await check_concurrency(
             redis_client,
@@ -142,12 +189,13 @@ async def post_turn(
         )
         if not conc_ok:
             raise TutorConcurrencyLimitError("Too many concurrent streaming turns for this user.")
+        reservation_holds_concurrency = True
 
         reserve_ok, reserve_tag = await reserve_cost(
             redis_client,
-            user_key=f"tutor_cost:user:{user.id}",
-            ip_key=f"tutor_cost:ip:{client_ip}",
-            global_key="tutor_cost:global",
+            user_key=f"cost:user:{user.id}",
+            ip_key=f"cost:ip:{client_ip}",
+            global_key="cost:global",
             estimate_microcents=settings.tutor_estimate_microcents,
             max_user_microcents=settings.tutor_cap_user_microcents,
             max_ip_microcents=settings.tutor_cap_ip_microcents,
@@ -158,6 +206,7 @@ async def post_turn(
             # otherwise a flat-out-broke caller would slowly drain
             # their own concurrency budget by retrying.
             await release_concurrency(redis_client, user_key=user_concurrency_key)
+            reservation_holds_concurrency = False
             if reserve_tag == "user_cap":
                 raise TutorUserCapError("Per-user cost cap reached.")
             if reserve_tag == "ip_cap":
@@ -166,50 +215,43 @@ async def post_turn(
                 raise TutorGlobalCapError("Global cost cap reached for the day.")
             # invalid_estimate — caller misuse, treat as 4xx.
             raise TutorUserCapError(f"reservation rejected: {reserve_tag}")
+        reservation_holds_cost = True
+
+        # The reservation's microcent value converted to USD for the
+        # row. Decimal arithmetic so we don't accrue float drift
+        # across reconcile + sweep paths.
+        reserved_usd = Decimal(settings.tutor_estimate_microcents) / Decimal(USD_TO_MICROCENTS)
+
+        turn = await create_turn(
+            db,
+            user_id=user.id,
+            conversation_id=body.conversation_id,
+            reserved_cost_usd=reserved_usd,
+            reservation_ip_key=client_ip,
+            prompt_template_hash=None,
+            user_message=body.content,
+            course_id=course_id,
+        )
+        # Commit so the after_commit listener fires the Celery enqueue.
+        # Once committed, the row + sweep beat own the reservation —
+        # the Celery task (or the sweep on worker death) will
+        # reconcile/release. We mark the flags false so the except
+        # branch doesn't double-release.
+        await db.commit()
+        reservation_holds_concurrency = False
+        reservation_holds_cost = False
+    except Exception:
+        # L33-rescue P1: if any post-reserve step fails (course
+        # resolve already passed, but create_turn / flush / commit
+        # could still raise), release the reservation we hold.
+        if reservation_holds_concurrency or reservation_holds_cost:
+            await _release_reservation()
+        raise
     finally:
         import contextlib
 
         with contextlib.suppress(Exception):
             await redis_client.aclose()
-
-    # The reservation's microcent value converted to USD for the row.
-    # Decimal arithmetic so we don't accrue float drift across
-    # reconcile + sweep paths.
-    reserved_usd = Decimal(settings.tutor_estimate_microcents) / Decimal(USD_TO_MICROCENTS)
-
-    # L32 — resolve course_slug to course_id. We do NOT enforce
-    # enrollment here: the streaming demo is intentionally open to
-    # logged-in users so recruiters can drive it without seeding an
-    # enrollment row. Authorisation belongs in the legacy
-    # /tutor/conversations path; the streaming path is a thin demo.
-    course_id: str | None = None
-    if body.course_slug:
-        from sqlalchemy import select
-
-        from app.models.course import Course
-
-        result = await db.execute(
-            select(Course.id).where(
-                Course.slug == body.course_slug,
-                Course.deleted_at.is_(None),
-            )
-        )
-        course_id = result.scalar_one_or_none()
-        if course_id is None:
-            raise NotFoundError("course not found")
-
-    turn = await create_turn(
-        db,
-        user_id=user.id,
-        conversation_id=body.conversation_id,
-        reserved_cost_usd=reserved_usd,
-        reservation_ip_key=client_ip,
-        prompt_template_hash=None,
-        user_message=body.content,
-        course_id=course_id,
-    )
-    # Commit so the after_commit listener fires the Celery enqueue.
-    await db.commit()
 
     return TurnOut(
         id=turn.id,
@@ -264,6 +306,18 @@ async def cancel_turn(turn_id: str, user: CurrentUser, db: DBSession) -> None:
     if turn is None:
         raise NotFoundError("turn not found")
     if turn.status not in TERMINAL_TURN_STATUSES:
+        # L33-rescue P1: cancelling a pending row leaks its
+        # reservation unless we release here. If the Celery task
+        # hasn't claimed it yet, `claim_pending_turn(...)` returns
+        # None and the task's finally block skips reconcile/release
+        # (user_id is None at that point). Capture the row's
+        # reservation metadata before zeroing it, then release in
+        # Redis directly. Wrapped in suppress so a Redis flake
+        # doesn't block the cancellation itself.
+        reserved_microcents = int(turn.reserved_cost_usd * USD_TO_MICROCENTS)
+        reservation_ip_key = turn.reservation_ip_key
+        user_id_for_release = turn.user_id
+
         await mark_terminal(
             db,
             turn_id=turn_id,
@@ -271,6 +325,33 @@ async def cancel_turn(turn_id: str, user: CurrentUser, db: DBSession) -> None:
             error_code="tutor.cancelled_by_user",
         )
         await db.commit()
+
+        if reserved_microcents > 0 and reservation_ip_key is not None:
+            settings = get_settings()
+            redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=False)
+            try:
+                import contextlib
+
+                from app.core.cost_scripts import reconcile_cost
+
+                with contextlib.suppress(Exception):
+                    await reconcile_cost(
+                        redis_client,
+                        user_key=f"cost:user:{user_id_for_release}",
+                        ip_key=f"cost:ip:{reservation_ip_key}",
+                        global_key="cost:global",
+                        delta_microcents=-reserved_microcents,
+                    )
+                with contextlib.suppress(Exception):
+                    await release_concurrency(
+                        redis_client,
+                        user_key=f"concurrent:user:{user_id_for_release}",
+                    )
+            finally:
+                import contextlib
+
+                with contextlib.suppress(Exception):
+                    await redis_client.aclose()
 
 
 # ---------- GET /tutor/turns/{tid}/stream (SSE) ----------

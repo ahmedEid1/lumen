@@ -429,9 +429,9 @@ async def post_message(
 
         reserve_ok, reserve_tag = await reserve_cost(
             redis_client,
-            user_key=f"tutor_cost:user:{user.id}",
-            ip_key=f"tutor_cost:ip:{client_ip}",
-            global_key="tutor_cost:global",
+            user_key=f"cost:user:{user.id}",
+            ip_key=f"cost:ip:{client_ip}",
+            global_key="cost:global",
             estimate_microcents=settings.tutor_estimate_microcents,
             max_user_microcents=settings.tutor_cap_user_microcents,
             max_ip_microcents=settings.tutor_cap_ip_microcents,
@@ -456,64 +456,87 @@ async def post_message(
     # admin observability surface (plan-v7 §V7-F11) sees both paths.
     # Unlike the streaming path this row is synchronous: we transition
     # running → complete/failed inside this handler, never via Celery.
+    # L34-rescue P1: wrap all post-reserve setup work (create_turn,
+    # history query, user-msg persist) in a try/except that releases
+    # the reservation on any failure. Without this, an exception
+    # between the reservation and the orchestrator's inner try-block
+    # would leak the reservation until its 24h TTL.
     reserved_usd = Decimal(settings.tutor_estimate_microcents) / Decimal(USD_TO_MICROCENTS)
-    turn = await create_turn(
-        db,
-        user_id=user.id,
-        conversation_id=conv.id,
-        course_id=conv.course_id,
-        user_message=content,
-        reserved_cost_usd=reserved_usd,
-        reservation_ip_key=client_ip,
-        prompt_template_hash=None,
-        enqueue_task=False,  # synchronous path — no Celery
-    )
-    # Immediately promote to running so the sweep won't claim it.
-    turn.status = TURN_STATUS_RUNNING
-    await db.flush()
-
-    # Pull the prior turns so the model has conversation context.
-    # We cap to the last 20 turns to keep prompts bounded — older
-    # turns are still readable via GET but won't be replayed to the
-    # model. A long-running thread starts to lose coherence anyway
-    # once the system prompt + 5 chunks + N turns approaches the
-    # context window.
-    history_rows = (
-        (
-            await db.execute(
-                select(TutorMessage)
-                .where(TutorMessage.conversation_id == conv.id)
-                .order_by(desc(TutorMessage.created_at))
-                .limit(20)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    # ``m.role`` is typed as :class:`TutorMessageRole` but Postgres
-    # round-trips it as a plain string, so call ``str(...)`` rather
-    # than ``.value`` — the latter explodes when SQLAlchemy hands us
-    # the raw string back instead of constructing the enum.
-    history = [{"role": str(m.role), "content": m.content} for m in reversed(list(history_rows))]
-
-    # 1) Persist the user turn before calling the LLM. If the model
-    # call fails the audit log still shows what the learner asked.
-    user_msg = TutorMessage(
-        conversation_id=conv.id,
-        role=TutorMessageRole.user,
-        content=content,
-        citations=[],
-    )
-    db.add(user_msg)
-    await db.flush()
-
-    # 2) Call the multi-agent orchestrator via the trace-aware
-    # surface. Phase I2 — the chat API gets the full
-    # ``OrchestratorResult`` (tool calls + confidence) alongside the
-    # legacy ``TutorAnswer`` so the response carries the agent's
-    # per-turn reasoning. The H1 cost meter is wired internally; we
-    # pass ``user.id`` so calls attribute to the learner.
     try:
+        turn = await create_turn(
+            db,
+            user_id=user.id,
+            conversation_id=conv.id,
+            course_id=conv.course_id,
+            user_message=content,
+            reserved_cost_usd=reserved_usd,
+            reservation_ip_key=client_ip,
+            prompt_template_hash=None,
+            enqueue_task=False,  # synchronous path — no Celery
+        )
+        # Immediately promote to running so the sweep won't claim it.
+        turn.status = TURN_STATUS_RUNNING
+        await db.flush()
+    except Exception:
+        await _release_legacy_reservation(
+            redis_client,
+            user_id=user.id,
+            client_ip=client_ip,
+            user_concurrency_key=user_concurrency_key,
+            reserved_microcents=settings.tutor_estimate_microcents,
+            actual_microcents=0,
+        )
+        with contextlib.suppress(Exception):
+            await redis_client.aclose()
+        raise
+
+    # L34-rescue P1: unified cleanup path for every post-reserve
+    # failure. Pre-L34-rescue the history query and user_msg persist
+    # ran outside any try/except, so a DB hiccup between
+    # create_turn and the orchestrator call would leak the
+    # reservation for 24h.
+    try:
+        # Pull the prior turns so the model has conversation context.
+        # Cap at 20 — older turns are still readable via GET but won't
+        # be replayed.
+        history_rows = (
+            (
+                await db.execute(
+                    select(TutorMessage)
+                    .where(TutorMessage.conversation_id == conv.id)
+                    .order_by(desc(TutorMessage.created_at))
+                    .limit(20)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        # ``m.role`` is typed as :class:`TutorMessageRole` but Postgres
+        # round-trips it as a plain string, so call ``str(...)`` rather
+        # than ``.value`` — the latter explodes when SQLAlchemy hands
+        # us the raw string back instead of constructing the enum.
+        history = [
+            {"role": str(m.role), "content": m.content} for m in reversed(list(history_rows))
+        ]
+
+        # 1) Persist the user turn before calling the LLM. If the model
+        # call fails the audit log still shows what the learner asked.
+        user_msg = TutorMessage(
+            conversation_id=conv.id,
+            role=TutorMessageRole.user,
+            content=content,
+            citations=[],
+        )
+        db.add(user_msg)
+        await db.flush()
+
+        # 2) Call the multi-agent orchestrator via the trace-aware
+        # surface. Phase I2 — the chat API gets the full
+        # ``OrchestratorResult`` (tool calls + confidence) alongside
+        # the legacy ``TutorAnswer`` so the response carries the
+        # agent's per-turn reasoning. The H1 cost meter is wired
+        # internally; we pass ``user.id`` so calls attribute to the
+        # learner.
         result, orch = await tutor_service.ask_with_trace(
             db,
             course=course,
@@ -523,10 +546,9 @@ async def post_message(
             feature="tutor.multi_agent",
         )
     except Exception:
-        # L34 — on orchestrator failure, mark the turn row failed
-        # + reconcile the reservation (delta = 0 means release the
-        # full estimate). Concurrency slot is also released. Then
-        # re-raise so the existing error envelope still fires.
+        # Any failure between reserve_cost and the assistant-message
+        # persist: mark the turn failed, release the reservation, and
+        # re-raise so the FastAPI error envelope fires as before.
         with contextlib.suppress(Exception):
             await mark_terminal(
                 db,
@@ -576,13 +598,20 @@ async def post_message(
     with contextlib.suppress(Exception):
         await mark_terminal(db, turn_id=turn.id, status=TURN_STATUS_COMPLETE)
         await db.flush()
+    # L34-rescue P1: successful turns must NOT release the full
+    # reservation — that lets repeated successes bypass the cap.
+    # Reconcile with `actual = reserved` (zero delta) so the
+    # microcent bucket retains the spend until its 24h TTL. The
+    # precise per-call cost still lives in `llm_calls` for billing;
+    # the bucket is just the rolling-window cap. A future follow-up
+    # can plumb real cost back from the orchestrator.
     await _release_legacy_reservation(
         redis_client,
         user_id=user.id,
         client_ip=client_ip,
         user_concurrency_key=user_concurrency_key,
         reserved_microcents=settings.tutor_estimate_microcents,
-        actual_microcents=0,
+        actual_microcents=settings.tutor_estimate_microcents,
     )
     with contextlib.suppress(Exception):
         await redis_client.aclose()
@@ -631,9 +660,9 @@ async def _release_legacy_reservation(
     with contextlib.suppress(Exception):
         await reconcile_cost(
             redis_client,
-            user_key=f"tutor_cost:user:{user_id}",
-            ip_key=f"tutor_cost:ip:{client_ip}",
-            global_key="tutor_cost:global",
+            user_key=f"cost:user:{user_id}",
+            ip_key=f"cost:ip:{client_ip}",
+            global_key="cost:global",
             delta_microcents=delta,
         )
     with contextlib.suppress(Exception):

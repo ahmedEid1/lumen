@@ -193,9 +193,9 @@ async def _run_turn_async(turn_id: str) -> None:
             with contextlib.suppress(Exception):
                 await reconcile_cost(
                     redis_client,
-                    user_key=f"tutor_cost:user:{user_id}",
-                    ip_key=f"tutor_cost:ip:{reservation_ip_key}",
-                    global_key="tutor_cost:global",
+                    user_key=f"cost:user:{user_id}",
+                    ip_key=f"cost:ip:{reservation_ip_key}",
+                    global_key="cost:global",
                     delta_microcents=delta,
                 )
 
