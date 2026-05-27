@@ -23,6 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/blog`, lastModified: now, changeFrequency: "weekly", priority: 0.5 },
     { url: `${base}/eval`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
     { url: `${base}/eval/methodology`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${base}/case-study`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
   ];
 
   // Best-effort enumeration of published courses. If the API is unreachable

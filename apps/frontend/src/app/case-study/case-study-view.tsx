@@ -228,25 +228,19 @@ export function CaseStudyView() {
           {t("caseStudy.footer.body")}
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <Link href="/demo">
-            <Button size="sm" variant="default" type="button">
-              {t("caseStudy.footer.tryDemo")}
-            </Button>
-          </Link>
-          <Link href="/eval">
-            <Button size="sm" variant="outline" type="button">
-              {t("caseStudy.footer.eval")}
-            </Button>
-          </Link>
-          <a
-            href="mailto:ahmedhobeishy.tools@gmail.com?subject=Lumen%20case-study%20conversation"
-            className="inline-flex"
-          >
-            <Button size="sm" variant="ghost" type="button">
+          {/* Codex rescue: Button asChild to avoid <a><button> nesting. */}
+          <Button asChild size="sm" variant="default">
+            <Link href="/demo">{t("caseStudy.footer.tryDemo")}</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/eval">{t("caseStudy.footer.eval")}</Link>
+          </Button>
+          <Button asChild size="sm" variant="ghost">
+            <a href="mailto:ahmedhobeishy.tools@gmail.com?subject=Lumen%20case-study%20conversation">
               <Mail className="me-1.5 h-3.5 w-3.5" aria-hidden />
               {t("caseStudy.footer.email")}
-            </Button>
-          </a>
+            </a>
+          </Button>
         </div>
       </footer>
     </div>

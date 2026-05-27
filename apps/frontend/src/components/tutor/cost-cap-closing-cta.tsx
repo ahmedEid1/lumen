@@ -95,22 +95,20 @@ export function CostCapClosingCta({
         </p>
       )}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <a
-          href={`mailto:${contactEmail}?subject=Lumen%20demo%20conversation`}
-          className="inline-flex"
-        >
-          <Button variant="default" size="sm" type="button">
+        {/* Codex rescue: Button asChild to avoid <a><button> nesting. */}
+        <Button asChild variant="default" size="sm">
+          <a href={`mailto:${contactEmail}?subject=Lumen%20demo%20conversation`}>
             <Mail className="me-1.5 h-3.5 w-3.5" aria-hidden />
             {t("tutor.costCap.emailMe")}
-          </Button>
-        </a>
+          </a>
+        </Button>
         {calendlyUrl && (
-          <a href={calendlyUrl} target="_blank" rel="noopener noreferrer">
-            <Button variant="outline" size="sm" type="button">
+          <Button asChild variant="outline" size="sm">
+            <a href={calendlyUrl} target="_blank" rel="noopener noreferrer">
               <Calendar className="me-1.5 h-3.5 w-3.5" aria-hidden />
               {t("tutor.costCap.bookCall")}
-            </Button>
-          </a>
+            </a>
+          </Button>
         )}
       </div>
     </div>

@@ -145,19 +145,15 @@ export function EvalMethodologyView() {
           {t("evalMethodology.footer.body")}
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <Link href="/eval">
-            <Button size="sm" variant="outline" type="button">
-              {t("evalMethodology.footer.backToEval")}
-            </Button>
-          </Link>
-          <a
-            href="mailto:ahmedhobeishy.tools@gmail.com?subject=Lumen%20eval%20methodology%20question"
-            className="inline-flex"
-          >
-            <Button size="sm" variant="default" type="button">
+          {/* Codex rescue: Button asChild to avoid <a><button> nesting. */}
+          <Button asChild size="sm" variant="outline">
+            <Link href="/eval">{t("evalMethodology.footer.backToEval")}</Link>
+          </Button>
+          <Button asChild size="sm" variant="default">
+            <a href="mailto:ahmedhobeishy.tools@gmail.com?subject=Lumen%20eval%20methodology%20question">
               {t("evalMethodology.footer.contact")}
-            </Button>
-          </a>
+            </a>
+          </Button>
         </div>
       </footer>
     </div>

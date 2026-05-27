@@ -61,17 +61,19 @@ export function AgentReplayHero() {
             {t("home.replayHeroBody")}
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link href="/demo">
-              <Button size="lg" variant="default">
+            {/* Codex rescue (L26→L31 arc): use `Button asChild` so the
+                CTA renders a single <a> with Button's styles —
+                wrapping Link around Button produced invalid nested
+                interactive content (<a><button>). */}
+            <Button asChild size="lg" variant="default">
+              <Link href="/demo">
                 {t("home.replayHeroTryDemo")}
                 <ArrowRight className="ms-1 h-4 w-4" aria-hidden />
-              </Button>
-            </Link>
-            <Link href="/eval">
-              <Button size="lg" variant="ghost" type="button">
-                {t("home.replayHeroPublicEval")}
-              </Button>
-            </Link>
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="ghost">
+              <Link href="/eval">{t("home.replayHeroPublicEval")}</Link>
+            </Button>
           </div>
         </div>
 

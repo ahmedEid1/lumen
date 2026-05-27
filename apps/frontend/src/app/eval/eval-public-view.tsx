@@ -149,21 +149,19 @@ export function EvalPublicView() {
           {t("eval.footer.body")}
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <a href="/eval/methodology" className="inline-flex">
-            <Button size="sm" variant="outline" type="button">
+          {/* Codex rescue: Button asChild to avoid <a><button> nesting. */}
+          <Button asChild size="sm" variant="outline">
+            <a href="/eval/methodology">
               <ExternalLink className="me-1.5 h-3.5 w-3.5" aria-hidden />
               {t("eval.footer.methodology")}
-            </Button>
-          </a>
-          <a
-            href="mailto:ahmedhobeishy.tools@gmail.com?subject=Lumen%20eval%20conversation"
-            className="inline-flex"
-          >
-            <Button size="sm" variant="default" type="button">
+            </a>
+          </Button>
+          <Button asChild size="sm" variant="default">
+            <a href="mailto:ahmedhobeishy.tools@gmail.com?subject=Lumen%20eval%20conversation">
               <Mail className="me-1.5 h-3.5 w-3.5" aria-hidden />
               {t("eval.footer.contact")}
-            </Button>
-          </a>
+            </a>
+          </Button>
         </div>
       </footer>
     </div>

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (post-redesign codex rescue — L26→L31 arc)
+
+- **`<Link><Button>` invalid nested interactive content** on every
+  new CTA introduced in L23/L27/L28/L29/L30. Browsers + a11y tools
+  flag `<a><button>` as invalid. Swept 10+ CTA call sites across
+  `agent-replay-hero.tsx`, `eval-public-view.tsx`,
+  `eval-methodology-view.tsx`, `case-study-view.tsx`,
+  `cost-cap-closing-cta.tsx` to the `<Button asChild>` pattern
+  (Radix Slot — single interactive element with Button's styles).
+- **`/case-study` missing from `sitemap.ts`** — the L30 Edit
+  silently failed in-tool; Codex caught the result. One-line
+  addition.
+
 ### Added (post-redesign loop 31 — per-route OG + README portfolio + screencap shot list)
 
 - **Per-route OG cards** at `/eval/opengraph-image` and
