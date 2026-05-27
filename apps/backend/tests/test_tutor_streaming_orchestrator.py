@@ -2,9 +2,24 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
+from app.core.config import get_settings
 from app.services.tutor_orchestrator_stream import orchestrate_stream
+
+
+@pytest.fixture(autouse=True)
+def _pin_noop_llm_provider():
+    """L31-followup: orchestrate_stream now dispatches through
+    `llm_stream.stream_chat()` which routes by `settings.llm_provider`.
+    CI's test env defaults to anthropic; pin noop so the orchestrator
+    runs end-to-end without a real provider key (and without hitting
+    the anthropic-not-implemented branch that emits turn_failed)."""
+    s = get_settings()
+    with patch.object(s, "llm_provider", "noop"):
+        yield
 
 
 @pytest.mark.asyncio
