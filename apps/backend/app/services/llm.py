@@ -454,6 +454,27 @@ class NoopProvider:
 # ---------- Selection ----------
 
 
+# ---------- Mistral provider (L41) ----------
+
+
+class MistralProvider(OpenAIProvider):
+    """Mistral via its OpenAI-compatible Chat Completions endpoint.
+
+    Mistral La Plateforme exposes `/v1/chat/completions` with the
+    OpenAI request/response shape — same `messages` array, same
+    `usage.prompt_tokens` / `usage.completion_tokens` on the
+    response. We inherit OpenAIProvider's transport entirely and
+    only override the `name` for logging + cost-meter attribution.
+
+    Free-tier quota is generous enough for the L25/L36 eval baseline
+    runs (55 questions × ~50 tokens each = well under the rolling
+    limits). Operators that want to bump traffic move to a paid tier
+    on Mistral's console — no code change needed beyond the budget.
+    """
+
+    name: str = "mistral"
+
+
 def get_provider() -> LLMProvider:
     """Return the configured tutor LLM provider.
 
@@ -473,6 +494,14 @@ def get_provider() -> LLMProvider:
             api_key=api_key,
             model=s.llm_model or DEFAULT_OPENAI_MODEL,
             api_base=s.openai_api_base,
+            max_tokens=s.llm_max_tokens,
+        )
+    if kind == "mistral":
+        api_key = s.mistral_api_key.get_secret_value() if s.mistral_api_key else ""
+        return MistralProvider(
+            api_key=api_key,
+            model=s.llm_model or s.mistral_model,
+            api_base=s.mistral_api_base,
             max_tokens=s.llm_max_tokens,
         )
     # default — "anthropic"
@@ -495,6 +524,7 @@ __all__ = [
     "ChatMessage",
     "ChatResponse",
     "LLMProvider",
+    "MistralProvider",
     "NoopProvider",
     "OpenAIProvider",
     "get_provider",

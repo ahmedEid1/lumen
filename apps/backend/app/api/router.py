@@ -19,6 +19,7 @@ from app.api.v1 import (
     demo_questions,
     discussions,
     enrollments,
+    eval_public,
     health,
     learner_traces,
     learning_path,
@@ -60,6 +61,7 @@ api_router.include_router(admin_llm_calls.router, prefix="/admin", tags=["admin-
 # Phase H2 — Eval harness: suites + reports + run-trigger
 # under /api/v1/admin/evals/*.
 api_router.include_router(admin_evals.router, prefix="/admin", tags=["admin-evals"])
+api_router.include_router(eval_public.router, tags=["public-eval"])
 # Phase H6 — Rate-limit metrics (read-only) under
 # /api/v1/admin/rate-limit-stats, sourced from the in-memory
 # 429 ring buffer in app.core.rate_limit_metrics.

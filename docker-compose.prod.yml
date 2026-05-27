@@ -62,6 +62,13 @@ x-api-env: &api-env
   OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
   ANTHROPIC_API_BASE: ${ANTHROPIC_API_BASE:-}
+  # L41 — Mistral La Plateforme (OpenAI-compatible). Free-tier-only
+  # by default; operators tune via `.env.production`. The base URL
+  # defaults to the public la-plateforme endpoint; override for a
+  # private deployment.
+  MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+  MISTRAL_API_BASE: ${MISTRAL_API_BASE:-https://api.mistral.ai/v1}
+  MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-small-latest}
   # Open Badges 3.0 issuer + key. ISSUER_URL must dereference; the prod-boot
   # guard rejects localhost defaults in production. SIGNING_KEY is an
   # Ed25519 PEM — when empty the app derives one from SECRET_KEY in

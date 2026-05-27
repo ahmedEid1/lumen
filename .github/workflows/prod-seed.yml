@@ -1,0 +1,99 @@
+name: Prod demo-seed (one-shot)
+
+# Run `python -m app.cli demo-seed` against the prod box. Wraps the
+# L21-Sec "refuse seed in production" guard by setting
+# LUMEN_ALLOW_PROD_SEED=1 for the duration of the docker exec call
+# (the value stays in the container's process env only — not
+# persisted to .env.production).
+#
+# Why this exists: the L20.5 TS Generics/Variance course is the
+# target of the /demo deep-link. The seed never ran on prod, so
+# `/demo` redirects to `/learn/typescript-variance` → "course not
+# found". This workflow gives the operator a one-click way to
+# repair that without SSHing.
+#
+# Approval gate: same `production` environment used by deploy.yml +
+# flip-flag.yml. Operator clicks "Approve and deploy" before any
+# SSH step fires.
+#
+# Idempotent: the seed scripts are idempotent on re-run (UPSERT
+# semantics on slugs), so a second invocation after a successful
+# first is a no-op.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type EXACTLY: yes-seed-production"
+        required: true
+        type: string
+
+jobs:
+  seed:
+    name: Run demo-seed on prod
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: https://lumen.ahmedhobeishy.tech
+
+    steps:
+      - name: Validate confirmation phrase
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM" != "yes-seed-production" ]; then
+            echo "::error::confirm input must be the exact string 'yes-seed-production'"
+            exit 1
+          fi
+          echo "Confirmation accepted."
+
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.AWS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run demo-seed inside api container
+        # `-e LUMEN_ALLOW_PROD_SEED=1` sets the env var ONLY for
+        # this docker exec invocation; it does NOT persist to
+        # .env.production. After the exec returns, future container
+        # restarts go back to the production-refusal behaviour.
+        run: |
+          set -euxo pipefail
+          ssh -o StrictHostKeyChecking=yes \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
+              "cd ~/lumen && \
+               docker compose -f docker-compose.prod.yml \
+                 --env-file ~/.env.production \
+                 exec -T -e LUMEN_ALLOW_PROD_SEED=1 \
+                 api python -m app.cli demo-seed"
+
+      - name: Smoke test the new course
+        env:
+          APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+        run: |
+          set -euo pipefail
+          # The L20.5 seed inserts `typescript-variance`. If it
+          # comes back 200 we know the seed landed; 404 means the
+          # exec failed silently somehow.
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -fsS -o /dev/null -w "%{http_code}" \
+              "https://${APP_DOMAIN}/api/v1/courses/by-slug/typescript-variance" \
+              || echo "000")
+            if [ "$code" = "200" ]; then
+              echo "::notice::TS Variance course is now reachable on prod"
+              exit 0
+            fi
+            echo "::warning::attempt $attempt — by-slug returned $code; retrying"
+            sleep 4
+          done
+          echo "::error::seed exec completed but the TS Variance course is still 404"
+          exit 1

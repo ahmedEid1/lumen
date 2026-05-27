@@ -321,6 +321,47 @@ def demo_seed() -> None:
     asyncio.run(_demo_run())
 
 
+@cli.command(name="promote-eval")
+def promote_eval(
+    suite: str = typer.Option(
+        ..., "--suite", help="Eval suite to promote (e.g. tutor, authoring, ingest)."
+    ),
+    report: str = typer.Option(
+        ..., "--report", help="Report id to surface on public /eval (e.g. tutor-20260527-101530)."
+    ),
+    clear: bool = typer.Option(
+        False, "--clear", help="Un-promote the suite instead of setting a new report."
+    ),
+) -> None:
+    """L41 — Promote (or un-promote) an eval report to the public surface.
+
+    Updates ``apps/backend/evals/reports/PROMOTED.json``. The
+    public ``GET /api/v1/eval/public`` endpoint reads this file
+    and falls back to honest-empty for any suite not in it.
+
+    Examples::
+
+        python -m app.cli promote-eval --suite tutor --report tutor-20260527-101530
+        python -m app.cli promote-eval --suite tutor --clear
+
+    Safe to run against production (read+write of one file; no
+    LLM cost; no DB write) — does NOT call ``_refuse_prod_seed_or_pass``.
+    """
+    from app.api.v1.eval_public import clear_promoted, set_promoted
+
+    if clear:
+        clear_promoted(suite)
+        console.print(
+            f"[yellow]Un-promoted suite={suite}; public /eval reverts to honest-empty for it.[/yellow]"
+        )
+        return
+    set_promoted(suite, report)
+    console.print(
+        f"[green]Promoted report={report} for suite={suite}.[/green] "
+        "Public /eval endpoint surfaces the summary on next request."
+    )
+
+
 @cli.command(name="mcp-token")
 def mcp_token(
     owner_email: str = typer.Option(

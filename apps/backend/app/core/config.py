@@ -141,11 +141,21 @@ class Settings(BaseSettings):
     # tests so every CI run that touches an LLM path stays
     # network-free. Operators flip the provider via ``LLM_PROVIDER``;
     # ``LLM_MODEL`` overrides the per-provider default model id.
-    llm_provider: Literal["anthropic", "openai", "noop"] = "anthropic"
+    llm_provider: Literal["anthropic", "openai", "mistral", "noop"] = "anthropic"
     llm_model: str | None = None
     anthropic_api_key: SecretStr | None = None
     anthropic_api_base: str | None = None
     llm_max_tokens: int = 1024
+
+    # L41 — Mistral provider for the L25/L36 eval baseline + as a
+    # second free-tier streaming option alongside Groq. Mistral's
+    # Chat Completions API is OpenAI-compatible at this base URL —
+    # the MistralProvider class wraps OpenAIProvider config so
+    # callers just pick `LLM_PROVIDER=mistral` and the right
+    # base+key+default-model resolves automatically.
+    mistral_api_key: SecretStr | None = None
+    mistral_api_base: str = "https://api.mistral.ai/v1"
+    mistral_model: str = "mistral-small-latest"
 
     # ---------- LLM cost tracking + budget guard (Phase H1) ----------
     # Every LLM round-trip through ``app.services.llm_call_log`` is

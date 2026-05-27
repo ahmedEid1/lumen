@@ -103,7 +103,27 @@ async def stream_chat(
         async for chunk in _stream_chat_anthropic(messages, temperature=temperature):
             yield chunk
         return
+    if provider_name == "mistral":
+        # L41 — Mistral's Chat Completions API is OpenAI-compatible.
+        # The OpenAI streaming code path works as-is when pointed at
+        # Mistral's base URL with the Mistral key + default model.
+        async for chunk in _stream_chat_openai_compat(
+            messages,
+            temperature=temperature,
+            api_key=_mistral_key(),
+            api_base=get_settings().mistral_api_base,
+            model=get_settings().llm_model or get_settings().mistral_model,
+        ):
+            yield chunk
+        return
     raise ValueError(f"unknown LLM provider: {provider_name!r}")
+
+
+def _mistral_key() -> str:
+    s = get_settings()
+    if not s.mistral_api_key:
+        raise RuntimeError("MISTRAL_API_KEY is required for LLM_PROVIDER=mistral streaming")
+    return s.mistral_api_key.get_secret_value()
 
 
 async def _stream_chat_noop(
@@ -143,15 +163,47 @@ async def _stream_chat_openai(
 ) -> AsyncIterator[StreamChunk]:
     """Real OpenAI / OpenAI-compatible (Groq, Together, etc.) streaming.
 
-    The SDK is imported lazily so a noop-only build doesn't pay the
-    import cost. Mirrors the existing ``OpenAIProvider`` config —
-    same env vars, same base URL override, same model selection.
+    Reads the OpenAI-tier settings (openai_api_key + openai_api_base
+    + llm_model) and dispatches into the shared
+    `_stream_chat_openai_compat` core.
+    """
+    s = get_settings()
+    api_key = s.openai_api_key.get_secret_value() if s.openai_api_key else ""
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY (or compatible-provider key) is required for "
+            "LLM_PROVIDER=openai streaming"
+        )
+    async for chunk in _stream_chat_openai_compat(
+        messages,
+        temperature=temperature,
+        api_key=api_key,
+        api_base=s.openai_api_base if s.openai_api_base else None,
+        model=s.llm_model or "gpt-4o-mini",
+    ):
+        yield chunk
 
-    Uses ``stream_options={"include_usage": True}`` so the final
+
+async def _stream_chat_openai_compat(
+    messages: list[ChatMessage],
+    *,
+    temperature: float,
+    api_key: str,
+    api_base: str | None,
+    model: str,
+) -> AsyncIterator[StreamChunk]:
+    """L41 — shared core for any OpenAI-compatible streaming endpoint.
+
+    The OpenAI Chat Completions wire shape is the lingua franca of
+    LLM APIs at this point (Groq, Mistral, Together, Anyscale,
+    Cloudflare Workers AI, etc. all speak it). This factored core
+    lets callers pass `(api_key, api_base, model)` and reuse the
+    streaming + usage-extraction logic without duplicating it per
+    provider.
+
+    Uses `stream_options={"include_usage": True}` so the final
     chunk carries the usage payload (prompt + completion tokens
-    plus computed cost in our pricing table). That's the
-    no-estimation-drift cost number the L21-Sec reconciliation
-    layer needs to settle the per-turn reservation exactly.
+    plus computed cost via the shared pricing table).
     """
     # Lazy import — keeps noop deployments small.
     try:
@@ -162,18 +214,10 @@ async def _stream_chat_openai(
         ) from e
 
     s = get_settings()
-    api_key = s.openai_api_key.get_secret_value() if s.openai_api_key else ""
-    if not api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY (or compatible-provider key) is required for "
-            "LLM_PROVIDER=openai streaming"
-        )
-
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url=s.openai_api_base if s.openai_api_base else None,
+        base_url=api_base,
     )
-    model = s.llm_model or "gpt-4o-mini"
 
     stream = await client.chat.completions.create(
         model=model,

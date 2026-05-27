@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 41 — Mistral provider + public eval surface + prod-seed workflow)
+
+- **`MistralProvider`** in `app/services/llm.py` — Mistral La Plateforme
+  via its OpenAI-compatible Chat Completions endpoint. Inherits
+  `OpenAIProvider`'s transport entirely; only `name="mistral"` differs.
+  Free-tier-friendly baseline for L36 eval comparisons.
+- **`_stream_chat_openai_compat` core** in `llm_stream.py` — refactor
+  that lets Mistral / Groq / Together / Cloudflare / OpenAI all share
+  one streaming implementation with `(api_key, api_base, model)` args.
+- **`GET /api/v1/eval/public`** — narrow public endpoint that returns
+  the latest *promoted* eval report per suite (axes + judge metadata
+  only). Honest-empty until the operator explicitly promotes.
+- **`python -m app.cli promote-eval`** — flip a report from
+  admin-only to public-surfaced. Writes to
+  `apps/backend/evals/reports/PROMOTED.json`. Idempotent;
+  `--clear` to un-promote.
+- **`python -m app.evals.run_baseline`** — operator CLI that drives
+  the L36 baseline runner against real OpenAI-compatible endpoints
+  (Lumen primary vs Mistral baseline by default, free both sides).
+  LLM-as-judge scoring on (grounding, accuracy, style).
+- **`.github/workflows/prod-seed.yml`** — manual approval-gated
+  workflow that runs `app.cli demo-seed` against prod with
+  `LUMEN_ALLOW_PROD_SEED=1`. Fixes the `/demo` → 404 regression
+  (the L20.5 TS Generics/Variance seed never ran on prod).
+- **Mistral env vars in `docker-compose.prod.yml`** — `MISTRAL_API_KEY`,
+  `MISTRAL_API_BASE`, `MISTRAL_MODEL` added to the `x-api-env` anchor
+  (same fix pattern as L33 — env passthrough must be explicit).
+
 ### Fixed (post-redesign loop 40 — final Codex rescue on L39)
 
 - **Sentry scrubber recursive `scrubMap` (P1).** First version was
