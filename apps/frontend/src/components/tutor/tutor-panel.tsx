@@ -10,6 +10,7 @@ import {
   AgentReasoningPanel,
   type ToolCallTrace,
 } from "@/components/tutor/agent-reasoning-panel";
+import { StreamingTutorPanel } from "@/components/tutor/streaming-tutor-panel";
 import {
   Tutor,
   type TutorConversationDetail,
@@ -17,6 +18,8 @@ import {
   type TutorPostResponse,
 } from "@/lib/api/endpoints";
 import { useT } from "@/lib/i18n/provider";
+import { useRuntimeFlags } from "@/lib/runtime-flags";
+import { supportsStreaming } from "@/lib/tutor/supports-streaming";
 import { cn } from "@/lib/utils";
 
 /**
@@ -69,7 +72,19 @@ export interface TutorPanelProps {
   initialDraft?: string;
 }
 
-export function TutorPanel({ courseId, heading, initialDraft }: TutorPanelProps) {
+export function TutorPanel(props: TutorPanelProps) {
+  // L21b — branch on runtime flag + iOS UA support. When the flag is
+  // ON and the browser actually streams (iOS Safari < 15.4 fails the
+  // detect), mount the SSE-backed panel. Otherwise fall through to
+  // the legacy non-streaming implementation below.
+  const flags = useRuntimeFlags();
+  if (flags.tutor_streaming && supportsStreaming()) {
+    return <StreamingTutorPanel {...props} />;
+  }
+  return <LegacyTutorPanel {...props} />;
+}
+
+function LegacyTutorPanel({ courseId, heading, initialDraft }: TutorPanelProps) {
   const t = useT();
   const qc = useQueryClient();
   const [conversationId, setConversationId] = useState<string | null>(null);

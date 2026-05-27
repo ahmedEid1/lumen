@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 21b — frontend streaming + flag-flip)
+
+- **SSE parser** (`apps/frontend/src/lib/tutor/sse-parser.ts`) —
+  WHATWG-spec-compliant. Handles multi-line `data`, CRLF/LF/CR
+  terminators, mid-chunk-boundary splits, comment lines, the
+  single-leading-space strip per spec.
+- **SSE client** (`sse-client.ts`) — fetch-based (not native
+  `EventSource`) so we can pass the Bearer token as an
+  `Authorization` header. Cancel via `AbortSignal`.
+- **iOS UA detect** (`supports-streaming.ts`) — feature-detect +
+  iOS Safari 15.0-15.3 sniff. Feature surface is present in those
+  versions but `fetch`'s body reader silently buffers; Apple fixed
+  in 15.4.
+- **`useTutorStream(turnId)`** hook (`use-tutor-stream.ts`) —
+  subscribes to the SSE stream via `useSyncExternalStore`. Reducer
+  over `planner_start` / `tool_call_start` / `tool_call_result` /
+  `synth_chunk` / `turn_complete` / `turn_failed` / `trim_detected`.
+  Snapshot exposes `{phase, tools, text, error, …}` for the renderer.
+- **`StreamingTutorPanel`** — new component
+  (`streaming-tutor-panel.tsx`). POSTs to `/api/v1/tutor/turns`,
+  subscribes via the hook, renders tools list + accumulating text
+  + cursor animation during synth + `aria-live="polite"` on the
+  growing text region.
+- **`TutorPanel` flag branching** — outer component now branches on
+  `flags.tutor_streaming && supportsStreaming()`. New panel mounts
+  when both are true; otherwise the existing (renamed inline)
+  `LegacyTutorPanel` mounts. Public API unchanged; call sites need
+  no edits.
+- **Flag flip** — the runtime flag defaults to `False` in
+  `Settings.feature_tutor_streaming`. To enable streaming in prod:
+  set `FEATURE_TUTOR_STREAMING=true` in the prod env and restart
+  the API container. The frontend re-reads
+  `/api/v1/runtime-flags` and switches code paths automatically.
+
 ### Added (post-redesign loop 21a — backend streaming spine, flag OFF)
 
 - **Four new tutor streaming endpoints** under `/api/v1/tutor/turns`:

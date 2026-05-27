@@ -57,7 +57,7 @@ export class SseParser {
     // \r\n and \r as equivalent per the spec.
     let newlineIdx: number;
     while ((newlineIdx = this.buffer.search(/[\r\n]/)) !== -1) {
-      let line = this.buffer.slice(0, newlineIdx);
+      const line = this.buffer.slice(0, newlineIdx);
       // Eat the terminator (handle \r\n vs \n vs \r).
       let terminatorLen = 1;
       if (
