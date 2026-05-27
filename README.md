@@ -36,6 +36,14 @@ Lumen is the live demo of how multi-agent systems, retrieval-augmented generatio
 - **Observable agent traces** — every LLM call recorded with tokens, cost, latency, and (soon) the planner's tool-call log.
 - **Eval suite** — 30-item tutor + 10-item authoring + 10-item ingest golden datasets; LLM-as-judge; CI smoke gate.
 
+## Going live — operator handoff
+
+If you've cloned this and want to take the streaming demo live, the
+4-step operator handoff (flag flip → sealed eval run → screencap →
+repo rename) is at [`docs/release/operator-handoff.md`](docs/release/operator-handoff.md).
+Until those steps run, code lands flag-OFF and the public `/eval`
+surface stays honest-empty — by design.
+
 ## What to look at first
 
 If you're reviewing the code, these are the highest-signal files:
