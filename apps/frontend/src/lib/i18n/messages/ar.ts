@@ -778,9 +778,9 @@ export const ar: Record<MessageKey, string> = {
   "tutor.sendError": "تعذّر الإرسال. حاول مرة أخرى.",
 
   // مرشد متعدد الوكلاء (المرحلة I2)
-  "tutor.agentTrace.title": "تفكير الوكيل",
-  "tutor.agentTrace.show": "أرني كيف توصّلت إلى هذا",
-  "tutor.agentTrace.hide": "إخفاء التحليل",
+  "tutor.agentTrace.title": "الأدوات المستخدمة",
+  "tutor.agentTrace.show": "أرني كيف استخدمت هذه الأدوات",
+  "tutor.agentTrace.hide": "إخفاء الأدوات",
   "tutor.agentTrace.colTool": "الأداة",
   "tutor.agentTrace.colWhy": "السبب",
   "tutor.agentTrace.colResult": "النتيجة",
@@ -842,6 +842,10 @@ export const ar: Record<MessageKey, string> = {
   "common.notFound": "غير موجود",
   "common.tryAgain": "حاول مرة أخرى",
   "common.language": "اللغة",
+
+  // Demo-question chip rail (L22)
+  "tutor.suggested.heading": "أسئلة مقترحة",
+  "tutor.suggested.canonicalLabel": "جرّب السؤال التجريبي القياسي",
 
   // Blog
   "blog.cartouche": "ملاحظات ميدانية",

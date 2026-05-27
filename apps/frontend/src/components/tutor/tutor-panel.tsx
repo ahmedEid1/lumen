@@ -11,6 +11,7 @@ import {
   type ToolCallTrace,
 } from "@/components/tutor/agent-reasoning-panel";
 import { StreamingTutorPanel } from "@/components/tutor/streaming-tutor-panel";
+import { DemoQuestionChipRail } from "@/components/tutor/demo-question-chip-rail";
 import {
   Tutor,
   type TutorConversationDetail,
@@ -70,6 +71,13 @@ export interface TutorPanelProps {
    * Only honoured on mount; later state changes from the user win.
    */
   initialDraft?: string;
+  /**
+   * L22 — optional course slug for the demo-question chip rail. When
+   * present, the rail filters to questions scoped to this course
+   * (plus global refusal probes). When absent, the full library
+   * renders.
+   */
+  courseSlug?: string;
 }
 
 export function TutorPanel(props: TutorPanelProps) {
@@ -84,7 +92,7 @@ export function TutorPanel(props: TutorPanelProps) {
   return <LegacyTutorPanel {...props} />;
 }
 
-function LegacyTutorPanel({ courseId, heading, initialDraft }: TutorPanelProps) {
+function LegacyTutorPanel({ courseId, heading, initialDraft, courseSlug }: TutorPanelProps) {
   const t = useT();
   const qc = useQueryClient();
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -179,8 +187,8 @@ function LegacyTutorPanel({ courseId, heading, initialDraft }: TutorPanelProps) 
     if (el) el.scrollTop = el.scrollHeight;
   }, [localMessages.length, sendMut.isPending]);
 
-  function handleSend() {
-    const text = draft.trim();
+  function handleSend(textOverride?: string) {
+    const text = (textOverride ?? draft).trim();
     if (!text || !conversationId || sendMut.isPending) return;
     setDraft("");
     const optimistic: TutorMessageOut = {
@@ -224,6 +232,13 @@ function LegacyTutorPanel({ courseId, heading, initialDraft }: TutorPanelProps) 
           {t("tutor.new")}
         </Button>
       </div>
+
+      {empty && (
+        <DemoQuestionChipRail
+          courseSlug={courseSlug}
+          onPick={(prompt) => handleSend(prompt)}
+        />
+      )}
 
       <div
         ref={scrollRef}

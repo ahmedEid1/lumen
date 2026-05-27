@@ -28,11 +28,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n/provider";
 import { useAuth } from "@/lib/auth/store";
 import { useTutorStream } from "@/lib/tutor/use-tutor-stream";
+import { DemoQuestionChipRail } from "@/components/tutor/demo-question-chip-rail";
 
 export interface StreamingTutorPanelProps {
   courseId: string;
   heading?: string;
   initialDraft?: string;
+  /** Optional — used by the L22 chip rail to filter the library. */
+  courseSlug?: string;
 }
 
 interface PostTurnResponse {
@@ -60,6 +63,7 @@ export function StreamingTutorPanel({
   courseId,
   heading,
   initialDraft,
+  courseSlug,
 }: StreamingTutorPanelProps) {
   const t = useT();
   const { token } = useAuth();
@@ -88,8 +92,8 @@ export function StreamingTutorPanel({
     stream.phase === "tool" ||
     stream.phase === "synth";
 
-  function handleSend() {
-    const text = draft.trim();
+  function handleSend(textOverride?: string) {
+    const text = (textOverride ?? draft).trim();
     if (!text || isInFlight) return;
     sendMut.mutate(text);
   }
@@ -114,6 +118,13 @@ export function StreamingTutorPanel({
           Streaming
         </p>
       </div>
+
+      {!sentPrompt && (
+        <DemoQuestionChipRail
+          courseSlug={courseSlug}
+          onPick={(prompt) => handleSend(prompt)}
+        />
+      )}
 
       <div
         ref={scrollRef}

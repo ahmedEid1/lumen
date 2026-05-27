@@ -771,9 +771,9 @@ export const en = {
   "tutor.sendError": "Couldn't send that. Try again.",
 
   // Tutor agent-reasoning panel (Phase I2 — multi-agent tutor)
-  "tutor.agentTrace.title": "Agent thinking",
-  "tutor.agentTrace.show": "Show me how you got this",
-  "tutor.agentTrace.hide": "Hide reasoning",
+  "tutor.agentTrace.title": "Tools used",
+  "tutor.agentTrace.show": "Show how the tutor got there",
+  "tutor.agentTrace.hide": "Hide tools used",
   "tutor.agentTrace.colTool": "Tool",
   "tutor.agentTrace.colWhy": "Why",
   "tutor.agentTrace.colResult": "Result",
@@ -835,6 +835,10 @@ export const en = {
   "common.notFound": "Not found",
   "common.tryAgain": "Try again",
   "common.language": "Language",
+
+  // Demo-question chip rail (L22 — consumes useDemoQuestions library)
+  "tutor.suggested.heading": "Suggested questions",
+  "tutor.suggested.canonicalLabel": "Try the canonical demo question",
 
   // Blog (L19.5 — empty index; posts arrive with L30 case-study work)
   "blog.cartouche": "Field notes",

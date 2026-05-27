@@ -91,7 +91,7 @@ function TraceRow({
         aria-expanded={open}
         aria-controls={`draft-trace-step-body-${step.id}`}
         className={cn(
-          "group flex w-full items-center gap-3 rounded-md border border-border bg-card/40 px-3 py-2 text-left transition-colors duration-[160ms]",
+          "group flex w-full items-center gap-3 rounded-md border border-border bg-card/40 px-3 py-2 text-start transition-colors duration-[160ms]",
           isError ? "hover:bg-destructive/5" : "hover:bg-muted/40",
         )}
       >
