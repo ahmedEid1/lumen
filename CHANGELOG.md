@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 30 — /case-study long-form)
+
+- **`/case-study`** — six-section narrative companion to /eval +
+  /eval/methodology. Sections: origin (expanded founding story),
+  architecture (inline SVG sketch), anatomy of one turn (5 steps),
+  prompt iteration (two failure modes), what I did not use (4
+  rejections), lessons (3 what-I'd-do-differently paragraphs).
+  Footer routes to /demo + /eval + email.
+- **Inline architecture SVG** — no chart library; `currentColor`
+  for theme-inheritance; `role="img"` + `aria-label` for a11y.
+  Six nodes (user, Next.js, FastAPI, Celery, Postgres, Redis) +
+  one dashed-border node (external LLM provider).
+- +40 i18n keys per locale (en + ar) under `caseStudy.*`.
+- +3 frontend tests covering the layout + sketch + CTAs.
+- Sitemap updated.
+
 ### Changed (post-redesign loop 29 — landing-page agent-replay hero)
 
 - **Landing page hero** swapped from a static text headline to a

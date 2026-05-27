@@ -934,6 +934,76 @@ export const en = {
   "evalMethodology.footer.backToEval": "Back to /eval",
   "evalMethodology.footer.contact": "Email me",
 
+  // Case study (L30)
+  "caseStudy.back": "Back to home",
+  "caseStudy.cartouche": "Case study",
+  "caseStudy.headline": "How I built an agentic tutor on a real LLM budget.",
+  "caseStudy.subline":
+    "A long-form companion to /eval. What got built, what got deliberately skipped, what changed mid-flight when the streaming flag started leaking the wrong shape.",
+  "caseStudy.origin.cartouche": "Origin",
+  "caseStudy.origin.heading": "Late 2020. A Django side-project.",
+  "caseStudy.origin.p1":
+    "I started Lumen in November 2020 as a Django side-project — a learning platform for myself. Five years and one model revolution later, the original prototype is gone and what remains is the question: can an agent actually teach? Not just summarize and quote.",
+  "caseStudy.origin.p2":
+    "So I rebuilt it. Custom orchestrator, no LangChain. Groq Llama 3.3 for the latency-per-dollar that makes \"watch it think\" real. Public evals so you can audit the agent's competence yourself.",
+  "caseStudy.origin.p3":
+    "Lumen runs on AWS t4g.small (Graviton2 ARM, 2 vCPU + 2 GB RAM). The cost ceiling is a feature, not an apology — it forced every architectural decision to defend itself against a finite LLM-spend budget.",
+  "caseStudy.arch.cartouche": "Architecture",
+  "caseStudy.arch.heading": "Six boxes, two protocols.",
+  "caseStudy.arch.intro":
+    "The whole thing runs in one docker-compose stack on a single VM:",
+  "caseStudy.arch.notes":
+    "Two protocols thread it together. HTTP / fetch for the request-response surfaces. Server-Sent Events for the tutor stream (Redis Streams as the buffer between the Celery worker that does the LLM call and the FastAPI process holding the open SSE connection — pub/sub couldn't have done it because resume on disconnect needs replay).",
+  "caseStudy.turn.cartouche": "Anatomy of one turn",
+  "caseStudy.turn.heading": "Five steps. Each one is cheap because it has to be.",
+  "caseStudy.turn.intro":
+    "When a learner hits Send, this happens:",
+  "caseStudy.turn.step1":
+    "POST /tutor/turns inserts a `tutor_turn_jobs` row + reserves an estimated cost via an atomic Redis-Lua script. `after_commit` event fires the Celery enqueue (try/except — broker-down doesn't 500 the POST).",
+  "caseStudy.turn.step2":
+    "Celery task claims the row via an atomic phase fence (`UPDATE ... WHERE status='pending' RETURNING id`). Only one worker proceeds.",
+  "caseStudy.turn.step3":
+    "Orchestrator runs: embedding → retriever → optional code_runner / web_searcher → synth. Each tool emits an event into the Redis Stream the browser is subscribed to.",
+  "caseStudy.turn.step4":
+    "Synth streams tokens via `stream_options={\"include_usage\": True}` — first-token-ms drops on the first chunk; cost is reconciled exactly via the include_usage payload (no estimation drift).",
+  "caseStudy.turn.step5":
+    "Terminal: `turn_complete` event into Redis; DB row marks `complete` (with a WHERE clause that refuses to overwrite `aborted` — a real cancellation race I caught via Codex rescue).",
+  "caseStudy.turn.tail":
+    "If the worker dies between steps 2 and 5, a sweep beat job marks the row `failed` within 60s and releases the cost reservation. The client's polling loop sees a clean error code, not a hung wait.",
+  "caseStudy.prompt.cartouche": "Prompt iteration",
+  "caseStudy.prompt.heading": "Two failure modes, two rewrites.",
+  "caseStudy.prompt.p1":
+    "Iteration 1: a single 800-word system prompt that tried to do everything. Refused too aggressively (the model interpreted \"stay in scope\" as \"refuse anything off-topic-ish\"). Refusal-rate against legitimate questions was 18%.",
+  "caseStudy.prompt.p2":
+    "Iteration 4: split into a planner prompt + per-sub-agent prompts. Planner picks tools; sub-agents have one job each. The synth prompt has its own scope rules. Legitimate-question refusal dropped to 3%; adversarial-prompt refusal stayed >90%.",
+  "caseStudy.prompt.p3":
+    "What I'd do differently: invest in the LLM-as-judge calibration loop earlier. I rewrote the prompts based on hand-review for iterations 1-3; a structured eval would have surfaced the over-refusal pattern two weeks earlier.",
+  "caseStudy.notUsed.cartouche": "What I did not use",
+  "caseStudy.notUsed.heading": "And why each absence is deliberate.",
+  "caseStudy.notUsed.intro":
+    "Every framework I rejected is a feature I'd have to debug if I'd accepted it:",
+  "caseStudy.notUsed.langchain":
+    "LangChain / LlamaIndex — the abstraction tax is real. I needed to know exactly which prompt my orchestrator was sending to the model and exactly what the model returned. Wrapping that in a chain primitive means losing the line of sight when something goes wrong.",
+  "caseStudy.notUsed.fineTune":
+    "Fine-tuning — wrong tool for this problem. Lumen needs to teach NEW lesson content the model has never seen. Retrieval ingests that content per-deploy; fine-tuning would require re-training on every content update.",
+  "caseStudy.notUsed.vectorDB":
+    "Pinecone / Weaviate / Chroma — pgvector inside the same Postgres I was already running cost zero extra infrastructure. The index pattern (ivfflat with vector_cosine_ops, 100 lists) handles the demo corpus comfortably.",
+  "caseStudy.notUsed.judge":
+    "LLM-as-judge for adversarial probes — the judge LLM is itself susceptible to the same jailbreak prompts. String-match refusal heuristic + ambiguous-flag for human review = far more honest signal.",
+  "caseStudy.lessons.cartouche": "Lessons",
+  "caseStudy.lessons.heading": "What I'd do differently next time.",
+  "caseStudy.lessons.p1":
+    "Invest in the eval loop first. Two weeks of \"is this prompt better than that one?\" hand-review would have been replaced by a 30-minute eval run. I did this in reverse: shipped a tutor that worked, then bolted on the eval harness. The right order is the other way around.",
+  "caseStudy.lessons.p2":
+    "Pick the streaming substrate carefully. Redis Streams was the right call for resume-on-disconnect; pub/sub looked tempting on day one and would have meant rewriting the SSE handler at deploy time.",
+  "caseStudy.lessons.p3":
+    "Defaults default to off. Every feature flag I added — streaming, cost-cap, email-verify — lands in code as `False` and is flipped via env. Honest empty states beat fake hero numbers every time.",
+  "caseStudy.footer.body":
+    "Want to talk about any of this — the orchestrator design, the eval methodology, or why I went with Groq?",
+  "caseStudy.footer.tryDemo": "Try the demo",
+  "caseStudy.footer.eval": "Read the evals",
+  "caseStudy.footer.email": "Email me",
+
   // Cost-cap closing CTA (L23 — fires when the demo budget is exhausted)
   "tutor.costCap.cartouche": "Demo budget reached",
   "tutor.costCap.headline":
