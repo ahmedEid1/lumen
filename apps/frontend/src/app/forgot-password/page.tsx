@@ -68,7 +68,14 @@ export default function ForgotPasswordPage() {
       heading={t("auth.forgot.heading")}
       subtitle={t("auth.forgot.subtitle")}
     >
-      <form className="space-y-4" onSubmit={onSubmit} noValidate>
+      {/* QA-iter1: see comment on the register form — same pre-
+          hydration `fill()` race on webkit. */}
+      <form
+        className="space-y-4"
+        onSubmit={onSubmit}
+        noValidate
+        data-hydrated={hydrated ? "true" : "false"}
+      >
         <div className="space-y-1.5">
           <label htmlFor="email" className="font-body text-sm font-medium">
             {t("auth.login.email")}

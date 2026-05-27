@@ -98,7 +98,15 @@ function ResetForm() {
           </LinkButton>
         </div>
       ) : (
-        <form className="space-y-4" onSubmit={onSubmit} noValidate>
+        // QA-iter1: see register form — same pre-hydration `fill()` race.
+        // (JSX-line comment is fine here because the JSX branch above
+        // already opens; this `<form>` is the sibling JSX element.)
+        <form
+          className="space-y-4"
+          onSubmit={onSubmit}
+          noValidate
+          data-hydrated={hydrated ? "true" : "false"}
+        >
           <div className="space-y-1.5">
             <label htmlFor="password" className="font-body text-sm font-medium">
               {t("auth.login.password")}

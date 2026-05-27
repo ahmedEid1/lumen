@@ -80,6 +80,11 @@ export async function loginAs(
   const waitForDashboard = opts.waitForDashboard ?? true;
   await preDismissOnboarding(page);
   await page.goto("/login");
+  // QA-iter1: wait for React's controlled-input onChange to be
+  // bound. Without this, on webkit specifically `fill()` lands
+  // pre-hydration and the controlled inputs never see the typed
+  // text — onSubmit then ships `{email: "", password: ""}`.
+  await page.locator('form[data-hydrated="true"]').waitFor();
   await page.getByLabel(/email/i).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page

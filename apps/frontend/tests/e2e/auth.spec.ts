@@ -59,6 +59,13 @@ test.describe("auth golden path — register → verify → reset → login", ()
 
     // 1) Register.
     await page.goto("/register");
+    // QA-iter1: wait for React's controlled-input onChange to be
+    // bound. Without this, on webkit specifically `fill()` lands
+    // pre-hydration, mutates the native DOM value only, and the
+    // controlled inputs (which start at "" from React state) never
+    // see the typed text. The form then POSTs `full_name=""` and
+    // gets 422 — never advancing past /register.
+    await page.locator('form[data-hydrated="true"]').waitFor();
     await page.getByLabel(/full name/i).fill("E2E Auth User");
     // Use the form locator to disambiguate from any "email/password"
     // label that bleeds into the navbar / locale switcher copy.
@@ -112,9 +119,16 @@ test.describe("auth golden path — register → verify → reset → login", ()
     await expect(
       page.getByRole("button", { name: /continue|go to dashboard/i }),
     ).toBeVisible({ timeout: 10_000 });
+    // QA-iter1: wait for /verify-email's async work to settle before
+    // navigating away — on webkit the verify API call and any
+    // post-success refresh can still be in flight when the next
+    // page.goto fires, which Playwright reports as
+    // "Navigation interrupted by another navigation".
+    await page.waitForLoadState("networkidle");
 
     // 4) Forgot-password — request a reset for the same email.
     await page.goto("/forgot-password");
+    await page.locator('form[data-hydrated="true"]').waitFor();
     await page.getByLabel(/email/i).fill(email);
     await page.getByRole("button", { name: /send|reset/i }).first().click();
 
@@ -134,6 +148,7 @@ test.describe("auth golden path — register → verify → reset → login", ()
     // didn't match the original /reset|submit|update/i and let
     // Playwright spin for the whole 60s actionTimeout before failing.
     await page.goto(`/reset-password?token=${encodeURIComponent(resetToken)}`);
+    await page.locator('form[data-hydrated="true"]').waitFor();
     await page.getByLabel("Password", { exact: true }).fill(resetPassword);
     await page
       .locator("form")

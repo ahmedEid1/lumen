@@ -66,7 +66,18 @@ export default function RegisterPage() {
       heading={t("auth.register.heading")}
       subtitle={t("auth.register.subtitle")}
     >
-      <form className="space-y-4" onSubmit={onSubmit} noValidate>
+      {/* QA-iter1: `data-hydrated` lets Playwright wait for React's
+          onChange handlers to be bound before filling — without it,
+          a `fill()` that lands pre-hydration only mutates the native
+          input value and the controlled-input onChange never runs,
+          so React state stays empty and the API call ships
+          `full_name=""` (webkit-only race, seen in CI E2E). */}
+      <form
+        className="space-y-4"
+        onSubmit={onSubmit}
+        noValidate
+        data-hydrated={hydrated ? "true" : "false"}
+      >
         <div className="space-y-1.5">
           <label htmlFor="full_name" className="font-body text-sm font-medium">
             {t("auth.register.fullName")}

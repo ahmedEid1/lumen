@@ -118,6 +118,8 @@ async function signIn(
     window.localStorage.setItem("lumen.onboarding.instructor.dismissed", "1");
   });
   await page.goto("/login");
+  // QA-iter1: wait for React onChange handlers to attach (webkit race).
+  await page.locator('form[data-hydrated="true"]').waitFor();
   await page.getByLabel(/email/i).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   // Scope to the form to avoid the navbar's "Sign in" link tying with

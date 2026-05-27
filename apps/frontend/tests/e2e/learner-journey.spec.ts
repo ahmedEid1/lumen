@@ -16,6 +16,8 @@ test.describe("learner journey", () => {
   test("sign in, find a course, enroll, complete a lesson", async ({ page }) => {
     // Login (prefilled in dev).
     await page.goto("/login");
+    // QA-iter1: wait for React onChange handlers to attach (webkit race).
+    await page.locator('form[data-hydrated="true"]').waitFor();
     await page.getByLabel(/email/i).fill("student@lumen.test");
     await page.getByLabel("Password", { exact: true }).fill("Learn!2026");
     // scope to the form so we hit the submit button

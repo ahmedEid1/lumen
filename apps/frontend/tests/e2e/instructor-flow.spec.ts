@@ -12,6 +12,8 @@ test.describe("instructor flow", () => {
   }) => {
     // Sign in as the seeded instructor.
     await page.goto("/login");
+    // QA-iter1: wait for React onChange handlers to attach (webkit race).
+    await page.locator('form[data-hydrated="true"]').waitFor();
     await page.getByLabel(/email/i).fill("teacher@lumen.test");
     await page.getByLabel("Password", { exact: true }).fill("Teach!2026");
     // scope to the form (navbar Sign in link clashes).
