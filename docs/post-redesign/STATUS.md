@@ -13,4 +13,4 @@ L29 → L30 → L31 → L32-L37 (cuttable polish) → L38-L40 (audit + rename
 
 | Loop | Surface | Outcome | Commit |
 |------|---------|---------|--------|
-| 19.5 | Founding story (README opener) + empty `/blog` index | Shipped. README leads with the locked V6-F6 paragraph; `/blog` renders `EmptyState` until L30 case-study posts arrive. 51 files / 286 tests green (+1 file / +2 tests). i18n keys added in `en` + `ar` (728 keys → 733 each, parity test green). Sitemap updated. | `f626974` |
+| 19.5 | Founding story (README opener) + empty `/blog` index | Shipped. README leads with the locked V6-F6 paragraph; `/blog` renders `EmptyState` until L30 case-study posts arrive. 51 files / 286 tests green (+1 file / +2 tests). i18n keys added in `en` + `ar` (728 keys → 733 each, parity test green). Sitemap updated. | `c5b36a8` |
