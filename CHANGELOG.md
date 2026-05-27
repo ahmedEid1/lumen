@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 20.6 — RAG course + demo library + streaming obs tile)
+
+- **Building a RAG system from scratch** — new seeded demo course
+  (`apps/backend/app/seeds/rag_from_scratch_demo.py`, 4 modules / 8
+  lessons). Self-referential — the tutor cites it when a recruiter
+  asks "how does this work?". Maps 1:1 to ADRs 0017/0018/0019. Demo
+  learner auto-enrolled.
+- **Curated demo-question library** — 15 questions across 5 categories
+  (retriever-only, retriever-code-runner, retriever-web-searcher,
+  refusal, multi-hop) in `apps/backend/app/demo_questions.py`. The
+  canonical question (`ts-variance-canonical`) is the L20.5 TS
+  variance error; exactly-one-canonical invariant enforced at load.
+- **`GET /api/v1/demo-questions`** — anon-readable endpoint exposing
+  the library, optionally filtered by `course_slug`. Returns version
+  + canonical_id + question list. Frontend hook
+  `useDemoQuestions(courseSlug)` consumes it (5-min stale).
+- **`/admin/observability` — new "Streaming" tab** with 6 placeholder
+  tiles (first-token p50/p95, active streams, disconnect rate, total
+  turn latency, tool-mix breakdown) + inline ADR references. Tiles
+  show `—` until L21a's streaming producer lands.
+
 ### Added (post-redesign loop 20.5 — TS course + /demo + runtime-flags + ADRs)
 
 - **TypeScript Generics & Variance** — new seeded demo course

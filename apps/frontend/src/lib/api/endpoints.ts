@@ -684,3 +684,36 @@ export const RuntimeFlagsApi = {
   get: () => api<RuntimeFlags>("/api/v1/runtime-flags"),
 };
 
+// ---------- Demo question library (L20.6) ----------
+
+export type DemoQuestionCategory =
+  | "retriever-only"
+  | "retriever-code-runner"
+  | "retriever-web-searcher"
+  | "refusal"
+  | "multi-hop";
+
+export interface DemoQuestion {
+  id: string;
+  category: DemoQuestionCategory;
+  prompt: string;
+  expected_tools: string[];
+  course_slug: string;
+  canonical: boolean;
+}
+
+export interface DemoQuestionLibrary {
+  version: string;
+  canonical_id: string;
+  questions: DemoQuestion[];
+}
+
+export const DemoQuestionsApi = {
+  list: (courseSlug?: string) => {
+    const qs = courseSlug
+      ? `?course_slug=${encodeURIComponent(courseSlug)}`
+      : "";
+    return api<DemoQuestionLibrary>(`/api/v1/demo-questions${qs}`);
+  },
+};
+

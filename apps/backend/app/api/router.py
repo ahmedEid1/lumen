@@ -16,6 +16,7 @@ from app.api.v1 import (
     certificates,
     content_ingest,
     courses,
+    demo_questions,
     discussions,
     enrollments,
     health,
@@ -94,3 +95,6 @@ api_router.include_router(ai_authoring.router, prefix="/studio", tags=["studio-a
 # frontend can probe before sign-in. Currently reads from Settings;
 # L21-Sec adds a Redis-backed override layer for live flag-flips.
 api_router.include_router(runtime_flags.router, tags=["runtime-flags"])
+# L20.6 — Curated demo-question library. Anon-readable; consumed by
+# the L22 chip rail above the tutor composer + the L25 eval suite.
+api_router.include_router(demo_questions.router, tags=["demo-questions"])

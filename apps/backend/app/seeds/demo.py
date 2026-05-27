@@ -595,6 +595,19 @@ async def run() -> None:
             tags=tags,
         )
 
+        # L20.6 — Building a RAG system from scratch. Self-referential
+        # course: the tutor cites these lessons when a learner asks
+        # "how does this system work?". Same factoring as the TS
+        # variance course — its own module file.
+        from app.seeds.rag_from_scratch_demo import apply as apply_rag_from_scratch
+
+        rag_from_scratch = await apply_rag_from_scratch(
+            db,
+            instructor=instructor,
+            programming=programming,
+            tags=tags,
+        )
+
         await _build_course(
             db,
             owner=instructor,
@@ -684,6 +697,18 @@ async def run() -> None:
         if existing_ts.scalar_one_or_none() is None:
             db.add(Enrollment(user_id=demo_student.id, course_id=ts_variance.id))
 
+        # And in the RAG-from-scratch course (L20.6) so the tutor can
+        # ground "how does this RAG work?" answers in the demo learner's
+        # own enrollment without bouncing to the course-detail page.
+        existing_rag = await db.execute(
+            select(Enrollment).where(
+                Enrollment.user_id == demo_student.id,
+                Enrollment.course_id == rag_from_scratch.id,
+            )
+        )
+        if existing_rag.scalar_one_or_none() is None:
+            db.add(Enrollment(user_id=demo_student.id, course_id=rag_from_scratch.id))
+
         await db.commit()
 
     console.print("[green]Demo seed applied[/green]")
@@ -691,6 +716,9 @@ async def run() -> None:
     console.print("  • data-structures-essentials      (simulated multi-modal ingest)")
     console.print("  • async-web-apps-fastapi          (AI-tutor demo target)")
     console.print(f"  • {ts_variance.slug:32s} (L20.5 demo target — canonical TS error)")
+    console.print(
+        f"  • {rag_from_scratch.slug:32s} (L20.6 self-referential — 'how does this work?')"
+    )
     console.print("  • demo@lumen.test / Demo!2026     (in-flight progress on Data Structures)")
 
 

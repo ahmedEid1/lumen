@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CeleryTab } from "@/components/admin/observability/CeleryTab";
 import { LLMTracesTab } from "@/components/admin/observability/LLMTracesTab";
 import { RetrievalTab } from "@/components/admin/observability/RetrievalTab";
+import { StreamingTab } from "@/components/admin/observability/StreamingTab";
+import { useRuntimeFlags } from "@/lib/runtime-flags";
 
 /**
  * Admin observability — three-tab dashboard.
@@ -34,18 +36,34 @@ import { RetrievalTab } from "@/components/admin/observability/RetrievalTab";
  * single row of bordered buttons that doubles as a left-rail.
  */
 
-type Tab = "celery" | "traces" | "retrieval";
+type Tab = "celery" | "traces" | "retrieval" | "streaming";
 
-const TABS: { id: Tab; label: string }[] = [
+const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "celery", label: "Celery" },
   { id: "traces", label: "LLM Traces" },
   { id: "retrieval", label: "Retrieval Quality" },
 ];
 
+// L20.6 — Streaming tab placeholder. Always visible to admins
+// (they need to see the wire references + tile placeholders before
+// L21 flips); the tile values themselves are the L21 producer's job.
+const STREAMING_TAB: { id: Tab; label: string } = {
+  id: "streaming",
+  label: "Streaming",
+};
+
 export default function AdminObservability() {
   const { user, ready } = useAuth();
   const router = useRouter();
+  const flags = useRuntimeFlags();
   const [tab, setTab] = useState<Tab>("celery");
+
+  // Admin sees the streaming tab always (for the pre-flip preview);
+  // non-admins are already redirected away. The runtime flag still
+  // governs whether the tab renders LIVE data vs the placeholder
+  // body — both branches are wired below.
+  void flags;
+  const TABS = [...BASE_TABS, STREAMING_TAB];
 
   useEffect(() => {
     if (!ready) return;
@@ -88,6 +106,9 @@ export default function AdminObservability() {
         </TabsContent>
         <TabsContent value="retrieval">
           <RetrievalTab />
+        </TabsContent>
+        <TabsContent value="streaming">
+          <StreamingTab />
         </TabsContent>
       </Tabs>
     </div>

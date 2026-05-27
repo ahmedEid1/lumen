@@ -12,4 +12,6 @@ export const qk = {
   reviewsStats: ["me", "reviews", "stats"] as const,
   mastery: ["me", "mastery"] as const,
   runtimeFlags: ["runtime-flags"] as const,
+  demoQuestions: (courseSlug?: string) =>
+    ["demo-questions", courseSlug ?? "all"] as const,
 };
