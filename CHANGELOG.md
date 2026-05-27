@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 21a — backend streaming spine, flag OFF)
+
+- **Four new tutor streaming endpoints** under `/api/v1/tutor/turns`:
+  POST (open turn), GET status, GET SSE stream (with `Last-Event-ID`
+  resume + trim detection), DELETE cancel. All four gated on
+  `settings.feature_tutor_streaming` — return 503
+  `tutor.streaming_disabled` until L21b flips the flag.
+- **Celery task `tutor.run_turn.v1`** (`bind=True`,
+  `max_retries=0`, `acks_late=True`) wraps the async orchestrator in
+  `asyncio.run`. Atomic phase fence via `UPDATE … WHERE status='pending'
+  RETURNING id`. `finally` block wraps every cleanup in
+  `contextlib.suppress`.
+- **Sweep beat job** (`tutor.sweep_dead_turns.v1`, 10 s schedule):
+  Redis `RECONCILE_COST` release FIRST, then DB `UPDATE … status='failed'`
+  — survives Redis-down by leaving rows untouched for next-tick retry.
+  Also picks up already-`failed`/`aborted` rows with
+  `reserved_cost_usd > 0` so prior Redis failures eventually clear.
+- **Orphan-stream cleanup beat** (`tutor.cleanup_orphan_streams.v1`,
+  5 min schedule): `SCAN tutor:turn:*` + `DEL` for terminal-or-
+  missing rows.
+- **Redis Streams helpers** (`app/services/redis_streams.py`):
+  `emit_event` (XADD with `MAXLEN ~ 500` cap), `consume_stream`
+  (XREAD with BLOCK), `check_trim` (XRANGE-based stale-offset
+  detection per plan-v7 §V7-F4), `set_stream_ttl` (5-min cap on
+  completed streams). `<ms>-<seq>` IDs compared as `(int, int)`
+  tuples (plan-v7 §V7-F12).
+- **TutorTurnJob lifecycle service** (`app/services/tutor_turn_service.py`):
+  `create_turn` with one-shot `after_commit` listener that fires
+  Celery enqueue via try/except (plan-v7 §V7-F6 — broker outage
+  doesn't 500 the POST); atomic `claim_pending_turn` phase fence;
+  `mark_terminal` (zeros `reserved_cost_usd` to prevent
+  double-release); IDOR-safe `get_turn_for_user`.
+- **AsyncIterator orchestrator** (`app/services/tutor_orchestrator_stream.py`):
+  `orchestrate_stream(turn_id, …)` async generator yielding
+  `planner_start → tool_call_start → tool_call_result → synth_chunk
+  (×N) → turn_complete`. L21a noop sequence verifies the SSE wire
+  format; AsyncOpenAI streaming integration is a follow-up.
+
 ### Security (post-redesign loop 21-Sec — hardening without streaming)
 
 - **Llama 3.x special-token sanitizer** (`app/core/llm_sanitize.py`):

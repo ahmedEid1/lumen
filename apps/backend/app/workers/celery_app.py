@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from celery import Celery
 from celery.schedules import crontab
 
@@ -23,6 +25,14 @@ celery = Celery(
         # here so the worker boots with the task module imported;
         # the actual schedule entry lives below in ``beat_schedule``.
         "app.workers.tasks.learning_path",
+        # L21a — tutor streaming task + sweep + orphan cleanup.
+        # The task only fires when the new streaming POST handler
+        # enqueues, which itself is gated on feature_tutor_streaming
+        # (default OFF until L21b). The sweep + cleanup beat jobs
+        # below run unconditionally — they're idempotent against an
+        # empty table / no-orphan state.
+        "app.workers.tasks.tutor_streaming",
+        "app.workers.tasks.tutor_sweep",
     ],
 )
 
@@ -62,5 +72,21 @@ celery.conf.beat_schedule = {
     "replan-learning-paths": {
         "task": "app.workers.tasks.learning_path.replan_paths_monthly",
         "schedule": crontab(hour="4", minute="0", day_of_month="1"),
+    },
+    # L21a — tutor turn lifecycle housekeeping. Two sweep schedules
+    # (10 s for pending, 30 s for running/streaming) so a clean
+    # broker-down POST sees a definitive failure within ~12 s of
+    # polling status (plan-v7 §P1-3). Orphan stream cleanup is far
+    # less hot — every 5 min. timedelta(seconds=N) is the correct
+    # sub-minute schedule shape (plan-v7 §V7-F10 caught `crontab(
+    # second='*/10')` being invalid).
+    "tutor-sweep-dead-turns": {
+        "task": "tutor.sweep_dead_turns.v1",
+        "schedule": timedelta(seconds=10),
+        "options": {"expires": 30},
+    },
+    "tutor-cleanup-orphan-streams": {
+        "task": "tutor.cleanup_orphan_streams.v1",
+        "schedule": timedelta(minutes=5),
     },
 }

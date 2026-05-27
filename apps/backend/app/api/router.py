@@ -29,6 +29,7 @@ from app.api.v1 import (
     runtime_flags,
     search,
     tutor,
+    tutor_streaming,
     uploads,
     users,
 )
@@ -87,6 +88,10 @@ api_router.include_router(content_ingest.router, prefix="/studio/ingest", tags=[
 # inherit the ``/api/v1`` prefix and the module file declares its
 # own paths.
 api_router.include_router(tutor.router, tags=["tutor"])
+# L21a — streaming tutor endpoints (POST /tutor/turns, status, stream,
+# cancel). All four gated on settings.feature_tutor_streaming; return
+# 503 tutor.streaming_disabled until L21b's flag-flip.
+api_router.include_router(tutor_streaming.router, tags=["tutor-streaming"])
 # AI-assisted authoring (Phase E2) — outline + lesson body + quiz
 # generation. All four endpoints share the ``/studio/ai`` prefix and
 # the per-user 5/minute rate limit declared inside the module.
