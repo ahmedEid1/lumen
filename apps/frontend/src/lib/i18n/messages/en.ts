@@ -835,6 +835,13 @@ export const en = {
   "common.notFound": "Not found",
   "common.tryAgain": "Try again",
   "common.language": "Language",
+
+  // Blog (L19.5 — empty index; posts arrive with L30 case-study work)
+  "blog.cartouche": "Field notes",
+  "blog.title": "Notes from building Lumen",
+  "blog.subline": "Architecture decisions, prompt-iteration journals, and the failures that shaped what shipped.",
+  "blog.empty.title": "No posts yet.",
+  "blog.empty.body": "The first entries will trail the case study — design choices behind the agent tutor, the eval methodology, and the cost-latency math.",
 } as const;
 
 export type MessageKey = keyof typeof en;

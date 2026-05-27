@@ -1,6 +1,10 @@
 # Lumen
 
-Lumen — an open-source, AI-first LMS built as a portfolio anchor for agentic-AI engineering work.
+Lumen started in late 2020 as a Django side-project — a learning platform for myself. Five years and one model revolution later, the original prototype is gone and what remains is the question: can an agent actually teach? Not just summarize and quote. So I rebuilt it. Custom orchestrator, no LangChain. Groq Llama 3.3 for the latency-per-dollar that makes "watch it think" real. Public evals so you can audit the agent's competence yourself.
+
+— *Ahmed Hobeishy*
+
+*An open-source, AI-first LMS built as a portfolio anchor for agentic-AI engineering work.*
 
 [![Live demo: lumen.ahmedhobeishy.tech](https://img.shields.io/badge/live%20demo-lumen.ahmedhobeishy.tech-2ea44f?style=for-the-badge&logo=amazonaws&logoColor=white)](https://lumen.ahmedhobeishy.tech)
 

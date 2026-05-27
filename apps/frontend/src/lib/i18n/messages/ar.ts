@@ -842,4 +842,13 @@ export const ar: Record<MessageKey, string> = {
   "common.notFound": "غير موجود",
   "common.tryAgain": "حاول مرة أخرى",
   "common.language": "اللغة",
+
+  // Blog
+  "blog.cartouche": "ملاحظات ميدانية",
+  "blog.title": "ملاحظات من بناء Lumen",
+  "blog.subline":
+    "قرارات معمارية، يوميات تطوير المحفّزات، والإخفاقات التي شكّلت ما تم شحنه.",
+  "blog.empty.title": "لا توجد منشورات بعد.",
+  "blog.empty.body":
+    "ستتبع المنشورات الأولى دراسة الحالة — قرارات تصميم وكيل التعلم، ومنهجية التقييم، وحسابات التكلفة والكمون.",
 };

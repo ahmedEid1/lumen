@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 19.5 — founding story + empty blog index)
+
+- **README opener** now leads with the locked founding paragraph
+  (planning session 2026-05-26, plan-v7 §V6-F6). ~85 words covering
+  Lumen's 2020 origin, why it was rebuilt, the no-LangChain decision,
+  the Groq Llama 3.3 latency-per-dollar pick, and the public-eval
+  posture. The existing "open-source, AI-first LMS" tagline survives
+  as the italic subtitle directly below.
+- **`/blog`** — new route at `apps/frontend/src/app/blog/page.tsx`.
+  Renders the Workbench section-header pattern + a single
+  `<EmptyState>` until L30 ships the case-study post. Server component
+  for SEO metadata, with a client child for i18n string resolution
+  (matches the app's existing client-only `useT()` pattern). Sitemap
+  updated; `/blog` added at priority 0.5, weekly.
+- 5 new i18n keys (`blog.cartouche`, `blog.title`, `blog.subline`,
+  `blog.empty.title`, `blog.empty.body`) added to `en.ts` + `ar.ts`;
+  parity test still green.
+- New `tests/blog-page.test.tsx` — 2-test smoke spec for the section
+  header + EmptyState. Suite now 51 files / 286 tests.
+
 ### Changed (UI redesign loop 20 — FINAL)
 
 - **Redesign complete.** 20 loops, 41 commits, 194 files changed
