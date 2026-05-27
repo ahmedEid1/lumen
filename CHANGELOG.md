@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (post-redesign loop 29 — landing-page agent-replay hero)
+
+- **Landing page hero** swapped from a static text headline to a
+  two-column layout: left = headline + Try-the-demo / Read-the-evals
+  CTAs; right = a `surface`-bordered "live replay" panel that walks
+  through the canonical SSE event sequence (user → retriever tool
+  row → code_runner tool row → synth bubble + cursor → caption) via
+  pure CSS keyframes. 14s infinite loop.
+- **Reduced-motion**: animations swap to `none` + static composite
+  under `@media (prefers-reduced-motion: reduce)`. The cursor
+  element hides. Per plan-v7 §L29.
+- **Accessibility**: replay panel carries `role="img"` + an
+  `aria-label` that describes the sequence + names the tools. A
+  screen-reader user gets the same information as a sighted user,
+  just static.
+- +5 i18n keys per locale (en + ar) under `home.replayHero*`.
+- +5 frontend tests covering the canonical question, both tool rows,
+  CTA routing, reduced-motion contract, and a11y label.
+
 ### Added (post-redesign loop 28 — /eval/methodology, interview-ready milestone)
 
 - **`/eval/methodology`** — long-form companion to `/eval`. Five

@@ -140,6 +140,15 @@ export const ar: Record<MessageKey, string> = {
   "home.heroTitle1": "سِر في المسار.",
   "home.heroTitle2": "كُن المسار.",
   "home.heroSubline": "دورات حديثة للمهارات التي تحتاجها فعلًا. مشاريع عملية، مجموعات تعلّم مباشرة، شهادات لها معنى.",
+
+  // Landing replay hero (L29)
+  "home.replayHeroBody":
+    "معلم يراقب عمله. إجابات مرفقة بالاستشهادات، استدعاءات أدوات قابلة للمراجعة، تقييمات تستطيع قراءتها. شاهده يفكّر — أو انقر مباشرة.",
+  "home.replayHeroTryDemo": "جرّب العرض",
+  "home.replayHeroPublicEval": "اقرأ التقييمات",
+  "home.replayHeroAriaLabel":
+    "إعادة عرض متحركة للمعلم وهو يجيب على سؤال variance في TypeScript. الأدوات المستخدمة: المسترجِع ومشغّل الشيفرة. مستخدمو وضع الحركة المنخفضة يرون اللقطة النهائية.",
+  "home.replayHeroCaption": "إعادة حيّة · السؤال التجريبي القياسي",
   "home.enterLibrary": "تصفّح الدورات",
   "home.inscribeYourself": "ابدأ مجانًا",
   "home.pillarsCartouche": "لماذا لومِن",

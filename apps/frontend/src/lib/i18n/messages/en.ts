@@ -133,6 +133,15 @@ export const en = {
   "home.heroTitle1": "Take a path.",
   "home.heroTitle2": "Become it.",
   "home.heroSubline": "Modern courses for the skills you actually use. Hands-on projects, live cohorts, certificates that mean something.",
+
+  // Landing replay hero (L29) — animated SSE-replay shown next to the headline
+  "home.replayHeroBody":
+    "An AI tutor that watches its own work. Citation-grounded answers, tool calls you can audit, evals you can read. Watch it think — or just click through.",
+  "home.replayHeroTryDemo": "Try the demo",
+  "home.replayHeroPublicEval": "Read the evals",
+  "home.replayHeroAriaLabel":
+    "Animated replay of the tutor answering a TypeScript variance question. Tools used: retriever and code runner. Reduced-motion users see the final composite.",
+  "home.replayHeroCaption": "Live replay · canonical demo question",
   "home.enterLibrary": "Explore courses",
   "home.inscribeYourself": "Get started — free",
   "home.pillarsCartouche": "Why Lumen",

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { LinkButton } from "@/components/ui/link-button";
 import { CourseCard } from "@/components/course/course-card";
+import { AgentReplayHero } from "@/components/home/agent-replay-hero";
 import type { Page, CourseListItem } from "@/lib/api/types";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
@@ -51,7 +52,7 @@ export function HomeView({ featured }: { featured: Page<CourseListItem> }) {
 
   return (
     <div className="bg-background">
-      <Hero t={t} />
+      <AgentReplayHero />
 
       {/* Pillars — flat surface cards on the page background. Section
           header is a left-aligned label, not a centered claim. */}
@@ -142,39 +143,11 @@ export function HomeView({ featured }: { featured: Page<CourseListItem> }) {
   );
 }
 
-/**
- * Hero — left-aligned 48-72px headline on a flat background. The
- * primary CTA is the screen's single lime accent; the secondary action
- * is a bordered ghost. No mesh, no text-shine, no drift animation.
- */
-function Hero({ t }: { t: ReturnType<typeof useT> }) {
-  return (
-    <section className="border-b border-border">
-      <div className="container mx-auto px-6 py-24 sm:py-32 lg:py-40">
-        <div className="max-w-3xl">
-          <p className="mb-6 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-            {t("home.cartouche")}
-          </p>
-          <h1 className="font-display text-5xl leading-[1.05] tracking-tight sm:text-6xl md:text-7xl">
-            {t("home.heroTitle1")}{" "}
-            <span className="text-muted-foreground">{t("home.heroTitle2")}</span>
-          </h1>
-          <p className="mt-6 max-w-xl font-body text-base leading-relaxed text-muted-foreground sm:text-lg">
-            {t("home.heroSubline")}
-          </p>
-          <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-            <LinkButton href="/courses" size="lg">
-              {t("home.enterLibrary")} <ArrowRight className="ms-1 h-4 w-4" />
-            </LinkButton>
-            <LinkButton href="/register" size="lg" variant="ghost">
-              {t("home.inscribeYourself")}
-            </LinkButton>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
+// L29 — the legacy <Hero/> was replaced by <AgentReplayHero/> which
+// puts the canonical SSE replay next to the headline. The legacy
+// component is retired; the i18n keys it consumed (home.cartouche,
+// home.heroTitle1/2, home.heroSubline) are still in use by the
+// replay hero's left column.
 
 /**
  * Pillar card — flat surface with a mono numeric eyebrow (`01`/`02`/
