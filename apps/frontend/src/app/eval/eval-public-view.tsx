@@ -138,11 +138,19 @@ export function EvalPublicView() {
           {t("eval.suites.heading")}
         </h2>
         {hasPromoted ? (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {promotedSuites.map(([name, summary]) => (
-              <SuiteCard key={name} name={name} summary={summary} />
-            ))}
-          </ul>
+          <>
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {promotedSuites.map(([name, summary]) => (
+                <SuiteCard key={name} name={name} summary={summary} />
+              ))}
+            </ul>
+            <p
+              className="mt-4 font-mono text-[11px] uppercase tracking-wider text-muted-foreground"
+              data-testid="eval-suites-caveat"
+            >
+              {t("eval.suites.caveat")}
+            </p>
+          </>
         ) : (
           <p
             className="font-body text-sm text-muted-foreground"

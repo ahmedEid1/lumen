@@ -109,7 +109,7 @@ jobs:
                    --baseline-model mistral-small-latest \
                    --baseline-key-env MISTRAL_API_KEY \
                    --judge-base https://api.groq.com/openai/v1 \
-                   --judge-model llama-3.1-8b-instant \
+                   --judge-model llama-3.3-70b-versatile \
                    --judge-key-env OPENAI_API_KEY")
 
           # Echo the full output (without the key) for operator

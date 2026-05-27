@@ -865,6 +865,8 @@ export const ar: Record<MessageKey, string> = {
   "eval.sealedRunLive": "جولة مختومة",
   "eval.suites.deltaCaption": "Δ = نتيجة Lumen − نتيجة المنافس؛ الموجب لصالح Lumen",
   "eval.suites.judge": "الحَكَم",
+  "eval.suites.caveat":
+    "قياس v1، عيّنة صغيرة، حَكَم نموذج لغوي واحد. الإشارة الواقعية أهم من هذا الاختبار المصغّر — راجع صفحة المنهجية للقيود.",
   "eval.workedExample.cartouche": "مثال موثّق",
   "eval.workedExample.heading": "السؤال التجريبي القياسي، من البداية إلى النهاية.",
   "eval.workedExample.questionLabel": "السؤال",

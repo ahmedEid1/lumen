@@ -169,12 +169,24 @@ _JUDGE_SYSTEM = (
     "You are an impartial judge scoring an AI tutor's answer to a "
     "programming question. Score on THREE axes from 0.0 to 5.0 "
     "(0=worst, 5=best):\n"
-    "  grounding: does the answer cite concrete sources / lessons?\n"
-    "  accuracy: is the answer factually correct?\n"
-    "  style: is the answer concise + readable + scoped?\n"
+    "  grounding: does the answer ground its claims in CONCRETE "
+    "sources? A bracketed lesson-id token like [L:lsn_abc123] is "
+    "a FIRST-CLASS citation (it points at a specific course "
+    "lesson the answer was retrieved from). Score 5 when the "
+    "answer carries multiple [L:...] tokens or explicit doc "
+    "references. Score 0 when the answer reads like generic LLM "
+    "prose with no anchored references.\n"
+    "  accuracy: is the answer factually correct? Penalise "
+    "hallucinations + flat-wrong claims; a SCOPED answer that "
+    "says 'I don't have material on this' is more accurate "
+    "than a confident wrong one.\n"
+    "  style: is the answer concise + readable + scoped to the "
+    "question? Long rambling answers that drift score lower; a "
+    "focused 3-paragraph answer scores higher than a 10-paragraph "
+    "wall of text.\n"
     "Reply with EXACTLY one JSON object: "
     '{"grounding": <float>, "accuracy": <float>, "style": <float>}. '
-    "No prose."
+    "No prose, no code fences."
 )
 
 

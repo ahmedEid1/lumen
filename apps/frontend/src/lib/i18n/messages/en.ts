@@ -860,6 +860,8 @@ export const en = {
   "eval.suites.deltaCaption":
     "Δ = Lumen score − baseline score; positive favours Lumen",
   "eval.suites.judge": "Judge",
+  "eval.suites.caveat":
+    "v1 measurement, small sample, single LLM-as-judge. Real-world signal beats this microbenchmark — see the methodology page for the caveats.",
   "eval.workedExample.cartouche": "Worked example",
   "eval.workedExample.heading":
     "The canonical demo question, end-to-end.",
