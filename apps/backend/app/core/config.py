@@ -176,6 +176,20 @@ class Settings(BaseSettings):
     # expose a plaintext export.
     notion_token: SecretStr | None = None
 
+    # ---------- Runtime feature flags (L20.5) ----------
+    # Flags exposed via ``GET /api/v1/runtime-flags`` so the frontend
+    # can branch behaviour without a redeploy. L21-Sec adds a Redis-
+    # backed override layer; L20.5 ships only the wire shape (defaults
+    # from this Settings object). New flags should default OFF so a
+    # deploy that lands the code is observable but inert until an
+    # operator opts in.
+    #
+    # ``feature_tutor_streaming`` — gates the SSE streaming endpoint
+    # added in L21a + the streaming-renderer added in L21b. OFF until
+    # L21b's flag-flip PR; until then the existing non-streaming POST
+    # /tutor/conversations/{id}/messages path stays canonical.
+    feature_tutor_streaming: bool = False
+
     # ---------- HIBP (breach-list lookup) ----------
     # Opt-in because (a) it adds a ~200ms external call to register/reset
     # and (b) some deployments don't want any third-party callout. When

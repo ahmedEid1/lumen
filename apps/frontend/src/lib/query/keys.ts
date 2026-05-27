@@ -11,4 +11,5 @@ export const qk = {
   reviewsQueue: ["me", "reviews", "queue"] as const,
   reviewsStats: ["me", "reviews", "stats"] as const,
   mastery: ["me", "mastery"] as const,
+  runtimeFlags: ["runtime-flags"] as const,
 };

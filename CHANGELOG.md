@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 20.5 — TS course + /demo + runtime-flags + ADRs)
+
+- **TypeScript Generics & Variance** — new seeded demo course
+  (`apps/backend/app/seeds/ts_variance_demo.py`, 4 modules / 8 lessons).
+  Designed as the L21+ streaming-tutor demo target: the canonical
+  question (`Type 'string' is not assignable to type 'T'`) has a
+  dedicated lesson the RAG retriever will cite back. Demo learner is
+  auto-enrolled by the parent demo seed.
+- **`/demo`** — one-click deep-link at
+  `apps/frontend/src/app/demo/page.tsx`. Server-side redirect to
+  `/learn/typescript-variance?tutor=open&q=<canonical-question>&lesson=canonical-error`.
+  The learn page now honours `tutor`, `q`, `lesson` URL params on mount
+  (extends `TutorPanel` with an `initialDraft` prop). Anonymous
+  visitors land on the existing sign-in prompt.
+- **`GET /api/v1/runtime-flags`** — public read-only feature-flag
+  endpoint at `apps/backend/app/api/v1/runtime_flags.py`. Returns the
+  values configured in `Settings` (currently `feature_tutor_streaming`,
+  defaults OFF). Anon-readable so the frontend can probe before
+  sign-in. Frontend hook `useRuntimeFlags()` in
+  `apps/frontend/src/lib/runtime-flags.ts` consumes it via TanStack
+  Query with a 60s stale window. The Redis-backed override layer
+  lands in L21-Sec; the L21b flag-flip just toggles the Settings
+  default.
+- **ADR-0017** — Celery worker pool: `prefork` + `worker_concurrency=4`
+  with `asyncio.run()` inside each task; rejects gevent/eventlet for
+  the asyncio-incompat reasons.
+- **ADR-0018** — Redis Streams (XADD/XREAD), not pub/sub, for SSE
+  tutor turn replay. Covers `Last-Event-ID` resume, stale-offset
+  detection via `XRANGE`, MAXLEN cap, and 5-min replay TTL.
+- **ADR-0019** — Atomic phase fence
+  (`UPDATE … SET status='running' WHERE id=:id AND status='pending'
+  RETURNING id`) + `after_commit` Celery enqueue with broker-failure
+  tolerance. The complete L21a job-row lifecycle in one ADR.
+
 ### Added (post-redesign loop 19.5 — founding story + empty blog index)
 
 - **README opener** now leads with the locked founding paragraph

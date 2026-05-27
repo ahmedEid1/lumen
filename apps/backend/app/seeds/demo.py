@@ -512,6 +512,7 @@ async def run() -> None:
             ("Async", "async"),
             ("Data Structures", "data-structures"),
             ("Algorithms", "algorithms"),
+            ("TypeScript", "typescript"),
             ("Demo", "demo"),
         ]
         tags: dict[str, Tag] = {}
@@ -579,6 +580,19 @@ async def run() -> None:
             ],
             difficulty=Difficulty.intermediate,
             modules_spec=DATA_STRUCTURES_MODULES,
+        )
+
+        # L20.5 — TypeScript Generics & Variance course. Designed to be
+        # the live demo target for the canonical "Type 'string' is not
+        # assignable to type 'T'" question. Authored in its own module
+        # so the lesson content stays out of this file's plumbing.
+        from app.seeds.ts_variance_demo import apply as apply_ts_variance
+
+        ts_variance = await apply_ts_variance(
+            db,
+            instructor=instructor,
+            programming=programming,
+            tags=tags,
         )
 
         await _build_course(
@@ -658,12 +672,27 @@ async def run() -> None:
         if existing_intro.scalar_one_or_none() is None:
             db.add(Enrollment(user_id=demo_student.id, course_id=intro_python.id))
 
+        # Also enrol the demo learner in the TS Generics/Variance course
+        # so the /demo deep-link redirect (added in L20.5) lands on a
+        # fully-enrolled state and doesn't bounce back to the catalog.
+        existing_ts = await db.execute(
+            select(Enrollment).where(
+                Enrollment.user_id == demo_student.id,
+                Enrollment.course_id == ts_variance.id,
+            )
+        )
+        if existing_ts.scalar_one_or_none() is None:
+            db.add(Enrollment(user_id=demo_student.id, course_id=ts_variance.id))
+
         await db.commit()
 
     console.print("[green]Demo seed applied[/green]")
     console.print("  • intro-to-python                 (3 demo lessons, every lesson has a quiz)")
     console.print("  • data-structures-essentials      (simulated multi-modal ingest)")
     console.print("  • async-web-apps-fastapi          (AI-tutor demo target)")
+    console.print(
+        f"  • {ts_variance.slug:32s} (L20.5 demo target — canonical TS error)"
+    )
     console.print("  • demo@lumen.test / Demo!2026     (in-flight progress on Data Structures)")
 
 

@@ -59,13 +59,21 @@ export interface TutorPanelProps {
   courseId: string;
   /** Optional override for the host's heading text. */
   heading?: string;
+  /**
+   * L20.5 — optional initial composer text. Used by the `/demo`
+   * deep-link to prefill the canonical demo question (`Type 'string'
+   * is not assignable to type 'T'`) so a recruiter who lands on /demo
+   * sees the question already in the textarea and just hits Send.
+   * Only honoured on mount; later state changes from the user win.
+   */
+  initialDraft?: string;
 }
 
-export function TutorPanel({ courseId, heading }: TutorPanelProps) {
+export function TutorPanel({ courseId, heading, initialDraft }: TutorPanelProps) {
   const t = useT();
   const qc = useQueryClient();
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialDraft ?? "");
   // Local optimistic messages — the user message lands here the
   // moment they hit Send, before the server round-trip lands. The
   // canonical persisted rows come back from the POST response and

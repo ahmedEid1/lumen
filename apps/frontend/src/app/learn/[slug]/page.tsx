@@ -3,7 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -42,12 +42,18 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
   const router = useRouter();
   const qc = useQueryClient();
   const t = useT();
+  const searchParams = useSearchParams();
   const courseQ = useQuery({ queryKey: qk.course(slug), queryFn: () => Courses.get(slug) });
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // The tutor panel mounts in a right-hand column when toggled. We
-  // keep it unmounted by default so the conversation isn't opened
-  // (= no LLM round-trip) until the learner actually asks for it.
-  const [tutorOpen, setTutorOpen] = useState(false);
+  // L20.5 — `/demo` deep-links pass `?tutor=open&q=<question>&lesson=<title-hint>`
+  // so a recruiter who clicks the demo link lands with the AI tutor already
+  // mounted-open + the canonical question prefilled. The lesson hint is a
+  // case-insensitive substring match against lesson titles; the first match
+  // wins. Honoured on mount only — later interactions belong to the user.
+  const tutorParam = searchParams.get("tutor");
+  const initialDraft = searchParams.get("q") ?? undefined;
+  const lessonHint = searchParams.get("lesson") ?? undefined;
+  const [tutorOpen, setTutorOpen] = useState(tutorParam === "open");
 
   const lessons = useMemo(() => {
     if (!courseQ.data) return [];
@@ -56,9 +62,22 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
 
   useEffect(() => {
     if (selectedId) return;
+    // L20.5 — honour the lesson hint from /demo deep-links first. Case-
+    // insensitive substring match against lesson titles; fall back to
+    // pickResumeLessonId so the regular learn flow is unchanged.
+    if (lessonHint && lessons.length > 0) {
+      const normalised = lessonHint.toLowerCase().replace(/[-_]/g, " ");
+      const match = lessons.find((l) =>
+        l.title.toLowerCase().includes(normalised),
+      );
+      if (match) {
+        setSelectedId(match.id);
+        return;
+      }
+    }
     const next = pickResumeLessonId(lessons);
     if (next) setSelectedId(next);
-  }, [lessons, selectedId]);
+  }, [lessons, selectedId, lessonHint]);
 
   // Redirect visitors who aren't enrolled to the course detail page so they
   // can enroll (or preview free lessons) — the server already rejects their
@@ -282,7 +301,7 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
           className="order-3 min-w-0 lg:order-none lg:sticky lg:top-20 lg:h-[calc(100vh-7rem)]"
           aria-label={t("tutor.heading")}
         >
-          <TutorPanel courseId={course.id} />
+          <TutorPanel courseId={course.id} initialDraft={initialDraft} />
         </aside>
       )}
     </div>

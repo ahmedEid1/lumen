@@ -674,3 +674,13 @@ export const Tutor = {
     ),
 };
 
+// ---------- Runtime flags (L20.5) ----------
+
+export interface RuntimeFlags {
+  tutor_streaming: boolean;
+}
+
+export const RuntimeFlagsApi = {
+  get: () => api<RuntimeFlags>("/api/v1/runtime-flags"),
+};
+

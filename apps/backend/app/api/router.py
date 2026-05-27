@@ -25,6 +25,7 @@ from app.api.v1 import (
     notifications,
     reviews,
     reviews_queue,
+    runtime_flags,
     search,
     tutor,
     uploads,
@@ -89,3 +90,7 @@ api_router.include_router(tutor.router, tags=["tutor"])
 # generation. All four endpoints share the ``/studio/ai`` prefix and
 # the per-user 5/minute rate limit declared inside the module.
 api_router.include_router(ai_authoring.router, prefix="/studio", tags=["studio-ai"])
+# L20.5 — Public runtime-flags read endpoint. Anon-readable so the
+# frontend can probe before sign-in. Currently reads from Settings;
+# L21-Sec adds a Redis-backed override layer for live flag-flips.
+api_router.include_router(runtime_flags.router, tags=["runtime-flags"])
