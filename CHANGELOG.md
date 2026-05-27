@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 23 — cost-cap closing CTA)
+
+- **`<CostCapClosingCta />`** (`apps/frontend/src/components/tutor/cost-cap-closing-cta.tsx`)
+  — recruiter-friendly closing surface that fires on a cost-cap
+  error (`llm.budget_exceeded`, `tutor.user_cap`,
+  `tutor.ip_cap`, `tutor.global_cap`). Wallet icon + locked copy
+  explaining the demo runs on a real budget; optional reset-timer
+  line; mailto-CTA + optional Calendly. `role="alert"`.
+- **`isCostCapError(err)`** helper — type-checker that introspects
+  either the structured `code` field or a snake-case match against
+  `Error.message` (the API client currently surfaces the message
+  string; structured codes coming later).
+- Wired into both `LegacyTutorPanel` and `StreamingTutorPanel`:
+  cost-cap errors suppress the sonner toast and render the CTA
+  inline (one focused surface, not two). Stream-time failures also
+  branch on `isCostCapError(stream.error)`.
+- +12 new i18n keys (en + ar) under `tutor.costCap.*`.
+
 ### Added (post-redesign loop 22 — chip rail + Tools-used label + RTL fix)
 
 - **Demo-question chip rail** (`demo-question-chip-rail.tsx`) above

@@ -847,6 +847,16 @@ export const ar: Record<MessageKey, string> = {
   "tutor.suggested.heading": "أسئلة مقترحة",
   "tutor.suggested.canonicalLabel": "جرّب السؤال التجريبي القياسي",
 
+  // Cost-cap closing CTA (L23)
+  "tutor.costCap.cartouche": "تم بلوغ ميزانية العرض التوضيحي",
+  "tutor.costCap.headline":
+    "لقد استنفذت حصتك من ميزانية العرض التوضيحي اليوم.",
+  "tutor.costCap.body":
+    "Lumen يعمل بميزانية حقيقية لنموذج اللغة — كل دور يكلّف بضع سنتات والعرض يضع سقفًا للحفاظ على الاستقرار. حاول لاحقًا أو تواصل مباشرة.",
+  "tutor.costCap.resetsIn": "تُعاد التهيئة خلال ~{hours}س",
+  "tutor.costCap.emailMe": "راسلني",
+  "tutor.costCap.bookCall": "احجز مكالمة",
+
   // Blog
   "blog.cartouche": "ملاحظات ميدانية",
   "blog.title": "ملاحظات من بناء Lumen",

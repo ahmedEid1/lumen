@@ -840,6 +840,16 @@ export const en = {
   "tutor.suggested.heading": "Suggested questions",
   "tutor.suggested.canonicalLabel": "Try the canonical demo question",
 
+  // Cost-cap closing CTA (L23 — fires when the demo budget is exhausted)
+  "tutor.costCap.cartouche": "Demo budget reached",
+  "tutor.costCap.headline":
+    "You’ve used today’s share of the demo budget.",
+  "tutor.costCap.body":
+    "This is Lumen running on a real LLM budget — each turn costs a few cents and the demo caps spend so it can survive a hug of death. Try again later, or get in touch directly.",
+  "tutor.costCap.resetsIn": "Resets in ~{hours}h",
+  "tutor.costCap.emailMe": "Email me",
+  "tutor.costCap.bookCall": "Book a call",
+
   // Blog (L19.5 — empty index; posts arrive with L30 case-study work)
   "blog.cartouche": "Field notes",
   "blog.title": "Notes from building Lumen",

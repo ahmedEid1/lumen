@@ -13,6 +13,10 @@ import {
 import { StreamingTutorPanel } from "@/components/tutor/streaming-tutor-panel";
 import { DemoQuestionChipRail } from "@/components/tutor/demo-question-chip-rail";
 import {
+  CostCapClosingCta,
+  isCostCapError,
+} from "@/components/tutor/cost-cap-closing-cta";
+import {
   Tutor,
   type TutorConversationDetail,
   type TutorMessageOut,
@@ -178,8 +182,18 @@ function LegacyTutorPanel({ courseId, heading, initialDraft, courseSlug }: Tutor
         queryKey: ["tutor", "conversation", conversationId],
       });
     },
-    onError: (e: Error) => toast.error(e?.message ?? t("tutor.sendError")),
+    onError: (e: Error) => {
+      // L23 — cost-cap errors render an inline closing CTA below the
+      // composer; suppress the toast in that case so the user sees
+      // one focused surface instead of two.
+      if (!isCostCapError(e)) {
+        toast.error(e?.message ?? t("tutor.sendError"));
+      }
+    },
   });
+
+  // L23 — bubble a cost-cap POST error into the inline CTA path.
+  const sendErrCostCap = sendMut.isError && isCostCapError(sendMut.error);
 
   // Auto-scroll to the latest turn whenever messages change.
   useEffect(() => {
@@ -233,7 +247,9 @@ function LegacyTutorPanel({ courseId, heading, initialDraft, courseSlug }: Tutor
         </Button>
       </div>
 
-      {empty && (
+      {sendErrCostCap && <CostCapClosingCta />}
+
+      {empty && !sendErrCostCap && (
         <DemoQuestionChipRail
           courseSlug={courseSlug}
           onPick={(prompt) => handleSend(prompt)}

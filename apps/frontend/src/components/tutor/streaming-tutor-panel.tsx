@@ -29,6 +29,10 @@ import { useT } from "@/lib/i18n/provider";
 import { useAuth } from "@/lib/auth/store";
 import { useTutorStream } from "@/lib/tutor/use-tutor-stream";
 import { DemoQuestionChipRail } from "@/components/tutor/demo-question-chip-rail";
+import {
+  CostCapClosingCta,
+  isCostCapError,
+} from "@/components/tutor/cost-cap-closing-cta";
 
 export interface StreamingTutorPanelProps {
   courseId: string;
@@ -82,9 +86,19 @@ export function StreamingTutorPanel({
       setDraft("");
     },
     onError: (err: Error) => {
-      toast.error(err.message || t("tutor.sendError"));
+      // Cost-cap errors render the closing CTA inline; suppress the
+      // toast in that case so the user sees one focused surface.
+      if (!isCostCapError(err)) {
+        toast.error(err.message || t("tutor.sendError"));
+      }
     },
   });
+
+  // L23 — bubble POST-time cost-cap errors into the inline closing
+  // CTA. The stream-time errors are already handled via the
+  // `stream.phase === "failed"` branch below.
+  const postTimeCostCap =
+    sendMut.isError && isCostCapError(sendMut.error);
 
   const isInFlight =
     sendMut.isPending ||
@@ -131,7 +145,9 @@ export function StreamingTutorPanel({
         className="min-h-[280px] flex-1 space-y-4 overflow-y-auto p-4"
         data-testid="streaming-tutor-messages"
       >
-        {!sentPrompt && (
+        {postTimeCostCap && <CostCapClosingCta />}
+
+        {!sentPrompt && !postTimeCostCap && (
           <div className="flex flex-col items-start gap-2 py-6 font-body text-sm text-muted-foreground">
             <Sparkles className="h-4 w-4 text-primary" aria-hidden />
             <p>{t("tutor.emptyPrompt")}</p>
@@ -199,11 +215,13 @@ export function StreamingTutorPanel({
               </div>
             )}
 
-            {stream.phase === "failed" && (
+            {stream.phase === "failed" && isCostCapError(stream.error) ? (
+              <CostCapClosingCta />
+            ) : stream.phase === "failed" ? (
               <p className="font-body text-sm text-destructive" role="alert">
                 {t("tutor.sendError")} ({stream.error ?? "unknown"})
               </p>
-            )}
+            ) : null}
 
             {stream.phase === "trim" && (
               <p className="font-body text-sm text-muted-foreground" role="status">
