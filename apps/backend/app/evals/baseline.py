@@ -113,12 +113,19 @@ class BaselineItem:
     surface only needs aggregate deltas, not per-item detail). Each
     item carries the question + the canonical lesson IDs the
     grounded answer SHOULD cite — the judge keys grounding off that.
+
+    L41-followup: ``course_slug`` enables the primary side to route
+    through Lumen's actual orchestrator (with pgvector retrieval +
+    multi-agent + ``[L:id]`` citation grounding) instead of a bare
+    chat call. None means the runner falls back to bare chat for
+    that item (e.g. non-tutor suites without a course context).
     """
 
     item_id: str
     question: str
     expected_lesson_ids: tuple[str, ...] = ()
     expected_tool_path: tuple[str, ...] = ()
+    course_slug: str | None = None
 
 
 async def run_one_item(

@@ -89,6 +89,82 @@ async def _ask(
     return text, (), latency_ms, 0.0
 
 
+async def _ask_via_orchestrator(
+    question: str,
+    course_slug: str,
+    *,
+    eval_user_id: str,
+) -> tuple[str, tuple[str, ...], int, float]:
+    """L41-followup — route the question through Lumen's full
+    orchestrator: pgvector retrieval against the course's lesson
+    chunks → multi-agent dispatch (planner / retriever /
+    code_runner / etc.) → synthesiser with the [L:<id>] citation
+    contract.
+
+    This is the "fair fight" comparison: Lumen-with-its-scaffolding
+    vs the baseline LLM's bare chat. The bare-Lumen variant (just
+    Llama 3.3 alone via the OpenAI-compat endpoint) is the wrong
+    apples-to-apples — Lumen's edge IS the orchestrator.
+
+    Returns the standard (answer_text, tool_path, latency_ms,
+    cost_usd) tuple. tool_path comes from `OrchestratorResult.tool_calls_made`;
+    cost is left at 0 (the H1 meter logs it to llm_calls separately).
+    """
+    from sqlalchemy import select
+
+    from app.db.base import get_sessionmaker
+    from app.models.course import Course
+    from app.services import tutor as tutor_service
+
+    Session = get_sessionmaker()
+    async with Session() as db:
+        course_row = await db.execute(select(Course).where(Course.slug == course_slug))
+        course = course_row.scalar_one_or_none()
+        if course is None:
+            raise ValueError(f"course not found for slug={course_slug!r}")
+
+        t0 = time.monotonic()
+        result, orch = await tutor_service.ask_with_trace(
+            db,
+            course=course,
+            user_message=question,
+            conversation_history=[],
+            user_id=eval_user_id,
+            feature="eval.baseline.primary",
+        )
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        tool_path = tuple(tc.tool_name for tc in orch.tool_calls_made)
+        return result.answer, tool_path, latency_ms, 0.0
+
+
+async def _resolve_eval_user_id() -> str:
+    """Find a real user id to attribute the eval traces to. Prefers
+    the seeded student account, falls back to any active student,
+    then admin. The orchestrator's H1 cost meter + retrieval audit
+    rows want a real user id (not None); the user's identity
+    doesn't change scoring."""
+    from sqlalchemy import select
+
+    from app.db.base import get_sessionmaker
+    from app.models.user import Role, User
+
+    Session = get_sessionmaker()
+    async with Session() as db:
+        for email in ("student@lumen.test", "demo@lumen.test"):
+            row = await db.execute(select(User.id).where(User.email == email))
+            user_id = row.scalar_one_or_none()
+            if user_id:
+                return user_id
+        # Last resort — any student.
+        row = await db.execute(select(User.id).where(User.role == Role.student).limit(1))
+        user_id = row.scalar_one_or_none()
+        if user_id:
+            return user_id
+        raise RuntimeError(
+            "No eval user found — run `demo-seed` first so student@lumen.test exists."
+        )
+
+
 _JUDGE_SYSTEM = (
     "You are an impartial judge scoring an AI tutor's answer to a "
     "programming question. Score on THREE axes from 0.0 to 5.0 "
@@ -157,6 +233,18 @@ def run(
     primary_base: str = typer.Option(..., "--primary-base"),
     primary_key_env: str = typer.Option("GROQ_API_KEY", "--primary-key-env"),
     primary_model: str = typer.Option(..., "--primary-model"),
+    primary_mode: str = typer.Option(
+        "orchestrator",
+        "--primary-mode",
+        help=(
+            "How to drive the primary side. `orchestrator` (default) "
+            "routes through Lumen's full multi-agent + pgvector "
+            "retrieval pipeline (the fair Lumen-with-its-scaffolding "
+            "comparison). `bare` calls the LLM endpoint directly "
+            "(useful for sanity-checking raw model quality vs the "
+            "baseline without the orchestrator)."
+        ),
+    ),
     baseline: str = typer.Option(..., "--baseline"),
     baseline_base: str = typer.Option("https://api.mistral.ai/v1", "--baseline-base"),
     baseline_key_env: str = typer.Option("MISTRAL_API_KEY", "--baseline-key-env"),
@@ -169,6 +257,8 @@ def run(
     """Drive the L36 `run_comparison` against real providers + write a JSONL report."""
     if suite not in SUITES:
         raise typer.BadParameter(f"--suite must be one of {list(SUITES)}")
+    if primary_mode not in ("orchestrator", "bare"):
+        raise typer.BadParameter("--primary-mode must be 'orchestrator' or 'bare'")
 
     primary_key = os.environ.get(primary_key_env, "")
     baseline_key = os.environ.get(baseline_key_env, "")
@@ -192,12 +282,33 @@ def run(
         BaselineItem(
             item_id=str(getattr(r, "id", None) or f"item-{i}"),
             question=str(getattr(r, "question", None) or getattr(r, "prompt", "") or ""),
+            course_slug=getattr(r, "course_slug", None),
         )
         for i, r in enumerate(raw)
     ]
 
+    # Map question text → BaselineItem so the answer_fn closure
+    # (which receives only `question` per the L36 signature) can
+    # recover the per-item course_slug for the orchestrator path.
+    by_question: dict[str, BaselineItem] = {item.question: item for item in items}
+
+    eval_user_id: str | None = None
+    if primary_mode == "orchestrator":
+        eval_user_id = asyncio.run(_resolve_eval_user_id())
+        typer.echo(f"primary-mode=orchestrator (eval user id={eval_user_id})")
+    else:
+        typer.echo("primary-mode=bare (raw LLM endpoint; no retrieval)")
+
     async def answer_fn(question: str, provider_name: str):
         if provider_name == primary:
+            if primary_mode == "orchestrator":
+                item = by_question.get(question)
+                course_slug = item.course_slug if item else None
+                if course_slug and eval_user_id:
+                    return await _ask_via_orchestrator(
+                        question, course_slug, eval_user_id=eval_user_id
+                    )
+                # Fallback for items without a course context.
             return await _ask(
                 question, api_base=primary_base, api_key=primary_key, model=primary_model
             )
