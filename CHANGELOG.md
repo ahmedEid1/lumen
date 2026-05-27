@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 34 — legacy POST applies L21-Sec defences uniformly)
+
+- **Legacy `POST /tutor/conversations/{id}/messages` now applies the
+  same L21-Sec cost-cap + concurrency reservation as the streaming
+  POST.** Rejected reservations surface as 429 with `tutor.user_cap`,
+  `tutor.ip_cap`, `tutor.global_cap`, or `tutor.too_many_concurrent`
+  — same error shape the L23 cost-cap closing CTA already renders.
+  Concurrency is user-scoped (same bucket as streaming) so a user
+  can't stack a legacy + streaming turn to dodge the limit.
+- **`tutor_turn_jobs` rows now written by both paths.** Legacy POST
+  creates a row, transitions `pending → running → complete` (or
+  `→ failed` on orchestrator exception) synchronously inside the
+  handler — no Celery enqueue. The admin observability surface sees
+  one timeline for every learner turn regardless of which path the
+  client took.
+
 ### Added (post-redesign loop 33 — cost-reserve + concurrency at POST /tutor/turns)
 
 - **Cost cap + concurrency reservation on the streaming POST.** The

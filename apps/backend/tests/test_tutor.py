@@ -608,6 +608,117 @@ async def test_post_message_persists_user_turn_even_when_refused(
     ]
 
 
+async def test_legacy_post_429_when_user_cost_cap_hit(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, monkeypatch
+) -> None:
+    """L34 — the legacy POST now applies the same L21-Sec cost-cap as
+    the streaming POST. A user_cap rejection surfaces as 429
+    `tutor.user_cap` (same error code the frontend's
+    `isCostCapError` keys off, so the cost-cap closing CTA renders
+    on legacy turns too)."""
+    from unittest.mock import AsyncMock, patch
+
+    teacher = await auth_headers(role=Role.instructor)
+    course_id = await _course_via_api(
+        client, teacher, db_session, lesson_bodies=[("L", "B. " * 20)]
+    )
+    learner = await auth_headers(role=Role.student)
+    new = await client.post(f"/api/v1/courses/{course_id}/tutor/conversations", headers=learner)
+    conv_id = new.json()["id"]
+
+    # Make reserve_cost reject with `user_cap`. check_concurrency
+    # passes (default) so the test exercises the cost-cap branch
+    # specifically.
+    with (
+        patch(
+            "app.api.v1.tutor.check_concurrency",
+            new=AsyncMock(return_value=(True, 0)),
+        ),
+        patch(
+            "app.api.v1.tutor.reserve_cost",
+            new=AsyncMock(return_value=(False, "user_cap")),
+        ),
+        patch("app.api.v1.tutor.release_concurrency", new=AsyncMock(return_value=0)),
+    ):
+        r = await client.post(
+            f"/api/v1/tutor/conversations/{conv_id}/messages",
+            json={"content": "anything"},
+            headers=learner,
+        )
+    assert r.status_code == 429, r.text
+    assert r.json()["error"]["code"] == "tutor.user_cap"
+
+
+async def test_legacy_post_429_when_concurrency_cap_hit(
+    client: AsyncClient, auth_headers, db_session: AsyncSession
+) -> None:
+    """L34 — concurrency cap rejection on legacy POST → 429
+    `tutor.too_many_concurrent`. Concurrency is user-scoped so a user
+    can't stack a legacy + streaming turn to dodge the limit."""
+    from unittest.mock import AsyncMock, patch
+
+    teacher = await auth_headers(role=Role.instructor)
+    course_id = await _course_via_api(
+        client, teacher, db_session, lesson_bodies=[("L", "B. " * 20)]
+    )
+    learner = await auth_headers(role=Role.student)
+    new = await client.post(f"/api/v1/courses/{course_id}/tutor/conversations", headers=learner)
+    conv_id = new.json()["id"]
+
+    with patch(
+        "app.api.v1.tutor.check_concurrency",
+        new=AsyncMock(return_value=(False, 3)),
+    ):
+        r = await client.post(
+            f"/api/v1/tutor/conversations/{conv_id}/messages",
+            json={"content": "q"},
+            headers=learner,
+        )
+    assert r.status_code == 429, r.text
+    assert r.json()["error"]["code"] == "tutor.too_many_concurrent"
+
+
+async def test_legacy_post_writes_tutor_turn_jobs_row(
+    client: AsyncClient, auth_headers, db_session: AsyncSession
+) -> None:
+    """L34 — both legacy + streaming paths now write tutor_turn_jobs
+    rows so the admin observability surface sees both. On the legacy
+    path the row transitions running → complete synchronously
+    (no Celery)."""
+    from app.models.tutor_turn_job import TURN_STATUS_COMPLETE, TutorTurnJob
+
+    teacher = await auth_headers(role=Role.instructor)
+    course_id = await _course_via_api(
+        client, teacher, db_session, lesson_bodies=[("L", "B. " * 20)]
+    )
+    learner = await auth_headers(role=Role.student)
+    new = await client.post(f"/api/v1/courses/{course_id}/tutor/conversations", headers=learner)
+    conv_id = new.json()["id"]
+
+    r = await client.post(
+        f"/api/v1/tutor/conversations/{conv_id}/messages",
+        json={"content": "anything"},
+        headers=learner,
+    )
+    assert r.status_code == 201, r.text
+
+    rows = (
+        (
+            await db_session.execute(
+                select(TutorTurnJob).where(TutorTurnJob.conversation_id == conv_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # One row per turn. Status is terminal (complete) since the
+    # legacy path is synchronous — no Celery enqueue.
+    assert len(rows) == 1
+    assert rows[0].status == TURN_STATUS_COMPLETE
+    assert rows[0].course_id == course_id
+    assert rows[0].user_message == "anything"
+
+
 async def test_start_conversation_requires_auth(
     client: AsyncClient, auth_headers, db_session: AsyncSession
 ) -> None:

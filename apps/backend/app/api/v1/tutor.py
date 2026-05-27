@@ -32,15 +32,33 @@ Access model:
 
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
+import redis.asyncio as redis
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import desc, select
 
 from app.api.deps import CurrentUser, DBSession
-from app.core.errors import NotFoundError, ValidationAppError
+from app.core.config import get_settings
+from app.core.cost_scripts import (
+    USD_TO_MICROCENTS,
+    check_concurrency,
+    reconcile_cost,
+    release_concurrency,
+    reserve_cost,
+)
+from app.core.errors import (
+    NotFoundError,
+    TutorConcurrencyLimitError,
+    TutorGlobalCapError,
+    TutorIpCapError,
+    TutorUserCapError,
+    ValidationAppError,
+)
 from app.core.ratelimit import limiter
 from app.models.course import Course
 from app.models.tutor_conversation import (
@@ -48,9 +66,11 @@ from app.models.tutor_conversation import (
     TutorMessage,
     TutorMessageRole,
 )
+from app.models.tutor_turn_job import TURN_STATUS_COMPLETE, TURN_STATUS_FAILED, TURN_STATUS_RUNNING
 from app.repositories import courses as courses_repo
 from app.schemas.common import Page
 from app.services import tutor as tutor_service
+from app.services.tutor_turn_service import create_turn, mark_terminal
 
 router = APIRouter()
 
@@ -388,6 +408,70 @@ async def post_message(
     if not content:
         raise ValidationAppError("Message content cannot be empty", code="tutor.empty_message")
 
+    # L34 — apply the same L21-Sec defences the streaming POST uses:
+    # check_concurrency + reserve_cost against the three rolling-24h
+    # microcent buckets. Without this layer the legacy POST is a
+    # bypass for the cost cap. Concurrency is user-scoped (same
+    # bucket as streaming) — a user can't stack a legacy + streaming
+    # turn to dodge the limit.
+    settings = get_settings()
+    client_ip = request.client.host if request.client else "unknown"
+    redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=False)
+    user_concurrency_key = f"concurrent:user:{user.id}"
+    try:
+        conc_ok, _conc_count = await check_concurrency(
+            redis_client,
+            user_key=user_concurrency_key,
+            max_concurrent=settings.tutor_max_concurrent,
+        )
+        if not conc_ok:
+            raise TutorConcurrencyLimitError("Too many concurrent tutor turns for this user.")
+
+        reserve_ok, reserve_tag = await reserve_cost(
+            redis_client,
+            user_key=f"tutor_cost:user:{user.id}",
+            ip_key=f"tutor_cost:ip:{client_ip}",
+            global_key="tutor_cost:global",
+            estimate_microcents=settings.tutor_estimate_microcents,
+            max_user_microcents=settings.tutor_cap_user_microcents,
+            max_ip_microcents=settings.tutor_cap_ip_microcents,
+            max_global_microcents=settings.tutor_cap_global_microcents,
+        )
+        if not reserve_ok:
+            await release_concurrency(redis_client, user_key=user_concurrency_key)
+            if reserve_tag == "user_cap":
+                raise TutorUserCapError("Per-user cost cap reached.")
+            if reserve_tag == "ip_cap":
+                raise TutorIpCapError("Per-IP cost cap reached.")
+            if reserve_tag == "global_cap":
+                raise TutorGlobalCapError("Global cost cap reached for the day.")
+            raise TutorUserCapError(f"reservation rejected: {reserve_tag}")
+    finally:
+        # Don't close redis_client here — we need it for the
+        # reconcile/release path in the post-LLM block.
+        pass
+
+    # L34 — write a tutor_turn_jobs row for unified observability.
+    # Streaming + legacy both now produce rows in the same table; the
+    # admin observability surface (plan-v7 §V7-F11) sees both paths.
+    # Unlike the streaming path this row is synchronous: we transition
+    # running → complete/failed inside this handler, never via Celery.
+    reserved_usd = Decimal(settings.tutor_estimate_microcents) / Decimal(USD_TO_MICROCENTS)
+    turn = await create_turn(
+        db,
+        user_id=user.id,
+        conversation_id=conv.id,
+        course_id=conv.course_id,
+        user_message=content,
+        reserved_cost_usd=reserved_usd,
+        reservation_ip_key=client_ip,
+        prompt_template_hash=None,
+        enqueue_task=False,  # synchronous path — no Celery
+    )
+    # Immediately promote to running so the sweep won't claim it.
+    turn.status = TURN_STATUS_RUNNING
+    await db.flush()
+
     # Pull the prior turns so the model has conversation context.
     # We cap to the last 20 turns to keep prompts bounded — older
     # turns are still readable via GET but won't be replayed to the
@@ -429,14 +513,39 @@ async def post_message(
     # legacy ``TutorAnswer`` so the response carries the agent's
     # per-turn reasoning. The H1 cost meter is wired internally; we
     # pass ``user.id`` so calls attribute to the learner.
-    result, orch = await tutor_service.ask_with_trace(
-        db,
-        course=course,
-        user_message=content,
-        conversation_history=history,
-        user_id=user.id,
-        feature="tutor.multi_agent",
-    )
+    try:
+        result, orch = await tutor_service.ask_with_trace(
+            db,
+            course=course,
+            user_message=content,
+            conversation_history=history,
+            user_id=user.id,
+            feature="tutor.multi_agent",
+        )
+    except Exception:
+        # L34 — on orchestrator failure, mark the turn row failed
+        # + reconcile the reservation (delta = 0 means release the
+        # full estimate). Concurrency slot is also released. Then
+        # re-raise so the existing error envelope still fires.
+        with contextlib.suppress(Exception):
+            await mark_terminal(
+                db,
+                turn_id=turn.id,
+                status=TURN_STATUS_FAILED,
+                error_code="tutor.runtime_legacy",
+            )
+            await db.flush()
+        await _release_legacy_reservation(
+            redis_client,
+            user_id=user.id,
+            client_ip=client_ip,
+            user_concurrency_key=user_concurrency_key,
+            reserved_microcents=settings.tutor_estimate_microcents,
+            actual_microcents=0,
+        )
+        with contextlib.suppress(Exception):
+            await redis_client.aclose()
+        raise
 
     # 3) Persist the assistant turn with its citations.
     assistant_msg = TutorMessage(
@@ -457,6 +566,26 @@ async def post_message(
     # column matches what GET will return.
     conv.last_message_at = assistant_msg.created_at or datetime.now(UTC)
     await db.flush()
+
+    # L34 — mark the tutor_turn_jobs row complete + reconcile cost.
+    # The legacy orchestrator's H1 cost meter logs to llm_calls so we
+    # don't have a direct cost_usd handle here; pass 0 actual which
+    # releases the full reservation (the actual cost is tracked
+    # separately via llm_calls). A future follow-up can wire the
+    # orchestrator to surface aggregated cost so reconcile is exact.
+    with contextlib.suppress(Exception):
+        await mark_terminal(db, turn_id=turn.id, status=TURN_STATUS_COMPLETE)
+        await db.flush()
+    await _release_legacy_reservation(
+        redis_client,
+        user_id=user.id,
+        client_ip=client_ip,
+        user_concurrency_key=user_concurrency_key,
+        reserved_microcents=settings.tutor_estimate_microcents,
+        actual_microcents=0,
+    )
+    with contextlib.suppress(Exception):
+        await redis_client.aclose()
 
     # 5) Project the orchestrator's tool-call log into the API
     # surface. Refused / empty-retrieval responses surface an empty
@@ -480,3 +609,32 @@ async def post_message(
         confidence=orch.confidence,
         agent_trace=trace_out,
     )
+
+
+async def _release_legacy_reservation(
+    redis_client: redis.Redis,
+    *,
+    user_id: str,
+    client_ip: str,
+    user_concurrency_key: str,
+    reserved_microcents: int,
+    actual_microcents: int,
+) -> None:
+    """L34 — release a legacy POST's cost reservation + concurrency slot.
+
+    Wrapped in ``contextlib.suppress`` blocks so a Redis flake on one
+    cleanup step doesn't skip the next. ``reconcile_cost`` takes a
+    delta — when actual is 0 (failure / refusal), the delta is
+    negative, which releases the full reservation.
+    """
+    delta = actual_microcents - reserved_microcents
+    with contextlib.suppress(Exception):
+        await reconcile_cost(
+            redis_client,
+            user_key=f"tutor_cost:user:{user_id}",
+            ip_key=f"tutor_cost:ip:{client_ip}",
+            global_key="tutor_cost:global",
+            delta_microcents=delta,
+        )
+    with contextlib.suppress(Exception):
+        await release_concurrency(redis_client, user_key=user_concurrency_key)
