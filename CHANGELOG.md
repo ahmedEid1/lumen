@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign bundle L35-L38 — mobile Sheet + baseline runner + Anthropic streaming + Sentry)
+
+- **Mobile bottom-Sheet for the tutor panel** on `/learn/[slug]` —
+  SSR-safe `useMediaQuery` hook (`useSyncExternalStore`-backed) gates
+  the inline aside vs. the Sheet so only one panel mounts at a time.
+  Re-lands L24's tablet/mobile pass without the dual-mount that broke
+  Playwright strict mode in L31.
+- **Baseline-comparison runner** (`app/evals/baseline.py:run_comparison`,
+  `run_one_item`). L25 shipped the score primitives; L36 adds the
+  side-by-side loop. Caller plugs in `answer_fn` + `score_fn` closures,
+  so tests pin determinism while the operator path drives real
+  providers.
+- **Anthropic streaming in `app/services/llm_stream.py`**. Replaces the
+  `NotImplementedError` branch with `client.messages.stream()` →
+  `text_stream` async iterator → `get_final_message()` for usage. Same
+  `StreamChunk` contract as the OpenAI path; cost via the shared
+  pricing helper.
+- **Frontend Sentry (`@sentry/nextjs` 8.x)** — three runtime configs
+  (`sentry.client.config.ts`, `.server.config.ts`, `.edge.config.ts`),
+  shared `beforeSendScrub` mirroring the backend's L21-Sec scrubber
+  (tutor-category breadcrumbs, `/api/v1/tutor/*` request bodies,
+  high-risk stacktrace vars, exception messages). DSN-less builds are
+  no-ops; operators add `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_DSN` to
+  light it up. `next.config.ts` wrapped with `withSentryConfig`.
+
 ### Added (post-redesign loop 34 — legacy POST applies L21-Sec defences uniformly)
 
 - **Legacy `POST /tutor/conversations/{id}/messages` now applies the

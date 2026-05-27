@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const config: NextConfig = {
   reactStrictMode: true,
@@ -54,4 +55,17 @@ const config: NextConfig = {
   },
 };
 
-export default config;
+// L38 — wrap with Sentry's plugin. The runtime
+// sentry.{client,server,edge}.config.ts files short-circuit when the
+// DSN env var is unset, so dev/test builds (no DSN) get a no-op
+// Sentry. The plugin itself is safe to call without a DSN — it just
+// won't upload source maps. Operators add SENTRY_DSN + (optionally)
+// SENTRY_AUTH_TOKEN to .env.production to start receiving events.
+const sentryWebpackPluginOptions = {
+  silent: true,
+  widenClientFileUpload: false,
+  hideSourceMaps: true,
+  disableLogger: true,
+};
+
+export default withSentryConfig(config, sentryWebpackPluginOptions);

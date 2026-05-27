@@ -100,3 +100,92 @@ def aggregate_pairs(pairs: list[BaselinePair]) -> dict[str, float]:
 # the name through so callers from the eval CLI don't need to
 # reconstruct the provider per call.
 SupportedProvider = Literal["anthropic", "openai", "noop"]
+
+
+# ---------- L36 — real comparison runner ----------
+
+
+@dataclass(frozen=True)
+class BaselineItem:
+    """One question to evaluate side-by-side.
+
+    The dataset stays small (10 items targeted; the public /eval
+    surface only needs aggregate deltas, not per-item detail). Each
+    item carries the question + the canonical lesson IDs the
+    grounded answer SHOULD cite — the judge keys grounding off that.
+    """
+
+    item_id: str
+    question: str
+    expected_lesson_ids: tuple[str, ...] = ()
+    expected_tool_path: tuple[str, ...] = ()
+
+
+async def run_one_item(
+    item: BaselineItem,
+    *,
+    provider_name: str,
+    answer_fn,
+    score_fn,
+) -> BaselineScore:
+    """Run a single item against one provider + score the result.
+
+    Caller plugs in:
+    - ``answer_fn(question, provider_name) -> (answer_text, tool_path, latency_ms, cost_usd)``
+      Lets tests pass a stub without spinning up the orchestrator.
+    - ``score_fn(item, answer_text, tool_path) -> (grounding, accuracy, style)``
+      Lets tests pass a deterministic scorer instead of an LLM judge.
+
+    Keeping both as parameters means the same `run_one_item` function
+    works for the noop smoke path AND the eventual real-LLM
+    comparison once budget is allocated — only the closures change.
+    """
+    answer_text, tool_path, latency_ms, cost_usd = await answer_fn(item.question, provider_name)
+    grounding, accuracy, style = await score_fn(item, answer_text, tool_path)
+    return BaselineScore(
+        provider=provider_name,
+        grounding=grounding,
+        accuracy=accuracy,
+        style=style,
+        tool_path=tuple(tool_path),
+        latency_ms=int(latency_ms),
+        cost_usd=float(cost_usd),
+    )
+
+
+async def run_comparison(
+    items: list[BaselineItem],
+    *,
+    primary: str,
+    baseline: str,
+    answer_fn,
+    score_fn,
+) -> list[BaselinePair]:
+    """Run the full dataset against `primary` and `baseline` providers.
+
+    Returns one BaselinePair per item with per-axis deltas computed.
+    Callers serialise this to JSONL for the /eval surface; the
+    aggregate is `aggregate_pairs(pairs)`.
+
+    Cost guard: ``answer_fn`` is expected to report cost_usd; the
+    caller should short-circuit once the cumulative cost crosses
+    their budget (this function doesn't enforce a budget itself —
+    the caller's runtime knows what's affordable).
+    """
+    pairs: list[BaselinePair] = []
+    for item in items:
+        primary_score = await run_one_item(
+            item, provider_name=primary, answer_fn=answer_fn, score_fn=score_fn
+        )
+        baseline_score = await run_one_item(
+            item, provider_name=baseline, answer_fn=answer_fn, score_fn=score_fn
+        )
+        pairs.append(
+            BaselinePair(
+                item_id=item.item_id,
+                primary=primary_score,
+                baseline=baseline_score,
+                deltas=compute_deltas(primary_score, baseline_score),
+            )
+        )
+    return pairs

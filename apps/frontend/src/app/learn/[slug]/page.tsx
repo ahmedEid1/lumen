@@ -20,7 +20,9 @@ import { Courses, Me } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { LessonPlayer } from "@/components/lesson/lesson-player";
 import { TutorPanel } from "@/components/tutor/tutor-panel";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/lib/auth/store";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { useT } from "@/lib/i18n/provider";
 import { pickResumeLessonId } from "@/lib/lesson-resume";
 import { cn } from "@/lib/utils";
@@ -54,6 +56,13 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
   const initialDraft = searchParams.get("q") ?? undefined;
   const lessonHint = searchParams.get("lesson") ?? undefined;
   const [tutorOpen, setTutorOpen] = useState(tutorParam === "open");
+
+  // L35 — desktop (lg+ = 1024px+) shows the tutor inline; mobile/tablet
+  // gets the bottom Sheet. SSR-safe: server always renders mobile-first
+  // (no inline Sheet markup); the desktop branch hydrates after first
+  // client render. Avoids the L24 dual-mount that broke Playwright's
+  // strict `getByTestId`.
+  const isDesktop = useMediaQuery("(min-width: 1024px)", false);
 
   const lessons = useMemo(() => {
     if (!courseQ.data) return [];
@@ -297,15 +306,15 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
           the conversation isn't opened (= no LLM round-trip) before
           they actually ask.
 
-          L24 attempted a mobile-only bottom Sheet + desktop inline
-          column dual-mount, but Playwright's strict `getByTestId`
-          flagged two `tutor-panel` elements (the Sheet portals to
-          body regardless of viewport, so both copies sit in the DOM
-          at the same time). Reverted to the single inline rendering
-          here; the L24 mobile-bottom-Sheet improvement re-lands when
-          we have a useMediaQuery-style mount gate that's SSR-safe.
-          The L24 review-grade-buttons h-11 touch-target fix stays. */}
-      {tutorOpen && (
+          L35 — viewport-gated mount: desktop renders the inline
+          aside; mobile/tablet renders the bottom Sheet. Only ONE is
+          ever in the DOM at a time, so Playwright's strict
+          `getByTestId("tutor-panel")` matches exactly one element
+          regardless of viewport. The `useMediaQuery` hook is
+          SSR-safe (returns `false` on the server + first client
+          render), so the desktop branch fades in after hydration
+          rather than causing a hydration mismatch. */}
+      {tutorOpen && isDesktop && (
         <aside
           className="order-3 min-w-0 lg:order-none lg:sticky lg:top-20 lg:h-[calc(100vh-7rem)]"
           aria-label={t("tutor.heading")}
@@ -316,6 +325,24 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
             courseSlug={slug}
           />
         </aside>
+      )}
+      {!isDesktop && (
+        <Sheet open={tutorOpen} onOpenChange={setTutorOpen}>
+          <SheetContent
+            side="bottom"
+            className="h-[90vh] p-0 sm:max-w-none"
+            aria-label={t("tutor.heading")}
+          >
+            <SheetTitle className="sr-only">{t("tutor.heading")}</SheetTitle>
+            {tutorOpen && (
+              <TutorPanel
+                courseId={course.id}
+                initialDraft={initialDraft}
+                courseSlug={slug}
+              />
+            )}
+          </SheetContent>
+        </Sheet>
       )}
     </div>
   );

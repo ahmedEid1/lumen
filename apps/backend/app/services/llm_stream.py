@@ -6,7 +6,7 @@ string; the L21a streaming-tutor orchestrator (in
 incremental ``synth_chunk`` events as tokens arrive. This module
 adds the parallel streaming API.
 
-Provider matrix (L31-followup state):
+Provider matrix (L37 state — all three real):
 
 - **NoopProvider** — emits the canned response word-by-word with
   a tiny artificial delay so the SSE wire shape is exercisable in
@@ -17,10 +17,10 @@ Provider matrix (L31-followup state):
   stream_options={"include_usage": True})``. The `include_usage`
   payload arrives on the FINAL chunk with `chunk.usage` populated;
   we surface it as ``StreamChunk(delta="", usage=...)``.
-- **AnthropicProvider** — Anthropic's SDK uses a different
-  ``client.messages.stream()`` shape. Not wired in this module
-  yet; ``stream_chat()`` raises NotImplementedError if the active
-  provider is anthropic.
+- **AnthropicProvider (L37)** — real streaming via
+  ``client.messages.stream()``. The SDK exposes a ``text_stream``
+  async iterator + ``get_final_message()`` for usage tokens. Same
+  StreamChunk contract; cost from the shared pricing helper.
 
 The function-level dispatcher ``stream_chat()`` reads
 ``settings.llm_provider`` at call time so a runtime provider swap
@@ -88,7 +88,7 @@ async def stream_chat(
     Today's matrix:
     - ``noop`` → :func:`_stream_chat_noop` (canned word-by-word)
     - ``openai`` → :func:`_stream_chat_openai` (real streaming)
-    - ``anthropic`` → NotImplementedError (deferred)
+    - ``anthropic`` → :func:`_stream_chat_anthropic` (real streaming, L37)
     """
     provider_name = get_settings().llm_provider
     if provider_name == "noop":
@@ -100,13 +100,9 @@ async def stream_chat(
             yield chunk
         return
     if provider_name == "anthropic":
-        # Anthropic streaming has a different shape (`client.messages.stream`
-        # + `text_stream`/`message_delta` events). Not wired yet; the
-        # orchestrator should fall through to noop until this lands.
-        raise NotImplementedError(
-            "anthropic streaming not yet implemented; "
-            "set LLM_PROVIDER=openai or noop for streaming demos"
-        )
+        async for chunk in _stream_chat_anthropic(messages, temperature=temperature):
+            yield chunk
+        return
     raise ValueError(f"unknown LLM provider: {provider_name!r}")
 
 
@@ -216,6 +212,85 @@ async def _stream_chat_openai(
             yield StreamChunk(delta=text, done=False)
 
     yield StreamChunk(delta="", done=True, usage=final_usage)
+
+
+async def _stream_chat_anthropic(
+    messages: list[ChatMessage],
+    *,
+    temperature: float,
+) -> AsyncIterator[StreamChunk]:
+    """Real Anthropic streaming via the official SDK.
+
+    Anthropic's Messages API exposes streaming via
+    ``client.messages.stream(...)`` which returns a context manager
+    yielding events. The SDK exposes a convenience ``text_stream``
+    async iterator on the stream object — each item is a string
+    delta. The final ``message`` object (read after the iteration
+    completes) carries usage tokens for cost reconciliation.
+
+    Layout mirrors :func:`_stream_chat_openai`:
+    - Lazy SDK import so noop deploys don't pay the import cost
+    - System prompt collapsed to a single top-level ``system`` arg
+      (Messages API rejects ``role="system"`` inside messages)
+    - Final usage chunk carries ``prompt_tokens`` /
+      ``completion_tokens`` / ``cost_usd`` via the shared pricing
+      helper for symmetric reconciliation downstream
+    """
+    try:
+        from anthropic import AsyncAnthropic  # type: ignore[import-not-found]
+    except ImportError as e:
+        raise ImportError(
+            "anthropic SDK required for streaming; install with `pip install anthropic>=0.18`"
+        ) from e
+
+    s = get_settings()
+    api_key = s.anthropic_api_key.get_secret_value() if s.anthropic_api_key else ""
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY is required for LLM_PROVIDER=anthropic streaming")
+
+    client_kwargs: dict[str, Any] = {"api_key": api_key}
+    if s.anthropic_api_base:
+        client_kwargs["base_url"] = s.anthropic_api_base
+    client = AsyncAnthropic(**client_kwargs)
+
+    # Messages API quirk: ``system`` is a top-level kwarg, not a
+    # message turn. Concatenate every leading system message into
+    # one string (same convention as the sync AnthropicProvider).
+    system_parts = [m.content for m in messages if m.role == "system"]
+    system = "\n\n".join(system_parts) if system_parts else ""
+    turns = [{"role": m.role, "content": m.content} for m in messages if m.role != "system"]
+
+    model = s.llm_model or "claude-3-5-haiku-latest"
+
+    stream_kwargs: dict[str, Any] = {
+        "model": model,
+        "max_tokens": s.llm_max_tokens,
+        "temperature": temperature,
+        "messages": turns,
+    }
+    if system:
+        stream_kwargs["system"] = system
+
+    async with client.messages.stream(**stream_kwargs) as stream:
+        async for text in stream.text_stream:
+            if text:
+                yield StreamChunk(delta=text, done=False)
+        # ``final_message`` blocks until the stream is fully consumed;
+        # the context manager has guaranteed completion at this point.
+        final = await stream.get_final_message()
+        usage = getattr(final, "usage", None)
+        prompt_tokens = int(getattr(usage, "input_tokens", 0) or 0)
+        completion_tokens = int(getattr(usage, "output_tokens", 0) or 0)
+
+    yield StreamChunk(
+        delta="",
+        done=True,
+        usage={
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "cost_usd": _estimate_cost(model, prompt_tokens, completion_tokens),
+        },
+    )
 
 
 def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
