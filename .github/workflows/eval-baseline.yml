@@ -84,14 +84,19 @@ jobs:
           # Don't echo MISTRAL_API_KEY into the workflow log.
           set +x
 
+          # OpenSSH's SendEnv requires sshd to have AcceptEnv
+          # configured, which isn't on by default. Cleanest pattern:
+          # embed the secret directly in the `docker compose exec -e`
+          # arg. GH Actions masks `secrets.MISTRAL_API_KEY` in the
+          # workflow log automatically (the env var was sourced from
+          # the secret context above), so the value never appears in
+          # the run output.
           OUT=$(ssh -o StrictHostKeyChecking=yes \
-              -o SendEnv=MISTRAL_API_KEY \
               ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
-              MISTRAL_API_KEY="$MISTRAL_API_KEY" \
               "cd ~/lumen && \
                docker compose -f docker-compose.prod.yml \
                  --env-file ~/.env.production \
-                 exec -T -e MISTRAL_API_KEY \
+                 exec -T -e MISTRAL_API_KEY='$MISTRAL_API_KEY' \
                  api python -m app.evals.run_baseline \
                    --suite '$SUITE' \
                    --limit $LIMIT \
