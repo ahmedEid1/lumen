@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 25 — eval instrumentation)
+
+- **Adversarial probe corpus** at
+  `apps/backend/evals/security/probes.jsonl` — 15 probes across 5
+  categories (prompt-injection, system-prompt-extraction, jailbreak,
+  out-of-scope, indirect-injection). 13 must-refuse rows + 2
+  must-answer rows (catches refusal-bait failure mode).
+- **`app/evals/adversarial.py`** — string-match refusal scorer
+  (`refused` / `leaked` / `ambiguous`) + `compute_refusal_rate()`
+  headline metric (excludes ambiguous from denominator). Heuristic
+  is intentional: an LLM-as-judge is itself susceptible to the same
+  injection prompts it's grading.
+- **`app/evals/baseline.py`** — wire shape for the future "Lumen vs
+  GPT-4-mini" comparison runs. `BaselineScore`, `BaselinePair`,
+  `compute_deltas`, `aggregate_pairs`. Real comparison runs deferred
+  until LLM-provider budget is allocated.
+- 11 new backend tests covering both scorers + dataset loader.
+
 ### Changed (post-redesign loop 24 — mobile/tablet agentic pass)
 
 - **Tutor panel mounts in a bottom Sheet** below the `lg` breakpoint
