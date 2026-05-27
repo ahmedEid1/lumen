@@ -36,6 +36,18 @@ Lumen is the live demo of how multi-agent systems, retrieval-augmented generatio
 - **Observable agent traces** — every LLM call recorded with tokens, cost, latency, and (soon) the planner's tool-call log.
 - **Eval suite** — 30-item tutor + 10-item authoring + 10-item ingest golden datasets; LLM-as-judge; CI smoke gate.
 
+## What to look at first
+
+If you're reviewing the code, these are the highest-signal files:
+
+- **The tutor orchestrator** — [`apps/backend/app/services/tutor_orchestrator_stream.py`](apps/backend/app/services/tutor_orchestrator_stream.py) (async-iterator event sequence) + [`apps/backend/app/workers/tasks/tutor_streaming.py`](apps/backend/app/workers/tasks/tutor_streaming.py) (Celery task with atomic phase fence + `after_commit` enqueue + `contextlib.suppress`-wrapped cleanup).
+- **SSE wire** — [`apps/backend/app/api/v1/tutor_streaming.py`](apps/backend/app/api/v1/tutor_streaming.py) (4 endpoints, all flag-gated) + [`apps/backend/app/services/redis_streams.py`](apps/backend/app/services/redis_streams.py) (XADD/XREAD + trim-detect).
+- **Lua cost scripts** — [`apps/backend/app/core/lua/`](apps/backend/app/core/lua/) (reserve/reconcile/check/release in microcents, integer math, zero FP drift).
+- **Adversarial scorer** — [`apps/backend/app/evals/adversarial.py`](apps/backend/app/evals/adversarial.py) + [`apps/backend/evals/security/probes.jsonl`](apps/backend/evals/security/probes.jsonl) (15-probe corpus; per-probe outputs deliberately NOT published).
+- **Frontend SSE parser + reducer** — [`apps/frontend/src/lib/tutor/sse-parser.ts`](apps/frontend/src/lib/tutor/sse-parser.ts) + [`use-tutor-stream.ts`](apps/frontend/src/lib/tutor/use-tutor-stream.ts) (`useSyncExternalStore` reducer + iOS Safari 15.0-15.3 UA sniff).
+- **ADRs** — [`docs/adr/0017`–`0019`](docs/adr/) (Celery prefork; Redis Streams not pub/sub; atomic phase fence + after_commit).
+- **Public surfaces** — [`/eval`](apps/frontend/src/app/eval/), [`/eval/methodology`](apps/frontend/src/app/eval/methodology/), [`/case-study`](apps/frontend/src/app/case-study/).
+
 ---
 
 ## Architecture

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 31 — per-route OG + README portfolio + screencap shot list)
+
+- **Per-route OG cards** at `/eval/opengraph-image` and
+  `/case-study/opengraph-image` — Workbench dark chrome, lime
+  accent, mono cartouche + display headline + mono URL footer.
+  Page-specific previews on Slack / Twitter / LinkedIn.
+- **README "What to look at first"** section — 7 highest-signal
+  file links inserted above the architecture diagram (tutor
+  orchestrator, SSE wire, Lua cost scripts, adversarial scorer,
+  frontend parser + reducer, ADRs 17-19, public surfaces).
+- **Screencap shot list** at `docs/release/screencap-script.md`
+  — 90s silent captioned walkthrough script + operator checklist.
+  Per plan-v7 §F14, no unmeasured numbers are locked in advance;
+  captions are read off the actual UI at recording time. The
+  capture itself is operator-gated.
+
 ### Added (post-redesign loop 30 — /case-study long-form)
 
 - **`/case-study`** — six-section narrative companion to /eval +
