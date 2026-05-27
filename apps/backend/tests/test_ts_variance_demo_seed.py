@@ -45,12 +45,8 @@ async def test_ts_variance_seed_creates_expected_structure(
     tags = {"typescript": typescript_tag, "demo": demo_tag}
 
     # Apply the seed and confirm idempotency on a second call.
-    course = await apply(
-        db_session, instructor=instructor, programming=programming, tags=tags
-    )
-    again = await apply(
-        db_session, instructor=instructor, programming=programming, tags=tags
-    )
+    course = await apply(db_session, instructor=instructor, programming=programming, tags=tags)
+    again = await apply(db_session, instructor=instructor, programming=programming, tags=tags)
     assert course.id == again.id, "apply() must be idempotent on re-run"
 
     assert course.slug == "typescript-variance"
@@ -60,9 +56,7 @@ async def test_ts_variance_seed_creates_expected_structure(
     # Module + lesson tree matches the in-module spec count for
     # confidence that nothing got dropped silently during _build.
     expected_module_count = len(TS_VARIANCE_MODULES)
-    expected_lesson_count = sum(
-        len(m["lessons"]) for m in TS_VARIANCE_MODULES
-    )
+    expected_lesson_count = sum(len(m["lessons"]) for m in TS_VARIANCE_MODULES)
 
     modules_res = await db_session.execute(
         select(Module).where(Module.course_id == course.id).order_by(Module.order)
@@ -74,9 +68,7 @@ async def test_ts_variance_seed_creates_expected_structure(
     canonical_error_titles: list[str] = []
     for module in modules:
         lessons_res = await db_session.execute(
-            select(Lesson)
-            .where(Lesson.module_id == module.id)
-            .order_by(Lesson.order)
+            select(Lesson).where(Lesson.module_id == module.id).order_by(Lesson.order)
         )
         for lesson in lessons_res.scalars().all():
             lesson_count += 1
@@ -119,17 +111,13 @@ async def test_ts_variance_seed_returns_existing_course_when_called_twice(
 
     tags = {"typescript": typescript_tag, "demo": demo_tag}
 
-    first = await apply(
-        db_session, instructor=instructor, programming=programming, tags=tags
-    )
+    first = await apply(db_session, instructor=instructor, programming=programming, tags=tags)
     courses_after_first = await db_session.execute(
         select(Course).where(Course.slug == "typescript-variance")
     )
     assert len(list(courses_after_first.scalars().all())) == 1
 
-    second = await apply(
-        db_session, instructor=instructor, programming=programming, tags=tags
-    )
+    second = await apply(db_session, instructor=instructor, programming=programming, tags=tags)
     assert second.id == first.id
 
     courses_after_second = await db_session.execute(

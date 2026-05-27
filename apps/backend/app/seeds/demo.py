@@ -690,9 +690,7 @@ async def run() -> None:
     console.print("  • intro-to-python                 (3 demo lessons, every lesson has a quiz)")
     console.print("  • data-structures-essentials      (simulated multi-modal ingest)")
     console.print("  • async-web-apps-fastapi          (AI-tutor demo target)")
-    console.print(
-        f"  • {ts_variance.slug:32s} (L20.5 demo target — canonical TS error)"
-    )
+    console.print(f"  • {ts_variance.slug:32s} (L20.5 demo target — canonical TS error)")
     console.print("  • demo@lumen.test / Demo!2026     (in-flight progress on Data Structures)")
 
 
