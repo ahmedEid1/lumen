@@ -1,46 +1,44 @@
 import { redirect } from "next/navigation";
 
 /**
- * L20.5 — one-click demo deep-link.
+ * L20.5 — one-click demo deep-link. QA-loop iter 1 — anonymous rescue.
  *
  * Server-side redirect to the TypeScript Generics/Variance course
- * (seeded by `app/seeds/ts_variance_demo.py`) with the AI tutor
- * mounted-open and the canonical demo question prefilled. The lesson
- * picker lands the visitor on the "canonical error" lesson — the one
- * the tutor's RAG answer cites back.
+ * with the AI tutor mounted-open and the canonical demo question
+ * prefilled. The lesson picker lands the visitor on the "canonical
+ * error" lesson — the one the tutor's RAG answer cites back.
  *
- * Why this URL shape: `/learn/[slug]` reads its tutor state and
- * composer prefill from `searchParams` (added in L20.5 alongside this
- * route), so a redirect is enough. Anonymous visitors hit the
- * existing sign-in prompt — Lumen's demo learner creds
- * (demo@lumen.test / Demo!2026) are documented in the README so the
- * journey from "I saw the screencap" to "I clicked /demo and watched
- * the tutor work" stays in two clicks.
- *
- * The redirect URL is composed from constants only, so Next can
- * generate this route statically without runtime work. No
- * `dynamic = "force-static"` annotation needed — Next infers it.
+ * Auth: `/learn/[slug]` is auth-gated. Anonymous visitors arriving
+ * at /demo used to hit the bare "Sign in to open this course" wall
+ * with no path forward (the seeded demo creds live in the README,
+ * which a recruiter clicking through has no reason to look at). We
+ * now route via `/login?demo=1&next=<learn-url>` so the login page
+ * can pre-fill the public demo credentials, surface a callout that
+ * tells the visitor those creds exist on purpose, and one-click them
+ * straight into the experience. The next-url is encoded once so the
+ * `?` inside it doesn't get reinterpreted by the login page's own
+ * searchParams parser.
  */
 
 // The canonical demo question. Locked here so the URL the screencap
-// records is stable. Lockdown of the *content* of this question is
-// gated on the 10/10 tool-sequence eval in L25; until then this is the
-// production-tested draft.
+// records is stable.
 const CANONICAL_QUESTION =
   "I keep getting `Type 'string' is not assignable to type 'T'` on this function — here's my code, why does this happen and how do I fix it?";
 
-// The lesson the tutor should ground its first answer in. The slug is
-// stable because the seed is idempotent and the lesson order is fixed
-// by index inside its module (`order=1` in module 2 — "The canonical
-// error" lesson). The frontend's `/learn` page resolves this to the
-// lesson id at render time.
+// The lesson the tutor should ground its first answer in. The frontend's
+// `/learn` page resolves this slug-hint to the lesson id at render time.
 const CANONICAL_LESSON_TITLE_HINT = "canonical-error";
 
 export default function DemoPage() {
-  const params = new URLSearchParams({
+  const learnQuery = new URLSearchParams({
     tutor: "open",
     q: CANONICAL_QUESTION,
     lesson: CANONICAL_LESSON_TITLE_HINT,
   });
-  redirect(`/learn/typescript-variance?${params.toString()}`);
+  const learnUrl = `/learn/typescript-variance?${learnQuery.toString()}`;
+  const loginQuery = new URLSearchParams({
+    demo: "1",
+    next: learnUrl,
+  });
+  redirect(`/login?${loginQuery.toString()}`);
 }

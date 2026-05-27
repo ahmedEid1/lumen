@@ -63,6 +63,8 @@ export default function AdminHome() {
     { href: "/admin/courses", titleKey: "admin.tile.courses.title", bodyKey: "admin.tile.courses.body" },
     { href: "/admin/users", titleKey: "admin.tile.users.title", bodyKey: "admin.tile.users.body" },
     { href: "/admin/audit", titleKey: "admin.tile.audit.title", bodyKey: "admin.tile.audit.body" },
+    { href: "/admin/observability", titleKey: "admin.tile.observability.title", bodyKey: "admin.tile.observability.body" },
+    { href: "/admin/evals", titleKey: "admin.tile.evals.title", bodyKey: "admin.tile.evals.body" },
   ];
 
   return (

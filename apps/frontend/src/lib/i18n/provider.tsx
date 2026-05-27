@@ -97,3 +97,29 @@ export function useLocale(): LocaleCtx {
 export function useT() {
   return useLocale().t;
 }
+
+/**
+ * Plural-aware count formatter. Picks ``<baseKey>One`` for n === 1
+ * and ``<baseKey>`` (plural) otherwise. The convention matches the
+ * existing ``thread.replyCount`` / ``thread.replyCountOne`` pair —
+ * QA-loop iter 1 generalized it to the other "{n} items" labels
+ * so "1 students" / "1 modules" stop leaking across studio, catalog,
+ * discussions, and admin/subjects.
+ *
+ * For Arabic the n===1 branch is a deliberate simplification: the
+ * existing translations already use the colloquial uninflected form
+ * ("{n} طالب") so the singular/plural distinction in our UI only
+ * actually matters for English. If we later need Arabic dual/few/many
+ * we can swap this for ``Intl.PluralRules`` keyed on the bound locale
+ * without touching call sites.
+ */
+export function useTN() {
+  const { t } = useLocale();
+  return useCallback(
+    (baseKey: string, n: number, extraVars?: Record<string, string | number>) => {
+      const key = (n === 1 ? `${baseKey}One` : baseKey) as MessageKey;
+      return t(key, { n, ...(extraVars ?? {}) });
+    },
+    [t],
+  );
+}

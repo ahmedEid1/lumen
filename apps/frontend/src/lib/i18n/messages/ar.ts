@@ -33,6 +33,7 @@ export const ar: Record<MessageKey, string> = {
   "catalog.empty": "لا توجد دورات تطابق هذه المرشحات.",
   "catalog.featuredBadge": "مميّزة",
   "courseCard.modulesCount": "{n} وحدة",
+  "courseCard.modulesCountOne": "وحدة واحدة",
 
   // Course detail
   "course.enroll": "التسجيل",
@@ -62,6 +63,9 @@ export const ar: Record<MessageKey, string> = {
   "auth.login.cartouche": "الحساب",
   "auth.login.heading": "أهلًا بعودتك",
   "auth.login.subtitle": "سجّل دخولك لتتابع التعلم.",
+  "auth.login.demoHeading": "افتح العرض التجريبي",
+  "auth.login.demoSubtitle": "نقرة واحدة وتكون داخل تجربة معلّم لومِن.",
+  "auth.login.demoNotice": "بيانات العرض التجريبي علنيّة — مُعبّأة مسبقًا وآمنة للمشاركة. سجّل الدخول لمشاهدة المعلّم وهو يعمل.",
   "auth.login.email": "البريد الإلكتروني",
   "auth.login.password": "كلمة المرور",
   "auth.login.submit": "دخول",
@@ -275,6 +279,7 @@ export const ar: Record<MessageKey, string> = {
   "discussions.postedToast": "تم نشر الموضوع",
   "discussions.error": "تعذّر النشر",
   "discussions.threadCount": "{n} موضوع",
+  "discussions.threadCountOne": "موضوع واحد",
   "discussions.empty": "لا مواضيع بعد. ابدأ النقاش من الأعلى.",
   "discussions.deletedUser": "مستخدم محذوف",
 
@@ -343,7 +348,7 @@ export const ar: Record<MessageKey, string> = {
 
   // تذييل الموقع
   "footer.copyright": "© {year} لومِن · رخصة MIT",
-  "footer.docs": "الوثائق",
+  "footer.docs": "توثيق الـ API",
 
   // Admin / courses
   "adminCourses.cartouche": "الكتالوج",
@@ -406,6 +411,7 @@ export const ar: Record<MessageKey, string> = {
   "adminSubjects.slugPlaceholder": "المعرّف (اختياري)",
   "adminSubjects.allCard": "جميع المواضيع",
   "adminSubjects.courseCount": "{n} دورة",
+  "adminSubjects.courseCountOne": "دورة واحدة",
   "adminSubjects.empty": "لا مواضيع بعد.",
   "adminSubjects.successToast": "تمت إضافة الموضوع",
   "adminSubjects.addError": "تعذّرت الإضافة",
@@ -443,6 +449,10 @@ export const ar: Record<MessageKey, string> = {
   "admin.tile.users.body": "رقّ المدرّسين وأدر نشاط الحسابات.",
   "admin.tile.audit.title": "سجل المراقبة",
   "admin.tile.audit.body": "تتبّع الإجراءات الإدارية الحسّاسة.",
+  "admin.tile.observability.title": "المراقبة",
+  "admin.tile.observability.body": "أعماق الطوابير وآثار الوكلاء وجودة الاسترجاع.",
+  "admin.tile.evals.title": "منصّة التقييم",
+  "admin.tile.evals.body": "تشغيلات قياسية وتقييم بنموذج لغوي كحَكَم.",
   "admin.searchIndex.title": "فهرس البحث",
   "admin.searchIndex.body": "أعد بناء فهرس البحث من الدورات المنشورة. يعمل في الخلفية.",
   "admin.searchIndex.submit": "إعادة فهرسة الكتالوج",
@@ -490,6 +500,7 @@ export const ar: Record<MessageKey, string> = {
   "studioEdit.newModulePlaceholder": "عنوان الوحدة الجديدة",
   "studioEdit.addModule": "إضافة وحدة",
   "studioEdit.lessonCount": "{n} درس",
+  "studioEdit.lessonCountOne": "درس واحد",
   "studioEdit.dragHandle": "مقبض السحب",
   "studioEdit.editLessons": "تعديل الدروس",
   "studioEdit.dragTip": "تلميح: اسحب المقبض لإعادة ترتيب الوحدات. انقر الترس لتعديل دروس الوحدة.",
@@ -529,7 +540,9 @@ export const ar: Record<MessageKey, string> = {
   "studio.empty.none": "لم تنشئ أي دورة بعد.",
   "studio.empty.filter": "لا توجد دورات بهذه الحالة.",
   "studio.moduleCount": "{n} وحدة",
+  "studio.moduleCountOne": "وحدة واحدة",
   "studio.studentCount": "{n} طالب",
+  "studio.studentCountOne": "طالب واحد",
 
   // Studio — import-from-URL (Phase E3)
   "studio.import.button": "استيراد من رابط",

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Star, Users, Layers, GraduationCap } from "lucide-react";
 import type { CourseListItem } from "@/lib/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useT } from "@/lib/i18n/provider";
+import { useT, useTN } from "@/lib/i18n/provider";
 
 /**
  * Workbench course card.
@@ -17,6 +18,15 @@ import { useT } from "@/lib/i18n/provider";
  */
 export function CourseCard({ course }: { course: CourseListItem }) {
   const t = useT();
+  const tn = useTN();
+  // QA-loop iter 1: cover_url often points at picsum.photos which
+  // flakes with ERR_CONNECTION_CLOSED on a portion of cold visits.
+  // Track per-render whether the image failed and swap to the same
+  // GraduationCap empty state used when cover_url is null — keeps the
+  // catalog grid heights stable and stops the broken-image glyph from
+  // painting in the meantime.
+  const [coverFailed, setCoverFailed] = useState(false);
+  const showCover = !!course.cover_url && !coverFailed;
   return (
     <Link
       href={`/courses/${course.slug}`}
@@ -24,12 +34,13 @@ export function CourseCard({ course }: { course: CourseListItem }) {
     >
       {/* Cover */}
       <div className="relative aspect-[16/10] w-full overflow-hidden border-b border-border bg-muted">
-        {course.cover_url ? (
+        {showCover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={course.cover_url}
+            src={course.cover_url ?? ""}
             alt=""
             className="h-full w-full object-cover"
+            onError={() => setCoverFailed(true)}
           />
         ) : (
           <div className="flex h-full items-center justify-center">
@@ -65,7 +76,7 @@ export function CourseCard({ course }: { course: CourseListItem }) {
         <div className="flex items-center justify-between border-t border-border pt-3 font-mono text-xs tabular-nums text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <Layers className="h-3.5 w-3.5" />
-            {t("courseCard.modulesCount", { n: course.modules_count })}
+            {tn("courseCard.modulesCount", course.modules_count)}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <Users className="h-3.5 w-3.5" />

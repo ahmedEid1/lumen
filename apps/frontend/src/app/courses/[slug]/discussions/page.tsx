@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { formatRelative } from "@/lib/utils";
-import { useT } from "@/lib/i18n/provider";
+import { useT, useTN } from "@/lib/i18n/provider";
 
 /**
  * Discussions list — Workbench repaint.
@@ -48,6 +48,7 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
   const qc = useQueryClient();
   const { user } = useAuth();
   const t = useT();
+  const tn = useTN();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
 
@@ -150,7 +151,7 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
       <section className="border-t border-border pt-8">
         <div className="mb-4 flex items-baseline justify-between">
           <h2 className="font-display text-base leading-tight tracking-tight">
-            {t("discussions.threadCount", { n: threadsQ.data?.total ?? 0 })}
+            {tn("discussions.threadCount", threadsQ.data?.total ?? 0)}
           </h2>
         </div>
         {threadsQ.isLoading ? (

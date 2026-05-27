@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { AuthCard } from "@/components/ui/auth-card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,13 @@ import { useAuth } from "@/lib/auth/store";
 import { ApiError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 import { useHydrated } from "@/lib/use-hydrated";
+
+// QA-loop iter 1 — public demo credentials are seeded by
+// `apps/backend/app/seeds/demo.py` and intentionally documented in
+// the README. `/demo` redirects through `/login?demo=1` so the
+// portfolio visitor doesn't have to look them up.
+const DEMO_EMAIL = "demo@lumen.test";
+const DEMO_PASSWORD = "Demo!2026";
 
 /**
  * Sign-in surface — Workbench repaint, loop-4 AuthCard migration.
@@ -45,11 +53,12 @@ function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/dashboard";
+  const isDemo = params.get("demo") === "1";
   const { login } = useAuth();
   const t = useT();
   const hydrated = useHydrated();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(isDemo ? DEMO_EMAIL : "");
+  const [password, setPassword] = useState(isDemo ? DEMO_PASSWORD : "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,9 +82,26 @@ function LoginForm() {
   return (
     <AuthCard
       cartouche={t("auth.login.cartouche")}
-      heading={t("auth.login.heading")}
-      subtitle={t("auth.login.subtitle")}
+      heading={isDemo ? t("auth.login.demoHeading") : t("auth.login.heading")}
+      subtitle={isDemo ? t("auth.login.demoSubtitle") : t("auth.login.subtitle")}
     >
+      {isDemo && (
+        <div
+          className="mb-4 flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 font-body text-sm text-muted-foreground"
+          data-testid="login-demo-notice"
+        >
+          <Sparkles
+            className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+            aria-hidden
+          />
+          <p>
+            {t("auth.login.demoNotice")}{" "}
+            <span className="font-mono text-foreground">{DEMO_EMAIL}</span>
+            {" · "}
+            <span className="font-mono text-foreground">{DEMO_PASSWORD}</span>
+          </p>
+        </div>
+      )}
       <form className="space-y-4" onSubmit={onSubmit} noValidate>
         <div className="space-y-1.5">
           <label htmlFor="email" className="font-body text-sm font-medium">

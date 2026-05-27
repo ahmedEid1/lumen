@@ -39,7 +39,7 @@ import { ApiError } from "@/lib/api/client";
 import { Courses } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import type { ModuleOut } from "@/lib/api/types";
-import { useT } from "@/lib/i18n/provider";
+import { useT, useTN } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
@@ -291,6 +291,7 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
 
 function SortableModule({ module: m, courseId }: { module: ModuleOut; courseId: string }) {
   const t = useT();
+  const tn = useTN();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: m.id,
   });
@@ -323,7 +324,7 @@ function SortableModule({ module: m, courseId }: { module: ModuleOut; courseId: 
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
-          {t("studioEdit.lessonCount", { n: m.lessons.length })}
+          {tn("studioEdit.lessonCount", m.lessons.length)}
         </span>
         <Link
           href={`/studio/${courseId}/modules/${m.id}`}

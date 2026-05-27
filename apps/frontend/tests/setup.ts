@@ -46,18 +46,27 @@ vi.mock("next/navigation", () => ({
 // itself) so accessibility-name selectors keep matching.
 vi.mock("@/lib/i18n/provider", async () => {
   const { en } = await import("../src/lib/i18n/messages/en");
+  const tImpl = (key: string, vars?: Record<string, string | number>): string => {
+    let s = (en as Record<string, string>)[key] ?? key;
+    if (vars) {
+      for (const [k, v] of Object.entries(vars)) {
+        s = s.replaceAll(`{${k}}`, String(v));
+      }
+    }
+    return s;
+  };
   return {
     useLocale: () => ({ locale: "en", setLocale: vi.fn() }),
-    useT:
+    useT: () => tImpl,
+    // QA-loop iter 1 — useTN helper picks singular vs plural via the
+    // `<base>One` / `<base>` convention. The real provider uses
+    // `useLocale()` under the hood; the test mock just keeps the
+    // selection logic identical so call sites render the right string.
+    useTN:
       () =>
-      (key: string, vars?: Record<string, string | number>): string => {
-        let s = (en as Record<string, string>)[key] ?? key;
-        if (vars) {
-          for (const [k, v] of Object.entries(vars)) {
-            s = s.replaceAll(`{${k}}`, String(v));
-          }
-        }
-        return s;
+      (baseKey: string, n: number, extraVars?: Record<string, string | number>): string => {
+        const key = n === 1 ? `${baseKey}One` : baseKey;
+        return tImpl(key, { n, ...(extraVars ?? {}) });
       },
     LocaleProvider: ({ children }: { children: React.ReactNode }) => children,
   };

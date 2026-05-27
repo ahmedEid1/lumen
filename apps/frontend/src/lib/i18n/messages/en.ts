@@ -26,6 +26,7 @@ export const en = {
   "catalog.empty": "No courses match those filters.",
   "catalog.featuredBadge": "Featured",
   "courseCard.modulesCount": "{n} modules",
+  "courseCard.modulesCountOne": "{n} module",
 
   // Course detail
   "course.enroll": "Enroll",
@@ -55,6 +56,9 @@ export const en = {
   "auth.login.cartouche": "Account",
   "auth.login.heading": "Welcome back",
   "auth.login.subtitle": "Sign in to continue learning.",
+  "auth.login.demoHeading": "Open the demo",
+  "auth.login.demoSubtitle": "One click and you're inside Lumen's tutor experience.",
+  "auth.login.demoNotice": "Demo credentials are public — pre-filled and safe to share. Sign in to watch the tutor work.",
   "auth.login.email": "Email",
   "auth.login.password": "Password",
   "auth.login.submit": "Sign in",
@@ -268,6 +272,7 @@ export const en = {
   "discussions.postedToast": "Thread posted",
   "discussions.error": "Could not post",
   "discussions.threadCount": "{n} threads",
+  "discussions.threadCountOne": "{n} thread",
   "discussions.empty": "No threads yet. Start the conversation above.",
   "discussions.deletedUser": "Deleted user",
 
@@ -336,7 +341,7 @@ export const en = {
 
   // Site footer
   "footer.copyright": "© {year} Lumen · MIT licensed",
-  "footer.docs": "Docs",
+  "footer.docs": "API docs",
 
   // Admin / courses — curator's shelf
   "adminCourses.cartouche": "Catalogue",
@@ -399,6 +404,7 @@ export const en = {
   "adminSubjects.slugPlaceholder": "Slug (optional)",
   "adminSubjects.allCard": "All subjects",
   "adminSubjects.courseCount": "{n} courses",
+  "adminSubjects.courseCountOne": "{n} course",
   "adminSubjects.empty": "No subjects yet.",
   "adminSubjects.successToast": "Subject added",
   "adminSubjects.addError": "Could not add",
@@ -436,6 +442,10 @@ export const en = {
   "admin.tile.users.body": "Promote instructors, manage activity.",
   "admin.tile.audit.title": "Audit log",
   "admin.tile.audit.body": "Track sensitive admin actions.",
+  "admin.tile.observability.title": "Observability",
+  "admin.tile.observability.body": "Queue depth, agent traces, retrieval quality.",
+  "admin.tile.evals.title": "Eval harness",
+  "admin.tile.evals.body": "Golden-dataset runs and LLM-as-judge scores.",
   "admin.searchIndex.title": "Search index",
   "admin.searchIndex.body": "Rebuild the search index from published courses. Runs in the background.",
   "admin.searchIndex.submit": "Reindex catalog",
@@ -483,6 +493,7 @@ export const en = {
   "studioEdit.newModulePlaceholder": "New module title",
   "studioEdit.addModule": "Add module",
   "studioEdit.lessonCount": "{n} lessons",
+  "studioEdit.lessonCountOne": "{n} lesson",
   "studioEdit.dragHandle": "Drag handle",
   "studioEdit.editLessons": "Edit lessons",
   "studioEdit.dragTip": "Tip: drag the handle to reorder modules. Click the gear to edit a module's lessons.",
@@ -522,7 +533,9 @@ export const en = {
   "studio.empty.none": "You haven't created any courses yet.",
   "studio.empty.filter": "No courses in this state.",
   "studio.moduleCount": "{n} modules",
+  "studio.moduleCountOne": "{n} module",
   "studio.studentCount": "{n} students",
+  "studio.studentCountOne": "{n} student",
 
   // Studio — import-from-URL (Phase E3)
   "studio.import.button": "Import from URL",

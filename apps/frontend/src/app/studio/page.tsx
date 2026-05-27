@@ -17,7 +17,7 @@ import { Courses } from "@/lib/api/endpoints";
 import type { CourseListItem, CourseStatus } from "@/lib/api/types";
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
-import { useT } from "@/lib/i18n/provider";
+import { useT, useTN } from "@/lib/i18n/provider";
 import { instructorSteps } from "@/lib/onboarding/steps";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
@@ -46,6 +46,7 @@ export default function StudioPage() {
   const { user, ready } = useAuth();
   const router = useRouter();
   const t = useT();
+  const tn = useTN();
   const mine = useQuery({ queryKey: qk.myCourses, queryFn: () => Courses.mine(), enabled: !!user });
   const [filter, setFilter] = useState<FilterValue>("all");
   const [importOpen, setImportOpen] = useState(false);
@@ -142,6 +143,7 @@ export default function StudioPage() {
                   : (mine.data ?? []).filter((c) => c.status === f.value)
               }
               t={t}
+              tn={tn}
             />
           </TabsContent>
         ))}
@@ -155,11 +157,13 @@ function CourseListView({
   all,
   visible,
   t,
+  tn,
 }: {
   loading: boolean;
   all: CourseListItem[] | undefined;
   visible: CourseListItem[];
   t: ReturnType<typeof useT>;
+  tn: ReturnType<typeof useTN>;
 }) {
   if (loading) {
     return (
@@ -224,8 +228,8 @@ function CourseListView({
             </div>
           </div>
           <div className="hidden shrink-0 items-center gap-6 font-mono text-xs tabular-nums text-muted-foreground sm:flex">
-            <span>{t("studio.moduleCount", { n: c.modules_count })}</span>
-            <span>{t("studio.studentCount", { n: c.enrollments_count })}</span>
+            <span>{tn("studio.moduleCount", c.modules_count)}</span>
+            <span>{tn("studio.studentCount", c.enrollments_count)}</span>
           </div>
         </li>
       ))}

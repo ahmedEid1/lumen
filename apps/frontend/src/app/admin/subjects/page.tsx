@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
 import { Catalog } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
-import { useT } from "@/lib/i18n/provider";
+import { useT, useTN } from "@/lib/i18n/provider";
 
 /**
  * Admin subjects — Workbench repaint.
@@ -23,6 +23,7 @@ import { useT } from "@/lib/i18n/provider";
 export default function AdminSubjects() {
   const qc = useQueryClient();
   const t = useT();
+  const tn = useTN();
   const subjectsQ = useQuery({ queryKey: qk.subjects, queryFn: () => Catalog.subjects() });
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
@@ -105,7 +106,7 @@ export default function AdminSubjects() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                    {t("adminSubjects.courseCount", { n: s.total_courses ?? 0 })}
+                    {tn("adminSubjects.courseCount", s.total_courses ?? 0)}
                   </span>
                   <Button
                     variant="ghost"
