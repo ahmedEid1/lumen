@@ -321,6 +321,52 @@ def demo_seed() -> None:
     asyncio.run(_demo_run())
 
 
+@cli.command(name="ingest-embeddings")
+def ingest_embeddings(
+    only_slug: str = typer.Option(None, "--only-slug", help="Restrict to one course slug."),
+) -> None:
+    """L41-followup — ingest lesson_chunks (pgvector embeddings) for
+    all published courses.
+
+    The demo-seed inserts published courses but does NOT run the
+    embedding pipeline — the L21-Sec `_schedule_index` Celery hook
+    fires on the publish-via-API path only. Demo-seeded courses
+    therefore have no lesson_chunks, which means the tutor
+    orchestrator's empty-retrieval refusal fires on every question
+    against those courses → bad eval scores. This command
+    backfills the gap.
+
+    Idempotent — re-running just rewrites existing rows. Safe to
+    invoke against prod (no schema change, no destructive ops; the
+    embedding API calls cost money proportional to chunk count).
+    """
+    asyncio.run(_ingest_embeddings(only_slug))
+
+
+async def _ingest_embeddings(only_slug: str | None) -> None:
+    from app.services.embeddings_ingest import ingest_course
+
+    Session = get_sessionmaker()
+    async with Session() as db:
+        stmt = select(Course).where(Course.status == CourseStatus.published)
+        if only_slug:
+            stmt = stmt.where(Course.slug == only_slug)
+        courses = (await db.execute(stmt)).scalars().all()
+        if not courses:
+            console.print("[yellow]No published courses to ingest.[/yellow]")
+            return
+        for course in courses:
+            try:
+                written = await ingest_course(db, course.id)
+                await db.commit()
+                console.print(f"[green]ingested[/green] {course.slug:30s} → {written} chunks")
+            except Exception as exc:
+                await db.rollback()
+                console.print(
+                    f"[red]FAILED[/red]    {course.slug:30s} → {type(exc).__name__}: {exc}"
+                )
+
+
 @cli.command(name="promote-eval")
 def promote_eval(
     suite: str = typer.Option(

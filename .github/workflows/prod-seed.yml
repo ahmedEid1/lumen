@@ -76,6 +76,23 @@ jobs:
                  exec -T -e LUMEN_ALLOW_PROD_SEED=1 \
                  api python -m app.cli demo-seed"
 
+      - name: Ingest lesson-chunk embeddings for published courses
+        # L41-followup — demo-seed inserts published courses but
+        # doesn't run the embedding pipeline (the L21-Sec
+        # `_schedule_index` hook fires on publish-via-API only).
+        # Without lesson_chunks, the orchestrator's empty-retrieval
+        # refusal fires on every tutor question against the seeded
+        # courses → the eval baseline scores Lumen near zero on
+        # grounding. This step backfills.
+        run: |
+          set -euxo pipefail
+          ssh -o StrictHostKeyChecking=yes \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
+              "cd ~/lumen && \
+               docker compose -f docker-compose.prod.yml \
+                 --env-file ~/.env.production \
+                 exec -T api python -m app.cli ingest-embeddings"
+
       - name: Smoke test the new course
         env:
           APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
