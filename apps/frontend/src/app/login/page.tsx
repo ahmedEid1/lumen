@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useAuth } from "@/lib/auth/store";
+import { safeNext } from "@/lib/auth/safe-next";
 import { ApiError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
 import { useHydrated } from "@/lib/use-hydrated";
@@ -52,7 +53,7 @@ function LoginFallback() {
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/dashboard";
+  const next = safeNext(params.get("next"));
   const isDemo = params.get("demo") === "1";
   const { login, user, ready } = useAuth();
   const t = useT();
