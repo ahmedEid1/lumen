@@ -1,0 +1,173 @@
+name: Flip prod env flag
+
+# One-shot manual flag flip on the prod box.
+#
+# What it does:
+#   1. SSHes to the AWS box via the existing AWS_SSH_PRIVATE_KEY secret
+#      (same path the deploy workflow uses).
+#   2. Smartly updates ~/.env.production — if the flag already exists,
+#      its value is replaced; if not, the line is appended.
+#   3. Restarts the listed Docker-Compose services so the new env is
+#      picked up.
+#   4. Smoke-tests with a curl against /api/v1/health/live so a broken
+#      restart fails the workflow loudly rather than leaving prod half
+#      up.
+#
+# Why this exists: env vars on the prod box live in ~/.env.production
+# (NOT in this repo — it carries secrets) and are otherwise edited by
+# SSH-ing in. The deploy.yml workflow handles image rollouts, not env
+# changes. This workflow gives the operator a `gh workflow run`
+# entrypoint that doesn't require typing the SSH command from memory.
+#
+# Trigger: manual only, via `workflow_dispatch`. Gated on the
+# `production` environment (same approval click as deploy.yml).
+#
+# Allowed flag prefixes (whitelist; intentional choke point so this
+# workflow can't be used to rewrite arbitrary prod env):
+#
+#   FEATURE_*  — runtime feature flags (the L20.5 family)
+#   LUMEN_*    — application-scoped config (e.g. LUMEN_ALLOW_PROD_SEED)
+#
+# Anything else is rejected. To add a new prefix, edit the validation
+# step below — a deliberate code change is the right friction.
+#
+# Usage:
+#   gh workflow run flip-flag.yml \
+#     -f flag=FEATURE_TUTOR_STREAMING \
+#     -f value=true
+#
+#   gh workflow run flip-flag.yml \
+#     -f flag=FEATURE_TUTOR_STREAMING \
+#     -f value=false \
+#     -f services="api worker beat web"
+#
+# Required repo secrets (same as deploy.yml):
+#   AWS_SSH_HOST, AWS_SSH_USER, AWS_SSH_PRIVATE_KEY, AWS_KNOWN_HOSTS,
+#   APP_DOMAIN (for the post-flip smoke).
+
+on:
+  workflow_dispatch:
+    inputs:
+      flag:
+        description: "Env var name (must start with FEATURE_ or LUMEN_)"
+        required: true
+        type: string
+      value:
+        description: "Value to set. Use 'true' / 'false' for boolean flags."
+        required: true
+        type: string
+      services:
+        description: "Space-separated list of services to restart after the env edit. Defaults to api + worker + beat."
+        required: false
+        type: string
+        default: "api worker beat"
+
+jobs:
+  flip:
+    name: Flip env flag on prod
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Same production-environment gate the deploy workflow uses —
+    # the operator approves the flip in the GitHub UI before any
+    # SSH steps fire.
+    environment:
+      name: production
+      url: https://lumen.ahmedhobeishy.tech
+
+    steps:
+      - name: Validate flag name
+        # Whitelist on the flag prefix so this workflow can't be used
+        # to rewrite arbitrary prod env. A typo or a malicious PR
+        # reviewer flipping `FEATURE_TUTOR_STREAMING` is fine; a
+        # missed key like `DATABASE_URL` would be a disaster.
+        env:
+          FLAG: ${{ inputs.flag }}
+        run: |
+          set -euo pipefail
+          # Allow only [A-Z0-9_], must start with FEATURE_ or LUMEN_.
+          if ! echo "$FLAG" | grep -qE '^(FEATURE_|LUMEN_)[A-Z0-9_]+$'; then
+            echo "::error::flag '$FLAG' is not in the FEATURE_*/LUMEN_* whitelist"
+            exit 1
+          fi
+          echo "flag '$FLAG' passes the prefix whitelist"
+
+      - name: Set up SSH
+        # Same setup the deploy workflow uses. The private-key file
+        # is chmod 600'd so OpenSSH accepts it; known-hosts pins the
+        # box's host key so a MITM can't impersonate it on first
+        # connect.
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.AWS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Apply env edit
+        # Smart update: if the flag already exists in .env.production
+        # its value is replaced via sed; otherwise the line is
+        # appended. Both paths use a temp file + atomic rename so a
+        # partial write can't corrupt the file mid-edit.
+        env:
+          FLAG: ${{ inputs.flag }}
+          VALUE: ${{ inputs.value }}
+        run: |
+          set -euxo pipefail
+          ssh -o StrictHostKeyChecking=yes \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
+              "set -euo pipefail; \
+               cd \$HOME; \
+               touch .env.production; \
+               TMP=\$(mktemp); \
+               if grep -q '^${FLAG}=' .env.production; then \
+                 sed 's|^${FLAG}=.*|${FLAG}=${VALUE}|' .env.production > \$TMP; \
+                 echo '::notice::replaced existing ${FLAG} in .env.production'; \
+               else \
+                 cp .env.production \$TMP; \
+                 echo '${FLAG}=${VALUE}' >> \$TMP; \
+                 echo '::notice::appended ${FLAG} to .env.production'; \
+               fi; \
+               mv \$TMP .env.production; \
+               grep '^${FLAG}=' .env.production"
+
+      - name: Restart services
+        # `docker compose restart` is the lighter-weight cousin of
+        # `up -d`. We want restart (not up) so the running images +
+        # volumes are preserved — only the env reload happens.
+        env:
+          SERVICES: ${{ inputs.services }}
+        run: |
+          set -euxo pipefail
+          ssh -o StrictHostKeyChecking=yes \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
+              "cd ~/lumen && \
+               docker compose -f docker-compose.prod.yml \
+                 --env-file ~/.env.production restart ${SERVICES}"
+
+      - name: Smoke test
+        # Hit /health/live so we know the restart didn't break the
+        # api container. The flag-specific verification (e.g.
+        # /runtime-flags returns the new value) is up to the operator
+        # — this workflow's job ends when the container is back up.
+        env:
+          APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+        run: |
+          set -euo pipefail
+          # 5x retries with 6s backoff = 30s budget for the api
+          # container to finish restarting. Most restarts complete
+          # within 10s; the budget covers a worst-case cold start
+          # on the Graviton box.
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS "https://${APP_DOMAIN}/api/v1/health/live" >/dev/null; then
+              echo "::notice::api health OK on attempt $attempt"
+              exit 0
+            fi
+            echo "::warning::api health failed on attempt $attempt; retrying in 6s"
+            sleep 6
+          done
+          echo "::error::api health did not come back after 5 retries"
+          exit 1
