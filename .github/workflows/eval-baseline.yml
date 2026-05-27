@@ -1,0 +1,157 @@
+name: Run eval baseline (one-shot)
+
+# L41 — operator-driven baseline-comparison run against prod.
+#
+# What it does:
+#   1. SSHes to the AWS prod box.
+#   2. Runs `python -m app.evals.run_baseline run` inside the api
+#      container with primary = Groq Llama 3.3 70B, baseline =
+#      Mistral Small, judge = Groq Llama 3.1 8B. All free-tier.
+#   3. Captures the generated report_id from the CLI output.
+#   4. Runs `python -m app.cli promote-eval --suite <s> --report <id>`
+#      to surface the report on the public `/eval` page.
+#   5. Smoke-tests `GET /api/v1/eval/public` returns the new summary.
+#
+# Why this exists: the eval CLI takes provider keys via env vars,
+# and MISTRAL_API_KEY isn't in `.env.production` by default. This
+# workflow scopes the key to a single `docker compose exec -e` call
+# (NOT persisted to .env.production) using a GitHub Actions repo
+# secret + the existing production-approval gate.
+#
+# Required repo secrets:
+#   MISTRAL_API_KEY  — Mistral La Plateforme key (free tier OK)
+#   AWS_SSH_HOST, AWS_SSH_USER, AWS_SSH_PRIVATE_KEY, AWS_KNOWN_HOSTS
+#   APP_DOMAIN
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Which suite to run (tutor / authoring / ingest)"
+        required: true
+        default: tutor
+        type: choice
+        options:
+          - tutor
+          - authoring
+          - ingest
+      limit:
+        description: "Cap items for a smoke run. Use 10 first; bump to 30 for the full tutor suite."
+        required: true
+        default: "10"
+        type: string
+      promote:
+        description: "Promote the report to public /eval after the run completes?"
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  run:
+    name: Run baseline + promote
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://lumen.ahmedhobeishy.tech
+
+    steps:
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.AWS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run baseline eval
+        # Mistral key passed via SSH env (-o SendEnv) so it never
+        # touches .env.production. `set +x` around the exec so the
+        # key value doesn't echo into the workflow log.
+        # The CLI prints a final line `wrote .../<report_id>.jsonl`;
+        # we grep that out for the next step.
+        id: run
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          SUITE: ${{ inputs.suite }}
+          LIMIT: ${{ inputs.limit }}
+        run: |
+          set -euo pipefail
+          # Don't echo MISTRAL_API_KEY into the workflow log.
+          set +x
+
+          OUT=$(ssh -o StrictHostKeyChecking=yes \
+              -o SendEnv=MISTRAL_API_KEY \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
+              MISTRAL_API_KEY="$MISTRAL_API_KEY" \
+              "cd ~/lumen && \
+               docker compose -f docker-compose.prod.yml \
+                 --env-file ~/.env.production \
+                 exec -T -e MISTRAL_API_KEY \
+                 api python -m app.evals.run_baseline run \
+                   --suite '$SUITE' \
+                   --limit $LIMIT \
+                   --primary groq-llama-3.3 \
+                   --primary-base https://api.groq.com/openai/v1 \
+                   --primary-model llama-3.3-70b-versatile \
+                   --primary-key-env OPENAI_API_KEY \
+                   --baseline mistral \
+                   --baseline-base https://api.mistral.ai/v1 \
+                   --baseline-model mistral-small-latest \
+                   --baseline-key-env MISTRAL_API_KEY \
+                   --judge-base https://api.groq.com/openai/v1 \
+                   --judge-model llama-3.1-8b-instant \
+                   --judge-key-env OPENAI_API_KEY")
+
+          # Echo the full output (without the key) for operator
+          # visibility. The "aggregate deltas" line is the headline.
+          echo "$OUT"
+
+          # The CLI prints the report path on its own line.
+          # Extract just the basename minus .jsonl as report_id.
+          REPORT_ID=$(echo "$OUT" | grep -oE 'baseline-[a-z]+-[0-9]+-[0-9]+' | head -1)
+          if [ -z "$REPORT_ID" ]; then
+            echo "::error::failed to parse report_id from CLI output"
+            exit 1
+          fi
+          echo "report_id=$REPORT_ID" >> "$GITHUB_OUTPUT"
+          echo "::notice::wrote report $REPORT_ID"
+
+      - name: Promote report to public /eval
+        if: inputs.promote
+        env:
+          REPORT_ID: ${{ steps.run.outputs.report_id }}
+          SUITE: ${{ inputs.suite }}
+        run: |
+          set -euxo pipefail
+          ssh -o StrictHostKeyChecking=yes \
+              ${{ secrets.AWS_SSH_USER }}@${{ secrets.AWS_SSH_HOST }} \
+              "cd ~/lumen && \
+               docker compose -f docker-compose.prod.yml \
+                 --env-file ~/.env.production \
+                 exec -T api python -m app.cli promote-eval \
+                   --suite '$SUITE' --report '$REPORT_ID'"
+
+      - name: Smoke-test public /eval endpoint
+        if: inputs.promote
+        env:
+          APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+          SUITE: ${{ inputs.suite }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            body=$(curl -fsS "https://${APP_DOMAIN}/api/v1/eval/public" || echo '{}')
+            if echo "$body" | jq -e --arg s "$SUITE" '.suites[$s] != null' >/dev/null; then
+              echo "::notice::public /eval surface now shows summary for suite=$SUITE"
+              echo "$body" | jq ".suites.\"$SUITE\""
+              exit 0
+            fi
+            echo "::warning::attempt $attempt — suites.$SUITE still null; retrying in 4s"
+            sleep 4
+          done
+          echo "::error::public /eval did not pick up the promotion"
+          exit 1
