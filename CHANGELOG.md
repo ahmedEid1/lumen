@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 26 — sparkline trend on /admin/evals)
+
+- **`<Sparkline />`** component (`apps/frontend/src/components/eval/sparkline.tsx`)
+  — pure SVG, no chart library. 64×16 line + focus dot;
+  `<title>` element for screen-reader spoken summary; values
+  clamped to the supplied range.
+- **Suite cards on `/admin/evals`** now render an 8-run trend
+  sparkline to the right of the headline score. Oldest run left,
+  newest right; lime tint via `text-primary`.
+
 ### Added (post-redesign loop 25 — eval instrumentation)
 
 - **Adversarial probe corpus** at
