@@ -92,7 +92,7 @@ jobs:
                docker compose -f docker-compose.prod.yml \
                  --env-file ~/.env.production \
                  exec -T -e MISTRAL_API_KEY \
-                 api python -m app.evals.run_baseline run \
+                 api python -m app.evals.run_baseline \
                    --suite '$SUITE' \
                    --limit $LIMIT \
                    --primary groq-llama-3.3 \

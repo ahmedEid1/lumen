@@ -85,8 +85,10 @@ jobs:
           # comes back 200 we know the seed landed; 404 means the
           # exec failed silently somehow.
           for attempt in 1 2 3 4 5; do
+            # Endpoint is /courses/{key} — `key` resolves either by
+            # nanoid id OR slug. There is no /by-slug/ prefix.
             code=$(curl -fsS -o /dev/null -w "%{http_code}" \
-              "https://${APP_DOMAIN}/api/v1/courses/by-slug/typescript-variance" \
+              "https://${APP_DOMAIN}/api/v1/courses/typescript-variance" \
               || echo "000")
             if [ "$code" = "200" ]; then
               echo "::notice::TS Variance course is now reachable on prod"
