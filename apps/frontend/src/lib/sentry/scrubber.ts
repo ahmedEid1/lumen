@@ -98,11 +98,18 @@ export function beforeSendScrub<T extends SentryEventLike>(event: T): T {
       }
       // L39 rescue (Codex P1) — a `fetch` / `xhr` breadcrumb to
       // /tutor/* carries the request URL + body under `data` even
-      // when the message is innocuous. Scrub the whole data
-      // payload if the data has any tutor signal OR if any key in
-      // it is high-risk.
+      // when the message is innocuous. L40 rescue (Codex P1): the
+      // first pass only zeroed payload/body/url but a breadcrumb
+      // shaped `{ data: { prompt: "..." } }` still leaked the
+      // `prompt` key. Now: walk the entire data dict via scrubMap
+      // (which recursively scrubs nested high-risk keys), then
+      // overwrite the conventional payload/body/url fields too.
       if (bc.data && hasTutorSignalInData(bc.data)) {
-        return { ...bc, data: { ...bc.data, payload: SCRUBBED, body: SCRUBBED, url: SCRUBBED } };
+        const cleaned = scrubMap(bc.data);
+        cleaned.payload = SCRUBBED;
+        cleaned.body = SCRUBBED;
+        cleaned.url = SCRUBBED;
+        return { ...bc, data: cleaned };
       }
       if (bc.message && hasHighRiskSubstring(bc.message)) {
         return { ...bc, message: SCRUBBED };
@@ -176,20 +183,40 @@ function isHighRiskKey(k: string): boolean {
 }
 
 /**
- * Scrub a flat dict in place — high-risk keys replaced with the
- * scrubbed marker, non-string values left alone (no recursion
- * deeper than one level; Sentry's `extra` is conventionally flat).
+ * Recursively scrub a dict — high-risk keys replaced with the
+ * scrubbed marker, high-risk-substring strings replaced, nested
+ * dicts walked depth-first.
+ *
+ * L40 rescue (Codex P1): the first version was one-level deep and
+ * left `contexts: { tutor: { request: { prompt: "..." } } }`
+ * fully readable. `MAX_DEPTH` bounds recursion so a cyclic ref or
+ * a giant `contexts` payload can't blow the stack.
  */
-function scrubMap(map: Record<string, unknown>): Record<string, unknown> {
+function scrubMap(
+  map: Record<string, unknown>,
+  depth: number = 0,
+): Record<string, unknown> {
+  const MAX_DEPTH = 5;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(map)) {
     if (isHighRiskKey(k)) {
       out[k] = SCRUBBED;
-    } else if (typeof v === "string" && hasHighRiskSubstring(v)) {
-      out[k] = SCRUBBED;
-    } else {
-      out[k] = v;
+      continue;
     }
+    if (typeof v === "string" && hasHighRiskSubstring(v)) {
+      out[k] = SCRUBBED;
+      continue;
+    }
+    if (
+      v !== null &&
+      typeof v === "object" &&
+      !Array.isArray(v) &&
+      depth < MAX_DEPTH
+    ) {
+      out[k] = scrubMap(v as Record<string, unknown>, depth + 1);
+      continue;
+    }
+    out[k] = v;
   }
   return out;
 }

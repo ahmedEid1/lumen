@@ -306,6 +306,18 @@ async function runWithRecovery(
       return;
     }
   }
+
+  // L40 rescue (Codex P2): if both retries closed cleanly without
+  // ever yielding a terminal event (proxy idle timeout, server
+  // closed mid-synth), the snapshot was left in planning/tool/synth
+  // forever. Mark it failed so the consumer's terminal-phase
+  // listeners settle.
+  if (!isCancelled()) {
+    const phase = store.getSnapshot().phase;
+    if (phase !== "complete" && phase !== "failed" && phase !== "trim") {
+      store.fail("tutor.stream_eof");
+    }
+  }
 }
 
 
@@ -322,8 +334,17 @@ async function pollUntilTerminal(
   // in under 30s, but cold-start retries can push past that.
   for (let i = 0; i < 60; i += 1) {
     if (isCancelled() || signal.aborted) return;
+    // L40 rescue (Codex P2): per-request timeout. The outer abort
+    // signal only fires on hook teardown, but a stuck fetch (slow
+    // server, dropped TCP) could block one tick of the 60s budget
+    // indefinitely → loop never advances, UI freezes in
+    // "trim/polling" forever. Race the fetch against a 3s timeout
+    // via a chained AbortController.
+    const perRequestController = new AbortController();
+    const composite = composeAbort(signal, perRequestController.signal);
+    const timeoutHandle = setTimeout(() => perRequestController.abort(), 3000);
     try {
-      const r = await fetch(statusUrl, { headers, signal });
+      const r = await fetch(statusUrl, { headers, signal: composite });
       if (r.ok) {
         const body: { status?: string; error_code?: string | null } = await r.json();
         if (body.status === "complete") {
@@ -336,10 +357,29 @@ async function pollUntilTerminal(
         }
       }
     } catch {
-      // network blip — try again next tick
+      // network blip / timeout — try again next tick
+    } finally {
+      clearTimeout(timeoutHandle);
     }
     await new Promise((r) => setTimeout(r, 1000));
   }
   // Budget exhausted; mark stale.
   store.fail("tutor.poll_timeout");
+}
+
+
+/**
+ * L40 rescue helper — return an AbortSignal that fires when EITHER
+ * input signal fires. The standard `AbortSignal.any([...])` exists
+ * but isn't supported on older Safari versions Lumen still
+ * targets; this polyfill is a few lines and avoids the dependency.
+ */
+function composeAbort(...signals: AbortSignal[]): AbortSignal {
+  const controller = new AbortController();
+  const trip = (s: AbortSignal) => {
+    if (s.aborted) controller.abort(s.reason);
+    s.addEventListener("abort", () => controller.abort(s.reason));
+  };
+  for (const s of signals) trip(s);
+  return controller.signal;
 }

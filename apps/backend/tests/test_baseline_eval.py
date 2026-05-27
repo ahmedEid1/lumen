@@ -170,3 +170,33 @@ async def test_run_comparison_preserves_prior_pairs_on_item_failure() -> None:
     assert len(pairs) == 4
     # The error callback fired exactly once.
     assert len(errors_seen) == 1
+
+
+@pytest.mark.asyncio
+async def test_run_comparison_respects_circuit_breaker_callback() -> None:
+    """L40 rescue (Codex P2) — `on_item_error` may DELIBERATELY
+    raise to short-circuit a run (e.g. cumulative cost cap hit).
+    The runner must let that propagate, not silently swallow it."""
+    items = [BaselineItem(item_id=f"t-{i}", question=f"Q{i}?") for i in range(10)]
+
+    async def always_failing_answer(question, provider_name):
+        raise RuntimeError("budget exhausted")
+
+    async def fake_score(it, answer_text, tool_path):
+        return 4.0, 4.0, 4.0
+
+    class CostCapTripped(Exception):
+        pass
+
+    def stop_the_run(item, exc):
+        raise CostCapTripped(f"caller decided: {item.item_id}")
+
+    with pytest.raises(CostCapTripped):
+        await run_comparison(
+            items,
+            primary="primary",
+            baseline="baseline",
+            answer_fn=always_failing_answer,
+            score_fn=fake_score,
+            on_item_error=stop_the_run,
+        )

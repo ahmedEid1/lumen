@@ -159,6 +159,56 @@ describe("beforeSendScrub", () => {
     expect(out.contexts?.device?.screen_width).toBe(1920);
   });
 
+  // L40 rescue (Codex P1×2)
+
+  it("scrubs nested contexts dicts recursively (L40 P1)", () => {
+    const event = {
+      contexts: {
+        tutor: {
+          request: {
+            prompt: "SECRET DEEPLY NESTED",
+            user_message: "explain X",
+          },
+          response: {
+            cost_usd: 0.00024,
+          },
+        },
+      },
+    };
+    const out = beforeSendScrub(event);
+    const tutor = out.contexts?.tutor as Record<string, Record<string, unknown>>;
+    expect(tutor.request.prompt).toBe(SCRUBBED);
+    expect(tutor.request.user_message).toBe(SCRUBBED);
+    expect(tutor.response.cost_usd).toBe(0.00024);
+  });
+
+  it("scrubs nested high-risk keys in fetch breadcrumb data (L40 P1)", () => {
+    const event = {
+      breadcrumbs: [
+        {
+          category: "fetch",
+          message: "POST 201",
+          data: {
+            url: "https://lumen.example/api/v1/tutor/turns",
+            // A breadcrumb might attach the raw request body as a
+            // nested object — not just a string payload.
+            request: { prompt: "SECRET", innocuous: "kept" },
+            status_code: 201,
+          },
+        },
+      ],
+    };
+    const out = beforeSendScrub(event);
+    const data = out.breadcrumbs?.[0].data as Record<string, unknown>;
+    expect(data.url).toBe(SCRUBBED);
+    expect(data.payload).toBe(SCRUBBED);
+    expect(data.body).toBe(SCRUBBED);
+    expect(data.status_code).toBe(201);
+    const req = data.request as Record<string, unknown>;
+    expect(req.prompt).toBe(SCRUBBED);
+    expect(req.innocuous).toBe("kept");
+  });
+
   it("scrubs extra string values containing high-risk substrings (P1)", () => {
     const event = {
       extra: {

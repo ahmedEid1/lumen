@@ -29,7 +29,6 @@ so the smoke path works without a real GPT-4 budget.
 
 from __future__ import annotations
 
-import contextlib
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -191,11 +190,14 @@ async def run_comparison(
             )
         except Exception as exc:
             if on_item_error is not None:
-                # Best-effort: a bad callback shouldn't crash the run.
-                with contextlib.suppress(Exception):
-                    res = on_item_error(item, exc)
-                    if hasattr(res, "__await__"):
-                        await res
+                # L40 rescue (Codex P2): the callback may DELIBERATELY
+                # raise to signal "stop the run" (e.g. on a cumulative-
+                # cost-cap trip). Letting that propagate is the
+                # documented circuit-breaker contract. The previous
+                # `contextlib.suppress(Exception)` defeated this.
+                res = on_item_error(item, exc)
+                if hasattr(res, "__await__"):
+                    await res
             continue
         pairs.append(
             BaselinePair(

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (post-redesign loop 40 — final Codex rescue on L39)
+
+- **Sentry scrubber recursive `scrubMap` (P1).** First version was
+  one-level deep so `contexts.tutor.request.prompt` leaked. Now
+  walks nested dicts depth-first with a `MAX_DEPTH = 5` guard.
+- **Breadcrumb data scrubbing on fetch (P1).** Tutor-namespace
+  breadcrumbs with nested data dicts (e.g. `data.request.prompt`)
+  had their fixed `payload`/`body`/`url` fields zeroed but kept
+  high-risk keys intact. Now the whole data dict goes through
+  `scrubMap` first.
+- **`pollUntilTerminal` per-request timeout (P2).** A stuck fetch
+  could block one tick of the 60s budget indefinitely. Each
+  request now races against a 3s `AbortController` + setTimeout
+  via a `composeAbort` polyfill.
+- **SSE clean-EOF after exhausted retries (P2).** If both retries
+  closed cleanly without ever yielding a terminal event, the
+  snapshot lingered in `synth` forever. Post-loop guard now marks
+  `tutor.stream_eof` if no terminal phase reached.
+- **`run_comparison` honors callback aborts (P2).** Removed the
+  `contextlib.suppress(Exception)` around the `on_item_error`
+  callback so a callback that raises (e.g. cumulative cost-cap
+  trip) actually short-circuits the run.
+
 ### Added (post-redesign loop 39 — anti-abuse + SSE resume + L35-L38 Codex rescue)
 
 - **Anti-abuse rate limit on `POST /api/v1/tutor/turns`.** Now wears
