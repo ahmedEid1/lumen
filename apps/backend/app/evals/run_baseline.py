@@ -183,10 +183,15 @@ def run(
     raw = load_dataset(suite)
     if limit:
         raw = raw[:limit]
+    # `load_dataset()` returns typed dataclass items (TutorItem /
+    # AuthoringItem / IngestItem), not dicts. Adapt via getattr so
+    # the same loop works across all three suites without per-suite
+    # branching. AuthoringItem's question-field is `prompt`; the
+    # tutor + ingest suites use `question`.
     items = [
         BaselineItem(
-            item_id=str(r.get("id", f"item-{i}")),
-            question=str(r.get("question") or r.get("prompt") or ""),
+            item_id=str(getattr(r, "id", None) or f"item-{i}"),
+            question=str(getattr(r, "question", None) or getattr(r, "prompt", "") or ""),
         )
         for i, r in enumerate(raw)
     ]
