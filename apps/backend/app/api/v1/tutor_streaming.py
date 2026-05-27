@@ -24,7 +24,7 @@ import json
 from decimal import Decimal
 
 import redis.asyncio as redis
-from fastapi import APIRouter, Header, Request, status
+from fastapi import APIRouter, Header, Request, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 from sse_starlette.sse import EventSourceResponse
@@ -45,6 +45,7 @@ from app.core.errors import (
     TutorIpCapError,
     TutorUserCapError,
 )
+from app.core.ratelimit import limiter
 from app.models.tutor_turn_job import TERMINAL_TURN_STATUSES, TURN_STATUS_ABORTED
 from app.services.redis_streams import check_trim, consume_stream
 from app.services.tutor_turn_service import (
@@ -117,11 +118,13 @@ class TurnOut(BaseModel):
     summary="Open a streaming tutor turn (L21a)",
     tags=["tutor-streaming"],
 )
+@limiter.limit("20/minute")
 async def post_turn(
     body: NewTurnIn,
     user: CurrentUser,
     db: DBSession,
     request: Request,
+    response: Response,
 ) -> TurnOut:
     _require_streaming_enabled()
 

@@ -83,4 +83,91 @@ describe("beforeSendScrub", () => {
     const out = beforeSendScrub(event);
     expect(out.message).toBe(SCRUBBED);
   });
+
+  // L39 rescue (Codex P1×2 + P2)
+
+  it("scrubs request URL + query_string on tutor paths (P2)", () => {
+    const event = {
+      request: {
+        url: "https://lumen.example/api/v1/tutor/turns?q=secret",
+        query_string: "q=secret",
+        data: { content: "secret" },
+      },
+    };
+    const out = beforeSendScrub(event);
+    expect(out.request?.url).toBe(SCRUBBED);
+    expect(out.request?.query_string).toBe(SCRUBBED);
+    expect(out.request?.data).toBe(SCRUBBED);
+  });
+
+  it("scrubs fetch breadcrumb data when URL is tutor-namespace (P1)", () => {
+    const event = {
+      breadcrumbs: [
+        {
+          category: "fetch",
+          message: "POST 201",
+          data: {
+            url: "https://lumen.example/api/v1/tutor/turns",
+            payload: "secret prompt",
+            body: '{"content":"secret"}',
+          },
+        },
+        {
+          category: "navigation",
+          message: "to /home",
+          data: { from: "/learn", to: "/home" },
+        },
+      ],
+    };
+    const out = beforeSendScrub(event);
+    expect(out.breadcrumbs?.[0].data?.payload).toBe(SCRUBBED);
+    expect(out.breadcrumbs?.[0].data?.body).toBe(SCRUBBED);
+    expect(out.breadcrumbs?.[0].data?.url).toBe(SCRUBBED);
+    // Non-tutor navigation breadcrumb is untouched.
+    expect(out.breadcrumbs?.[1].data?.from).toBe("/learn");
+  });
+
+  it("scrubs Sentry extra dict for high-risk keys (P1)", () => {
+    const event = {
+      extra: {
+        prompt: "SECRET PROMPT",
+        user_message: "explain X",
+        innocuous: "kept",
+      },
+    };
+    const out = beforeSendScrub(event);
+    expect(out.extra?.prompt).toBe(SCRUBBED);
+    expect(out.extra?.user_message).toBe(SCRUBBED);
+    expect(out.extra?.innocuous).toBe("kept");
+  });
+
+  it("scrubs Sentry contexts dicts recursively (P1)", () => {
+    const event = {
+      contexts: {
+        tutor: {
+          prompt: "SECRET",
+          turn_id: "kept",
+        },
+        device: {
+          screen_width: 1920,
+        },
+      },
+    };
+    const out = beforeSendScrub(event);
+    expect(out.contexts?.tutor?.prompt).toBe(SCRUBBED);
+    expect(out.contexts?.tutor?.turn_id).toBe("kept");
+    expect(out.contexts?.device?.screen_width).toBe(1920);
+  });
+
+  it("scrubs extra string values containing high-risk substrings (P1)", () => {
+    const event = {
+      extra: {
+        diagnostic: "stream timeout while in synth_chunk loop",
+        timestamp: "2026-05-27T12:00:00Z",
+      },
+    };
+    const out = beforeSendScrub(event);
+    expect(out.extra?.diagnostic).toBe(SCRUBBED);
+    expect(out.extra?.timestamp).toBe("2026-05-27T12:00:00Z");
+  });
 });

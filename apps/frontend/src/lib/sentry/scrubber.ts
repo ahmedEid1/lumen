@@ -43,6 +43,7 @@ interface SentryEventLike {
   request?: {
     url?: string;
     data?: unknown;
+    query_string?: string;
   };
   breadcrumbs?: Array<{
     category?: string;
@@ -60,6 +61,12 @@ interface SentryEventLike {
     }>;
   };
   message?: string;
+  // L39 rescue (Codex P1) — `extra` and `contexts` are common
+  // metadata escape hatches. `Sentry.captureException(err, { extra:
+  // { prompt, messages } })` would otherwise smuggle the same data
+  // the stacktrace scrubber zeros.
+  extra?: Record<string, unknown>;
+  contexts?: Record<string, Record<string, unknown> | undefined>;
 }
 
 export function beforeSendScrub<T extends SentryEventLike>(event: T): T {
@@ -71,6 +78,14 @@ export function beforeSendScrub<T extends SentryEventLike>(event: T): T {
   // Scrub request body on any /tutor/* URL.
   if (event.request?.url?.includes(TUTOR_PATH_PREFIX)) {
     event.request.data = SCRUBBED;
+    // L39 rescue (Codex P2) — strip query strings from tutor URLs.
+    // A failed SSE reconnect or any tutor request that smuggles
+    // learner content into the query (e.g. ?q=…) would otherwise
+    // ship in clear.
+    event.request.url = SCRUBBED;
+    if (event.request.query_string) {
+      event.request.query_string = SCRUBBED;
+    }
   }
 
   // Scrub each breadcrumb. Breadcrumbs tagged `category: "tutor"`
@@ -81,11 +96,34 @@ export function beforeSendScrub<T extends SentryEventLike>(event: T): T {
       if (bc.category === "tutor") {
         return { ...bc, message: SCRUBBED, data: undefined };
       }
+      // L39 rescue (Codex P1) — a `fetch` / `xhr` breadcrumb to
+      // /tutor/* carries the request URL + body under `data` even
+      // when the message is innocuous. Scrub the whole data
+      // payload if the data has any tutor signal OR if any key in
+      // it is high-risk.
+      if (bc.data && hasTutorSignalInData(bc.data)) {
+        return { ...bc, data: { ...bc.data, payload: SCRUBBED, body: SCRUBBED, url: SCRUBBED } };
+      }
       if (bc.message && hasHighRiskSubstring(bc.message)) {
         return { ...bc, message: SCRUBBED };
       }
       return bc;
     });
+  }
+
+  // L39 rescue (Codex P1) — scrub `extra` and `contexts` metadata.
+  // `Sentry.captureException(err, { extra: { prompt } })` would
+  // otherwise smuggle the same field names the stacktrace scrubber
+  // zeros.
+  if (event.extra) {
+    event.extra = scrubMap(event.extra);
+  }
+  if (event.contexts) {
+    const cleaned: Record<string, Record<string, unknown> | undefined> = {};
+    for (const [ctxName, ctxValue] of Object.entries(event.contexts)) {
+      cleaned[ctxName] = ctxValue ? scrubMap(ctxValue) : ctxValue;
+    }
+    event.contexts = cleaned;
   }
 
   // Scrub stack-frame locals for exception values mentioning tutor.
@@ -135,4 +173,40 @@ const HIGH_RISK_KEYS = new Set([
 
 function isHighRiskKey(k: string): boolean {
   return HIGH_RISK_KEYS.has(k);
+}
+
+/**
+ * Scrub a flat dict in place — high-risk keys replaced with the
+ * scrubbed marker, non-string values left alone (no recursion
+ * deeper than one level; Sentry's `extra` is conventionally flat).
+ */
+function scrubMap(map: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(map)) {
+    if (isHighRiskKey(k)) {
+      out[k] = SCRUBBED;
+    } else if (typeof v === "string" && hasHighRiskSubstring(v)) {
+      out[k] = SCRUBBED;
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+/**
+ * L39 rescue — does this breadcrumb's data dict look tutor-related?
+ * A `fetch` breadcrumb to /api/v1/tutor/turns is the canonical case
+ * — `data.url` will contain the path. We also key off any high-risk
+ * key being present.
+ */
+function hasTutorSignalInData(data: Record<string, unknown>): boolean {
+  const url = data.url;
+  if (typeof url === "string" && url.includes(TUTOR_PATH_PREFIX)) {
+    return true;
+  }
+  for (const key of Object.keys(data)) {
+    if (isHighRiskKey(key)) return true;
+  }
+  return false;
 }

@@ -29,6 +29,7 @@ so the smoke path works without a real GPT-4 budget.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -160,6 +161,7 @@ async def run_comparison(
     baseline: str,
     answer_fn,
     score_fn,
+    on_item_error=None,
 ) -> list[BaselinePair]:
     """Run the full dataset against `primary` and `baseline` providers.
 
@@ -171,15 +173,30 @@ async def run_comparison(
     caller should short-circuit once the cumulative cost crosses
     their budget (this function doesn't enforce a budget itself —
     the caller's runtime knows what's affordable).
+
+    L39 rescue (Codex P2): each item runs inside a try/except so a
+    failure on item N (rate limit / provider timeout / judge error)
+    does NOT throw away the N-1 prior pairs already paid for. The
+    optional ``on_item_error(item, exc)`` callback lets callers log
+    or persist the failure — by default it's a no-op.
     """
     pairs: list[BaselinePair] = []
     for item in items:
-        primary_score = await run_one_item(
-            item, provider_name=primary, answer_fn=answer_fn, score_fn=score_fn
-        )
-        baseline_score = await run_one_item(
-            item, provider_name=baseline, answer_fn=answer_fn, score_fn=score_fn
-        )
+        try:
+            primary_score = await run_one_item(
+                item, provider_name=primary, answer_fn=answer_fn, score_fn=score_fn
+            )
+            baseline_score = await run_one_item(
+                item, provider_name=baseline, answer_fn=answer_fn, score_fn=score_fn
+            )
+        except Exception as exc:
+            if on_item_error is not None:
+                # Best-effort: a bad callback shouldn't crash the run.
+                with contextlib.suppress(Exception):
+                    res = on_item_error(item, exc)
+                    if hasattr(res, "__await__"):
+                        await res
+            continue
         pairs.append(
             BaselinePair(
                 item_id=item.item_id,

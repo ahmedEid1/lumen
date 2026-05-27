@@ -130,3 +130,43 @@ async def test_run_comparison_returns_pairs_with_deltas() -> None:
     assert summary["n"] == 2
     assert summary["grounding"] == 1.0
     assert summary["accuracy"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_run_comparison_preserves_prior_pairs_on_item_failure() -> None:
+    """L39 rescue (Codex P2) — if `answer_fn` raises on item N, the
+    N-1 prior BaselinePairs must still come back. Otherwise an
+    expensive 10-item run loses everything on a single transient
+    judge timeout."""
+    items = [BaselineItem(item_id=f"t-{i}", question=f"Q{i}?") for i in range(5)]
+    call_count = {"n": 0}
+
+    async def flaky_answer(question, provider_name):
+        call_count["n"] += 1
+        # Fail on the 7th call (≈ item 3, provider=primary →
+        # baseline=primary is call 5/6; item 3 primary is call 7).
+        if call_count["n"] == 7:
+            raise RuntimeError("provider timeout")
+        return "answer", (), 50, 0.0
+
+    async def fake_score(it, answer_text, tool_path):
+        return 4.0, 4.0, 4.0
+
+    errors_seen: list[str] = []
+
+    def on_err(item, exc):
+        errors_seen.append(item.item_id)
+
+    pairs = await run_comparison(
+        items,
+        primary="primary",
+        baseline="baseline",
+        answer_fn=flaky_answer,
+        score_fn=fake_score,
+        on_item_error=on_err,
+    )
+    # 5 items × 2 providers = 10 calls. Call 7 raises → that item
+    # gets dropped. The remaining 4 items complete normally.
+    assert len(pairs) == 4
+    # The error callback fired exactly once.
+    assert len(errors_seen) == 1

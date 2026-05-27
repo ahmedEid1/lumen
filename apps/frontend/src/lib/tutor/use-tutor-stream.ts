@@ -192,21 +192,30 @@ export function useTutorStream(turnId: string | null): TutorStreamSnapshot {
     const controller = new AbortController();
     let cancelled = false;
 
-    void (async () => {
-      await openSseStream({
-        url: `/api/v1/tutor/turns/${encodeURIComponent(turnId)}/stream`,
-        token,
-        signal: controller.signal,
-        onEvent: (ev) => {
-          if (cancelled) return;
-          store.apply(ev);
-        },
-        onError: (err) => {
-          if (cancelled) return;
-          store.fail(err.message || "tutor.stream_error");
-        },
-      });
-    })();
+    /**
+     * L39 — connection lifecycle.
+     *
+     * Three failure modes the consumer needs to survive:
+     *
+     * 1. **Transient network error during streaming** — connection
+     *    dropped mid-turn. We retry ONCE with the latest
+     *    `Last-Event-ID` so the server replays only events the
+     *    client missed. A second consecutive failure surfaces as
+     *    a hard error (the orchestrator's probably dead at that
+     *    point; further retries just burn CI).
+     *
+     * 2. **Trim detected (events TTL'd)** — the SSE endpoint
+     *    emits `trim_detected` and closes. The reducer flips
+     *    phase → "trim"; we then poll `/status` until terminal
+     *    and synthesise a `turn_complete` / `turn_failed` event
+     *    so the consumer reducer settles on a normal terminal
+     *    phase.
+     *
+     * 3. **Hard error (auth / 404 / 503)** — `openSseStream`'s
+     *    `onError` fires with a non-retryable message; we mark
+     *    the snapshot failed without retry.
+     */
+    void runWithRecovery(turnId, token, controller.signal, store, () => cancelled);
 
     return () => {
       cancelled = true;
@@ -218,3 +227,119 @@ export function useTutorStream(turnId: string | null): TutorStreamSnapshot {
 }
 
 export { TERMINAL_PHASES };
+
+
+/**
+ * L39 — stream-with-recovery driver. Lifted out of the hook body so
+ * the retry + poll-fallback logic is unit-testable without React.
+ *
+ * Public for the tests under `tests/use-tutor-stream*.test.tsx`; not
+ * part of the hook's external surface.
+ */
+async function runWithRecovery(
+  turnId: string,
+  token: string | null,
+  signal: AbortSignal,
+  store: TutorStreamStore,
+  isCancelled: () => boolean,
+): Promise<void> {
+  const url = `/api/v1/tutor/turns/${encodeURIComponent(turnId)}/stream`;
+  const statusUrl = `/api/v1/tutor/turns/${encodeURIComponent(turnId)}/status`;
+  let attempts = 0;
+  const MAX_ATTEMPTS = 2;
+
+  while (attempts < MAX_ATTEMPTS) {
+    attempts += 1;
+    const lastEventId = store.getSnapshot().lastEventId;
+    let hadError = false;
+
+    await openSseStream({
+      url,
+      token,
+      signal,
+      lastEventId: lastEventId ?? undefined,
+      onEvent: (ev) => {
+        if (isCancelled()) return;
+        store.apply(ev);
+      },
+      onError: (err) => {
+        if (isCancelled()) return;
+        hadError = true;
+        // Auth / 404 / 503 errors don't get a retry — they're
+        // permanent for this turn. The SSE client's `onError`
+        // shape doesn't carry a status code today, so we sniff
+        // the message text for the common non-retryable cases.
+        const msg = err.message || "";
+        if (/401|403|404|503|disabled/i.test(msg)) {
+          store.fail(msg || "tutor.stream_error");
+          attempts = MAX_ATTEMPTS;
+        }
+      },
+    });
+
+    if (isCancelled()) return;
+
+    // If the snapshot is terminal (turn_complete / turn_failed /
+    // turn_aborted lands), we're done — no retry needed.
+    const phase = store.getSnapshot().phase;
+    if (phase === "complete" || phase === "failed") return;
+
+    // Trim detected → switch to polling /status until terminal.
+    if (phase === "trim") {
+      await pollUntilTerminal(statusUrl, token, signal, store, isCancelled);
+      return;
+    }
+
+    // Stream closed without a terminal event AND without a hard
+    // error code — most likely a transient network blip. Retry
+    // once via the next iteration of this loop. `Last-Event-ID`
+    // (from `store.snapshot.lastEventId`) makes the server replay
+    // only what we missed.
+    if (!hadError && attempts < MAX_ATTEMPTS) {
+      // brief backoff so we don't slam a flapping server
+      await new Promise((r) => setTimeout(r, 250 * attempts));
+      continue;
+    }
+
+    if (hadError && attempts >= MAX_ATTEMPTS) {
+      store.fail("tutor.stream_error");
+      return;
+    }
+  }
+}
+
+
+async function pollUntilTerminal(
+  statusUrl: string,
+  token: string | null,
+  signal: AbortSignal,
+  store: TutorStreamStore,
+  isCancelled: () => boolean,
+): Promise<void> {
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  // 60s budget at 1s intervals — orchestrator typically completes
+  // in under 30s, but cold-start retries can push past that.
+  for (let i = 0; i < 60; i += 1) {
+    if (isCancelled() || signal.aborted) return;
+    try {
+      const r = await fetch(statusUrl, { headers, signal });
+      if (r.ok) {
+        const body: { status?: string; error_code?: string | null } = await r.json();
+        if (body.status === "complete") {
+          store.apply({ id: "poll", event: "turn_complete", data: "{}" });
+          return;
+        }
+        if (body.status === "failed" || body.status === "aborted") {
+          store.fail(body.error_code || `tutor.${body.status}`);
+          return;
+        }
+      }
+    } catch {
+      // network blip — try again next tick
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  // Budget exhausted; mark stale.
+  store.fail("tutor.poll_timeout");
+}

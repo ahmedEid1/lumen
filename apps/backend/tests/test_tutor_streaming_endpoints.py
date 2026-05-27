@@ -306,6 +306,40 @@ async def test_post_persists_reserved_cost_on_row(
     assert abs(turn.reserved_cost_usd - Decimal("0.0075")) < Decimal("0.0000001")
 
 
+async def test_streaming_post_rate_limited_at_20_per_minute(
+    client: AsyncClient,
+    auth_headers,
+    monkeypatch,
+    _stub_cost_scripts,
+) -> None:
+    """L39 — POST /tutor/turns now wears the same `@limiter.limit
+    20/minute` the legacy POST has. The 21st request from one
+    identity inside a one-minute window should 429.
+
+    Cost + concurrency stubs return ok so the rate limit (not the
+    cap) is the gate this test exercises.
+    """
+    from app.core.ratelimit import reset_for_tests as _reset_limiter
+
+    _reset_limiter()
+    s = get_settings()
+    monkeypatch.setattr(s, "feature_tutor_streaming", True)
+    learner = await auth_headers(role=Role.student)
+    _reset_limiter()  # auth_headers' login hit a different limiter bucket
+
+    last_status = 0
+    for _ in range(22):
+        r = await client.post(
+            "/api/v1/tutor/turns",
+            json={"content": "ping"},
+            headers=learner,
+        )
+        last_status = r.status_code
+        if r.status_code == 429:
+            break
+    assert last_status == 429
+
+
 async def test_status_idor_collapses_to_404(
     client: AsyncClient,
     auth_headers,

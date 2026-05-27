@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 39 — anti-abuse + SSE resume + L35-L38 Codex rescue)
+
+- **Anti-abuse rate limit on `POST /api/v1/tutor/turns`.** Now wears
+  `@limiter.limit("20/minute")` matching the legacy POST. Catches
+  abusive bursts before the cost-cap reservation has to fire.
+- **SSE resume + poll-fallback hardening.** `useTutorStream` now
+  retries once on transient stream errors with `Last-Event-ID`,
+  polls `/status` on `trim_detected` until terminal, and fails
+  fast on hard error codes (401/403/404/503). Logic lifted to
+  `runWithRecovery` + `pollUntilTerminal` for testability.
+
+### Fixed (Codex rescue on L35-L38 — 4 findings)
+
+- **Sentry scrubber `extra` + `contexts` (P1).** Captured exceptions
+  with `Sentry.captureException(err, { extra: { prompt } })` were
+  smuggling tutor data past the stacktrace scrubber. `beforeSendScrub`
+  now applies `scrubMap` to both top-level metadata dicts.
+- **Sentry scrubber breadcrumb `data` payloads (P1).** Default `fetch`
+  breadcrumbs attach `data.url` + `data.payload` for every request;
+  a fetch to `/api/v1/tutor/turns` was carrying the question in clear.
+  Now: breadcrumbs whose `data.url` includes the tutor prefix OR
+  whose data has any high-risk key get `payload`/`body`/`url` zeroed.
+- **Sentry scrubber request URL query strings (P2).** `event.request.url`
+  and `event.request.query_string` on tutor URLs were untouched.
+  Both now scrubbed.
+- **Baseline runner per-item resilience (P2).** `run_comparison` lost
+  all prior `BaselinePair`s if `answer_fn` raised on item N. Each
+  iteration now runs in its own try/except with an optional
+  `on_item_error` callback for the operator path.
+
 ### Added (post-redesign bundle L35-L38 — mobile Sheet + baseline runner + Anthropic streaming + Sentry)
 
 - **Mobile bottom-Sheet for the tutor panel** on `/learn/[slug]` —
