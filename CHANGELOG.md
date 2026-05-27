@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (post-redesign loop 22 — chip rail + Tools-used label + RTL fix)
+
+- **Demo-question chip rail** (`demo-question-chip-rail.tsx`) above
+  the tutor composer when the conversation is empty. Consumes
+  `useDemoQuestions(courseSlug)` (L20.6 library). Canonical chip
+  renders first with lime-tinted styling + `aria-label="Try the
+  canonical demo question"`. Tap → fills draft + auto-sends. Wired
+  into both `LegacyTutorPanel` and `StreamingTutorPanel`.
+- **"Tools used" label reframe** — renamed `tutor.agentTrace.*` i18n
+  keys: "Agent thinking" → "Tools used"; "Show me how you got this"
+  → "Show how the tutor got there"; "Hide reasoning" → "Hide tools
+  used". Both `en.ts` and `ar.ts` updated; i18n parity test green.
+
+### Fixed (post-redesign loop 22)
+
+- **RTL leak** at `apps/frontend/src/app/studio/draft/[courseId]/components/draft-trace-timeline.tsx:94`
+  — `text-left` → `text-start`. Last surviving AUDIT §4 RTL-leak.
+
 ### Added (post-redesign loop 21b — frontend streaming + flag-flip)
 
 - **SSE parser** (`apps/frontend/src/lib/tutor/sse-parser.ts`) —
