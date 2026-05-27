@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (post-redesign loop 24 — mobile/tablet agentic pass)
+
+- **Tutor panel mounts in a bottom Sheet** below the `lg` breakpoint
+  (`apps/frontend/src/app/learn/[slug]/page.tsx`). At `lg+` the
+  existing inline three-column layout stays. The mobile Sheet
+  inherits the Radix Dialog focus trap + Escape + click-outside
+  semantics from the Loop-11 mobile-menu primitive.
+- **Review grade buttons → `h-11`** (44px), matching WCAG 2.2 AA
+  touch-target minimum. Was `h-9` (36px), which under-targeted
+  thumb landmarks on iPhone 13.
+
+### Deferred (post-redesign loop 24)
+
+- Canonical mobile screenshot capture. Needs
+  `FEATURE_TUTOR_STREAMING=true` on prod (which gates the streaming
+  UI the screenshot is meant to capture); rolls in with the L21a
+  cost-reserve + AsyncOpenAI follow-up.
+
 ### Added (post-redesign loop 23 — cost-cap closing CTA)
 
 - **`<CostCapClosingCta />`** (`apps/frontend/src/components/tutor/cost-cap-closing-cta.tsx`)
