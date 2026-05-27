@@ -76,13 +76,20 @@ def upgrade() -> None:
     # operator can spot-check.
     if count > 0:
         sample_ids = [row[0] for row in grandfathered[:100]]
+        # Codex rescue (post-redesign loop 21-sec): `:data::jsonb` is
+        # NOT a valid SQLAlchemy bind shape. The `::` here gets read
+        # as the Postgres cast operator and the param substitution
+        # silently breaks; the migration explodes on any DB with
+        # existing users (passes in CI because the test DB is empty,
+        # so this branch never runs). Use `CAST(:data AS jsonb)` —
+        # plain bind, explicit SQL cast, no ambiguity.
         conn.execute(
             sa.text(
                 """
                 INSERT INTO audit_events (
                     id, actor_id, action, target_type, data, created_at, updated_at
                 )
-                VALUES (:id, NULL, :action, 'user', :data::jsonb, NOW(), NOW())
+                VALUES (:id, NULL, :action, 'user', CAST(:data AS jsonb), NOW(), NOW())
                 """
             ),
             {

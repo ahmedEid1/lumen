@@ -292,13 +292,21 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 async def _grandfather_unverified_on_boot() -> None:
-    """Idempotent: any pre-L21-Sec user whose email_verified_at is
-    still NULL gets backfilled with their created_at. Mirrors the
-    Alembic migration; needed because the deploy window between
-    migration-complete and full-restart is wide enough for new
-    registrations to slip through (plan-v7 §V7-F9).
+    """Idempotent: any user that existed BEFORE the L21-Sec deploy
+    cutoff whose email_verified_at is still NULL gets backfilled with
+    their created_at. Mirrors the Alembic migration; needed because
+    the deploy window between migration-complete and full-restart is
+    wide enough for new registrations to slip through (plan-v7
+    §V7-F9).
 
-    Runs unconditionally; the WHERE clause makes it a no-op when no
+    **Codex rescue (post-redesign L21-Sec):** the cutoff is REQUIRED
+    — without it, every API restart silently auto-verifies any user
+    who registered after the deploy and hasn't clicked their email
+    yet, defeating the whole point of the email-verification gate.
+    Cutoff is `settings.l21sec_deploy_timestamp` (the L21-Sec deploy
+    moment).
+
+    Runs unconditionally; the WHERE clauses make it a no-op when no
     rows match.
     """
     from sqlalchemy import text
@@ -313,13 +321,19 @@ async def _grandfather_unverified_on_boot() -> None:
                 UPDATE users
                 SET email_verified_at = COALESCE(email_verified_at, created_at)
                 WHERE email_verified_at IS NULL
+                  AND created_at < :cutoff
                 RETURNING id
                 """
-            )
+            ),
+            {"cutoff": settings.l21sec_deploy_timestamp},
         )
         rows = result.fetchall()
         if rows:
-            log.info("l21sec_grandfather_boot", count=len(rows))
+            log.info(
+                "l21sec_grandfather_boot",
+                count=len(rows),
+                cutoff=settings.l21sec_deploy_timestamp.isoformat(),
+            )
         await db.commit()
 
 

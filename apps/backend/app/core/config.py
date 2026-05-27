@@ -5,6 +5,7 @@ Read once at startup. Use the cached `get_settings()` everywhere.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
@@ -189,6 +190,20 @@ class Settings(BaseSettings):
     # L21b's flag-flip PR; until then the existing non-streaming POST
     # /tutor/conversations/{id}/messages path stays canonical.
     feature_tutor_streaming: bool = False
+
+    # ---------- L21-Sec deploy cutoff (Codex rescue) ----------
+    # When the boot-hook backstop runs the email-verify grandfather
+    # query, it must ONLY backfill rows whose ``created_at`` is older
+    # than this timestamp. Without a cutoff, every API restart silently
+    # grandfathers any user who registered after the L21-Sec deploy
+    # and hasn't yet clicked their verification email — defeating the
+    # whole point of the email-verification gate.
+    #
+    # The default value below is the L21-Sec migration timestamp
+    # (UTC). Operators can override via `L21SEC_DEPLOY_TIMESTAMP` if
+    # they need a different cutoff for a redeploy that ships
+    # additional pre-existing users.
+    l21sec_deploy_timestamp: datetime = datetime(2026, 5, 27, 0, 0, 0, tzinfo=UTC)
 
     # ---------- HIBP (breach-list lookup) ----------
     # Opt-in because (a) it adds a ~200ms external call to register/reset
