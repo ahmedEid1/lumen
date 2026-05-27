@@ -20,6 +20,7 @@ see that module for the event catalogue.
 from __future__ import annotations
 
 import asyncio
+import json
 from decimal import Decimal
 
 import redis.asyncio as redis
@@ -221,15 +222,27 @@ async def stream_turn(
                 }
                 return
 
-            offset = last_event_id or "$"
+            # Codex rescue (L21a-22 arc): initial subscription must
+            # start at `0-0` to replay any events the Celery worker
+            # emitted BEFORE the browser opened this GET (very likely
+            # on the fast noop path — and on real LLM paths the
+            # planner_start event happens within ms). `$` would only
+            # return new-after-XREAD, so the UI would sit blank.
+            # `Last-Event-ID` (resume) takes precedence when present.
+            offset = last_event_id or "0-0"
             try:
                 async for entry_id, event_name, _data_dict in consume_stream(
                     redis_client, turn_id=turn_id, last_event_id=offset
                 ):
+                    # Codex rescue: the SSE `data` field must be JSON
+                    # — the frontend reducer calls `JSON.parse(ev.data)`.
+                    # Earlier shape was `_data_dict.__str__()` (Python
+                    # repr with single quotes / `None`), which loses
+                    # `synth_chunk.delta` in the parse-error branch.
                     yield {
                         "id": entry_id,
                         "event": event_name,
-                        "data": _data_dict.__str__() if _data_dict else "{}",
+                        "data": json.dumps(_data_dict or {}),
                     }
                     if event_name in (
                         "turn_complete",

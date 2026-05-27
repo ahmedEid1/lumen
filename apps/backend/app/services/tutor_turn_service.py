@@ -123,10 +123,22 @@ async def mark_terminal(
     turn_id: str,
     status: str,
     error_code: str | None = None,
-) -> None:
+) -> bool:
     """Atomic transition to a terminal status. Zeros the reservation
-    so the sweep doesn't try to release again."""
-    await db.execute(
+    so the sweep doesn't try to release again.
+
+    **Codex rescue (L21a-22 arc):** the WHERE clause refuses to
+    overwrite an existing terminal status. Race scenario the rescue
+    caught: a user calls DELETE → row goes ``aborted``; the still-
+    running Celery worker then calls ``mark_terminal(..., complete)``
+    on the same row. Without the non-terminal guard, the cancellation
+    is silently overwritten and ``/status`` reports a clean turn.
+
+    Returns ``True`` if the transition was applied, ``False`` if the
+    row was already terminal. Callers should structlog the no-op so
+    the race shows up in observability.
+    """
+    result = await db.execute(
         text(
             """
             UPDATE tutor_turn_jobs
@@ -135,10 +147,12 @@ async def mark_terminal(
                 reserved_cost_usd = 0,
                 updated_at = NOW()
             WHERE id = :id
+              AND status NOT IN ('complete', 'failed', 'aborted')
             """
         ),
         {"id": turn_id, "status": status, "error_code": error_code},
     )
+    return (result.rowcount or 0) > 0
 
 
 async def _get_by_id(db: AsyncSession, turn_id: str) -> TutorTurnJob | None:
