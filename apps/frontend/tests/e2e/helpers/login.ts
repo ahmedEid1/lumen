@@ -92,7 +92,14 @@ export async function loginAs(
     .getByRole("button", { name: /sign in/i })
     .click();
   if (waitForDashboard) {
-    await expect(page).toHaveURL(/\/dashboard/);
+    // QA-iter1: 30s timeout on the URL poll. Next.js client-side
+    // router transitions do NOT fire a fresh document 'load' event
+    // (SPA pushState), so `waitForURL({waitUntil: "load"})` would
+    // hang for the full navigation timeout on every login. The
+    // default `expect.toHaveURL` 5s ceiling is too tight on webkit
+    // under cold-compile parallel pressure, so we explicitly raise
+    // the poll timeout to 30s.
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
   }
 }
 

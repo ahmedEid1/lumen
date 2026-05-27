@@ -42,37 +42,63 @@ function VerifyEmailInner() {
   const token = params.get("token") ?? "";
   const [status, setStatus] = useState<Status>("checking");
   const [message, setMessage] = useState<string>("");
-  // Loop 15: idempotency guard so React 19 strict-mode double-invoke
-  // OR a refresh doesn't burn the token by submitting it twice.
+  // QA-iter1 fix: `calledRef` is the idempotency guard (Loop 15 added
+  // it so React 19 strict-mode double-invoke can't burn the token by
+  // submitting it twice). We also use an `unmountedRef` instead of
+  // an effect-local `cancelled` flag, because the effect-local flag
+  // races against strict-mode's "mount → cleanup → re-mount" cycle:
+  //   1. effect runs → calledRef=true, fires API, returns cleanup
+  //   2. strict-mode cleanup runs → sets THAT effect's cancelled=true
+  //   3. effect re-runs → calledRef=true, returns early
+  //   4. API resolves → `!cancelled` is FALSE → no setState
+  //   → page stuck on "Confirming…" forever.
+  // The unmountedRef is set only by the empty-deps unmount effect, so
+  // it stays false through strict-mode's re-mount cycle and only flips
+  // when the component is genuinely going away.
   const calledRef = useRef(false);
+  const unmountedRef = useRef(false);
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+    };
+  }, []);
+
+  // Capture `t` in a ref so the verify effect can read the latest
+  // locale-bound formatter without re-running on every locale change.
+  // The effect itself only depends on `token`.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   useEffect(() => {
     if (!token) {
       setStatus("error");
-      setMessage(t("verifyEmail.error.missingToken"));
+      setMessage(tRef.current("verifyEmail.error.missingToken"));
       return;
     }
     if (calledRef.current) return;
     calledRef.current = true;
-    let cancelled = false;
     (async () => {
       try {
         await api("/api/v1/auth/verify/confirm", { method: "POST", body: { token } });
-        if (!cancelled) {
+        if (!unmountedRef.current) {
           setStatus("success");
-          setMessage(t("verifyEmail.success"));
+          setMessage(tRef.current("verifyEmail.success"));
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!unmountedRef.current) {
           setStatus("error");
-          setMessage(err instanceof ApiError ? err.message : t("verifyEmail.error.generic"));
+          setMessage(
+            err instanceof ApiError
+              ? err.message
+              : tRef.current("verifyEmail.error.generic"),
+          );
         }
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [token, t]);
+  }, [token]);
 
   return (
     <AuthCard cartouche={t("verifyEmail.cartouche")} heading={t("verifyEmail.title")}>

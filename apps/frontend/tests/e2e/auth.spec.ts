@@ -90,7 +90,12 @@ test.describe("auth golden path — register → verify → reset → login", ()
     // Register currently redirects to /dashboard on success (auth
     // store auto-logs-in the new user). Verification is a separate
     // step the user can do from the email link.
-    await expect(page).toHaveURL(/\/dashboard/);
+    // QA-iter1: 30s timeout — Next.js client-side router transitions
+    // don't fire a fresh document 'load' event (SPA pushState), so
+    // `waitForURL({waitUntil: "load"})` would hang; and webkit under
+    // cold-compile parallel pressure can exceed toHaveURL's default
+    // 5s expect timeout.
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
 
     // 2) Pull the verification email from Mailpit.
     const verifyMessage = await waitForMessage({

@@ -102,3 +102,27 @@ for (const role of Object.keys(STORAGE_PATH) as SeedRole[]) {
     await page.context().storageState({ path: STORAGE_PATH[role] });
   });
 }
+
+// QA-iter1: warm the auth + dashboard routes ONCE per `pnpm dev`
+// instance, so individual test workers don't all serialize behind
+// the first cold compile. Without it the e2e suite on slow VMs sees
+// `form[data-hydrated="true"]` waits time out at 60s because Next's
+// dev server is still compiling /login, /register, /verify-email,
+// etc. in series. The warm-up runs in the setup project (single
+// worker) before any browser projects start, so by the time
+// chromium + webkit workers fan out, every cold-path bundle is
+// already in the dev-server cache. CI's faster runner doesn't need
+// this but it doesn't hurt there either (a couple-hundred extra ms).
+setup("warm auth + dashboard routes", async ({ page }) => {
+  const routes = [
+    "/login",
+    "/register",
+    "/forgot-password",
+    "/reset-password",
+    "/verify-email",
+    "/dashboard",
+  ];
+  for (const route of routes) {
+    await page.goto(route, { waitUntil: "domcontentloaded" });
+  }
+});
