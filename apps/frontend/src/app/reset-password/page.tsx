@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { LinkButton } from "@/components/ui/link-button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { api } from "@/lib/api/client";
+import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 import { useHydrated } from "@/lib/use-hydrated";
 
@@ -38,6 +39,7 @@ function ResetFallback() {
 function ResetForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const { logout } = useAuth();
   const t = useT();
   const hydrated = useHydrated();
   const token = params.get("token") ?? "";
@@ -59,6 +61,16 @@ function ResetForm() {
         method: "POST",
         body: { token, password },
       });
+      // Backend already revokes all refresh tokens on a successful
+      // reset (`users_repo.revoke_all_refresh_tokens`), but the
+      // current browser still has React `user` state populated and
+      // a (now-orphan) access token cookie. Clear them locally so:
+      //   * the login form actually renders on /login (the new
+      //     `useEffect(()=>router.replace(next))` would otherwise
+      //     auto-forward this signed-in client to /dashboard);
+      //   * the user is forced to re-authenticate with the new
+      //     credential — which is the whole point of a reset.
+      await logout();
       toast.success(t("auth.reset.successToast"));
       router.push("/login");
     } catch (e) {
