@@ -19,8 +19,10 @@ name: Flip prod env flag
 # changes. This workflow gives the operator a `gh workflow run`
 # entrypoint that doesn't require typing the SSH command from memory.
 #
-# Trigger: manual only, via `workflow_dispatch`. Gated on the
-# `production` environment (same approval click as deploy.yml).
+# Trigger: manual only, via `workflow_dispatch`. Runs under the
+# `production` environment (same as deploy.yml), which is no longer
+# reviewer-gated — a dispatched run executes without an approval
+# click. Choosing to dispatch this workflow IS the approval.
 #
 # Allowed flag prefixes (whitelist; intentional choke point so this
 # workflow can't be used to rewrite arbitrary prod env):
@@ -67,9 +69,10 @@ jobs:
     name: Flip env flag on prod
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    # Same production-environment gate the deploy workflow uses —
-    # the operator approves the flip in the GitHub UI before any
-    # SSH steps fire.
+    # Same `production` environment the deploy workflow uses. It has
+    # no required reviewers (cleared in 4c6ef4d), so the SSH steps fire
+    # as soon as this dispatched run starts — no GitHub-UI approval
+    # click. The env block here is for history grouping + secret scope.
     environment:
       name: production
       url: https://lumen.ahmedhobeishy.tech

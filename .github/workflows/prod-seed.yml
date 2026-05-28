@@ -12,9 +12,12 @@ name: Prod demo-seed (one-shot)
 # found". This workflow gives the operator a one-click way to
 # repair that without SSHing.
 #
-# Approval gate: same `production` environment used by deploy.yml +
-# flip-flag.yml. Operator clicks "Approve and deploy" before any
-# SSH step fires.
+# Environment: same `production` environment used by deploy.yml +
+# flip-flag.yml. It has no required reviewers (cleared in 4c6ef4d),
+# so this dispatched run executes its SSH step without an approval
+# click — choosing to dispatch the workflow (and typing the confirm
+# phrase below) IS the approval. The env block is just history
+# grouping + secret scope.
 #
 # Idempotent: the seed scripts are idempotent on re-run (UPSERT
 # semantics on slugs), so a second invocation after a successful

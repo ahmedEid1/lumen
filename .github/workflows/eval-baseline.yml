@@ -16,7 +16,10 @@ name: Run eval baseline (one-shot)
 # and MISTRAL_API_KEY isn't in `.env.production` by default. This
 # workflow scopes the key to a single `docker compose exec -e` call
 # (NOT persisted to .env.production) using a GitHub Actions repo
-# secret + the existing production-approval gate.
+# secret. It runs under the `production` environment, which has no
+# required reviewers (cleared in 4c6ef4d), so a dispatched run
+# executes without an approval click — the env block is just history
+# grouping + secret scope.
 #
 # Required repo secrets:
 #   MISTRAL_API_KEY  — Mistral La Plateforme key (free tier OK)

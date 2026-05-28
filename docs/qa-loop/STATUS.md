@@ -1398,3 +1398,39 @@ local e2e-test artifacts, not prod):**
   `node_modules` serves HTTP 500 on every route until deps are reinstalled
   (the walk hit this; STATUS already noted the artifact). If it keeps biting,
   propose a `make up` dep-reinstall or a web healthcheck (possible ADR).
+
+### Iter 23 — owner-delegated decisions + deploy-gate doc truth-up
+
+Owner delegated judgment on the surfaced calls (2026-05-28: "take the
+decisions based on your judgment"). Resolutions:
+
+- **Deploy-approval gate side effect — DECIDED: accept ungated, fix the docs.**
+  `4c6ef4d` cleared `required_reviewers` on the shared `production` env, which
+  also ungated `flip-flag.yml` + `prod-seed.yml` + `eval-baseline.yml`.
+  Rationale for NOT re-gating: the owner removed the deploy reviewers precisely
+  because forgotten clicks added friction without signal, and flip/seed/eval
+  are **manually `workflow_dispatch`-ed** (not auto-fired) — the operator
+  choosing to run them IS the approval. Re-adding a gated env reintroduces the
+  exact friction that was removed. So: **fix the stale "human approval click"
+  claims** in `docs/ci-cd.md` + comments in `ci.yml`/`flip-flag.yml`/
+  `prod-seed.yml`/`eval-baseline.yml` to describe the auto/no-click reality
+  (env block retained only for history grouping + env-scoped secrets; re-add
+  via Settings → Environments → production → Required reviewers). No
+  RBAC/env-config change. See [[deploy-gate-shared-env]].
+
+- **Parity orphan `POST /studio/ai/draft-course` — DECISION: KEEP, defer.**
+  It's the agentic course-generator (portfolio anchor) with downstream replay
+  UI already shipped; only the trigger is missing. Wiring it is a deliberate
+  feature iteration, not a mid-loop rush — and deleting would discard the
+  showcase. Not re-flagged as a drift gap.
+
+- **Parity orphan `GET /courses/{id}/tutor/conversations` — DECISION: KEEP,
+  defer.** Harmless unused wrapper; deletion is low-upside and the route may be
+  intended for a planned "past conversations" picker. Not re-flagged.
+
+- **Course content "Understanding RAG Systems" = Red/Amber/Green — DECISION:
+  stays DEFERRED.** Confirmed it is **not** a repo fixture (grep finds it only
+  in this STATUS log) — it's AI-generated content in the DB. No safe repo-only
+  fix; changing it means editing prod course data, which is an owner content
+  call (guardrail: propose, don't implement). Already deferred since iter-6;
+  not a code task.

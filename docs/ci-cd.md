@@ -9,9 +9,12 @@ This page documents how code lands in front of users at
   runs build-images and deploy.
 - **`.github/workflows/deploy.yml`** — reusable workflow invoked from
   ci.yml's `deploy` job (and still callable manually via
-  `workflow_dispatch` for rollbacks). Gated on the **`production`
-  GitHub Environment**, which pauses every run for an explicit
-  approval click before the SSH steps fire.
+  `workflow_dispatch` for rollbacks). Runs under the **`production`
+  GitHub Environment**, but that environment has no required reviewers
+  (cleared in commit `4c6ef4d`, 2026-05-28), so every run proceeds
+  straight to the SSH steps with **no approval click**. The
+  `environment: production` block is retained only to group deployment
+  history in the GitHub UI and to scope env-level secrets.
 - **`.github/workflows/{release,pnpm-eval-smoke,gitleaks,codeql}.yml`**
   — tagged-release publish + the lower-priority security/eval gates.
 
@@ -31,9 +34,9 @@ flowchart LR
         A11y --> Deploy
     end
     BuildImages -->|tag :sha, :main, :latest| GHCR[(ghcr.io)]
-    Deploy -->|uses: deploy.yml| Approval{{prod env: human approves}}
-    Approval -->|ssh + compose pull + up -d| AWS[(AWS t4g.small)]
-    Manual[Operator: workflow_dispatch] -.->|rollback path| Approval
+    Deploy -->|uses: deploy.yml| ProdEnv{{prod env: history + secret scope, no gate}}
+    ProdEnv -->|ssh + compose pull + up -d, auto on green| AWS[(AWS t4g.small)]
+    Manual[Operator: workflow_dispatch] -.->|rollback path| ProdEnv
     Tag["tag v*.*.*"] --> Release[release.yml]
     Release -->|tag :vX.Y.Z + :latest| GHCR
 ```
@@ -43,19 +46,22 @@ flowchart LR
 | Branch / event | What fires | Result |
 |---|---|---|
 | PR (any → `main`) | ci.yml's `backend`, `frontend`, `e2e`, `accessibility` jobs + `pnpm-eval-smoke.yml`, `gitleaks.yml`, `codeql.yml`. **No** `build-images` or `deploy`. | red blocks merge |
-| Push to `main` | Same as above **plus** `build-images` (publishes `:<sha>`, `:main`, `:latest`) **plus** `deploy` (gated on `production` environment approval) | new images on GHCR; deploy pauses for a human click in the GitHub UI |
+| Push to `main` | Same as above **plus** `build-images` (publishes `:<sha>`, `:main`, `:latest`) **plus** `deploy` (runs under the `production` environment) | new images on GHCR; deploy auto-proceeds on green — no approval click |
 | Tag `v*.*.*` | `release.yml` | images tagged `:vX.Y.Z` + `:latest`, GitHub Release drafted |
-| Manual | `workflow_dispatch` on `deploy.yml` | operator picks image tag + optional rollback commit_sha; same approval gate applies |
+| Manual | `workflow_dispatch` on `deploy.yml` | operator picks image tag + optional rollback commit_sha; runs immediately (no approval click) |
 
-**Auto-deploy with a human approval gate.** The `deploy` job in
+**Auto-deploy, no approval gate.** The `deploy` job in
 ci.yml fires automatically on every green push to `main` (it
 `needs:` every upstream gate, so it can't fire until all five
-predecessors pass). But it doesn't immediately SSH to the box —
-`environment: production` parks the run in the GitHub UI and waits
-for the configured reviewer (`ahmedEid1`) to click **Approve and
-deploy**. That gives the operator one place to glance at "what's
-about to ship" before it actually ships, without the friction of
-typing `gh workflow run` every time.
+predecessors pass). It then SSHes to the box immediately —
+`environment: production` no longer has required reviewers (they were
+cleared in commit `4c6ef4d`, 2026-05-28), so there's nothing to wait
+on. The env block is kept only so the GitHub UI groups deployment
+history under "production" and any env-scoped secrets resolve there.
+CI's full chain (backend + frontend + e2e + accessibility + image
+build) is the gate; a click that mostly got forgotten was not adding
+signal. To re-introduce a human gate, set Required reviewers on the
+`production` environment (see "Editing the pipelines" below).
 
 The environment also enforces a branch policy: only refs that match
 `main` can deploy to `production`. So a stray push to a personal
@@ -64,10 +70,10 @@ some future edit relaxes the `if:` condition.
 
 For emergency rollbacks the operator still invokes deploy.yml
 directly via `gh workflow run deploy.yml -f image_tag=<sha>` — that
-path also routes through the same approval gate (intentional; it's
-the operator's audit trail of "yes I really want to roll back"),
-but skips re-running ci.yml since the gate has already passed for
-that older SHA.
+path also runs under the `production` environment, but with no
+required reviewers it executes immediately (the operator's decision
+to dispatch the rollback IS the deliberate action), and it skips
+re-running ci.yml since that older SHA already passed the chain.
 
 ## Image-tag matrix
 
@@ -79,8 +85,8 @@ that older SHA.
 `:latest` moves on every push to `main` and every tagged release.
 The auto-deploy job pins to `:<sha>` (passed via `with:` to
 deploy.yml) rather than `:latest` so a second push that lands while
-this run is paused at the approval gate can't race the deploy onto
-a newer image than ci.yml actually verified.
+this run is still in flight can't race the deploy onto a newer image
+than ci.yml actually verified.
 
 ## What the AWS VM actually consumes
 
@@ -182,9 +188,11 @@ re-runs `docker login` each time using `GHCR_PULL_TOKEN`.
   `apps/frontend/tests/ci-workflow-shape.test.ts` pins the existing
   five-gate list, so a "while I'm here" deletion fails CI loudly
   before merge.
-- **Change who can approve a deploy**: `Settings → Environments →
-  production → Required reviewers`. Add another reviewer (or a team)
-  rather than removing the current one.
+- **Re-add a human approval gate**: `Settings → Environments →
+  production → Required reviewers`. The list is currently empty (the
+  gate was removed in `4c6ef4d`), so deploys auto-proceed; add a
+  reviewer (or a team) here to require an explicit "Approve and
+  deploy" click before the SSH steps run.
 - **Loosen the deploy branch policy**: `Settings → Environments →
   production → Deployment branches and tags`. The current policy
   allows `main` only.
@@ -196,14 +204,15 @@ re-runs `docker login` each time using `GHCR_PULL_TOKEN`.
 ## Why this shape
 
 For a single-operator portfolio anchor with one production box,
-"every green CI run auto-queues a deploy, the operator clicks once
-to ship" is the right cadence. The five `needs:`-chained gates in
-ci.yml catch the things that bite; the `production` environment
-turns the SSH steps into a one-click affair while preserving an
-audit trail of who approved each deploy; and `release.yml` exists
-so you can stamp a versioned image when something is worth
-pinning. No staging environment, no blue/green — the VM has 2 GB
-RAM and one Caddy reverse-proxy in front; the operational cost of
+"every green CI run ships itself" is the right cadence. The five
+`needs:`-chained gates in ci.yml catch the things that bite — that
+full chain is the human-equivalent check, so the old required-reviewer
+click was retired (`4c6ef4d`) as friction that added no signal. The
+`production` environment still groups deployment history in the GitHub
+UI and scopes env-level secrets, it just no longer gates; and
+`release.yml` exists so you can stamp a versioned image when something
+is worth pinning. No staging environment, no blue/green — the VM has
+2 GB RAM and one Caddy reverse-proxy in front; the operational cost of
 a more elaborate setup outweighs the benefit at this scale.
 
 ## Future enhancements
@@ -212,9 +221,11 @@ When the project grows past a solo operator, the things worth adding:
 
 - **Staging environment** — second AWS t4g.small (or t4g.micro on
   free tier) at `staging.lumen.ahmedhobeishy.tech`. CD auto-rolls
-  staging on main push (no approval gate); prod still requires the
-  human click. Define a second GitHub Environment (`staging`,
-  no required reviewers) and a second deploy job in ci.yml.
+  staging on main push, then auto-rolls prod after the staging smokes
+  pass (both auto today, since neither env is reviewer-gated — add
+  Required reviewers on `production` if you want a promote gate
+  between the two). Define a second GitHub Environment (`staging`) and
+  a second deploy job in ci.yml.
 - **Trivy gate** — flip `exit-code` from `"0"` to `"1"` on the
   Trivy scans in `ci.yml:build-images` once the base images are
   pinned to digests so CVE noise stays low.
@@ -222,8 +233,9 @@ When the project grows past a solo operator, the things worth adding:
   status checks before merging`, list the 5 gates. Loses the ability
   to push directly to main but gains the guarantee that every
   commit reaching the canonical branch has passed all checks.
-- **Auto-approve from CI bots** — the environment currently requires
-  a human click. For a multi-engineer setup, add a CI bot identity
-  as an additional reviewer and set `prevent_self_review: false` so
-  the bot can approve its own builds after a soak time; humans still
-  approve the rest.
+- **Reviewer-gated deploys for a team** — the `production` environment
+  currently has no required reviewers, so deploys auto-proceed. For a
+  multi-engineer setup, add human reviewers (and optionally a CI bot
+  identity with `prevent_self_review: false` so the bot can approve
+  its own builds after a soak time while humans approve the rest) via
+  `Settings → Environments → production → Required reviewers`.
