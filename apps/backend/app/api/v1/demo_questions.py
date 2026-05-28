@@ -71,29 +71,33 @@ async def get_demo_questions(
         None,
         description=(
             "Optional course slug filter. When set, returns the course's own "
-            "curated questions (a course with none returns an empty list). The "
-            "global adversarial refusal probes are NOT included by default — "
-            "they would otherwise read as jailbreak prompts framed as learner "
-            "suggestions (see include_probes). When unset, returns the full "
-            "library."
+            "curated questions (a course with none returns an empty list). When "
+            "unset, returns the full library. In BOTH cases the global "
+            "adversarial refusal probes are excluded by default — they would "
+            "otherwise read as jailbreak prompts framed as learner suggestions "
+            "(see include_probes)."
         ),
     ),
     include_probes: bool = Query(
         False,
         description=(
-            "When true AND course_slug is set, append the global adversarial "
-            "refusal probes to the course's own questions. Off by default so "
-            "the learner-facing chip rail never surfaces jailbreak prompts as "
+            "When true, include the global adversarial refusal probes — "
+            "course-scoped, they're appended to the course's own questions; "
+            "unscoped, they're part of the full library. Off by default so the "
+            "learner-facing chip rail never surfaces jailbreak prompts as "
             "suggestions; intended for the explicit guardrail-demo / audit flow "
             "(the methodology is documented at /eval/methodology)."
         ),
     ),
 ) -> DemoQuestionLibraryOut:
-    questions = (
-        questions_for_course(course_slug, include_probes=include_probes)
-        if course_slug
-        else list(DEMO_QUESTIONS)
-    )
+    if course_slug:
+        questions = questions_for_course(course_slug, include_probes=include_probes)
+    elif include_probes:
+        questions = list(DEMO_QUESTIONS)
+    else:
+        # Unscoped default: full library minus the adversarial probes, so no
+        # caller (incl. a slug-less chip-rail mount) ever gets jailbreak chips.
+        questions = [q for q in DEMO_QUESTIONS if q["category"] != "refusal"]
     canonical = next((q for q in DEMO_QUESTIONS if q["canonical"]), None)
     return DemoQuestionLibraryOut(
         version=LIBRARY_VERSION,

@@ -95,13 +95,33 @@ def test_expected_tools_are_lists_of_known_tools() -> None:
 # ---------- HTTP endpoint coverage ----------
 
 
-async def test_get_demo_questions_full_library(client: AsyncClient) -> None:
+async def test_get_demo_questions_unscoped_excludes_probes_by_default(
+    client: AsyncClient,
+) -> None:
+    """ADR-0024 — even the unscoped library excludes the adversarial
+    probes by default, so a slug-less chip-rail mount (e.g. the course
+    landing page's tutor) never surfaces jailbreak chips."""
     r = await client.get("/api/v1/demo-questions")
     assert r.status_code == 200
     body = r.json()
     assert body["version"] == LIBRARY_VERSION
     assert body["canonical_id"] == CANONICAL_QUESTION_ID
+    cats = {q["category"] for q in body["questions"]}
+    assert "refusal" not in cats
+    n_refusal = len([q for q in DEMO_QUESTIONS if q["category"] == "refusal"])
+    assert len(body["questions"]) == len(DEMO_QUESTIONS) - n_refusal
+
+
+async def test_get_demo_questions_unscoped_include_probes_returns_full(
+    client: AsyncClient,
+) -> None:
+    """The complete library (incl. probes) is reachable via the explicit
+    audit flag, unscoped."""
+    r = await client.get("/api/v1/demo-questions", params={"include_probes": "true"})
+    assert r.status_code == 200
+    body = r.json()
     assert len(body["questions"]) == len(DEMO_QUESTIONS)
+    assert "refusal" in {q["category"] for q in body["questions"]}
 
 
 async def test_get_demo_questions_filtered_by_course(client: AsyncClient) -> None:

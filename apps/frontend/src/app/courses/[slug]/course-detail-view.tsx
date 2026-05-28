@@ -224,7 +224,7 @@ export function CourseDetailView({ slug }: { slug: string }) {
           <DialogDescription className="sr-only">
             {t("tutor.emptyPrompt")}
           </DialogDescription>
-          <TutorPanel courseId={course.id} />
+          <TutorPanel courseId={course.id} courseSlug={course.slug} />
         </DialogContent>
       </Dialog>
     </div>
