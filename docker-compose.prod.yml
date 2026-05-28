@@ -168,6 +168,16 @@ services:
     image: ghcr.io/ahmedeid1/lumen-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment: *api-env
+    # QA-iter2: persist the eval-report filesystem across image
+    # rebuilds. The eval-baseline workflow writes JSONL reports +
+    # PROMOTED.json into /app/evals/reports/ inside the container;
+    # without a named volume every deploy throws them away (the
+    # image's /app is the build's snapshot, which only carries the
+    # .gitkeep). Caught during the iter-2 walk — /eval/public was
+    # rolling back to honest-empty after every push even though the
+    # operator had promoted a real run.
+    volumes:
+      - eval-reports:/app/evals/reports
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -183,6 +193,11 @@ services:
     image: ghcr.io/ahmedeid1/lumen-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment: *api-env
+    # Worker shares the same eval-reports volume so an admin-
+    # triggered eval run from the API has a place to land that
+    # survives both api + worker container churn.
+    volumes:
+      - eval-reports:/app/evals/reports
     depends_on:
       api: { condition: service_started }
     # ${CELERY_CONCURRENCY:-4} defaults to 4 (what the original deploy ran);
@@ -246,6 +261,10 @@ volumes:
   caddy-data:
   caddy-config:
   prom-data:
+  # QA-iter2: persists eval-baseline JSONL reports + PROMOTED.json
+  # so the /eval/public surface doesn't roll back to honest-empty on
+  # every image rebuild. Wired into api + worker.
+  eval-reports:
 
 networks:
   default:
