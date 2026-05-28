@@ -20,6 +20,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Catalog } from "@/lib/api/endpoints";
@@ -134,6 +135,9 @@ export function CommandPalette() {
         hideCloseButton
       >
         <DialogTitle className="sr-only">{t("palette.title")}</DialogTitle>
+        <DialogDescription className="sr-only">
+          {t("palette.description")}
+        </DialogDescription>
         <Command
           shouldFilter={false}
           className="flex flex-col"

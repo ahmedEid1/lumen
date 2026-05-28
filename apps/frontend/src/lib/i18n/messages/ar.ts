@@ -181,6 +181,7 @@ export const ar: Record<MessageKey, string> = {
   "header.themeToggle": "تبديل السمة",
   "header.primaryNav": "التنقّل الرئيسي",
   "header.mobileMenu": "قائمة الجوّال",
+  "header.mobileMenuDescription": "روابط التنقّل الرئيسية والحساب.",
   "header.mobilePrimaryNav": "تنقّل الجوّال الرئيسي",
   "header.openMenu": "فتح القائمة",
   "header.closeMenu": "إغلاق القائمة",
@@ -859,6 +860,7 @@ export const ar: Record<MessageKey, string> = {
 
   // Command palette
   "palette.title": "لوحة الأوامر",
+  "palette.description": "ابحث عن الدورات ونفّذ أوامر تنقّل سريعة.",
   "palette.placeholder": "ابحث أو نفّذ أمرًا…",
   "palette.empty": "لا توجد نتائج.",
   "palette.section.navigate": "تنقّل",

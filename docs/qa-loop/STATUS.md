@@ -754,3 +754,40 @@ that were crashing, and the priority was landing + verifying the fix
 before walking them. Also iter-9: the streaming-metrics endpoint
 proposal (ADR-0020 candidate) and the storageState Strict-cookie
 cleanup for non-gated VR specs.
+
+
+
+---
+
+## Iter 9 — 2026-05-28 — instructor walk → Radix dialog a11y sweep
+
+**Starting point:** iter 8 closed, prod on `f9d0d4f` (streaming tutor
+restored). Began the deferred instructor walk.
+
+### Iter 9 — instructor persona findings
+
+Studio is healthy: 13 courses, singular "Published"/"Draft" badges
+(iter-6 fix live), AI-authoring + import modals reachable, "Generate"
+correctly disabled until a brief is entered, console clean. AI
+authoring runs **inline** (not via the worker — not in the `.delay`
+set), so it was unaffected by the iter-8 worker crash.
+
+**Fix — recurring Radix Dialog a11y gap.** Opening the "Generate course
+with AI" modal logged `Missing Description or aria-describedby for
+{DialogContent}` (Radix/WCAG: every dialog needs an accessible
+description). Swept all dialogs and found the **same gap in three**:
+- `studio/ai-outline-modal.tsx` — wired `DialogDescription` (replaced
+  the brief-phase `<p>`, so it now describes the dialog in every phase).
+- `shared/command-palette.tsx` — added an sr-only `DialogDescription`.
+- `shared/site-header.tsx` mobile nav — added an sr-only
+  `SheetDescription`.
+Added `palette.description` + `header.mobileMenuDescription` (en + ar).
+`ingest-modal` + `onboarding-tour` already had descriptions.
+
+**Verified:** warning gone live for the AI modal + command palette
+(opened both on the local stack, console clean); eslint + tsc clean;
+355 frontend vitest pass incl. i18n parity (en/ar keys match).
+
+### Iter 9 — commits
+
+`fix(qa-iter9)` add accessible descriptions to AI-outline / command-palette / mobile-nav dialogs (this commit)

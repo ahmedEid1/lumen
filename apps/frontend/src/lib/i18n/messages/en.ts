@@ -174,6 +174,7 @@ export const en = {
   "header.themeToggle": "Toggle theme",
   "header.primaryNav": "Primary",
   "header.mobileMenu": "Mobile menu",
+  "header.mobileMenuDescription": "Primary navigation and account links.",
   "header.mobilePrimaryNav": "Mobile primary",
   "header.openMenu": "Open menu",
   "header.closeMenu": "Close menu",
@@ -854,6 +855,7 @@ export const en = {
 
   // Command palette
   "palette.title": "Command palette",
+  "palette.description": "Search courses and run quick navigation commands.",
   "palette.placeholder": "Search or run a command…",
   "palette.empty": "No matches.",
   "palette.section.navigate": "Navigate",

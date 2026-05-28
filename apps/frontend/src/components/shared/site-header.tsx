@@ -8,7 +8,13 @@ import { Moon, Sun, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Kbd } from "@/components/ui/kbd";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HeaderSearch } from "@/components/shared/header-search";
 import { LocaleSwitcher } from "@/components/shared/locale-switcher";
@@ -216,6 +222,9 @@ export function SiteHeader() {
               srLabelClose={t("header.closeMenu")}
             >
               <SheetTitle className="sr-only">{t("header.mobileMenu")}</SheetTitle>
+              <SheetDescription className="sr-only">
+                {t("header.mobileMenuDescription")}
+              </SheetDescription>
               <nav
                 className="flex flex-col gap-1 pt-2"
                 aria-label={t("header.mobilePrimaryNav")}

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -122,13 +123,15 @@ export function AIOutlineModal({ onClose }: { onClose: () => void }) {
               {t("ai.outline.title")}
             </DialogTitle>
           </div>
+          {/* Wire the dialog's accessible description (Radix warns when
+              DialogContent has none). Replaces the brief-phase <p>. */}
+          <DialogDescription className="font-body text-sm text-muted-foreground">
+            {t("ai.outline.subtitle")}
+          </DialogDescription>
         </DialogHeader>
 
         {phase === "brief" && (
           <div className="flex flex-col gap-4">
-            <p className="font-body text-sm text-muted-foreground">
-              {t("ai.outline.subtitle")}
-            </p>
             <div className="space-y-1.5">
               <label className="font-body text-sm font-medium" htmlFor="ai-brief">
                 {t("ai.outline.briefLabel")}
