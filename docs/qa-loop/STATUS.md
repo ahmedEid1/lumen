@@ -929,4 +929,40 @@ this iteration. Logged so it isn't re-discovered.
 
 ### Iter 11 — commits
 
-`fix(qa-iter11)` command-palette restores focus to opener on close (batched with iter-10 closeout doc)
+`7614792` fix(qa-iter11): command-palette restores focus to opener on close
+
+### Iter 11 — CLOSED — shipped to prod (`7614792`)
+
+CI green; deploy rolled. Verified live: opening the command palette via
+the navbar trigger on prod → Escape → focus returns to the trigger
+(`isTrigger: true`). Also live-verified the headline streaming tutor
+still works end-to-end on prod (canonical demo question → retriever ran
+→ full grounded answer) and that `/eval` + `/demo` are healthy.
+
+---
+
+## Iter 12 — 2026-05-28 — systemic dialog return-focus (parallelized)
+
+**Process note:** ran this *in parallel* while the iter-11 build was in
+CI — dispatched a subagent to implement it on the shared tree while the
+main agent monitored the build + walked `/eval` + `/demo` on prod. (Per
+user feedback: don't idle on long builds — parallelize via subagents.)
+
+**Fix (ADR-0022):** the iter-11 command-palette focus gap was systemic
+across controlled dialogs. Added a shared
+`lib/a11y/use-return-focus.ts` (`useReturnFocus(open)` — capture opener
+on the false→true transition during render, restore via
+`onCloseAutoFocus`) and wired it into all six controlled, triggerless
+dialogs: AI-outline modal, ingest modal, MCP-client mint + reveal-secret
+dialogs, the course-detail tutor dialog, and the profile delete-account
+confirm. `command-palette` keeps its inline equivalent; `onboarding-tour`
++ mobile-nav sheet (uses `SheetTrigger`) were out of scope.
+
+**Verified:** subagent ran eslint + tsc + 355 vitest green; parent
+re-confirmed tsc; live-verified the AI-outline modal returns focus to
+the "Generate with AI" button on Escape (it was confirmed broken
+pre-fix). Reviewed the full diff (hook + 6 wirings) before push.
+
+### Iter 12 — commits
+
+`50187e2` fix(qa-iter12): systemic dialog return-focus via useReturnFocus (WCAG 2.4.3)

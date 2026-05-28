@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed (QA loop iters 8–11 — live-walk fixes)
+### Fixed (QA loop iters 8–12 — live-walk fixes)
 
 - **Streaming tutor crashed in production.** Every tutor turn (and the
   sweep beat) failed with `RuntimeError: got Future attached to a
@@ -25,8 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   added `DialogDescription` / `SheetDescription`.
 - **`/learn` mobile overflow:** the syllabus aside lacked `min-w-0`, so
   long lesson titles forced ~120px of horizontal scroll at 375px.
-- **Command-palette focus return (WCAG 2.4.3):** closing the palette now
-  restores focus to the opener instead of dropping it to `<body>`.
+- **Dialog focus return (WCAG 2.4.3):** closing a dialog now restores
+  focus to the element that opened it instead of dropping it to
+  `<body>`. Fixed first in the command palette, then systemically via a
+  shared `useReturnFocus` hook across all controlled dialogs (AI-outline,
+  ingest, MCP-client mint/reveal, course tutor, profile delete-confirm) —
+  see ADR-0022.
 
 ### Changed
 
