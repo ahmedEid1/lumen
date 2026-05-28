@@ -10,7 +10,13 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ubuntu-24.04
+    # Native arm64 on a free GitHub-hosted arm64 runner (public repo).
+    # These tags (:vX.Y.Z + :latest) are pulled by the Graviton prod
+    # box, so they must be arm64 — previously this job had no
+    # `platforms:` and published amd64-only, which would have moved
+    # `:latest` to an undeployable arch on any tagged release. Matches
+    # ci.yml's build-images; see ADR-0023.
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3

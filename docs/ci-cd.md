@@ -88,6 +88,14 @@ deploy.yml) rather than `:latest` so a second push that lands while
 this run is still in flight can't race the deploy onto a newer image
 than ci.yml actually verified.
 
+Both images are **`linux/arm64` only**, built natively on a free
+`ubuntu-24.04-arm` runner — the prod box is a Graviton `t4g.small`,
+local dev builds its own images, and nothing consumes an amd64 image,
+so the old amd64 + arm64-under-QEMU multi-arch build (which once hit
+the 60-min job timeout and skipped a deploy) was retired. See ADR-0023.
+Pulling these tags on an amd64 host will fail with "no matching
+manifest" — that's expected.
+
 ## What the AWS VM actually consumes
 
 `docker-compose.prod.yml` declares:
