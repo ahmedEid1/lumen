@@ -220,6 +220,24 @@ export function useTutorStream(turnId: string | null): TutorStreamSnapshot {
     return () => {
       cancelled = true;
       controller.abort();
+      // Aborting the fetch only closes the *client* connection — the
+      // server keeps orchestrating the turn (burning LLM cost) and only
+      // releases the reserved cost on natural termination or the 60s
+      // sweep. If we leave while the turn is still in flight, tell the
+      // server to abort it via DELETE so the reservation is released
+      // now. `keepalive` lets the request outlive this unmount /
+      // navigation (like a beacon); fire-and-forget — we're gone.
+      const { phase } = store.getSnapshot();
+      if (!TERMINAL_PHASES.includes(phase)) {
+        void fetch(`/api/v1/tutor/turns/${encodeURIComponent(turnId)}`, {
+          method: "DELETE",
+          credentials: "include",
+          keepalive: true,
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }).catch(() => {
+          /* best-effort: the sweep beat is the backstop if this fails */
+        });
+      }
     };
   }, [turnId, token, store]);
 
