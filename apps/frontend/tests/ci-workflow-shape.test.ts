@@ -135,7 +135,7 @@ describe("ci.yml auto-deploy chain shape (iter 4)", () => {
     expect(body!).toMatch(/^\s*uses:\s*\.\/\.github\/workflows\/deploy\.yml\s*$/m);
   });
 
-  it("deploy.yml :: deploy is gated on the `production` environment", () => {
+  it("deploy.yml :: deploy declares the `production` environment", () => {
     if (!repoRoot) return;
     const deployYml = readWorkflow(repoRoot, "deploy.yml");
     const body = extractJobBody(deployYml, "deploy");
@@ -146,8 +146,11 @@ describe("ci.yml auto-deploy chain shape (iter 4)", () => {
     //   environment:                          (block)
     //     name: production
     // We accept either — what we forbid is the absence of any
-    // `environment:` key on this job (which would silently drop the
-    // approval gate).
+    // `environment:` key on this job. As of 4c6ef4d the env carries no
+    // required-reviewer gate (deploys auto-proceed; see ADR notes in
+    // docs/ci-cd.md), but the block must stay: it scopes deployment
+    // history + the `main`-only branch policy + any env-scoped secrets,
+    // and it's the seam where a reviewer gate would be re-added.
     const block = body!.match(/^\s*environment:\s*$/m);
     const inline = body!.match(/^\s*environment:\s*production\s*$/m);
     const hasEnvironment =
@@ -155,7 +158,7 @@ describe("ci.yml auto-deploy chain shape (iter 4)", () => {
       (Boolean(block) && /^\s+name:\s*production\s*$/m.test(body!));
     expect(
       hasEnvironment,
-      "deploy.yml :: deploy is missing `environment: production` — the GitHub approval gate disappears without it.",
+      "deploy.yml :: deploy is missing `environment: production` — that drops the deploy-history grouping, branch policy, and env-secret scope (and the seam for re-adding a reviewer gate).",
     ).toBe(true);
   });
 });
