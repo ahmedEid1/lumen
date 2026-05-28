@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, type RefObject } from "react";
 
 /**
  * Restore focus to the element that opened a *controlled* Radix dialog
@@ -26,8 +26,17 @@ import { useCallback, useRef } from "react";
  * BEFORE Radix's layout effect moves focus into the dialog, so the
  * active element is still the opener — exactly the node we want to
  * return focus to. The returned callback is stable across renders.
+ *
+ * `fallbackRef`: when a dialog opens *as another dialog closes* in the
+ * same render (e.g. mint → reveal-secret), the captured opener lives
+ * inside the closing dialog and is detached by the time this one
+ * closes. Pass a ref to a stable element (the flow's real trigger) and
+ * it's used when the captured opener is gone.
  */
-export function useReturnFocus(open: boolean): (e: Event) => void {
+export function useReturnFocus(
+  open: boolean,
+  fallbackRef?: RefObject<HTMLElement | null>,
+): (e: Event) => void {
   const prevOpen = useRef(false);
   const openerRef = useRef<HTMLElement | null>(null);
 
@@ -42,13 +51,19 @@ export function useReturnFocus(open: boolean): (e: Event) => void {
   }
   prevOpen.current = open;
 
-  return useCallback((e: Event) => {
-    const el = openerRef.current;
-    if (el && el.isConnected && typeof el.focus === "function") {
-      // Stop Radix's default restore (which would target a missing
-      // trigger and leave focus on <body>) and return it to the opener.
-      e.preventDefault();
-      el.focus();
-    }
-  }, []);
+  return useCallback(
+    (e: Event) => {
+      let el = openerRef.current;
+      // The captured opener can be detached if it lived inside a dialog
+      // that closed as this one opened — fall back to the stable trigger.
+      if (!el || !el.isConnected) el = fallbackRef?.current ?? null;
+      if (el && el.isConnected && typeof el.focus === "function") {
+        // Stop Radix's default restore (which would target a missing
+        // trigger and leave focus on <body>) and return it to the opener.
+        e.preventDefault();
+        el.focus();
+      }
+    },
+    [fallbackRef],
+  );
 }

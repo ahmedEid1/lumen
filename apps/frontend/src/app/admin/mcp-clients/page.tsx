@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import {
   useMutation,
@@ -88,6 +88,11 @@ export default function AdminMCPClientsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [revealSecret, setRevealSecret] =
     useState<MCPClientCreatedOut | null>(null);
+  // The "New client" button is the stable trigger for the whole
+  // mint→reveal flow. The reveal dialog opens as the create dialog
+  // closes, so its captured opener (the in-dialog "Mint" button) is
+  // detached by close-time — restore focus here instead (WCAG 2.4.3).
+  const newClientBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -134,7 +139,7 @@ export default function AdminMCPClientsPage() {
           />
           Include revoked clients
         </label>
-        <Button onClick={() => setCreateOpen(true)}>
+        <Button ref={newClientBtnRef} onClick={() => setCreateOpen(true)}>
           <Plus className="me-2 h-4 w-4" /> New client
         </Button>
       </section>
@@ -192,6 +197,7 @@ export default function AdminMCPClientsPage() {
       />
       <RevealSecretDialog
         secret={revealSecret}
+        newClientBtnRef={newClientBtnRef}
         onClose={() => {
           setRevealSecret(null);
           // Codex rescue: clear the plaintext secret from React-Query
@@ -519,14 +525,18 @@ function CreateClientDialog({
 function RevealSecretDialog({
   secret,
   onClose,
+  newClientBtnRef,
 }: {
   secret: MCPClientCreatedOut | null;
   onClose: () => void;
+  newClientBtnRef: RefObject<HTMLButtonElement | null>;
 }) {
   const [copied, setCopied] = useState(false);
-  // Controlled dialog (no <DialogTrigger>) — restore focus to the
-  // opener on close (WCAG 2.4.3).
-  const onCloseAutoFocus = useReturnFocus(!!secret);
+  // Controlled dialog (no <DialogTrigger>) — restore focus on close
+  // (WCAG 2.4.3). This dialog opens as the create dialog closes, so the
+  // captured opener is detached; fall back to the stable "New client"
+  // trigger.
+  const onCloseAutoFocus = useReturnFocus(!!secret, newClientBtnRef);
   const onCopy = async () => {
     if (!secret) return;
     try {
