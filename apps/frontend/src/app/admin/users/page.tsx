@@ -48,8 +48,14 @@ export default function AdminUsers() {
 
   const usersQ = useQuery({
     queryKey: ["admin", "users", q],
+    // Ask for the endpoint's max (le=200). The default is 50, and this flat
+    // table has no pagination — without limit=200 an instance with 50-200
+    // users would silently drop the rest with no indicator. Past 200 needs a
+    // real cursor on the backend (deferred); 200 covers a portfolio-scale box.
     queryFn: () =>
-      api<AdminUser[]>(`/api/v1/admin/users${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+      api<AdminUser[]>(
+        `/api/v1/admin/users?limit=200${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+      ),
   });
 
   const setRole = useMutation({

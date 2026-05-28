@@ -1377,9 +1377,15 @@ reports phantom missing-label violations. Not re-proposed.
 
 **Backlog from the walk (needs prod-vs-local triage — many findings were
 local e2e-test artifacts, not prod):**
-- MED — `/admin/users` caps at 50 rows with search but no pagination; backend
-  supports offset+page, UI doesn't wire it. Real scalability gap (prod will
-  exceed 50 users). Candidate iter-21.
+- ~~MED~~ LOW — `/admin/users` silently capped at 50 rows. **Correction: the
+  backend does NOT support offset+page** — `list_users` (admin.py:184) takes
+  only `q` + `limit` (default 50, `le=200`), no offset. So this was a symmetric
+  limitation, not a "UI fails to wire backend offset" gap. **→ FIXED iter-23:**
+  the page now requests `?limit=200` (the endpoint's existing max), so a
+  portfolio-scale instance shows all users instead of silently dropping rows
+  51+. True pagination past 200 needs a backend cursor/offset — a deliberate
+  feature, deferred (low value for a single-operator box with a handful of
+  users; don't build speculative pagination).
 - MED — admin notification bell shows un-coalesced repeated security alarms
   (refresh-reuse), no "view all", silent 50-cap. Coalescing touches the
   security-alarm path → think before shipping (don't hide signal).
