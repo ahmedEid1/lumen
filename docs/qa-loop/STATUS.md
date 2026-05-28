@@ -736,3 +736,21 @@ This activates a dead setting and is the reliable unblock. The
 storageState consumers (`visual-regression.spec.ts`) likely share the
 Strict-cookie defect but aren't in the gated e2e run — a candidate
 iter-9 cleanup, not a blocker.
+
+### Iter 8 — CLOSED — shipped to prod (`f9d0d4f`)
+
+CI run 26562402259 went green on the first pass with the rate-limit fix
+in place — **E2E passed first try** (the 429 didn't recur), validating
+the unblock. Deploy rolled. Prod verified on `f9d0d4f` (api + worker):
+a live student streaming turn went `pending → running → complete` with
+`error_code: null`, and the worker log shows `tutor.run_turn.v1 …
+succeeded` with **zero** "different loop" / "event loop is closed"
+lines in the 5 min after deploy. The headline feature is restored.
+
+**Rolled to iter 9:** the deeper instructor + admin persona walk
+(studio create/AI-outline/ingest, admin sub-pages, mobile/keyboard/axe)
+— deferred this iteration because those flows exercise the worker tasks
+that were crashing, and the priority was landing + verifying the fix
+before walking them. Also iter-9: the streaming-metrics endpoint
+proposal (ADR-0020 candidate) and the storageState Strict-cookie
+cleanup for non-gated VR specs.
