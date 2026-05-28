@@ -220,7 +220,7 @@ export const en = {
 
   // Sessions card — active sign-ins
   "sessions.title": "Active sessions",
-  "sessions.description": "{n} active · last 50 sign-ins listed below",
+  "sessions.description": "{n} active right now",
   "sessions.signOutAll": "Sign out everywhere",
   "sessions.empty": "No sessions on record.",
   "sessions.unknownDevice": "Unknown device",
@@ -232,6 +232,8 @@ export const en = {
   "sessions.revokeError": "Could not revoke session",
   "sessions.allRevokedToast": "Signed out of all sessions — sign in again to continue",
   "sessions.revokeAllError": "Could not revoke sessions",
+  "sessions.showHistory": "Show {n} revoked",
+  "sessions.hideHistory": "Hide revoked",
 
   // Notifications dropdown
   "notif.title": "Notifications",

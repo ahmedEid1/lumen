@@ -322,6 +322,19 @@ export default function ProfilePage() {
         description={t("profile.section.passwordDesc")}
       >
         <form className="space-y-4" onSubmit={changePassword}>
+          {/* Hidden username field: password managers + screen readers expect
+              a username adjacent to password inputs so the credential is
+              associated with the right account (Chrome a11y audit). */}
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            value={user.email}
+            readOnly
+            tabIndex={-1}
+            aria-hidden="true"
+            className="sr-only"
+          />
           <Input
             type="password"
             placeholder={t("profile.field.currentPassword")}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { LogOut, Trash2 } from "lucide-react";
@@ -46,8 +47,13 @@ export function SessionsCard() {
     onError: (e: Error) => toast.error(e?.message ?? t("sessions.revokeAllError")),
   });
 
+  const [showRevoked, setShowRevoked] = useState(false);
   const sessions = q.data ?? [];
   const active = sessions.filter((s) => !s.revoked_at);
+  const revoked = sessions.filter((s) => s.revoked_at);
+  // Revoked sessions (often a long tail of expired/QA logins) are hidden by
+  // default so the live sessions stay legible; the toggle reveals the history.
+  const shown = showRevoked ? [...active, ...revoked] : active;
 
   return (
     <Card className="surface">
@@ -79,8 +85,9 @@ export function SessionsCard() {
         ) : sessions.length === 0 ? (
           <p className="font-body text-sm text-muted-foreground">{t("sessions.empty")}</p>
         ) : (
+          <>
           <ul className="divide-y divide-border font-body">
-            {sessions.map((s) => (
+            {shown.map((s) => (
               <li key={s.id} className="flex items-start justify-between gap-3 py-3 text-sm">
                 <div className="min-w-0">
                   <p className="truncate font-medium text-foreground">
@@ -111,6 +118,18 @@ export function SessionsCard() {
               </li>
             ))}
           </ul>
+          {revoked.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowRevoked((v) => !v)}
+              className="mt-3 font-body text-xs text-muted-foreground transition-colors duration-base hover:text-foreground"
+            >
+              {showRevoked
+                ? t("sessions.hideHistory")
+                : t("sessions.showHistory", { n: revoked.length })}
+            </button>
+          )}
+          </>
         )}
       </CardContent>
     </Card>

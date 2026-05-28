@@ -102,4 +102,23 @@ describe("SessionsCard", () => {
     renderWithClient(<SessionsCard />);
     expect(await screen.findByText(/no sessions on record/i)).toBeInTheDocument();
   });
+
+  it("hides revoked sessions behind a 'show history' toggle", async () => {
+    const REVOKED = {
+      id: "s_old",
+      issued_at: new Date(Date.now() - 7_200_000).toISOString(),
+      expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+      revoked_at: new Date(Date.now() - 3_600_000).toISOString(),
+      user_agent: "HeadlessChrome QA",
+      ip_address: "10.9.9.9",
+    };
+    apiSpy.mockResolvedValueOnce([SESSIONS[0], REVOKED] as never);
+    renderWithClient(<SessionsCard />);
+    // Active session visible; revoked one hidden until the toggle is used.
+    expect(await screen.findByText("Chrome 120")).toBeInTheDocument();
+    expect(screen.queryByText("HeadlessChrome QA")).toBeNull();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: /show 1 revoked/i }));
+    expect(screen.getByText("HeadlessChrome QA")).toBeInTheDocument();
+  });
 });

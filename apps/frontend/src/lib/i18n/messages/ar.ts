@@ -227,7 +227,7 @@ export const ar: Record<MessageKey, string> = {
 
   // Sessions card — الجلسات النشطة
   "sessions.title": "الجلسات النشطة",
-  "sessions.description": "{n} نشطة · آخر 50 جلسة دخول أدناه",
+  "sessions.description": "{n} نشطة الآن",
   "sessions.signOutAll": "تسجيل الخروج من كل الأجهزة",
   "sessions.empty": "لا جلسات مسجّلة.",
   "sessions.unknownDevice": "جهاز غير معروف",
@@ -239,6 +239,8 @@ export const ar: Record<MessageKey, string> = {
   "sessions.revokeError": "تعذّر إلغاء الجلسة",
   "sessions.allRevokedToast": "تم تسجيل الخروج من كل الجلسات — سجّل الدخول من جديد للمتابعة",
   "sessions.revokeAllError": "تعذّر إلغاء الجلسات",
+  "sessions.showHistory": "إظهار {n} ملغاة",
+  "sessions.hideHistory": "إخفاء الملغاة",
 
   // Notifications dropdown
   "notif.title": "الإشعارات",
