@@ -28,6 +28,15 @@ type AuditEvent = {
   data: Record<string, unknown>;
 };
 
+// QA-iter6: resolves `actor_id` opaque IDs in the audit log to a
+// human-readable email. `/admin/users?limit=200` already returns the
+// admin-visible roster (max 200 rows, ordered by created_at DESC), which
+// is plenty for any deployment of Lumen today and avoids the alternative
+// (per-event N+1 lookups or a backend join + endpoint contract change).
+// The raw ID stays in the cell's `title` attribute so power users can
+// still cross-reference.
+type UserAdmin = { id: string; email: string; full_name: string | null };
+
 const PAGE_SIZE = 100;
 
 export default function AdminAudit() {
@@ -47,6 +56,14 @@ export default function AdminAudit() {
           (cursor ? `&before=${encodeURIComponent(cursor)}` : ""),
       ),
   });
+
+  const usersQ = useQuery({
+    queryKey: ["admin", "audit", "users-for-actor-resolution"],
+    queryFn: () => api<UserAdmin[]>(`/api/v1/admin/users?limit=200`),
+    staleTime: 60_000,
+  });
+  const userById = new Map<string, UserAdmin>();
+  for (const u of usersQ.data ?? []) userById.set(u.id, u);
 
   // Append newly-fetched events to the accumulator. Tracked by cursor
   // so we don't re-append on incidental re-renders (TanStack would
@@ -92,11 +109,17 @@ export default function AdminAudit() {
           {
             id: "actor",
             header: t("adminAudit.col.actor"),
-            cell: (e) => (
-              <span className="font-mono text-xs text-muted-foreground">
-                {e.actor_id ?? "—"}
-              </span>
-            ),
+            cell: (e) => {
+              const u = e.actor_id ? userById.get(e.actor_id) : null;
+              return (
+                <span
+                  className="font-mono text-xs text-muted-foreground"
+                  title={e.actor_id ?? undefined}
+                >
+                  {u ? u.email : (e.actor_id ?? "—")}
+                </span>
+              );
+            },
           },
           {
             id: "target",
