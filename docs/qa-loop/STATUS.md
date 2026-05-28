@@ -1440,3 +1440,50 @@ decisions based on your judgment"). Resolutions:
   fix; changing it means editing prod course data, which is an owner content
   call (guardrail: propose, don't implement). Already deferred since iter-6;
   not a code task.
+
+### Iter 24 — STRUCTURAL: deploy-blocking CI build timeout → native arm64-only build
+
+**The blocker.** CI run `26587224139` (iter-20+21, commit efb949c) had every
+code job green — Backend, Frontend, E2E, Accessibility — but `Build container
+images` was **cancelled at exactly 60:00** on the "Build frontend" step. The
+emulated `linux/arm64` Next.js build under QEMU hit the job's `timeout-minutes:
+60`, so `deploy` was **skipped** and iter-20/21 never shipped. Structural: every
+subsequent push (incl. the held iter-23 batch) would hit the same wall. Surfaced
+per the guardrail ("the same shortcoming returns … that's structural — propose
+an ADR").
+
+**Root cause.** `build-images` published a multi-arch manifest: `linux/amd64`
+(native on `ubuntu-24.04`) + `linux/arm64` (QEMU emulation, ~10× slower). After
+iter-16 added `react-markdown` + `remark-gfm` + Shiki, the emulated arm64 web
+build crossed 60 min. And the amd64 half was **consumed by nothing** — prod
+(`docker-compose.prod.yml`) pulls onto the Graviton `t4g.small` (arm64); local
+dev (`docker-compose.yml`) uses `build:`, never the GHCR tags.
+
+**Fix (ADR-0023).** Build **arm64-only, natively, on a free `ubuntu-24.04-arm`
+runner** (repo is public → no cost). Dropped `setup-qemu-action` + `linux/amd64`;
+`build-images` timeout 60 → 35. Also fixed `release.yml` — it had no
+`platforms:` and so published **amd64-only** `:latest`/`:vX.Y.Z` (wrong arch for
+prod; would have broken the next tagged release's `:latest` pull). Verified:
+3 workflows parse as valid YAML; `build-images` job name + `needs:` unchanged so
+`ci-workflow-shape.test` stays green (5/5); native build is hardware-bound → CI
+is the judge.
+
+**Codex follow-up.** Review flagged the leftover "approval gate disappears"
+wording in `ci-workflow-shape.test`'s deploy.yml env assertion — truthed-up to
+"history grouping + branch policy + env-secret scope" (assertion unchanged).
+Also fixed `deploy.yml`'s own job-level comment which still claimed an active
+reviewer gate (contradicted its own header).
+
+**Contradiction sweep (post-arch-change).** Repo-wide grep for stale
+multi-arch/amd64/QEMU refs: none. `scripts/aws-bootstrap.sh` correctly asserts
+aarch64; `docs/mcp-registry-submission.md` amd64/arm64 is the operator-CLI
+download (unrelated); `ADR-0020:14`'s "multi-arch build" is accurate immutable
+history (the build *was* multi-arch when the font-fetch failure surfaced — not
+rewritten). Arm64-only is consistent across the repo.
+
+**Shipped as a 5-commit batch** (`efb949c..1d90b3a`, all codex-clean, locally
+verified — unit 364/364, shape 5/5, tsc/eslint clean): d82bec7 deploy-gate doc
+truth-up, 6341d63 admin-users `?limit=200`, 4ea4fd9 deploy.yml + CHANGELOG,
+35fa37f the arm64 build fix, 1d90b3a shape-test truth-up. No in-flight run to
+cancel (prior one was cancelled), so the push was safe; a watcher is verifying
+the native build completes + deploys + prod-verifying iter-20/21.
