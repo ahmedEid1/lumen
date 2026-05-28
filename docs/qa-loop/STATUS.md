@@ -509,4 +509,37 @@ Holding push until CI 26549527679 (iter-5 mobile fix + status doc)
 finishes Build container images and rolls the deploy — pushing now
 would cancel-in-progress the iter-5 deploy chain.
 
+### Iter 6 — CLOSED — shipped to prod (`fa05fb7`)
+
+Pushed the 4 iter-6 commits once iter-5's CI rolled. CI run
+26550640448:
+
+- First pass: backend xdist worker crash (`gw1` on
+  `test_course_transitions::test_invalid_transition_blocked`) →
+  coverage dropped below 70% gate. **Flake** — re-ran failed jobs,
+  backend went green.
+- Second pass: E2E failed — `learner-flow.spec.ts:102` and
+  `tutor-citations.spec.ts:35` both timed out on
+  `expect(page).toHaveURL(/\/dashboard/)`, stuck at
+  `…/login`. The login→dashboard redirect race. **Flake** — re-ran
+  failed jobs, E2E went green on the retry.
+- Deploy rolled clean: prod on `fa05fb7`, `health/live` 200,
+  `/admin/audit` + `/admin/courses` + `/profile` all 200, and the
+  `/admin/users?limit=200` roster the audit page resolves against
+  returns 5 users (id→email map confirmed live).
+
+**Recurring-flake flag (per guardrail).** The login→dashboard E2E
+race has now bitten across iterations — iter-1 already shipped two
+mitigations for it (`edd215c` one-shot auto-forward to kill the
+webkit race, `cdf10db` data-hydrated marker so E2E waits for React
+onChange). It resurfaced here on both chromium AND webkit. The
+mitigations reduced but did not eliminate it. This is structural:
+the spec waits on a client-side redirect that depends on auth
+state hydration timing. **Proposing a hardening iteration (candidate
+ADR):** either (a) have the login form navigate via a server action
+/ `router.replace` that the test can await deterministically, or
+(b) give the test a hydration-gated wait helper instead of racing
+`toHaveURL`. Logged here so iter-7 picks it up rather than
+re-discovering it.
+
 
