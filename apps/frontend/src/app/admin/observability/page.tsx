@@ -106,7 +106,9 @@ export default function AdminObservability() {
       </header>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-        <TabsList>
+        <TabsList
+          className="max-w-full overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        >
           {TABS.map((t) => (
             <TabsTrigger key={t.id} value={t.id}>
               {t.label}
