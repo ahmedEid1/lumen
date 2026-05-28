@@ -1188,3 +1188,46 @@ test.api 758, codex clean); **HELD** pending the iter-14 deploy (run
 `26576727104`, still building) — pushing would cancel its in-flight
 deploy. Push as the iter-15 batch once iter-14 lands, then prod-verify the
 two new affordances + the removed endpoint (404 on the old PATCH).
+
+---
+
+## Iter 16 — 2026-05-28 — prod walk findings (multi-agent wave, in progress)
+
+**Walk:** a browser agent walked prod across student/instructor/admin +
+mobile (375×812) + keyboard + axe-core on 5 surfaces. App broadly healthy —
+**axe found 0 serious/critical** on homepage, course detail, dashboard,
+studio, course editor, admin landing; keyboard nav solid (visible
+`:focus-visible`, working skip link). Dispatched a 3-agent wave during the
+iter-14 build to fix what it found.
+
+**FIXES (being implemented):**
+1. **HIGH — lesson markdown rendered raw.** Bodies authored in Markdown
+   (`## h2`, `**bold**`, fenced ```ts) show as literal text on `/learn` +
+   course preview; no markdown lib in `package.json` (only code
+   highlighting). Fix: XSS-safe `react-markdown` render (default escaping,
+   **no** rehype-raw), fenced code wired to the existing `highlighted-code`.
+   Render path only — Studio editor is a separate improvement.
+2. **HIGH — `GET /api/v1/me/notifications` 500 for admin** (200 for
+   student); fires on every admin page via the header bell. Root-cause +
+   fix + regression test. Not an RBAC change.
+3. **MED — course-detail horizontal overflow at 375px** (scrollWidth ~437);
+   mobile containment (`min-w-0`/wrap), mirroring the iter-10 `/learn` fix.
+4. **LOW — mobile nav omits the Catalog link** present on desktop.
+5. **LOW — command palette default selection** lands on "Switch to light"
+   after a query, so Enter toggles theme instead of opening the top match.
+
+**PROPOSE-ONLY (not auto-implemented — guardrail):**
+- **"Understanding RAG Systems" course copy describes RAG as "Red, Amber,
+  Green."** Stale/wrong AI-generated content; should be
+  Retrieval-Augmented Generation. Course-content rewrite needs owner
+  sign-off — logged, not changed.
+
+**IMPROVEMENTS backlog (not this iter):** loading skeletons for
+client-rendered pages (~2s blank `<main>` on first paint); a real Studio
+markdown editor + live preview (pairs with fix #1); admin breadcrumb style
+consistency (`/admin/mcp-clients`, `/admin/observability` use plain text vs
+the styled eyebrow elsewhere).
+
+**Status:** 3 worktree agents in flight (notifications, markdown, mobile/UX
+bundle). Will merge + verify (test.web/test.api/tsc/codex) and ship iter-16
+as its own push AFTER iter-15 deploys.
