@@ -1285,3 +1285,60 @@ host vitest with the deps installed is green. No TS-client regen needed
 **Status:** merged + verified + codex-clean; **HELD** pending the iter-15
 deploy, then pushed as the iter-16 batch and prod-verified (markdown
 renders formatted; admin bell no longer 500s; course detail fits 375px).
+
+### Iter 19 — doc-contradiction sweep + BE/FE parity gap log
+
+Run as a parallel research wave (three read-only agents) while the iter-16
+container build was in flight, so the build wait did real work.
+
+**Contradiction sweep (loop step 4) — 3 confirmed, fixed:**
+1. `docs/accessibility.md:13` + `docs/architecture.md:231` linked to a
+   **deleted** `.github/workflows/accessibility.yml`. The a11y gate was
+   inlined into `ci.yml` (job `accessibility:`) on 2026-05-26. → repointed
+   both to the `accessibility` job in `ci.yml`.
+2. Same two docs claimed the a11y gate runs "on push to `main` / `legacy`."
+   `ci.yml` triggers on `push: [main]` + all PRs only (no `legacy` push).
+   → dropped the `/legacy` claim.
+3. `docs/adr/0002-postgres-redis-minio.md:32` (Accepted, immutable) still
+   stated full-text search is served by Meilisearch. Reality: Postgres
+   `tsvector` (ADR-0003 → superseded by ADR-0015). → appended a one-line
+   superseded-correction note (ADR body left otherwise intact).
+
+Sources verified clean: `.env.example`↔`config.py`, notifications `kind`
+(String(40) ↔ schema `str`, consistent post-iter-16), CHANGELOG, ADR-0003
+banner, `docker-compose.yml` (no stale Meilisearch), search/Celery comments.
+
+**SURFACED — deploy-approval gate (NOT auto-fixed; ops-safety semantics):**
+Commit `4c6ef4d` (2026-05-28) cleared `required_reviewers` on the
+`production` GitHub Environment via API → deploys auto-proceed on CI green
+(intended; the click was forgotten 5×). But `docs/ci-cd.md` (extensively,
+lines 14/34-36/46/50/55/185…) and comments in `ci.yml:16,664`,
+`flip-flag.yml:23,71`, `prod-seed.yml:15-16`, `eval-baseline.yml:19` all
+still document an active human-approval click. Two things to decide before
+rewriting any of that:
+  (a) `flip-flag.yml` (feature-flag flip) and `prod-seed.yml` (seed prod
+      data) share the **same** `production` environment, so clearing its
+      reviewers **also silently removed their approval gate** — higher
+      blast radius than a deploy, possibly an unintended side effect.
+  (b) Whether to (i) accept ungated flip/seed and update all docs/comments
+      to match, or (ii) re-gate flip/seed under a separate env with
+      required reviewers, then document that split.
+Recommendation: option (b)(ii) — give flip-flag + prod-seed their own
+reviewer-gated env; keep deploy auto. Awaiting owner call; docs/comment
+rewrite is HELD on this decision (writing "auto, no approval" everywhere
+now would bake in the side effect).
+
+**BE/FE parity sweep (loop step 2) — 2 new ORPHANs (~108/110 consumed):**
+1. `POST /api/v1/studio/ai/draft-course` (`ai_authoring.py:302`). Client
+   wrapper `AI.draftCourse` (`endpoints.ts:413`) has **zero UI callers**;
+   `/studio/new` uses `Courses.create`. The downstream replay/trace UI
+   (`/studio/draft/[courseId]`) already ships — only the trigger is
+   missing. **Decision: WIRE — PROPOSE-ONLY.** This is the agentic
+   course-generator (the portfolio-anchor feature); wiring a trigger is a
+   new top-level surface → needs owner sign-off. Do **not** delete.
+2. `GET /api/v1/courses/{id}/tutor/conversations` (`tutor.py:260`). Wrapper
+   `Tutor.listConversations` (`endpoints.ts:655`), no UI caller; the tutor
+   panel only starts/gets a single conversation. **Decision: PROPOSE —
+   wire a "past tutor conversations" picker OR delete the list route.**
+   Lower value; deferred pending the draft-course call.
+No UI-only placeholders found.

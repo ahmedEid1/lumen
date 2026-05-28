@@ -224,11 +224,11 @@ Presence is approximated by Redis sorted set `presence:{course_id}` (member = us
 ## 13. Accessibility gate
 
 - `WCAG 2.2 AA` is enforced in CI via `@axe-core/playwright` against
-  the built Next.js app on every PR and every push to `main` /
-  `legacy`. The audit covers the golden-path routes for all three
+  the built Next.js app on every PR and every push to `main`. The
+  audit covers the golden-path routes for all three
   roles (logged-out home/catalog/auth pages, course detail,
   student dashboard + profile, instructor studio, admin).
-- Workflow: `.github/workflows/accessibility.yml`. Suite:
+- Workflow: the `accessibility` job in `.github/workflows/ci.yml`. Suite:
   `apps/frontend/tests/e2e/accessibility.spec.ts`. Run locally with
   `make a11y` against an up dev stack.
 - Full guide — including how to read an axe failure, when to fix

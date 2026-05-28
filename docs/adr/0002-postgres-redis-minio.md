@@ -30,6 +30,7 @@ The legacy app used SQLite + local filesystem + a single Redis instance for Chan
 - Dev needs Postgres + Redis + MinIO containers — bundled in Compose.
 - Operators who already have managed Postgres/Redis/S3 simply point env vars at them.
 - We get full-text search via Meilisearch (next ADR), not Postgres, to keep query latency predictable.
+  _(Correction, 2026-05: Meilisearch was never adopted. Full-text search is served by a Postgres `tsvector` column — see ADR-0003, superseded by [ADR-0015](0015-postgres-tsvector-for-catalog-search.md).)_
 
 ## References
 
