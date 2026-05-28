@@ -106,8 +106,15 @@ export function CeleryTab() {
         <h2 className="mb-3 font-display text-lg leading-tight tracking-tight">
           Workers
         </h2>
-        <WorkerSection title="Active" workers={data.active} />
-        <WorkerSection title="Scheduled" workers={data.scheduled} />
+        <p className="mb-3 font-mono text-xs text-muted-foreground">
+          Tasks reported by reachable workers via{" "}
+          <span className="text-foreground">control.inspect()</span>. An online
+          but idle worker reports an empty list — this is task activity, not a
+          roster of online workers. &quot;No worker reachable&quot; means none
+          answered the broker ping (see the broker note above).
+        </p>
+        <WorkerSection title="Active tasks" workers={data.active} />
+        <WorkerSection title="Scheduled tasks" workers={data.scheduled} />
       </section>
     </div>
   );
@@ -123,7 +130,7 @@ function WorkerSection({
   if (workers === null) {
     return (
       <p className="mb-4 font-mono text-xs text-muted-foreground">
-        {title}: <span className="text-foreground">no data</span>
+        {title}: <span className="text-foreground">no worker reachable</span>
       </p>
     );
   }
@@ -131,7 +138,7 @@ function WorkerSection({
   if (entries.length === 0) {
     return (
       <p className="mb-4 font-mono text-xs text-muted-foreground">
-        {title}: <span className="text-foreground">none</span>
+        {title}: <span className="text-foreground">none reported</span>
       </p>
     );
   }

@@ -21,12 +21,11 @@ Lumen v2 Phase H7. Three read-only endpoints powering the
   ``"service offline"`` when Redis is down so the dashboard
   renders the degraded state instead of blowing up.
 
-NOTE: this router is **not** registered in ``app/api/router.py`` —
-the orchestrator mounts it under ``/api/v1/admin`` after the wave
-returns. The expected mount matches the URL examples above. Add
-``AgentTrace`` and ``RetrievalAudit`` to ``app/models/__init__.py``
-at the same time so Alembic autogenerate and the test conftest's
-``create_all`` pick them up.
+This router is registered in ``app/api/router.py`` under the
+``/api/v1/admin`` prefix, so the paths above resolve to
+``/api/v1/admin/observability/*``. ``AgentTrace`` and
+``RetrievalAudit`` are exported from ``app/models/__init__.py`` so
+Alembic autogenerate and the test conftest's ``create_all`` see them.
 """
 
 from __future__ import annotations

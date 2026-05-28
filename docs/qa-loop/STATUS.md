@@ -1487,3 +1487,19 @@ truth-up, 6341d63 admin-users `?limit=200`, 4ea4fd9 deploy.yml + CHANGELOG,
 35fa37f the arm64 build fix, 1d90b3a shape-test truth-up. No in-flight run to
 cancel (prior one was cancelled), so the push was safe; a watcher is verifying
 the native build completes + deploys + prod-verifying iter-20/21.
+
+**Iter-24b — observability accuracy (held for next batch).** While scoping the
+backlog during the iter-24 build:
+- `admin_observability.py` carried a **stale orchestrator-scaffolding note**
+  claiming the router was "**not** registered" and that `AgentTrace`/
+  `RetrievalAudit` still needed adding to `models/__init__.py`. Both are long
+  done (router.py:10,76 mount it under `/admin`; both models are exported).
+  Corrected the note — it actively misinformed.
+- CeleryTab's **"Active: none" mislabel**: the panel renders Celery
+  `inspect.active()`/`scheduled()` **task** lists, not a worker roster, so an
+  online-but-idle worker read as "no workers." Relabeled to "Active tasks" /
+  "Scheduled tasks" + a one-line clarifier; null → "no worker reachable"
+  (matches the backend's ping-None branch), empty → "none reported". Text-only,
+  tsc/eslint clean, no test pins the strings. Resolves the LOW backlog item
+  previously deferred as "risk of inaccuracy" (resolved by understanding the
+  data source).
