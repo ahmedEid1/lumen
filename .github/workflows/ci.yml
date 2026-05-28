@@ -265,18 +265,17 @@ jobs:
           format: sarif
           output: trivy-api.sarif
           severity: CRITICAL,HIGH
-          # The pushed image is arm64-only (ADR-0023). Trivy defaults to
-          # scanning linux/amd64 and would fail with "no child with
-          # platform linux/amd64 in index", so pin the scan to arm64.
-          platform: linux/arm64
           # exit-code: "0" keeps the scan informational (uploads SARIF
           # to Security tab) instead of blocking the build on CVEs.
           # Bump to "1" once the base images are pinned to digests so
           # noise stays low.
           exit-code: "0"
         env:
-          # Belt-and-suspenders: trivy reads --platform from TRIVY_PLATFORM
-          # too, so the pin holds regardless of the action version.
+          # The pushed image is arm64-only (ADR-0023); Trivy defaults to
+          # scanning linux/amd64 and fails with "no child with platform
+          # linux/amd64 in index". trivy-action@v0.36.0 has no `platform`
+          # input, so we set --platform via TRIVY_PLATFORM — the action's
+          # documented path for flags that aren't inputs.
           TRIVY_PLATFORM: linux/arm64
       - name: Trivy scan — frontend
         uses: aquasecurity/trivy-action@v0.36.0
@@ -285,9 +284,10 @@ jobs:
           format: sarif
           output: trivy-web.sarif
           severity: CRITICAL,HIGH
-          platform: linux/arm64
           exit-code: "0"
         env:
+          # arm64-only image — see the backend scan above. --platform via env
+          # because trivy-action@v0.36.0 has no `platform` input.
           TRIVY_PLATFORM: linux/arm64
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3
