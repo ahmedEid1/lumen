@@ -365,4 +365,65 @@ All 4 deferred orphans from iter 2 are closed:
 | `POST /api/v1/admin/evals/runs` | ✓ "Run now" form on /admin/evals | iter 3 |
 | `GET/POST/DELETE /api/v1/admin/mcp-clients` (+ `{id}`) | ✓ /admin/mcp-clients page | iter 4 |
 
+---
+
+## Iter 5 — 2026-05-28 — lint rescue + mobile polish
+
+**Starting point:** iter 4 closed with the mcp-clients page; CI for
+`3f6ce4f` failed on `react/no-unescaped-entities` in the new admin
+prose copy (straight quotes/apostrophes inline in /admin/evals and
+/admin/mcp-clients).
+
+### Iter 5 — batch 1 (d9ab3bc)
+
+- Escaped 6 JSX entities (`"`→`&ldquo;/&rdquo;`, `'`→`&apos;`) in
+  /admin/evals (the "No runs yet" empty state) and /admin/mcp-clients
+  (intro copy + reveal dialog body + "I've saved it" button).
+- Locally re-ran `npx eslint <changed files>` clean — should have
+  been the first pre-push verify on the iter-3/4 batches; adding
+  `eslint src/app/admin` to the iter-6+ checklist.
+
+### Iter 5 — batch 2 (cba8ab1, push pending d9ab3bc deploy)
+
+- Mobile-walk caught `/admin/observability` overflowing the viewport
+  at 375px after iter-3 added the LLM Cost + Rate Limits tabs. The
+  TabsList sat at 476px wide; the existing `overflow-x-auto` had no
+  effect because the underlying primitive uses `inline-flex` (sizes
+  to content). Fix: `max-w-full` on the TabsList so it claims the
+  parent width on mobile and the overflow-x-auto actually scrolls.
+- Desktop layout unchanged.
+- Holding the push until d9ab3bc finishes CI to avoid cancel-in-
+  progress killing the deploy chain.
+
+### Iter 5 — verified locally end-to-end
+
+- MCP clients: mint → reveal-secret → copy → list-refresh →
+  revoke (two-step confirm) → include-revoked-toggle. Full CRUD
+  walks cleanly.
+- LLM Cost tab: 28 calls / $0.000825 spend with feature + day
+  breakdowns rendered live.
+- Rate Limits tab: "0 in the last 1.0 h" with the "limits are not
+  biting" copy.
+- Mobile 375×812: /admin/observability no horizontal scroll,
+  /admin/mcp-clients no horizontal scroll, /admin/evals no
+  horizontal scroll.
+
+### Iter 5 — commits
+
+`d9ab3bc` style(qa-iter5): escape JSX entities in admin/evals + admin/mcp-clients
+`cba8ab1` fix(qa-iter5): /admin/observability TabsList mobile overflow
+
+### Post-deploy operator step (still pending)
+
+The eval-reports volume + free-preview migration + new admin
+surfaces are all in the deploy queue behind `d9ab3bc`. Once prod is
+on `d9ab3bc` (or later), trigger:
+
+```
+gh workflow run eval-baseline.yml -f suite=tutor -f limit=30 -f promote=true
+```
+
+…to repopulate `/eval/public` with the +0.93 / grounding +2.78
+shape it had before the ephemeral-filesystem regression.
+
 
