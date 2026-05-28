@@ -94,24 +94,30 @@ async def replan_paths_monthly_async() -> int:
     so the loop doesn't hold a long-running read lock.
     """
     cutoff = datetime.now(UTC) - timedelta(days=STALE_AFTER_DAYS)
-    async with db_base.get_sessionmaker()() as snap_session:
-        candidates = await _stale_user_ids(snap_session, cutoff=cutoff)
-    if not candidates:
-        log.info("replan_monthly_no_candidates")
-        return 0
+    # Per-task NullPool engine — safe under the Celery worker's
+    # fresh-per-task asyncio.run loop, where the shared pooled engine
+    # raises "got Future attached to a different loop". One engine for
+    # the task; each learner still gets its own session below. See
+    # app.db.base.worker_session_scope.
+    async with db_base.worker_session_scope() as Session:
+        async with Session() as snap_session:
+            candidates = await _stale_user_ids(snap_session, cutoff=cutoff)
+        if not candidates:
+            log.info("replan_monthly_no_candidates")
+            return 0
 
-    succeeded = 0
-    for user_id in candidates:
-        async with db_base.get_sessionmaker()() as session:
-            ok = await _replan_one(session, user_id=user_id)
-            if ok:
-                succeeded += 1
-    log.info(
-        "replan_monthly_done",
-        candidates=len(candidates),
-        succeeded=succeeded,
-    )
-    return succeeded
+        succeeded = 0
+        for user_id in candidates:
+            async with Session() as session:
+                ok = await _replan_one(session, user_id=user_id)
+                if ok:
+                    succeeded += 1
+        log.info(
+            "replan_monthly_done",
+            candidates=len(candidates),
+            succeeded=succeeded,
+        )
+        return succeeded
 
 
 @celery.task(

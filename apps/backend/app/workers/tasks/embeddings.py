@@ -21,7 +21,11 @@ log = get_logger(__name__)
 
 
 async def _index_course_async(course_id: str) -> int:
-    async with db_base.get_sessionmaker()() as db:
+    # Per-task NullPool engine — the Celery worker runs this under a
+    # fresh asyncio.run loop, where the shared pooled engine would
+    # raise "got Future attached to a different loop". See
+    # app.db.base.worker_session_scope.
+    async with db_base.worker_session_scope() as Session, Session() as db:
         return await ingest_course(db, course_id)
 
 

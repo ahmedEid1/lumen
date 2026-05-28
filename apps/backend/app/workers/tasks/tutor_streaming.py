@@ -29,6 +29,7 @@ import time
 import redis.asyncio as redis
 from celery.utils.log import get_task_logger
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import get_settings
 from app.core.cost_scripts import (
@@ -36,7 +37,7 @@ from app.core.cost_scripts import (
     reconcile_cost,
     release_concurrency,
 )
-from app.db.base import get_sessionmaker
+from app.db.base import make_worker_engine
 from app.models.course import Course
 from app.models.tutor_turn_job import TURN_STATUS_COMPLETE, TURN_STATUS_FAILED
 from app.services.redis_streams import emit_event, set_stream_ttl
@@ -66,7 +67,12 @@ def run_turn(self, turn_id: str) -> None:
 
 async def _run_turn_async(turn_id: str) -> None:
     settings = get_settings()
-    Session = get_sessionmaker()
+    # Per-task NullPool engine — a Celery prefork task gets a fresh
+    # event loop, so the module-level pooled engine can't be reused
+    # here without "got Future attached to a different loop". Disposed
+    # in the finally below. See app.db.base.make_worker_engine.
+    engine = make_worker_engine()
+    Session = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
 
     redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=False)
     user_id: str | None = None
@@ -206,4 +212,6 @@ async def _run_turn_async(turn_id: str) -> None:
                 await release_concurrency(redis_client, user_key=f"concurrent:user:{user_id}")
         with contextlib.suppress(Exception):
             await redis_client.aclose()
+        with contextlib.suppress(Exception):
+            await engine.dispose()
         del conversation_id  # currently unused; keeps the linter happy

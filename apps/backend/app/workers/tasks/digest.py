@@ -139,7 +139,9 @@ async def _run_digests(db: AsyncSession) -> int:
 
 async def send_daily_digests_async() -> int:
     """Entry point usable directly from async tests."""
-    async with db_base.get_sessionmaker()() as db:
+    # Per-task NullPool engine — safe under the Celery worker's
+    # fresh-per-task asyncio.run loop. See app.db.base.worker_session_scope.
+    async with db_base.worker_session_scope() as Session, Session() as db:
         return await _run_digests(db)
 
 

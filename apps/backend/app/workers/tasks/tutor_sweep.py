@@ -23,10 +23,11 @@ import contextlib
 import redis.asyncio as redis
 from celery.utils.log import get_task_logger
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.core.config import get_settings
 from app.core.cost_scripts import reconcile_cost
-from app.db.base import get_sessionmaker
+from app.db.base import make_worker_engine
 from app.workers.celery_app import celery
 
 log = get_task_logger(__name__)
@@ -49,7 +50,10 @@ def sweep_dead_turns(self) -> None:
 
 async def _sweep_async() -> None:
     settings = get_settings()
-    Session = get_sessionmaker()
+    # Per-task NullPool engine (fresh asyncio.run loop per Celery task);
+    # disposed in the finally. See app.db.base.make_worker_engine.
+    engine = make_worker_engine()
+    Session = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
     redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=False)
 
     try:
@@ -126,6 +130,8 @@ async def _sweep_async() -> None:
     finally:
         with contextlib.suppress(Exception):
             await redis_client.aclose()
+        with contextlib.suppress(Exception):
+            await engine.dispose()
 
 
 @celery.task(name="tutor.cleanup_orphan_streams.v1", bind=True, max_retries=0)
@@ -140,7 +146,10 @@ def cleanup_orphan_streams(self) -> None:
 
 async def _cleanup_async() -> None:
     settings = get_settings()
-    Session = get_sessionmaker()
+    # Per-task NullPool engine (fresh asyncio.run loop per Celery task);
+    # disposed in the finally. See app.db.base.make_worker_engine.
+    engine = make_worker_engine()
+    Session = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
     redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=False)
 
     try:
@@ -172,3 +181,5 @@ async def _cleanup_async() -> None:
     finally:
         with contextlib.suppress(Exception):
             await redis_client.aclose()
+        with contextlib.suppress(Exception):
+            await engine.dispose()

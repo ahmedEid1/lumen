@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, ClassVar
 
@@ -13,6 +15,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
 from app.core.ids import new_id
@@ -76,3 +79,44 @@ async def dispose_engine() -> None:
         await _engine.dispose()
     _engine = None
     _sessionmaker = None
+
+
+def make_worker_engine() -> AsyncEngine:
+    """A fresh ``NullPool`` engine scoped to a single Celery prefork task.
+
+    Worker task bodies run under a new ``asyncio.run()`` event loop on
+    every invocation (ADR-0017). The module-level pooled engine
+    (:func:`get_engine`) caches asyncpg connections bound to whichever
+    loop first opened them, so reusing it on a later task's loop raised
+    ``RuntimeError: ... got Future ... attached to a different loop`` /
+    ``Event loop is closed`` — observed crashing every tutor turn + the
+    sweep beat in prod once ``feature_tutor_streaming`` was enabled. A
+    ``NullPool`` engine created and disposed inside the task's own loop
+    holds no connection across the loop boundary, so each task is
+    self-contained. Disposal is the caller's job — prefer
+    :func:`worker_session_scope`, which does it for you.
+    """
+    s = get_settings()
+    return create_async_engine(
+        s.database_url,
+        echo=s.database_echo,
+        poolclass=NullPool,
+        future=True,
+    )
+
+
+@asynccontextmanager
+async def worker_session_scope() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """Per-task async sessionmaker bound to a fresh :func:`make_worker_engine`.
+
+    Yields a sessionmaker (so a task can open several sequential
+    sessions on its own loop) and disposes the engine on exit. This is
+    the worker-side analogue of :func:`get_sessionmaker`; see
+    :func:`make_worker_engine` for why workers can't share the pooled
+    engine across ``asyncio.run()`` loops.
+    """
+    engine = make_worker_engine()
+    try:
+        yield async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
+    finally:
+        await engine.dispose()
