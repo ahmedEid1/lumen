@@ -1003,7 +1003,26 @@ streaming-enabled the local api for the cancel check — that test reads
 the live `/runtime-flags`; restoring the default cleared it. CI runs
 streaming-off, so it's a non-issue there.)
 
+### Iter 13 — codex hardening (6 P2 rounds on the tutor-cancel)
+
+The cancel-on-close turned out to be structurally subtle — codex caught
+six real edge cases before it was clean, all now fixed + the worker
+shrugged them off in prod:
+1. "trim" is not settled (still polling /status while the server runs) →
+   was skipping cancel.
+2. effect keyed on `token` → an auth refresh tore down a live turn; split
+   the cancel into a `[turnId]`-only effect reading token via a ref.
+3. store kept the prior turn's terminal phase on a new turnId → stale
+   "settled" skipped the cancel; reset per-turn.
+4. "failed" can be a *client-side* give-up with the server still running →
+   narrowed `isTurnSettled` to "complete" only (DELETE on a terminal turn
+   is a server no-op, so over-cancelling is safe).
+5. test leaked the global `fetch` stub (`unstubAllGlobals`).
+6. `reactStrictMode` dev replay fired the cleanup-DELETE on mount →
+   deferred the DELETE a tick + clear it if the same turnId remounts.
+
 ### Iter 13 — commits
 
-`2acf531` fix(qa-iter13): abort the server turn when the tutor closes mid-stream (parity + cost-reservation leak)
-`f37affa` fix(qa-iter13): add accessible descriptions to the two tutor dialogs
+`2acf531` fix: abort the server turn when the tutor closes mid-stream (parity + reservation leak)
+`f37affa` fix: accessible descriptions on the two tutor dialogs
+`3b1f5f6` `1ee8323` `80ffa28` `1b78eeb` `c81e206` `95ef3b2` — the six codex-P2 hardening fixes above
