@@ -51,14 +51,18 @@ describe("useTutorStream — abort on close", () => {
     // mocked fetch leaks to later tests in the worker (order-dependent
     // failures).
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it("DELETEs a non-terminal turn on unmount (releases the cost reservation)", () => {
+    // The cancel-DELETE is deferred a tick (StrictMode-safe), so flush.
+    vi.useFakeTimers();
     const fetchMock = vi.fn(() => Promise.resolve({ ok: true } as Response));
     vi.stubGlobal("fetch", fetchMock);
 
     const { unmount } = renderHook(() => useTutorStream("turn-abc"));
     unmount();
+    vi.runOnlyPendingTimers();
 
     const deleteCall = fetchMock.mock.calls.find(
       ([url, init]) =>

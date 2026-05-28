@@ -208,6 +208,14 @@ export function useTutorStream(turnId: string | null): TutorStreamSnapshot {
   // abort — see the cancel effect below).
   const tokenRef = useRef(token);
   tokenRef.current = token;
+  // A cancel-DELETE scheduled by the cleanup below, deferred a tick so
+  // React StrictMode's dev mount→cleanup→remount replay can abort it
+  // (the remount clears a pending cancel for the SAME turnId). A real
+  // unmount has no remount, so its deferred cancel fires.
+  const pendingCancel = useRef<{
+    turnId: string;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
 
   useEffect(() => {
     if (!turnId) return;
@@ -257,6 +265,14 @@ export function useTutorStream(turnId: string | null): TutorStreamSnapshot {
   // backstop. isTurnSettled excludes "trim" (still polling /status while
   // the server runs), so closing during trim-polling still cancels.
   useEffect(() => {
+    // (Re)mounting this turnId — if the matching cleanup just scheduled a
+    // cancel for the SAME turn, it's a StrictMode dev replay (mount →
+    // cleanup → remount), so abort the scheduled DELETE. A turnId *change*
+    // is a real replacement, so we leave the prior turn's cancel to fire.
+    if (pendingCancel.current && pendingCancel.current.turnId === turnId) {
+      clearTimeout(pendingCancel.current.timer);
+      pendingCancel.current = null;
+    }
     // Fresh snapshot per turn. Without this the store keeps the PREVIOUS
     // turn's terminal phase until this turn's first event arrives, so the
     // cancel guard below would wrongly treat a brand-new turn as
@@ -266,16 +282,23 @@ export function useTutorStream(turnId: string | null): TutorStreamSnapshot {
     if (!turnId) return;
     return () => {
       if (isTurnSettled(store.getSnapshot().phase)) return;
-      void fetch(`/api/v1/tutor/turns/${encodeURIComponent(turnId)}`, {
-        method: "DELETE",
-        credentials: "include",
-        keepalive: true,
-        headers: tokenRef.current
-          ? { Authorization: `Bearer ${tokenRef.current}` }
-          : {},
-      }).catch(() => {
-        /* best-effort: the sweep beat is the backstop if this fails */
-      });
+      const tid = turnId;
+      const tok = tokenRef.current;
+      // Defer one tick: a StrictMode remount runs setup right after this
+      // and clears it (same turnId). A real unmount has no remount, so
+      // the timer fires; keepalive lets the request outlive navigation.
+      const timer = setTimeout(() => {
+        pendingCancel.current = null;
+        void fetch(`/api/v1/tutor/turns/${encodeURIComponent(tid)}`, {
+          method: "DELETE",
+          credentials: "include",
+          keepalive: true,
+          headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+        }).catch(() => {
+          /* best-effort: the sweep beat is the backstop if this fails */
+        });
+      }, 0);
+      pendingCancel.current = { turnId: tid, timer };
     };
   }, [turnId, store]);
 
