@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
@@ -51,6 +51,12 @@ import { cn } from "@/lib/utils";
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // The element that had focus when the palette opened. The palette is
+  // *controlled* (no Radix <DialogTrigger>), so Radix has nothing to
+  // restore focus to on close — focus fell to <body>, stranding
+  // keyboard users (WCAG 2.4.3). Capture the opener and restore it via
+  // onCloseAutoFocus below.
+  const openerRef = useRef<HTMLElement | null>(null);
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
   const { user, logout } = useAuth();
@@ -64,10 +70,17 @@ export function CommandPalette() {
     function onKey(e: KeyboardEvent) {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setOpen((v) => !v);
+        setOpen((v) => {
+          // Capture the opener only on the false→true transition so a
+          // toggle-close doesn't overwrite it with the dialog's own
+          // focused node.
+          if (!v) openerRef.current = document.activeElement as HTMLElement | null;
+          return !v;
+        });
       }
     }
     function onOpenEvent() {
+      openerRef.current = document.activeElement as HTMLElement | null;
       setOpen(true);
     }
     document.addEventListener("keydown", onKey);
@@ -133,6 +146,16 @@ export function CommandPalette() {
         className="max-w-xl p-0 overflow-hidden"
         srLabelClose={t("common.close")}
         hideCloseButton
+        onCloseAutoFocus={(e) => {
+          // Restore focus to whatever opened the palette (the navbar
+          // trigger, or wherever the Cmd+K user was). Radix can't do
+          // this for a controlled dialog with no DialogTrigger.
+          const el = openerRef.current;
+          if (el && el.isConnected && typeof el.focus === "function") {
+            e.preventDefault();
+            el.focus();
+          }
+        }}
       >
         <DialogTitle className="sr-only">{t("palette.title")}</DialogTitle>
         <DialogDescription className="sr-only">

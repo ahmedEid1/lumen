@@ -888,3 +888,45 @@ gstatic). Deploy pipeline restored.
 streaming-metrics endpoint (candidate ADR-0021); storageState
 Strict-cookie cleanup for the non-gated `visual-regression.spec.ts`;
 the "Understanding RAG Systems" Red/Amber/Green content collision.
+
+
+
+---
+
+## Iter 11 — 2026-05-28 — keyboard navigation a11y pass
+
+**Starting point:** iter 10 closed, prod on `53f0c39`. Fresh angle —
+keyboard nav, the one a11y dimension not yet swept (axe already covers
+10 routes at WCAG 2.2 AA in CI; modal-open states + `/learn` are the
+gaps).
+
+### Iter 11 — finding: dialogs don't restore focus on close (WCAG 2.4.3)
+
+Opening the **command palette** (via the navbar button *or* Cmd+K) and
+closing with Escape left focus on `<body>` instead of returning it to
+the opener — a keyboard/SR user loses their place and must re-traverse
+from the top. Verified the same on the **AI-outline modal**, so it's
+**systemic**: these dialogs are *controlled* (`open` prop, no Radix
+`<DialogTrigger>`), and Radix's default focus restoration targets the
+trigger — with no trigger it no-ops to body.
+
+**FIXED (command palette, `shared/command-palette.tsx`):** capture the
+opener (`document.activeElement`) on the false→true open transition
+(both the Cmd+K handler and the `lumen:open-command-palette` event),
+and restore it in `DialogContent`'s `onCloseAutoFocus`. Verified live
+on the local stack both ways: button-open → Esc → focus back on the
+trigger; Cmd+K from the `/courses` nav link → Esc → focus back on that
+link. eslint + tsc + 355 vitest green.
+
+**PROPOSED (follow-up, candidate ADR-0022): systemic dialog return-focus.**
+The same gap affects the other controlled dialogs (AI-outline confirmed;
+ingest-modal, MCP-mint likely). The clean fix is a shared
+`useReturnFocus()` hook (capture on open + `onCloseAutoFocus` restore)
+applied to each, or baking opener-capture into the Dialog primitive —
+both touch the core dialog component used app-wide, so they deserve a
+focused pass with per-dialog verification rather than being rushed into
+this iteration. Logged so it isn't re-discovered.
+
+### Iter 11 — commits
+
+`fix(qa-iter11)` command-palette restores focus to opener on close (batched with iter-10 closeout doc)
