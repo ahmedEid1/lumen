@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
@@ -57,6 +58,9 @@ export default function ThreadPage({
   const { user } = useAuth();
   const t = useT();
   const [draft, setDraft] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
 
   const threadQ = useQuery({
     queryKey: ["discussion", id],
@@ -83,6 +87,20 @@ export default function ThreadPage({
       router.replace(`/courses/${slug}/discussions`);
     },
     onError: (e: Error) => toast.error(e?.message ?? t("thread.deleteError")),
+  });
+
+  const editThread = useMutation({
+    mutationFn: () =>
+      api<ThreadDetail>(`/api/v1/discussions/${id}`, {
+        method: "PATCH",
+        body: { title: editTitle.trim(), body: editBody.trim() },
+      }),
+    onSuccess: () => {
+      setEditing(false);
+      toast.success(t("thread.editedToast"));
+      qc.invalidateQueries({ queryKey: ["discussion", id] });
+    },
+    onError: (e: Error) => toast.error(e?.message ?? t("thread.editError")),
   });
 
   const deleteReply = useMutation({
@@ -124,37 +142,96 @@ export default function ThreadPage({
 
       {/* Opening post */}
       <article className="mb-10">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <h1 className="font-display text-2xl leading-tight tracking-tight sm:text-3xl">
-            {thread.title}
-          </h1>
-          {canEditThread && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={t("thread.deleteThread")}
-              onClick={() => deleteThread.mutate()}
-              disabled={deleteThread.isPending}
-              className="text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-        <div className="mb-4 flex items-center gap-2 font-body text-xs text-muted-foreground">
-          <Avatar className="h-5 w-5 border border-border">
-            <AvatarImage src={thread.author?.avatar_url ?? undefined} alt="" />
-            <AvatarFallback>
-              {(thread.author?.full_name ?? "?").slice(0, 1)}
-            </AvatarFallback>
-          </Avatar>
-          <span>{thread.author?.full_name ?? t("discussions.deletedUser")}</span>
-          <span className="font-mono">· {formatRelative(thread.created_at)}</span>
-        </div>
-        {thread.body && (
-          <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-foreground/90">
-            {thread.body}
-          </p>
+        {editing ? (
+          <form
+            className="mb-4 space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (editTitle.trim().length < 3) return;
+              editThread.mutate();
+            }}
+          >
+            <Input
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              maxLength={240}
+              placeholder={t("thread.editTitlePlaceholder")}
+              className="font-display text-lg"
+            />
+            <Textarea
+              value={editBody}
+              onChange={(e) => setEditBody(e.target.value)}
+              rows={4}
+              maxLength={10000}
+              placeholder={t("thread.editBodyPlaceholder")}
+            />
+            <div className="flex gap-2">
+              <Button
+                type="submit"
+                disabled={editThread.isPending || editTitle.trim().length < 3}
+              >
+                {t("common.save")}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setEditing(false)}
+                disabled={editThread.isPending}
+              >
+                {t("common.cancel")}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <h1 className="font-display text-2xl leading-tight tracking-tight sm:text-3xl">
+                {thread.title}
+              </h1>
+              {canEditThread && (
+                <div className="flex shrink-0 items-center">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("thread.editThread")}
+                    onClick={() => {
+                      setEditTitle(thread.title);
+                      setEditBody(thread.body);
+                      setEditing(true);
+                    }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("thread.deleteThread")}
+                    onClick={() => deleteThread.mutate()}
+                    disabled={deleteThread.isPending}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            <div className="mb-4 flex items-center gap-2 font-body text-xs text-muted-foreground">
+              <Avatar className="h-5 w-5 border border-border">
+                <AvatarImage src={thread.author?.avatar_url ?? undefined} alt="" />
+                <AvatarFallback>
+                  {(thread.author?.full_name ?? "?").slice(0, 1)}
+                </AvatarFallback>
+              </Avatar>
+              <span>{thread.author?.full_name ?? t("discussions.deletedUser")}</span>
+              <span className="font-mono">· {formatRelative(thread.created_at)}</span>
+            </div>
+            {thread.body && (
+              <p className="whitespace-pre-wrap font-body text-sm leading-relaxed text-foreground/90">
+                {thread.body}
+              </p>
+            )}
+          </>
         )}
       </article>
 
