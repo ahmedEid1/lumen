@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed (QA loop iters 8–13 — live-walk fixes)
+### Fixed (QA loop iters 8–14 — live-walk fixes)
 
 - **Tutor cost-reservation leak:** closing the tutor mid-turn now aborts
   the server turn (`DELETE /tutor/turns/{id}`) instead of only dropping
@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shared `useReturnFocus` hook across all controlled dialogs (AI-outline,
   ingest, MCP-client mint/reveal, course tutor, profile delete-confirm) —
   see ADR-0022.
+- **Discussions page title + anonymous empty-state.** The
+  `/courses/{slug}/discussions` route (a client component) inherited the
+  catalog's "Catalog · Lumen" `<title>`; a thin server layout now resolves
+  it to "Discussions · Lumen" (also covering the single-thread route).
+  Anonymous visitors saw "Start the conversation above" pointing at a
+  form gated behind sign-in — they now get a "Sign in to start" message.
 
 ### Changed
 
