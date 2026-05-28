@@ -117,14 +117,16 @@ jobs:
     name: Roll AWS
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    # GitHub Environment gate. The `production` environment is
-    # configured with a required reviewer (the repo owner) and a
-    # branch policy restricting deployments to `main`. Every
-    # invocation of this workflow — manual or via workflow_call from
-    # ci.yml — pauses here for an explicit approval click in the
-    # GitHub UI before the SSH steps fire. The environment is created
-    # via the gh API; see the iter-4 CHANGELOG entry for the exact
-    # command and chosen settings.
+    # GitHub Environment binding. The `production` environment keeps a
+    # branch policy restricting deployments to `main`, but as of
+    # 2026-05-28 (commit 4c6ef4d) it no longer has a required-reviewer
+    # rule — so every invocation (manual or via workflow_call from
+    # ci.yml) runs straight through to the SSH steps with no approval
+    # click (see the header block above for the rationale). The env is
+    # retained only to scope deployment history under "production" and
+    # any env-level secrets. It was created via the gh API; see the
+    # iter-4 CHANGELOG entry for the original command/settings (the
+    # required reviewer recorded there was since removed in 4c6ef4d).
     environment:
       name: production
       url: https://lumen.ahmedhobeishy.tech
