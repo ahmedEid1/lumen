@@ -24,16 +24,23 @@ vi.mock("@/lib/tutor/sse-client", () => ({
 
 import { isTurnSettled, useTutorStream } from "@/lib/tutor/use-tutor-stream";
 
-describe("isTurnSettled — only complete/failed are settled", () => {
-  it("treats in-flight phases (incl. trim-polling) as NOT settled", () => {
-    // "trim" is the trap: the display reducer counts it terminal, but
-    // the server is still running while the hook polls /status, so a
-    // close during trim must still cancel.
-    for (const phase of ["idle", "planning", "tool", "synth", "trim"] as const) {
+describe("isTurnSettled — only complete is settled", () => {
+  it("treats every phase but complete as cancellable", () => {
+    // Traps: "trim" still polls /status while the server runs; "failed"
+    // can be a *client-side* stream give-up (EOF/error/poll-timeout)
+    // with the server turn still running. Both must still cancel on
+    // close. DELETE on an already-terminal turn is a server no-op.
+    for (const phase of [
+      "idle",
+      "planning",
+      "tool",
+      "synth",
+      "trim",
+      "failed",
+    ] as const) {
       expect(isTurnSettled(phase), `${phase} should be cancellable`).toBe(false);
     }
     expect(isTurnSettled("complete")).toBe(true);
-    expect(isTurnSettled("failed")).toBe(true);
   });
 });
 

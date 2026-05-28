@@ -166,16 +166,23 @@ class TutorStreamStore {
 const TERMINAL_PHASES: TutorStreamPhase[] = ["complete", "failed", "trim"];
 
 /**
- * Whether the *server* turn is truly done (safe to skip cancellation).
+ * Whether the *server* turn is provably done, so closing the tutor need
+ * not abort it. Used only to suppress the cancel-DELETE on close.
  *
- * Distinct from {@link TERMINAL_PHASES}, the display reducer's settled
- * set: that includes "trim", but a trimmed stream is still polling
- * `/status` while the server keeps orchestrating — so closing during
- * trim-polling must still abort the turn. Only "complete"/"failed" mean
- * the reservation is already released.
+ * Deliberately NARROWER than {@link TERMINAL_PHASES} (the display
+ * reducer's settled set):
+ *   - "trim" is excluded — the stream was trimmed and the hook is still
+ *     polling `/status` while the server orchestrates.
+ *   - "failed" is excluded — `runWithRecovery` sets phase "failed" for
+ *     *client-side* stream give-ups too (two EOFs, a transient error, a
+ *     `/status` poll timeout) where the server turn may well still be
+ *     running and holding its reservation.
+ * Only "complete" unambiguously means the server finished and the cost
+ * was reconciled. Cancelling any other phase is safe: DELETE on an
+ * already-terminal turn is an idempotent no-op server-side.
  */
 export function isTurnSettled(phase: TutorStreamPhase): boolean {
-  return phase === "complete" || phase === "failed";
+  return phase === "complete";
 }
 
 /**
