@@ -70,9 +70,11 @@ async def get_demo_questions(
     course_slug: str | None = Query(
         None,
         description=(
-            "Optional course slug filter. When set, returns only questions "
-            "scoped to this course plus global (refusal) probes. When unset, "
-            "returns the full library."
+            "Optional course slug filter. When set, returns the course's own "
+            "questions plus the global (refusal) probes — but only if the "
+            "course has at least one of its own; a course with none returns an "
+            "empty list (so refusal probes are never a learner's sole "
+            "suggestions). When unset, returns the full library."
         ),
     ),
 ) -> DemoQuestionLibraryOut:

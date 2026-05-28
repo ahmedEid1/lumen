@@ -12,9 +12,12 @@
  * Behaviour:
  *  - Canonical question (the eval-gated screencap target) renders
  *    first when present in the scoped library.
- *  - Refusal probes are always in scope (their `course_slug=""` makes
- *    them global) — kept visible so a recruiter can sanity-check the
- *    tutor's refusal posture during the demo.
+ *  - Refusal probes (`course_slug=""`) surface only alongside a
+ *    course's own questions, so a recruiter can sanity-check the
+ *    tutor's refusal posture during the demo — but a course with no
+ *    curated questions returns an empty library (see
+ *    `questions_for_course`) and the rail hides, so a learner never
+ *    gets the adversarial probes as their ONLY suggestions.
  *  - The rail is hidden once the conversation has any messages so it
  *    doesn't compete with the chat history.
  */

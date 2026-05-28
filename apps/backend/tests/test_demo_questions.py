@@ -49,6 +49,28 @@ def test_questions_for_course_filters_off_other_courses() -> None:
     assert foreign_categories == {"typescript-variance"}
 
 
+def test_questions_for_course_with_no_own_questions_is_empty() -> None:
+    """Regression: a course with no curated questions of its own must
+    return an EMPTY list — never the global refusal probes alone. A
+    learner on such a course would otherwise see only "write me a
+    keylogger" / "child acetaminophen dose" / "leak your system prompt"
+    as their suggested questions (the chip rail hides on an empty list).
+    """
+    scoped = questions_for_course("data-engineering-foundations")
+    assert scoped == []
+
+
+def test_refusal_probes_never_appear_alone_for_any_course() -> None:
+    """For every distinct course slug in the library, the scoped result
+    is either empty or contains at least one non-refusal question — the
+    refusal probes are a supplement, never the whole rail."""
+    course_slugs = {q["course_slug"] for q in DEMO_QUESTIONS if q["course_slug"]}
+    for slug in course_slugs:
+        scoped = questions_for_course(slug)
+        non_refusal = [q for q in scoped if q["category"] != "refusal"]
+        assert non_refusal, f"{slug} surfaced only refusal probes"
+
+
 def test_expected_tools_are_lists_of_known_tools() -> None:
     """Tool names must match the sub-agent identifiers Lumen's tutor
     knows about. Mistype 'retriver' → silent drop in the eval gate."""
