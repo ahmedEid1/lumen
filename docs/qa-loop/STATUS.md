@@ -1087,11 +1087,13 @@ lines. No discussions-specific vitest exists (metadata + i18n branch).
 `e24d10c` fix(qa-iter14): correct the discussions page title + anon empty-state copy (i18n keys)
 `cad25d8` fix(qa-iter14): wire the discussions title layout + anon empty-state consumer
 
-**Status:** verified locally, **HELD** pending the iter-13 (`b8c1d05`)
-deploy — pushing now would trip CI cancel-in-progress and kill the live
-iter-12+13 deploy. Push + prod-verify ("Discussions · Lumen" title, anon
-empty-state copy) once that run finishes. Codex review on the batch came
-back **clean** (no correctness issue in the modified code).
+### Iter 14 — CLOSED — shipped to prod (run `26576727104`, success)
+
+Codex review came back **clean**. Shipped + deployed to AWS (build →
+roll → migrate → smoke all green). **Prod-verified**: all three
+`/courses/{slug}/discussions` pages now serve `<title>Discussions ·
+Lumen</title>` (was "Catalog · Lumen"); the server layout's metadata
+resolves through the `%s · Lumen` template as intended.
 
 ### Iter 14 — FE/BE parity gap log (full sweep, → iter-15)
 
