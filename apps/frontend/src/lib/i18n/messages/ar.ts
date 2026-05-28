@@ -539,6 +539,10 @@ export const ar: Record<MessageKey, string> = {
   "studio.filter.draft": "مسودّات",
   "studio.filter.published": "منشورة",
   "studio.filter.archived": "مؤرشفة",
+  // QA-iter6 — singular row badges (the filter chips above stay plural).
+  "course.status.draft": "مسودّة",
+  "course.status.published": "منشورة",
+  "course.status.archived": "مؤرشفة",
   "studio.empty.none": "لم تنشئ أي دورة بعد.",
   "studio.empty.filter": "لا توجد دورات بهذه الحالة.",
   "studio.moduleCount": "{n} وحدة",

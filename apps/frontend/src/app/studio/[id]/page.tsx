@@ -164,7 +164,7 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
                     : "secondary"
               }
             >
-              {t(`studio.filter.${course.status}` as MessageKey)}
+              {t(`course.status.${course.status}` as MessageKey)}
             </Badge>
             <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
               {course.title}

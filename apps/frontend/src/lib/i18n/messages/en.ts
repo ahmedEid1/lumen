@@ -532,6 +532,12 @@ export const en = {
   "studio.filter.draft": "Drafts",
   "studio.filter.published": "Published",
   "studio.filter.archived": "Archived",
+  // QA-iter6 — singular status labels for per-row badges (the
+  // `studio.filter.*` keys above are plural for the filter chips, but
+  // a row showing a single course's status reads "Drafts" awkwardly).
+  "course.status.draft": "Draft",
+  "course.status.published": "Published",
+  "course.status.archived": "Archived",
   "studio.empty.none": "You haven't created any courses yet.",
   "studio.empty.filter": "No courses in this state.",
   "studio.moduleCount": "{n} modules",

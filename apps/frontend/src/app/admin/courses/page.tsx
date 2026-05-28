@@ -130,7 +130,7 @@ export default function AdminCourses() {
                       : "secondary"
                 }
               >
-                {t(`studio.filter.${c.status}` as MessageKey)}
+                {t(`course.status.${c.status}` as MessageKey)}
               </Badge>
             ),
           },
