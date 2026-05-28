@@ -1527,3 +1527,20 @@ Trivy steps to `platform: linux/arm64` (+ `TRIVY_PLATFORM` env belt-and-
 suspenders). ci.yml parses; no in-flight run to cancel (the prior run failed).
 The CeleryTab relabel now also has a 4-test regression spec (`celery-tab.test`,
 full suite 368).
+
+**Iter-24 RESOLVED — deployed + prod-verified (2026-05-28).** CI run
+`26592809513` (commit 8822e84) went fully green — **Build container images
+SUCCESS** (the "no amd64 child" Trivy error gone), **Deploy to AWS SUCCESS**
+(pull + roll + migrate + smoke all green). Prod confirmed: `/` 200;
+`/api/v1/demo-questions?course_slug=typescript-variance` → 7 questions,
+`…=data-engineering-foundations` → 0 (iter-20 live); `/learn/typescript-variance`
+title "Learn · Lumen" (iter-21 live); `/admin/users` 200. So iter-20/21/23/24/
+24b/24c are all LIVE. The QEMU multi-arch → native arm64-only switch is the
+durable fix for the 60-min deploy-blocking timeout. Verified by both a direct
+curl pass and watcher a24248d551da5cab0. Transient note: the Backend job logged
+GitHub-cache-service 400s (post-step, non-fatal) — flag only if it recurs.
+
+**Iter-24d/e — follow-ups (pushed 4835a4f, CI in flight at time of writing).**
+Notification-bell 50-cap surfaced (`notif.capNote`, +2 tests, en/ar); dead
+Trivy `platform:` input dropped (confirmed no-op in trivy-action@v0.36.0 —
+`TRIVY_PLATFORM` env is the real, documented mechanism).
