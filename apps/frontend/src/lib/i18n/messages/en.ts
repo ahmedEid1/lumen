@@ -411,6 +411,9 @@ export const en = {
   "adminSubjects.successToast": "Subject added",
   "adminSubjects.addError": "Could not add",
   "adminSubjects.deleteError": "Could not delete",
+  "adminSubjects.renameAria": "Rename subject",
+  "adminSubjects.renameSuccess": "Subject renamed",
+  "adminSubjects.renameError": "Could not rename",
 
   // Admin / tags — the seals
   "adminTags.cartouche": "Tags",

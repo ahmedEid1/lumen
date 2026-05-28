@@ -418,6 +418,9 @@ export const ar: Record<MessageKey, string> = {
   "adminSubjects.successToast": "تمت إضافة الموضوع",
   "adminSubjects.addError": "تعذّرت الإضافة",
   "adminSubjects.deleteError": "تعذّر الحذف",
+  "adminSubjects.renameAria": "إعادة تسمية الموضوع",
+  "adminSubjects.renameSuccess": "تمت إعادة تسمية الموضوع",
+  "adminSubjects.renameError": "تعذّرت إعادة التسمية",
 
   // Admin / tags — الأختام
   "adminTags.cartouche": "الوسوم",
