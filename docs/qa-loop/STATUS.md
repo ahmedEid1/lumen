@@ -703,3 +703,36 @@ described the pre-launch state and misled:
 `af68865` fix(qa-iter8): per-task NullPool engine for Celery workers (prod streaming-tutor crash)
 `a01b4ac` fix(qa-iter8): pass FEATURE_TUTOR_STREAMING through the dev compose anchor
 `2d7e6c9` docs(qa-iter8): correct stale streaming copy/docstrings now that streaming is live
+`732fcaa` fix(qa-iter8): config-drive the login rate limit so e2e can raise it
+
+### Iter 8 — E2E deploy-gate saga (the login 429)
+
+The worker fix (`a01b4ac`) couldn't deploy: the E2E job failed
+**deterministically** (3 re-runs) on a login **429**. iter-7's login
+helper surfaced the real cause — `POST /auth/login` was a hardcoded
+`10/minute` keyed **per-IP**, and the parallel chromium+webkit suite
+logs in many times from one runner IP. So the recurring "login flake"
+across iter-1/6 was (at least partly) this 429 all along, mislabeled as
+a redirect race.
+
+Tried the **storageState** reuse first (user's initial call) — it's a
+multi-layer trap in this repo, logged here so it isn't re-attempted
+blind:
+1. The seed auth cookies are `SameSite=Strict`; cookies *injected* via
+   storageState (vs set by a live Set-Cookie) are withheld by Chromium
+   on Playwright `page.goto()` navigations → specs ran unauthenticated
+   ("Sign in to open this course"). Fixable test-only by rewriting the
+   saved cookies to `Lax`.
+2. Even past that, `/learn` rendered **blank** under the reused session
+   (looked like `course.is_enrolled` cold/false despite a real
+   enrollment). Unresolved.
+
+**Resolution (user call): config-drive the login limit.** Wire the
+route to the already-existing-but-unused
+`Settings.rate_limit_auth_per_minute` (default 10, **prod unchanged**),
+add the pass-through to the dev compose anchor, and raise it to 100 in
+the e2e `.env` only. Backend rate-limit tests stay green at the default.
+This activates a dead setting and is the reliable unblock. The
+storageState consumers (`visual-regression.spec.ts`) likely share the
+Strict-cookie defect but aren't in the gated e2e run — a candidate
+iter-9 cleanup, not a blocker.
