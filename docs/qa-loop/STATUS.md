@@ -871,4 +871,20 @@ all `loaded`; eslint + tsc clean.
 ### Iter 10 — commits
 
 `d93d2fc` fix(qa-iter10): learn syllabus aside min-w-0 — kills 120px mobile overflow
-`fix(qa-iter10)` self-host webfonts (next/font/local) + ADR-0020 — unblocks the deploy pipeline
+`53f0c39` fix(qa-iter10): self-host webfonts (next/font/local) + ADR-0020 — unblocks the deploy pipeline
+
+### Iter 10 — CLOSED — shipped to prod (`53f0c39`)
+
+CI run 26568535822 green (Build passed — the self-hosted fonts compiled
+with no gstatic call; the "Build frontend" step ran 18+ min without the
+font-fetch failure that killed the prior two attempts at ~4.6 min).
+Deploy rolled. **Both fixes verified live on prod** (375px
+`/learn/typescript-variance`): `scrollWidth` 375 = viewport (overflow
+gone, syllabus aside renders), and `document.fonts` reports
+interDisplay / interBody / jetbrainsMono all `loaded` (self-hosted, no
+gstatic). Deploy pipeline restored.
+
+**Backlog → iter 11** (logged, propose-only / owner-decision):
+streaming-metrics endpoint (candidate ADR-0021); storageState
+Strict-cookie cleanup for the non-gated `visual-regression.spec.ts`;
+the "Understanding RAG Systems" Red/Amber/Green content collision.
