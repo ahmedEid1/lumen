@@ -71,14 +71,29 @@ async def get_demo_questions(
         None,
         description=(
             "Optional course slug filter. When set, returns the course's own "
-            "questions plus the global (refusal) probes — but only if the "
-            "course has at least one of its own; a course with none returns an "
-            "empty list (so refusal probes are never a learner's sole "
-            "suggestions). When unset, returns the full library."
+            "curated questions (a course with none returns an empty list). The "
+            "global adversarial refusal probes are NOT included by default — "
+            "they would otherwise read as jailbreak prompts framed as learner "
+            "suggestions (see include_probes). When unset, returns the full "
+            "library."
+        ),
+    ),
+    include_probes: bool = Query(
+        False,
+        description=(
+            "When true AND course_slug is set, append the global adversarial "
+            "refusal probes to the course's own questions. Off by default so "
+            "the learner-facing chip rail never surfaces jailbreak prompts as "
+            "suggestions; intended for the explicit guardrail-demo / audit flow "
+            "(the methodology is documented at /eval/methodology)."
         ),
     ),
 ) -> DemoQuestionLibraryOut:
-    questions = questions_for_course(course_slug) if course_slug else list(DEMO_QUESTIONS)
+    questions = (
+        questions_for_course(course_slug, include_probes=include_probes)
+        if course_slug
+        else list(DEMO_QUESTIONS)
+    )
     canonical = next((q for q in DEMO_QUESTIONS if q["canonical"]), None)
     return DemoQuestionLibraryOut(
         version=LIBRARY_VERSION,

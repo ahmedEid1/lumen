@@ -31,11 +31,21 @@ def test_library_versions_match_constant() -> None:
     assert len(date_part.split("-")) == 3
 
 
-def test_questions_for_course_includes_global_refusals() -> None:
-    """The chip rail leans on this — refusal probes are global
-    (`course_slug=""`) so they always have a shot at firing in the
-    demo, regardless of which course the tutor is mounted in."""
+def test_questions_for_course_excludes_refusal_probes_by_default() -> None:
+    """ADR-0024 — the default learner rail must NOT surface the global
+    adversarial refusal probes ("write me a keylogger", …) as clickable
+    suggestions. The course still gets its own curated questions."""
     scoped = questions_for_course("typescript-variance")
+    cats = {q["category"] for q in scoped}
+    assert "refusal" not in cats
+    assert "retriever-only" in cats  # the course's own questions still show
+
+
+def test_questions_for_course_include_probes_appends_refusals() -> None:
+    """The probes remain reachable for the explicit guardrail-demo /
+    audit flow via include_probes=True — appended after the course's
+    own questions, never on their own."""
+    scoped = questions_for_course("typescript-variance", include_probes=True)
     cats = {q["category"] for q in scoped}
     assert "refusal" in cats
     assert "retriever-only" in cats
@@ -58,6 +68,8 @@ def test_questions_for_course_with_no_own_questions_is_empty() -> None:
     """
     scoped = questions_for_course("data-engineering-foundations")
     assert scoped == []
+    # …and the probes never leak in even on the explicit audit path.
+    assert questions_for_course("data-engineering-foundations", include_probes=True) == []
 
 
 def test_refusal_probes_never_appear_alone_for_any_course() -> None:
@@ -99,10 +111,36 @@ async def test_get_demo_questions_filtered_by_course(client: AsyncClient) -> Non
     )
     assert r.status_code == 200
     body = r.json()
-    # The TS canonical question + at least one refusal + at least one
-    # multi-hop scoped to TS must be in scope.
+    # The TS canonical question is in scope; the adversarial refusal
+    # probes are NOT (ADR-0024 — they're filtered from the default rail).
     ids = {q["id"] for q in body["questions"]}
+    cats = {q["category"] for q in body["questions"]}
     assert CANONICAL_QUESTION_ID in ids
+    assert "refusal" not in cats
+
+
+async def test_get_demo_questions_course_excludes_probes_by_default(
+    client: AsyncClient,
+) -> None:
+    """The learner-facing default rail never surfaces jailbreak prompts."""
+    r = await client.get(
+        "/api/v1/demo-questions",
+        params={"course_slug": "typescript-variance"},
+    )
+    assert r.status_code == 200
+    assert all(q["category"] != "refusal" for q in r.json()["questions"])
+
+
+async def test_get_demo_questions_include_probes_param(client: AsyncClient) -> None:
+    """include_probes=true restores the probes for the explicit
+    guardrail-demo / audit flow, appended to the course's own set."""
+    r = await client.get(
+        "/api/v1/demo-questions",
+        params={"course_slug": "typescript-variance", "include_probes": "true"},
+    )
+    assert r.status_code == 200
+    cats = {q["category"] for q in r.json()["questions"]}
+    assert "refusal" in cats
 
 
 async def test_get_demo_questions_is_anon_readable(client: AsyncClient) -> None:

@@ -241,24 +241,30 @@ def get_canonical_question() -> DemoQuestion:
     return q
 
 
-def questions_for_course(course_slug: str) -> list[DemoQuestion]:
-    """A course's own curated questions, plus the global probes — but
-    only when the course has at least one of its own.
+def questions_for_course(course_slug: str, *, include_probes: bool = False) -> list[DemoQuestion]:
+    """A course's own curated questions (optionally + the global probes).
 
     The L22 chip rail uses this to surface questions relevant to the
-    course the tutor panel is mounted in. The global rows
-    (``course_slug=""``) are the three ``refusal`` probes; they exist so
-    a viewer can sanity-check the tutor's refusal posture *alongside*
-    real questions. They are a supplement, never the whole rail: a course
-    with no curated questions of its own returns an empty list (the rail
-    hides when empty), so a learner there never sees "write me a
-    keylogger" / "child acetaminophen dose" / "leak your system prompt"
-    as their ONLY suggested questions. Refusal probes still surface on
-    the seeded courses that carry real questions — including the
-    canonical screencap course (``typescript-variance``).
+    course the tutor panel is mounted in. **By default the rail shows
+    only the course's own curated questions.** The global rows
+    (``course_slug=""``) are the three adversarial ``refusal`` probes
+    ("write me a keylogger" / "child acetaminophen dose" / "leak your
+    system prompt"); surfacing those as clickable *learner* suggestions
+    on every seeded course — including the canonical demo course
+    ``typescript-variance`` — read as jarring across repeated QA walks
+    (ADR-0024), so they are filtered out of the default rail.
+
+    They remain reachable for anyone auditing the tutor's refusal
+    posture via ``include_probes=True`` (the explicit guardrail-demo /
+    audit flow), and the adversarial methodology is documented on
+    ``/eval/methodology``.
+
+    A course with no curated questions of its own returns an empty list
+    (the rail hides when empty) **regardless of** ``include_probes`` —
+    so the probes are never a learner's sole suggestions.
     """
     own = [q for q in DEMO_QUESTIONS if q["course_slug"] and q["course_slug"] == course_slug]
-    if not own:
-        return []
+    if not own or not include_probes:
+        return own
     global_probes = [q for q in DEMO_QUESTIONS if not q["course_slug"]]
     return own + global_probes

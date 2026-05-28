@@ -1614,3 +1614,52 @@ answered with a grounded retriever-tool trace.
   (disambiguates from the sentence-case caption); full `test.web` now 371/371.
   Re-pushed. (iter-25's 53d9b1c — sessions toggle + change-pw — deployed fine
   on its own run 26595348416; only the caption was held back by this.)
+
+---
+
+## Iter 26 — 2026-05-28 — owner decisions cleared; probe filter shipped; plan-v7 parked
+
+**Context:** the autonomous Ralph loop was cancelled by the owner (was at
+iteration 1369 — that count is itself the artifact of an idle-hold spam loop,
+since text-only "holding for watcher" turns re-fire the stop hook in ~5s).
+Picked the two remaining substantive threads — both guardrailed — to a clean
+decision via AskUserQuestion, then executed.
+
+**Prod-verified (iter-25/25b, run 26597177810 deployed green — all 6 CI jobs):**
+- `/dashboard/mastery` clarity caption present verbatim on live prod.
+- `/profile` change-password hidden `autocomplete="username"` field present
+  (type=text, aria-hidden, value=signed-in email).
+- `/profile` sessions "Show {n} revoked" toggle present (live showed "Show 46
+  revoked"). All three iter-25/25b changes confirmed LIVE.
+
+**Improvement landed — adversarial refusal probes off the default tutor rail
+(ADR-0024).** Owner decision: *filter from default rail.* The L22 chip rail's
+`questions_for_course` was appending the three global `refusal` probes ("write
+me a keylogger", …) to every curated course incl. `typescript-variance`.
+`questions_for_course(slug)` now returns the course's own questions only;
+probes are gated behind `include_probes=True` (endpoint:
+`?course_slug=…&include_probes=true`) for the explicit guardrail-demo / audit
+flow, and stay documented on `/eval/methodology`. The L20 empty-rail invariant
+holds regardless of the flag. Backend service + endpoint + 5 tests (default
+excludes / opt-in includes / no-own stays empty under the flag / endpoint
+default-excludes / endpoint param includes); FE chip-rail docstring + test mock
+truthed-up; ADR-0024 + CHANGELOG. This reverses the iter-20 "append global
+probes" keep (recorded propose-only in iter-25 → shipped here).
+
+**Parked by owner decision — plan-v7 / L21-Sec async-tutor rebuild.** The large
+queued build (Celery + Redis-Streams SSE, per-IP cost caps + kill switch,
+email-verification gate, sandbox) stays on the shelf. It touches auth, billing
+semantics, and adds a top-level feature (triple-guardrailed) → better as a
+dedicated, reviewed effort than an unattended wrap-up. `/tmp/elp-planning/
+plan-v7.md` ledger left intact for when it's picked up.
+
+**Open / deferred (unchanged, operator/owner actions — not code):**
+- Notification-bell dedup (security-alarm path; partly test-data pollution) —
+  still propose-only.
+- "Understanding RAG Systems" = "Red, Amber, Green" — prod-DB AI-gen content,
+  owner content call.
+- Run a full sealed eval pass (`eval-baseline` workflow) — operator action.
+- `/login` while authed flaky; `/logout` → 404 (no FE emits it) — low-value
+  defers.
+
+**Commits:** (this iter) demo-probe filter + ADR-0024 + CHANGELOG + STATUS.

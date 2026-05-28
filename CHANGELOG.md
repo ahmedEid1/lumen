@@ -97,6 +97,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Adversarial refusal probes off the default tutor rail (ADR-0024).**
+  The tutor "Suggested questions" chip rail no longer surfaces the
+  global jailbreak probes ("write me a keylogger", …) as clickable
+  learner suggestions on curated courses; it shows only the course's
+  own questions. The probes stay reachable for guardrail auditing via
+  `GET /api/v1/demo-questions?course_slug=<slug>&include_probes=true`,
+  and the methodology remains documented on `/eval/methodology`.
 - **Self-hosted webfonts (ADR-0020).** Inter + JetBrains Mono now load
   via `next/font/local` from vendored woff2 instead of
   `next/font/google`, so the container build no longer fetches from

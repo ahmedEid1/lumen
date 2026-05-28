@@ -12,12 +12,12 @@
  * Behaviour:
  *  - Canonical question (the eval-gated screencap target) renders
  *    first when present in the scoped library.
- *  - Refusal probes (`course_slug=""`) surface only alongside a
- *    course's own questions, so a recruiter can sanity-check the
- *    tutor's refusal posture during the demo — but a course with no
- *    curated questions returns an empty library (see
- *    `questions_for_course`) and the rail hides, so a learner never
- *    gets the adversarial probes as their ONLY suggestions.
+ *  - The rail shows only the course's own curated questions. The
+ *    global adversarial refusal probes ("write me a keylogger", …) are
+ *    filtered out of the default rail (ADR-0024) so a learner never
+ *    sees a jailbreak attempt framed as a suggested question; they
+ *    stay reachable for guardrail auditing via the endpoint's
+ *    `include_probes` flag and are documented on `/eval/methodology`.
  *  - The rail is hidden once the conversation has any messages so it
  *    doesn't compete with the chat history.
  */
