@@ -472,6 +472,21 @@ async def _build_course(
                 type=lesson_spec["type"],
                 order=l_idx,
                 data=lesson_spec["data"],
+                # QA-iter2: surface the free-preview feature in the
+                # demo. The first lesson of the first module on every
+                # seeded course is_preview=True so /courses/[slug]
+                # shows the "Try preview" link, /preview/[lessonId]
+                # actually renders, and the backend's auth bypass
+                # branch (apps/backend/app/api/v1/courses.py
+                # get_lesson — `if lesson.is_preview and published`)
+                # gets exercised. Pre-iter2 the whole free-preview
+                # surface was reachable in code but no seeded lesson
+                # was marked preview, so a recruiter clicking through
+                # never saw it work. Explicit boolean (not the per-
+                # spec override below) so the seed change is grep-able
+                # if/when we want to opt more lessons into preview.
+                is_preview=(m_idx == 0 and l_idx == 0)
+                or lesson_spec.get("is_preview", False),
             )
             db.add(lesson)
         await db.flush()

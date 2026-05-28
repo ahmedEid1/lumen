@@ -392,6 +392,11 @@ async def apply(
                     type=lesson_spec["type"],
                     order=l_idx,
                     data=lesson_spec["data"],
+                    # QA-iter2: see demo.py — first lesson of first
+                    # module is_preview=True so the free-preview link
+                    # actually surfaces in the catalog → course detail
+                    # → preview flow for anonymous visitors.
+                    is_preview=(m_idx == 0 and l_idx == 0),
                 )
             )
         await db.flush()
