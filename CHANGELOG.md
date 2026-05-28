@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed (QA loop iters 8–11 — live-walk fixes)
+
+- **Streaming tutor crashed in production.** Every tutor turn (and the
+  sweep beat) failed with `RuntimeError: got Future attached to a
+  different loop` once `FEATURE_TUTOR_STREAMING` was enabled: the Celery
+  worker tasks reused a module-level pooled async engine across
+  per-task `asyncio.run()` loops. Fixed with a per-task `NullPool`
+  engine (`app.db.base.make_worker_engine` / `worker_session_scope`),
+  applied to all five DB-touching worker tasks. Regression test added.
+- **`/login` 429 under the parallel e2e suite.** The login rate limit
+  was a hardcoded `10/minute` keyed per-IP; the route now reads
+  `Settings.rate_limit_auth_per_minute` (default 10 — prod unchanged) so
+  the e2e env can raise it.
+- **Dialog accessibility:** the AI-outline modal, command palette, and
+  mobile-nav sheet were missing accessible descriptions (Radix/WCAG);
+  added `DialogDescription` / `SheetDescription`.
+- **`/learn` mobile overflow:** the syllabus aside lacked `min-w-0`, so
+  long lesson titles forced ~120px of horizontal scroll at 375px.
+- **Command-palette focus return (WCAG 2.4.3):** closing the palette now
+  restores focus to the opener instead of dropping it to `<body>`.
+
+### Changed
+
+- **Self-hosted webfonts (ADR-0020).** Inter + JetBrains Mono now load
+  via `next/font/local` from vendored woff2 instead of
+  `next/font/google`, so the container build no longer fetches from
+  `fonts.gstatic.com` at build time (it was failing CI + blocking
+  deploys, and contradicted the self-hostable posture).
+
 ### Added (post-redesign loop 41 — Mistral provider + public eval surface + prod-seed workflow)
 
 - **`MistralProvider`** in `app/services/llm.py` — Mistral La Plateforme
