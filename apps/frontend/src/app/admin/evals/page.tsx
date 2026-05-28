@@ -273,7 +273,7 @@ function SuiteCard({
           ))
         ) : (
           <p className="font-mono text-xs text-muted-foreground">
-            No runs yet — use the "Run now" form above (or
+            No runs yet — use the &ldquo;Run now&rdquo; form above (or
             <span className="text-foreground"> python -m app.evals run --suite {suite.name}</span>
             from the api container).
           </p>

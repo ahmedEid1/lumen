@@ -119,7 +119,7 @@ export default function AdminMCPClientsPage() {
           integrations. Mint a client on behalf of a Lumen user; the
           secret is shown once and never re-displayed. Revoke is a
           soft-delete — historical rows stay queryable with the
-          "include revoked" toggle.
+          &ldquo;include revoked&rdquo; toggle.
         </p>
       </header>
 
@@ -538,7 +538,7 @@ function RevealSecretDialog({
           <DialogDescription>
             This is the <strong>only time</strong> the secret is
             displayed. Save it somewhere safe (your password manager,
-            an env var, the integration's config). After you close
+            an env var, the integration&apos;s config). After you close
             this dialog, the secret is unrecoverable — losing it
             means revoking + minting again.
           </DialogDescription>
@@ -583,7 +583,7 @@ function RevealSecretDialog({
           </div>
         )}
         <DialogFooter>
-          <Button onClick={onClose}>I've saved it</Button>
+          <Button onClick={onClose}>I&apos;ve saved it</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
