@@ -24,6 +24,7 @@ import {
 } from "@/lib/api/endpoints";
 import { useT } from "@/lib/i18n/provider";
 import { useRuntimeFlags } from "@/lib/runtime-flags";
+import { renderTutorBody } from "@/lib/tutor/citations";
 import { supportsStreaming } from "@/lib/tutor/supports-streaming";
 import { cn } from "@/lib/utils";
 
@@ -367,22 +368,24 @@ function TutorMessage({
             : "border-border bg-background text-foreground",
         )}
       >
-        {message.content}
+        {isUser ? message.content : renderTutorBody(message.content, message.citations)}
       </div>
       {!isUser && message.citations.length > 0 && (
         <div
           className="flex flex-wrap gap-1.5 pt-1"
           data-testid="tutor-citations"
         >
-          {message.citations.map((c) => (
+          {message.citations.map((c, i) => (
             <a
               key={c.lesson_id}
+              id={`tutor-cite-${i + 1}`}
               href={`/courses/lessons/${c.lesson_id}`}
               target="_blank"
               rel="noreferrer"
               title={c.chunk_excerpt}
               className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary transition-colors duration-[160ms] hover:bg-primary hover:text-primary-foreground"
             >
+              <span aria-hidden className="font-mono">[{i + 1}]</span>
               {c.lesson_title}
             </a>
           ))}

@@ -80,17 +80,28 @@ test.describe("tutor citations golden path", () => {
         "index_course_embeddings for the seeded course before this spec?",
     ).not.toMatch(/i don'?t have material/);
 
-    // Extract the [L:<lesson_id>] citation tokens. The noop provider
-    // emits them inline; the citation pill row is a DOM mirror of the
-    // same set.
-    const tokenMatches = [
-      ...assistantText.matchAll(/\[L:([A-Za-z0-9_-]+)\]/g),
-    ];
-    expect(
-      tokenMatches,
-      `expected at least one [L:<lesson_id>] citation in: ${assistantText}`,
-    ).not.toHaveLength(0);
-    const citedLessonIds = tokenMatches.map((m) => m[1]);
+    // QA-iter1 follow-up: the wire-format `[L:<lesson_id>]` tokens
+    // are no longer rendered into the user-visible bubble — they're
+    // replaced by numbered superscripts that anchor to the citation
+    // pill row. So the assertion now reads the lesson_ids back from
+    // the pill row's hrefs (`/courses/lessons/<lesson_id>`), which
+    // is the DOM mirror of the same set.
+    const citationLinks = panel
+      .locator('[data-testid="tutor-citations"] a[href^="/courses/lessons/"]');
+    await expect(
+      citationLinks.first(),
+      "expected the citation pill row to be visible with at least one " +
+        "lesson link. The orchestrator emits `[L:<lesson_id>]` inline, " +
+        "the frontend parses them into numbered references + the pill " +
+        "row below the bubble. If neither is rendering, the backend " +
+        "returned a refusal or pre-flight ingest didn't index chunks.",
+    ).toBeVisible({ timeout: 5_000 });
+    const citedLessonIds = (
+      await citationLinks.evaluateAll((els) =>
+        els.map((el) => el.getAttribute("href") ?? ""),
+      )
+    ).map((href) => href.replace("/courses/lessons/", ""));
+    expect(citedLessonIds.length, "no lesson ids on pill row").toBeGreaterThan(0);
 
     // 5) Sanity-check that every cited lesson id belongs to the
     // seeded course. We pull the course detail via the catalog API

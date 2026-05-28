@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n/provider";
 import { useAuth } from "@/lib/auth/store";
+import { renderTutorBody } from "@/lib/tutor/citations";
 import { useTutorStream } from "@/lib/tutor/use-tutor-stream";
 import { DemoQuestionChipRail } from "@/components/tutor/demo-question-chip-rail";
 import {
@@ -211,7 +212,13 @@ export function StreamingTutorPanel({
                 aria-live="polite"
                 aria-atomic="false"
               >
-                {stream.text}
+                {/* Strip the [L:<lesson_id>] wire tokens during streaming
+                    — the citation list is delivered AFTER the stream
+                    finishes (in the persisted TutorMessageOut), so there
+                    are no indices to anchor numbered references to yet.
+                    The post-stream render via <TutorMessage> shows the
+                    full numbered version. */}
+                {renderTutorBody(stream.text, [])}
                 {stream.phase === "synth" && (
                   <span
                     className="ms-1 inline-block h-3 w-1 animate-pulse bg-primary align-middle"
