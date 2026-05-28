@@ -790,4 +790,30 @@ Added `palette.description` + `header.mobileMenuDescription` (en + ar).
 
 ### Iter 9 — commits
 
-`fix(qa-iter9)` add accessible descriptions to AI-outline / command-palette / mobile-nav dialogs (this commit)
+`8ca01f6` fix(qa-iter9): add accessible descriptions to three Radix dialogs
+
+### Iter 9 — admin walk (rest of the sweep)
+
+Walked the remaining admin surfaces — all healthy, no fixes needed:
+- `/admin/mcp-clients` + the mint dialog (has a description; owner-search
+  + scopes + Mint-disabled-until-owner all correct).
+- `/admin/subjects` + `/admin/users`: inline forms (no dialogs). Users
+  table correctly **disables the admin's own Role selector and hides
+  their Disable button** (self-protection RBAC).
+- `/admin/evals`: 3 suites render; the "Suite" control's second
+  combobox is the shadcn hidden native `<select>` (aria-hidden,
+  intentional) — not a labelless control.
+Console clean on every page.
+
+### Iter 9 — CLOSED — shipped to prod (`8ca01f6`)
+
+CI run 26564531534 green first pass (E2E included — the iter-8 429 fix
+holds). Deploy rolled; prod web on `8ca01f6`. Verified live: re-opened
+the "Generate course with AI" modal on prod — the Radix
+"Missing Description" console warning is **gone**.
+
+**Backlog → iter 10:** streaming-metrics endpoint proposal (ADR-0020
+candidate, from iter-8 gap log); storageState Strict-cookie cleanup for
+the non-gated `visual-regression.spec.ts`; the deferred product-content
+call on "Understanding RAG Systems" (Red/Amber/Green vs. the AI/RAG
+narrative).
