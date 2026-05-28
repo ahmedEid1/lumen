@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -106,10 +107,35 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  // qa-iter18: shape-matching skeleton replaces the bare "Loading…"
+  // string — breadcrumb + header + analytics-tile grid + module rows so
+  // the editor keeps structure during the blank-main gap before the
+  // course query lands.
   if (courseQ.isLoading)
     return (
-      <div className="container mx-auto px-6 py-14 font-body text-sm text-muted-foreground">
-        {t("common.loading")}
+      <div className="container mx-auto px-6 py-14">
+        <span className="sr-only" role="status">
+          {t("common.loading")}
+        </span>
+        <div aria-hidden>
+          <Skeleton className="mb-4 h-4 w-40" />
+          <header className="mb-10 flex flex-col gap-3">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-5 w-20" />
+            <Skeleton className="h-9 w-2/3 max-w-md" />
+            <Skeleton className="h-4 w-1/2 max-w-sm" />
+          </header>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} variant="card" className="h-20" />
+            ))}
+          </div>
+          <div className="mt-10 space-y-2 border-t border-border pt-8">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   if (!courseQ.data)

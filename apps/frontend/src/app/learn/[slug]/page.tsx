@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Courses, Me } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { LessonPlayer } from "@/components/lesson/lesson-player";
@@ -123,10 +124,34 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
         </Link>
       </div>
     );
+  // qa-iter18: shape-matching skeleton replaces the bare "Loading…"
+  // string — a two-column outline + player layout so the page keeps
+  // structure during the blank-main gap before the course query lands.
   if (courseQ.isLoading)
     return (
-      <div className="container mx-auto px-6 py-20 font-body text-sm text-muted-foreground">
-        {t("common.loading")}
+      <div className="container mx-auto grid gap-6 px-6 py-10 lg:grid-cols-[300px_1fr]">
+        <span className="sr-only" role="status">
+          {t("common.loading")}
+        </span>
+        <aside className="order-2 lg:order-none" aria-hidden>
+          <div className="surface">
+            <div className="space-y-3 border-b border-border p-5">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="h-1.5 w-full" />
+            </div>
+            <div className="space-y-2 p-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-7 w-full" />
+              ))}
+            </div>
+          </div>
+        </aside>
+        <section className="order-1 space-y-6 lg:order-none" aria-hidden>
+          <Skeleton className="h-9 w-2/3" />
+          <Skeleton variant="image" />
+          <Skeleton variant="text" />
+        </section>
       </div>
     );
   if (!courseQ.data)

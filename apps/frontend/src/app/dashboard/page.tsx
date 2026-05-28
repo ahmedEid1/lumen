@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { ArrowRight } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 import { Me } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
@@ -37,10 +38,53 @@ export default function DashboardPage() {
 
   if (!ready || !user) return null;
 
+  const firstName = user.full_name.split(" ")[0] || user.full_name;
+
+  // qa-iter18: shape-matching skeleton replaces the flash of the
+  // "no enrollments" empty state while the client query resolves — the
+  // welcome header renders immediately (it doesn't depend on the query)
+  // and the in-progress card grid + completed row list show skeletons so
+  // the page keeps structure during the blank-main gap.
+  if (enrollmentsQ.isLoading) {
+    return (
+      <div className="container mx-auto px-6 py-14 sm:py-20">
+        <header className="mb-12 flex flex-col gap-3">
+          <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+            {t("dashboard.cartouche")}
+          </p>
+          <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+            {t("dashboard.welcome", { name: firstName })}
+          </h1>
+          <p className="font-body text-sm text-muted-foreground">{t("dashboard.subtitle")}</p>
+        </header>
+        <span className="sr-only" role="status">
+          {t("common.loading")}
+        </span>
+        <section className="mb-14" aria-hidden>
+          <Skeleton className="mb-5 h-5 w-32" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} variant="card" className="h-28" />
+            ))}
+          </div>
+        </section>
+        <section aria-hidden>
+          <Skeleton className="mb-5 h-5 w-28" />
+          <div className="divide-y divide-border border-t border-border">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="py-3">
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   const enrollments = enrollmentsQ.data ?? [];
   const inProgress = enrollments.filter((e) => !e.completed_at);
   const done = enrollments.filter((e) => e.completed_at);
-  const firstName = user.full_name.split(" ")[0] || user.full_name;
 
   return (
     <div className="container mx-auto px-6 py-14 sm:py-20">
