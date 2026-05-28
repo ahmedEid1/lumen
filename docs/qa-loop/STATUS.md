@@ -605,3 +605,101 @@ first attempt, which is the direct validation of the iter-7 fix: the
 login→dashboard race that flaked on both browsers in iter-6 did not
 recur. Prod verified on `de3c31f` (api + web + worker + beat all on
 the tag), `health/live` 200, `health/ready` db+redis ok.
+
+
+
+---
+
+## Iter 8 — 2026-05-28 — persona walk on de3c31f → prod headline-feature crash
+
+**Starting point:** iter 7 closed, prod on `de3c31f`. Walked public +
+admin + student surfaces live. The student walk surfaced a **prod-down
+bug on the headline feature** that dominated the iteration.
+
+### Iter 8 — backend↔UI parity sweep (re-audit)
+
+Fresh OpenAPI dump from prod (`/openapi.json`) → **105 paths / 125
+operations**. Strict segment-matcher against frontend literals flagged
+8 candidates; 7 were grep-truncation artifacts (paths using
+`encodeURIComponent(` got cut at the `(` — all confirmed wired:
+llm-calls trace, credentials verify, studio replay/trace, tutor
+turns-trace, tutor messages, tutor turn status). The only genuinely
+consumer-less endpoints remain `GET /health/live` + `GET /health/ready`
+(intentional deploy/k8s smoke targets). **Parity clean** — same as
+iter-6.
+
+### Iter 8 — THE fix: streaming tutor crashed in prod
+
+Walking as the student, opened a course → "Ask the tutor" (panel header
+said **"Streaming"**, i.e. `flags.tutor_streaming` is ON in prod) → sent
+the canonical demo question → **"Couldn't send that. Try again.
+(tutor.runtime: RuntimeError)"**. HTTP all 201/200; the error came back
+as a `turn_failed` SSE event.
+
+Prod worker logs:
+```
+RuntimeError: Task ... got Future ... attached to a different loop
+RuntimeError: Event loop is closed
+```
+from `tutor.run_turn` (`tutor_streaming.py` → `tutor_turn_service.
+claim_pending_turn`) AND `tutor.sweep_dead_turns`.
+
+**Root cause.** Worker task bodies run under a fresh `asyncio.run()`
+loop per invocation (ADR-0017), but reused the module-level *pooled*
+async engine (`db.base.get_engine`), whose asyncpg connections bind to
+the loop that first opened them. The second task onward used a
+connection on a foreign, closed loop. **All 5 DB-touching worker tasks**
+shared the bug (`tutor_streaming`, `tutor_sweep` ×2, `embeddings`,
+`digest`, `learning_path`); only the constantly-firing tutor + sweep
+surfaced it.
+
+**Why CI was green.** The streaming path is gated on
+`feature_tutor_streaming`, which defaults **OFF** in tests/CI — so the
+worker body was never exercised across loops. Compounding it: the dev
+`docker-compose.yml` anchor never forwarded `FEATURE_TUTOR_STREAMING`
+(prod's compose does), so the path could not be turned on in dev/e2e
+**at all**. That dev/prod-parity hole is exactly how a prod-only crash
+shipped.
+
+**Fix (shipped).**
+- `db.base.make_worker_engine()` / `worker_session_scope()` — per-task
+  NullPool engine created + disposed inside the task's own loop. Routed
+  all 5 tasks through it.
+- `tests/test_worker_event_loop.py` — runs a worker body across two
+  independent event loops in one process (the prefork condition);
+  reproduces the pre-fix crash, passes post-fix.
+- dev compose: forward `FEATURE_TUTOR_STREAMING` (default off), mirroring
+  prod, so the path is exercisable locally.
+
+**Verified.** Full backend suite green (754 passed; 4 "failures" were an
+artifact of leaving the flag ON in the test container — pass at the
+default). Live prod-parity locally with flag ON + real worker +
+Postgres/Redis: turns go `pending → complete`, zero loop errors across
+repeated turns. Codex review clean ("per-task NullPool engines … without
+an evident correctness regression").
+
+### Iter 8 — stale copy/docstrings corrected (step-4 sweep)
+
+Streaming is live + (post-fix) working, but several spots still
+described the pre-launch state and misled:
+- StreamingTab "Pre-flip preview" ("become visible once L21b flips the
+  flag on" — already on) → "Metrics not yet wired".
+- `runtime_flags.py` "OFF until L21b's flag-flip" → default off / enabled
+  in prod via flip-flag.yml.
+- `tutor_turn_job.py` "No producer yet" → producer landed.
+
+### Iter 8 — FE/BE gap log + decisions
+
+| Item | Decision |
+|------|----------|
+| Streaming tutor 500s in prod | **FIXED** — per-task worker engine (`af68865`) |
+| Dev compose can't enable streaming | **FIXED** — flag pass-through (`a01b4ac`) |
+| Worker streaming path untested in CI | **MITIGATED** — unit regression across loops; full e2e of the streaming path still needs a worker in the e2e stack (logged, not built this iter) |
+| Streaming observability tiles (first-token p50/p95, disconnect, tool-mix) have no backend | **PROPOSED, not built (candidate ADR-0020).** A `GET /admin/observability/streaming` endpoint: active-streams + total-turn-latency are derivable from `tutor_turn_jobs` today, but first-token/disconnect/tool-mix are emitted over SSE and **not persisted** — wiring them needs producer instrumentation on the live SSE write path + likely a migration. Roadmap-scoped (L21); surfaced for owner. Copy now states this honestly rather than faking a "coming soon". |
+| "Understanding RAG Systems" = Red/Amber/Green under Business | **DEFERRED (re-surfaced from iter-6)** — product-content call; first course a recruiter sees collides with the AI/RAG narrative. Propose-don't-implement. |
+
+### Iter 8 — commits
+
+`af68865` fix(qa-iter8): per-task NullPool engine for Celery workers (prod streaming-tutor crash)
+`a01b4ac` fix(qa-iter8): pass FEATURE_TUTOR_STREAMING through the dev compose anchor
+`2d7e6c9` docs(qa-iter8): correct stale streaming copy/docstrings now that streaming is live
