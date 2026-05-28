@@ -55,7 +55,7 @@ async def test_search_finds_by_title(
     )
     await _publish(client, teacher, subject.id, "JavaScript essentials", "Closures.", seed_lesson)
 
-    r = await client.get("/api/v1/search/courses?q=Python")
+    r = await client.get("/api/v1/courses?q=Python")
     assert r.status_code == 200
     body = r.json()
     assert body["total"] >= 1
@@ -72,18 +72,24 @@ async def test_search_filters_difficulty(
     await _publish(client, teacher, subject.id, "Easy course", "intro stuff", seed_lesson)
     # No way to set difficulty on create yet via patch; default is beginner.
 
-    r = await client.get("/api/v1/search/courses?q=Easy&difficulty=beginner")
+    r = await client.get("/api/v1/courses?q=Easy&difficulty=beginner")
     assert r.status_code == 200
     assert any("Easy" in c["title"] for c in r.json()["items"])
 
 
-async def test_search_requires_q(client: AsyncClient) -> None:
-    r = await client.get("/api/v1/search/courses")
-    assert r.status_code == 422
+async def test_search_without_q_returns_browse_listing(client: AsyncClient) -> None:
+    # /api/v1/courses lists the catalog when `q` is absent — there's no
+    # longer a search-only alias that 422s on missing q. Iter 2 (QA loop)
+    # collapsed /api/v1/search/courses into the catalog because both
+    # called the same `search_courses` repo function; the FE never used
+    # the dedicated alias and keeping it forced a tests/docs gap.
+    r = await client.get("/api/v1/courses")
+    assert r.status_code == 200
+    assert "items" in r.json()
 
 
 async def test_search_returns_empty_for_no_match(client: AsyncClient) -> None:
-    r = await client.get("/api/v1/search/courses?q=zzzzzzz_no_match")
+    r = await client.get("/api/v1/courses?q=zzzzzzz_no_match")
     assert r.status_code == 200
     assert r.json()["total"] == 0
     assert r.json()["items"] == []

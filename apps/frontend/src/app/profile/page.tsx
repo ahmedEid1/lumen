@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -446,6 +446,17 @@ export default function ProfilePage() {
         <SessionsCard />
       </section>
 
+      {/* Data export — QA-iter2 wires the /api/v1/users/me/export
+          endpoint that was shipped without a UI. The endpoint returns
+          a JSON blob with the user's profile + counts of enrollments
+          / reviews; future enhancement (per the backend docstring)
+          enqueues a Celery job that produces a full zip. The button
+          downloads the current JSON via a blob so a privacy-curious
+          user has a working "download my data" affordance today. */}
+      <section className="mb-10 border-t border-border pt-8">
+        <ExportDataCard />
+      </section>
+
       {/* Danger zone — bordered destructive surface */}
       <section className="rounded-md border border-destructive/30 bg-destructive/5 p-5">
         <h2 className="font-display text-lg leading-tight tracking-tight text-destructive">
@@ -504,6 +515,65 @@ export default function ProfilePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/**
+ * QA-iter2 — privacy-curious users can download their profile +
+ * activity counts as a JSON blob. The backend (`/api/v1/users/me/
+ * export`) already returned this payload but no UI surfaced it; the
+ * orphan was caught by the FE/BE parity audit. Future enhancement on
+ * the backend side will enqueue a Celery job that produces a full
+ * zip including chat history + reviews + enrollments — the button
+ * here will switch to a "request export" affordance at that point.
+ */
+function ExportDataCard() {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+
+  async function onExport() {
+    setBusy(true);
+    try {
+      const payload = await api<Record<string, unknown>>(
+        "/api/v1/users/me/export",
+      );
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      // Stable filename + ISO date so users get a chronological history
+      // if they export more than once.
+      a.download = `lumen-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(t("profile.export.toast"));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : t("profile.export.error");
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-5">
+        <h2 className="font-display text-lg leading-tight tracking-tight">
+          {t("profile.export.title")}
+        </h2>
+        <p className="mt-1 font-body text-sm text-muted-foreground">
+          {t("profile.export.description")}
+        </p>
+      </div>
+      <Button variant="outline" onClick={onExport} disabled={busy}>
+        <Download className="me-2 h-4 w-4" aria-hidden />
+        {busy ? t("profile.export.busy") : t("profile.export.button")}
+      </Button>
     </div>
   );
 }
