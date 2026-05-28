@@ -66,6 +66,13 @@ export default function ThreadPage({
     queryKey: ["discussion", id],
     queryFn: () => api<ThreadDetail>(`/api/v1/discussions/${id}`),
   });
+  // The course owner can moderate threads — the backend `_can_edit` allows
+  // author OR admin OR course owner. The owner id isn't on the discussion
+  // payload, so read it from the course detail (shared catalog query key).
+  const courseQ = useQuery({
+    queryKey: ["course", "by-slug", slug],
+    queryFn: () => api<{ owner?: { id: string } | null }>(`/api/v1/courses/${slug}`),
+  });
 
   const reply = useMutation({
     mutationFn: () =>
@@ -128,7 +135,11 @@ export default function ThreadPage({
     );
   }
   const thread = threadQ.data;
-  const canEditThread = !!user && (user.id === thread.author?.id || user.role === "admin");
+  const canEditThread =
+    !!user &&
+    (user.id === thread.author?.id ||
+      user.role === "admin" ||
+      user.id === courseQ.data?.owner?.id);
   const replyCountKey = thread.replies.length === 1 ? "thread.replyCountOne" : "thread.replyCount";
 
   return (
