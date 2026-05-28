@@ -268,3 +268,59 @@ Documented but not yet shipped:
 | `POST /api/v1/admin/evals/runs` | "Run new eval" button + suite picker. ~200 LoC + a backend that doesn't block 60s synchronously (current impl is sync). |
 | `GET/POST/DELETE /api/v1/admin/mcp-clients` (+ `{id}`) | Full new admin page; Phase I1 MCP CRUD has no UI. ~400 LoC. |
 
+---
+
+## Iter 3 — 2026-05-28 — parity gap closure (observability + eval ops)
+
+**Starting point:** iter 2 closed; 3 of 4 deferred parity gaps
+chosen for this iteration.
+
+### Iter 3 — batch 1 (ba5749e)
+
+Two new tabs on `/admin/observability`:
+
+- **LLM Cost** wires `GET /api/v1/admin/llm-calls/summary?days=14`.
+  Headline tiles (calls, spend) + by-feature table + by-day table.
+  Refetches every 60s.
+- **Rate Limits** wires `GET /api/v1/admin/rate-limit-stats`. Total
+  429 count in the rolling window + by-endpoint breakdown sorted
+  descending. Refetches every 30s.
+
+### Iter 3 — batch 2 (454b7d4)
+
+`/admin/evals` gets a "Run now" form above the suite-card grid:
+
+- Suite picker, optional limit input, "Run now" button
+- Wires `POST /api/v1/admin/evals/runs` (synchronous backend, so
+  the form copy + spinner state make the long wait visible)
+- onSuccess invalidates the `["admin", "evals"]` query namespace
+  so the suite cards refresh with the new mean inline
+- "No runs yet" empty-state copy on each card now points at the
+  form first, CLI fallback secondary
+
+### Iter 3 — deferred to iter 4
+
+| Endpoint | Reason for defer |
+|----------|------------------|
+| `GET/POST/DELETE /api/v1/admin/mcp-clients` (+ `{id}`) | ~400 LoC for a full new admin page (list + mint-secret + revoke flows). Substantial enough to be its own iteration. |
+
+### Iter 3 — post-deploy operator step
+
+The eval-reports volume (iter 2's ae9124b) lands with this
+iteration's CI. Once deployed, re-run the eval-baseline workflow to
+repopulate `/eval/public`:
+
+```
+gh workflow run eval-baseline.yml -f suite=tutor -f limit=30 \
+  -f promote=true
+```
+
+The historical reports (the +0.93 mean from L41) are not
+recoverable — they were on the ephemeral container fs.
+
+### Iter 3 — commits
+
+`ba5749e` feat(qa-iter3): /admin/observability — LLM cost + rate-limit tabs
+`454b7d4` feat(qa-iter3): "Run now" form on /admin/evals
+
+
