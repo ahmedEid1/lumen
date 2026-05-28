@@ -3,19 +3,22 @@
 import { Activity, Clock, Network, WifiOff } from "lucide-react";
 
 /**
- * L20.6 — Streaming observability tile placeholders.
+ * Streaming observability tile placeholders.
  *
- * The L21 streaming-tutor stack will emit per-turn metrics into Redis
- * + the `tutor_turn_jobs` table. This tab is the consumer surface;
- * the tiles below render with no-data placeholders until L21a lands
- * the producer side.
+ * The streaming tutor is live (L21a producer runs each turn in a
+ * Celery worker; `flags.tutor_streaming` is enabled in prod). What's
+ * still missing is the *consumer* side: there is no streaming-metrics
+ * endpoint yet, so these tiles render no-data placeholders. The
+ * headline series — first-token latency, disconnect rate, tool-mix —
+ * are emitted over SSE per turn but not persisted, so wiring them up
+ * needs producer instrumentation (a tracked follow-up, see
+ * docs/qa-loop/STATUS.md). Active-stream count + total-turn latency
+ * are derivable from `tutor_turn_jobs` today.
  *
  * Layout matches the rest of /admin/observability — surface-1
  * bordered card per tile, mono+tabular-nums for every machine value,
  * EmptyState body text describing what each tile will mean once data
- * flows. The tab visibility itself is gated on
- * `flags.tutor_streaming` so it stays hidden in prod until L21b
- * flips the runtime-flag default.
+ * flows. The tab itself is gated on `flags.tutor_streaming`.
  */
 
 interface TileProps {
@@ -47,16 +50,18 @@ export function StreamingTab() {
     <div className="space-y-6 pt-4">
       <div className="surface border-dashed border-border bg-muted/20 p-4">
         <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          Pre-flip preview
+          Metrics not yet wired
         </p>
         <p className="mt-1 font-body text-sm">
-          The tiles below are placeholders. Live values land with the
-          L21a streaming-tutor producer (Celery task + Redis Streams)
-          and become visible to non-admins once L21b flips
+          The streaming tutor is live —
           <code className="mx-1 rounded bg-muted/50 px-1 py-0.5 font-mono text-xs">
             feature_tutor_streaming
           </code>
-          on.
+          is on and each turn runs in a Celery worker. These tiles stay
+          blank until a streaming-metrics endpoint aggregates per-turn
+          telemetry; first-token latency, disconnects and tool-mix are
+          emitted over SSE today but not yet persisted, so they need
+          producer instrumentation first.
         </p>
       </div>
 

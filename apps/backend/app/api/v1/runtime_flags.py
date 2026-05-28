@@ -36,7 +36,8 @@ class RuntimeFlags(BaseModel):
 
     model_config = ConfigDict(from_attributes=False)
 
-    # L21a/L21b — SSE streaming tutor turns. OFF until L21b's flag-flip.
+    # SSE streaming tutor turns. Default OFF (Settings) so a deploy
+    # lands inert; enabled in prod via flip-flag.yml (L21b done).
     tutor_streaming: bool
 
 

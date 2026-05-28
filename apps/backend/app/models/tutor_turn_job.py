@@ -12,8 +12,9 @@ owns this row's lifecycle:
 - Sweep beat job (running every 10-30 s) marks running rows whose
   updated_at is >60s old as failed and releases their reserved_cost.
 
-L21-Sec ships the table empty. No producer yet. The sweep job runs
-harmlessly against an empty set; the row insert lands in L21a.
+The producer landed in L21a: ``tutor_turn_service.claim_pending_turn``
+inserts/claims rows and the ``tutor.run_turn`` Celery task drives the
+lifecycle. The sweep beat reconciles stale rows.
 """
 
 from __future__ import annotations
