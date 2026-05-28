@@ -45,7 +45,13 @@ describe("isTurnSettled — only complete is settled", () => {
 });
 
 describe("useTutorStream — abort on close", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    // restoreAllMocks does NOT undo stubGlobal — without this the
+    // mocked fetch leaks to later tests in the worker (order-dependent
+    // failures).
+    vi.unstubAllGlobals();
+  });
 
   it("DELETEs a non-terminal turn on unmount (releases the cost reservation)", () => {
     const fetchMock = vi.fn(() => Promise.resolve({ ok: true } as Response));
