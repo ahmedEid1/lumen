@@ -322,6 +322,11 @@ jobs:
             echo "# e2e workflow overrides"
             echo "LLM_PROVIDER=noop"
             echo "EMBEDDING_PROVIDER=noop"
+            # The parallel chromium+webkit suite logs in many times from
+            # this single runner IP; the default per-IP login cap (10/min)
+            # tripped a 429 flake. Raise it for the trusted e2e env only —
+            # prod stays at the Settings default of 10.
+            echo "RATE_LIMIT_AUTH_PER_MINUTE=100"
           } >> .env
 
       - name: Start dev stack

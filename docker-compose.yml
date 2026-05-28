@@ -44,6 +44,10 @@ x-api-env: &api-env
   # could never turn streaming on). Defaults off; flip with
   # ``FEATURE_TUTOR_STREAMING=true`` in the env.
   FEATURE_TUTOR_STREAMING: ${FEATURE_TUTOR_STREAMING:-false}
+  # Per-IP login rate limit. Default 10 (matches Settings + prod). The
+  # e2e workflow raises it: the parallel chromium+webkit Playwright
+  # suite logs in many times from one runner IP and tripped the cap.
+  RATE_LIMIT_AUTH_PER_MINUTE: ${RATE_LIMIT_AUTH_PER_MINUTE:-10}
   # LLM + embedding provider selection. The e2e workflow appends
   # ``LLM_PROVIDER=noop`` to the root .env to keep AI-touching paths
   # deterministic + free; without these explicit pass-throughs the

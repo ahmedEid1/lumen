@@ -68,7 +68,12 @@ async def register(
 
 
 @router.post("/login", response_model=TokenResponse)
-@limiter.limit("10/minute")
+# Config-driven (was a hardcoded "10/minute") so the e2e env can raise
+# it — the parallel chromium+webkit suite shares one runner IP and its
+# legitimate logins tripped the per-IP cap. Default stays 10
+# (Settings.rate_limit_auth_per_minute); prod is unchanged. slowapi
+# re-evaluates the callable per request.
+@limiter.limit(lambda: f"{get_settings().rate_limit_auth_per_minute}/minute")
 async def login(
     payload: LoginRequest,
     response: Response,
