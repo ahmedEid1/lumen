@@ -1039,9 +1039,13 @@ shrugged them off in prod:
 Shipped in the same deploy as iter-12 (run `26574904952`, success). The
 prod headline (streaming tutor) is the surface most affected — the
 cancel-on-close DELETE and the per-task NullPool worker engine are now
-live. Prod-verify pending: open the tutor on a course, send a turn, close
-mid-stream → `DELETE /tutor/turns/{id}` fires + reservation releases; a
-*completed* turn is not cancelled. (Verifying during the iter-14 CI run.)
+live. **Prod-verified** (browser agent, 2026-05-28): `/runtime-flags`
+shows `tutor_streaming: true`; closing the tutor mid-stream (throttled to
+hold the stream open) fired `DELETE /tutor/turns/{id}` → **204** and
+released the reservation, while closing a *completed* turn fired **no**
+DELETE — exactly the designed terminal-guard. iter-12 return-focus also
+verified live: command palette opened via its trigger button restores
+focus to that button on Escape (not `<body>`).
 
 ---
 
@@ -1121,3 +1125,66 @@ consumer) — decisions, all deferred to iter-15 so iter-14 ships isolated:
 
 Intentionally-internal endpoints (health, auth/session lifecycle,
 email-change confirm) excluded from the orphan count by design.
+
+---
+
+## Iter 15 — 2026-05-28 — parity orphans resolved (multi-agent wave)
+
+**Process:** ran as a real multi-agent team (per repeated user feedback —
+[[parallelize-during-builds]] — to stop being serial and fan out). While
+the iter-14 CI build ran, launched four concurrent agents: three
+worktree-isolated implementation agents (one per orphan) + one browser
+agent verifying iter-12/13 on prod. Pushed iter-14 first so `origin/main
+== HEAD` and the worktrees branched from a clean base. Then cherry-picked
+the three single-commit branches back onto main (en.ts/ar.ts auto-merged —
+the added i18n keys are in different sections).
+
+**#1 — WIRE admin subject inline-rename** (`bfb089f`). Pencil → inline
+`Input` + save/cancel on each subjects row, calling the orphaned
+`PATCH /admin/subjects/{id}`. Title-only (slug left alone — editing it
+would change public URLs). Reuses the page's create/delete mutation
+pattern. 3 i18n keys (en+ar).
+
+**#2 — WIRE discussion thread-edit** (`0a5cc76`). Pencil edit toggle on
+the thread-detail opening post, gated by the *existing* `canEditThread`
+(author-or-admin-or-course-owner) check that already gates Delete; calls
+`PATCH /discussions/{id}` with `{title, body}`. Save disabled until title
+≥ 3 (matches the backend `min_length`). 5 i18n keys (en+ar). **Codex P2
+follow-up (`ca741dc`):** the gate (and the pre-existing delete button)
+checked author-or-admin only, but the backend `_can_edit` also authorizes
+the *course owner* (moderation). Added a course-detail query (shared
+catalog key) and widened `canEditThread` to author OR admin OR
+course-owner — now an exact mirror of `_can_edit`.
+
+**#3 — DELETE redundant reviews PATCH** (`9f03938`). Removed the dead
+`PATCH /courses/{id}/reviews` + the empty `ReviewUpdate` schema + its two
+`__init__` exports + simplified the service type hint; dropped the dead
+PATCH assertion in `test_self_review.py` (the PUT assertion still covers
+the self-review guard); updated `docs/api.md` + CHANGELOG (contract
+change). The frontend calls reviews via raw `api()` string paths, not the
+generated client, and `types.ts` has no `reviews` entries — so the TS
+client needs no regen for this removal.
+
+**#4 — KEEP `GET /users/me`** — no change (recorded in the iter-14 gap log;
+idiomatic REST convenience, not drift).
+
+**Verification (merge gate, on the combined tree):** frontend `tsc` clean,
+`eslint` clean, `make test.web` 358/358 (incl. i18n-parity, so all 8 new
+keys are balanced en+ar), `make test.api` **758 passed** (real PG+Redis —
+the reviews-PATCH removal breaks nothing). Combined `codex review --base
+origin/main` caught one P2 (the course-owner gate above), fixed in
+`ca741dc`; the re-run came back **clean** (no actionable findings). Each
+agent also self-verified (tsc/eslint/vitest + its own codex pass) before
+reporting.
+
+**Worktree snag (recorded for [[worktree-gotchas]]):** agent #1's first
+edits landed in the *main* repo path, not its worktree; it self-recovered
+(copied files into the worktree, restored main to clean HEAD) and I
+confirmed main was intact afterward (HEAD still `5cdc436`, the three files
+unmodified). Defense-in-depth in the agent prompt is still warranted.
+
+**Status:** merged + fully verified locally (tsc, eslint, test.web 358,
+test.api 758, codex clean); **HELD** pending the iter-14 deploy (run
+`26576727104`, still building) — pushing would cancel its in-flight
+deploy. Push as the iter-15 batch once iter-14 lands, then prod-verify the
+two new affordances + the removed endpoint (404 on the old PATCH).
