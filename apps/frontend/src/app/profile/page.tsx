@@ -441,20 +441,23 @@ export default function ProfilePage() {
         </form>
       </Section>
 
-      {/* Sessions card — keeps its own surface */}
-      <section className="mb-10 border-t border-border pt-8">
-        <SessionsCard />
-      </section>
-
       {/* Data export — QA-iter2 wires the /api/v1/users/me/export
           endpoint that was shipped without a UI. The endpoint returns
           a JSON blob with the user's profile + counts of enrollments
           / reviews; future enhancement (per the backend docstring)
           enqueues a Celery job that produces a full zip. The button
           downloads the current JSON via a blob so a privacy-curious
-          user has a working "download my data" affordance today. */}
+          user has a working "download my data" affordance today.
+          QA-iter6: moved above SessionsCard — the active sessions list
+          can be 50 rows long for power users, which was pushing the
+          Export affordance below the fold of any reasonable scroll. */}
       <section className="mb-10 border-t border-border pt-8">
         <ExportDataCard />
+      </section>
+
+      {/* Sessions card — keeps its own surface */}
+      <section className="mb-10 border-t border-border pt-8">
+        <SessionsCard />
       </section>
 
       {/* Danger zone — bordered destructive surface */}
