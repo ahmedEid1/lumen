@@ -1503,3 +1503,16 @@ backlog during the iter-24 build:
   tsc/eslint clean, no test pins the strings. Resolves the LOW backlog item
   previously deferred as "risk of inaccuracy" (resolved by understanding the
   data source).
+
+**Iter-24c — Trivy scan arm64 follow-up.** The first run with the arm64-only
+build (CI `26591686798`, commit 1d90b3a) proved the headline fix: native
+`ubuntu-24.04-arm` runner resolved, **no QEMU, arm64 image built+pushed in
+~3m39s** (vs the 60-min timeout), and Backend/Frontend/E2E/Accessibility all
+passed. But `build-images` still **failed** — the `Trivy scan` steps default to
+scanning `linux/amd64`, and the single-arch index no longer has an amd64 child
+(`no child with platform linux/amd64 in index …`), so the scan errored and
+deploy was skipped again. Direct side effect of the arch change. Fix: pin both
+Trivy steps to `platform: linux/arm64` (+ `TRIVY_PLATFORM` env belt-and-
+suspenders). ci.yml parses; no in-flight run to cancel (the prior run failed).
+The CeleryTab relabel now also has a 4-test regression spec (`celery-tab.test`,
+full suite 368).
