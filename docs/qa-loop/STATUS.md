@@ -968,6 +968,13 @@ pre-fix). Reviewed the full diff (hook + 6 wirings) before push.
 `50187e2` fix(qa-iter12): systemic dialog return-focus via useReturnFocus (WCAG 2.4.3)
 `11fa25d` fix(qa-iter12): reveal-secret dialog returns focus to the stable New-client trigger (codex P2)
 
+### Iter 12 — CLOSED — shipped to prod (`b8c1d05`)
+
+Iter 12 + 13 rode the same deploy (run `26574904952`, conclusion success,
+2026-05-28). Build was the long pole (~20m multi-arch); deploy rolled
+clean (pull → roll → migrate → smoke). Prod healthy post-deploy
+(`/api/v1/health/ready` → db+redis ok).
+
 ---
 
 ## Iter 13 — 2026-05-28 — tutor-turn cancel + tutor-dialog descriptions
@@ -1026,6 +1033,15 @@ shrugged them off in prod:
 `2acf531` fix: abort the server turn when the tutor closes mid-stream (parity + reservation leak)
 `f37affa` fix: accessible descriptions on the two tutor dialogs
 `3b1f5f6` `1ee8323` `80ffa28` `1b78eeb` `c81e206` `95ef3b2` — the six codex-P2 hardening fixes above
+
+### Iter 13 — CLOSED — shipped to prod (`b8c1d05`)
+
+Shipped in the same deploy as iter-12 (run `26574904952`, success). The
+prod headline (streaming tutor) is the surface most affected — the
+cancel-on-close DELETE and the per-task NullPool worker engine are now
+live. Prod-verify pending: open the tutor on a course, send a turn, close
+mid-stream → `DELETE /tutor/turns/{id}` fires + reservation releases; a
+*completed* turn is not cancelled. (Verifying during the iter-14 CI run.)
 
 ---
 
