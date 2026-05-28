@@ -485,8 +485,7 @@ async def _build_course(
                 # never saw it work. Explicit boolean (not the per-
                 # spec override below) so the seed change is grep-able
                 # if/when we want to opt more lessons into preview.
-                is_preview=(m_idx == 0 and l_idx == 0)
-                or lesson_spec.get("is_preview", False),
+                is_preview=(m_idx == 0 and l_idx == 0) or lesson_spec.get("is_preview", False),
             )
             db.add(lesson)
         await db.flush()
