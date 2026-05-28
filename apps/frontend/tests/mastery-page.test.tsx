@@ -122,8 +122,10 @@ describe("MasteryPage", () => {
       .closest("section");
     expect(courseSection).not.toBeNull();
     const courseScope = within(courseSection as HTMLElement);
-    // Two labelled bars + their percentages.
-    expect(courseScope.getByText(/completion/i)).toBeInTheDocument();
+    // Two labelled bars + their percentages. Exact "Completion" matches the
+    // bar label only — the iter-25b caption also contains the word
+    // "completion", so a /completion/i regex would now match two elements.
+    expect(courseScope.getByText("Completion")).toBeInTheDocument();
     // The "Mastery" label appears twice (one per bar), so we scope
     // to inside the course section to disambiguate from the page
     // header.

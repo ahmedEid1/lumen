@@ -1605,3 +1605,12 @@ answered with a grounded retriever-tool trace.
   lessons, took no quizzes. Shipped a static clarity caption under the courses
   heading (`mastery.courses.caption`, en/ar) instead of a hover tooltip
   (mobile-friendly). Not a code-logic change.
+  **Iter-25b CI miss + fix-forward:** the caption's first push (f938c6b, run
+  26596380093) FAILED the Frontend unit step — the caption text contains the
+  word "completion", so `mastery-page.test.tsx:126`'s `getByText(/completion/i)`
+  matched two elements (caption + the "Completion" bar label) and threw. I'd
+  verified iter-25b with tsc/eslint/i18n-parity but NOT the page's own test —
+  a local-verify gap. Fixed the test to exact `getByText("Completion")`
+  (disambiguates from the sentence-case caption); full `test.web` now 371/371.
+  Re-pushed. (iter-25's 53d9b1c — sessions toggle + change-pw — deployed fine
+  on its own run 26595348416; only the caption was held back by this.)
