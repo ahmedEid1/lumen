@@ -184,6 +184,9 @@ export default function MasteryPage() {
             {courses.length}
           </span>
         </div>
+        <p className="mb-5 -mt-2 font-body text-sm text-muted-foreground">
+          {t("mastery.courses.caption")}
+        </p>
 
         {masteryQ.isLoading ? (
           <ul className="flex flex-col gap-3">

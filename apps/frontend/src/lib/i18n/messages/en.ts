@@ -791,6 +791,7 @@ export const en = {
   "mastery.weakSpots.empty.body":
     "Take a quiz or ask the tutor a question and lessons that need a second look will appear here.",
   "mastery.courses.heading": "Mastery per course",
+  "mastery.courses.caption": "Mastery tracks your quiz performance; completion tracks lessons finished. They move independently — an all-reading course can be 100% complete with 0% mastery.",
   "mastery.courses.completion": "Completion",
   "mastery.courses.mastery": "Mastery",
   "mastery.courses.empty": "You're not enrolled in anything yet.",

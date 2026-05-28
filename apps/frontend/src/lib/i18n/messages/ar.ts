@@ -796,6 +796,7 @@ export const ar: Record<MessageKey, string> = {
   "mastery.weakSpots.empty.body":
     "أدِّ اختبارًا أو اسأل المرشد، وستظهر هنا الدروس التي تحتاج إلى نظرة ثانية.",
   "mastery.courses.heading": "الإتقان حسب الدورة",
+  "mastery.courses.caption": "الإتقان يقيس أداءك في الاختبارات، والإنجاز يقيس الدروس المكتملة. وهما مستقلّان — فقد تكتمل دورة قراءة بنسبة 100% مع إتقان 0%.",
   "mastery.courses.completion": "الإنجاز",
   "mastery.courses.mastery": "الإتقان",
   "mastery.courses.empty": "لم تسجّل في أيّ دورة بعد.",

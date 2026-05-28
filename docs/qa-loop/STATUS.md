@@ -1596,7 +1596,12 @@ answered with a grounded retriever-tool trace.
   route is auth-semantics. Not a broken link → low value; propose a convenience
   `/logout` route wired to the existing logout mutation only if the owner wants
   the convention. Header sign-out works correctly.
-- **`/dashboard/mastery` looks inverted** (100% complete → 0% mastery). Walk
-  judged it "likely correct per the FSRS model, just unintuitive." A tooltip
-  (mastery ≠ completion) would help, but verify the calc isn't actually inverted
-  before papering over it — deferred to a focused look.
+- **`/dashboard/mastery` looks inverted** (100% complete → 0% mastery).
+  **VERIFIED NOT A BUG (iter-25b):** `mastery.py::per_course_mastery` computes
+  `mastery_pct` = avg of latest quiz scores, `completion_pct` = completed/total
+  lessons — orthogonal by design, and the code explicitly handles
+  `mastery==0 && completion>0` ("no quiz attempts → don't penalise an all-text
+  course", mastery.py:506-509). So 100%-complete/0%-mastery = finished the
+  lessons, took no quizzes. Shipped a static clarity caption under the courses
+  heading (`mastery.courses.caption`, en/ar) instead of a hover tooltip
+  (mobile-friendly). Not a code-logic change.
