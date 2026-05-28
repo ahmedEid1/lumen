@@ -12,7 +12,8 @@ import { Check, Download } from "lucide-react";
 import { api, ApiError } from "@/lib/api/client";
 import { type QuizQuestion } from "@/lib/quiz";
 import { BlockRenderer } from "@/components/lesson/block-renderer";
-import { resolveTextLessonDoc } from "@/lib/lesson/blocks";
+import { MarkdownBody } from "@/components/lesson/markdown-body";
+import { legacyMarkdownOf, resolveTextLessonDoc } from "@/lib/lesson/blocks";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
@@ -20,14 +21,25 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
   const t = useT();
   const data = lesson.data as Record<string, any>;
   switch (lesson.type) {
-    case "text":
-      // BlockRenderer is the read-only counterpart to BlockEditor;
-      // it walks the same JSON tree without pulling Tiptap into
-      // the learner bundle. `resolveTextLessonDoc` handles both
-      // the new `blocks` field and the legacy `body_markdown` /
-      // `body` strings, so a course written before Phase E6 still
-      // renders without a backfill.
+    case "text": {
+      // Two storage shapes for a text body:
+      //  - new: `data.blocks` (Tiptap/ProseMirror JSON) → BlockRenderer
+      //    walks the tree without pulling Tiptap into the learner
+      //    bundle.
+      //  - legacy: `data.body_markdown` / `data.body` — a free-form
+      //    *markdown string*. This used to be dumped verbatim into a
+      //    single paragraph, so students saw raw `## heading`,
+      //    `**bold**`, fenced code, etc. as literal characters
+      //    (the prod rendering bug). Render it as sanitized markdown
+      //    via react-markdown instead. react-markdown's default
+      //    behaviour escapes raw HTML, so instructor-authored content
+      //    can't inject markup — no rehype-raw, no dangerouslySetInnerHTML.
+      const legacyMarkdown = legacyMarkdownOf(data as TextLessonData);
+      if (legacyMarkdown !== null) {
+        return <MarkdownBody markdown={legacyMarkdown} />;
+      }
       return <BlockRenderer value={resolveTextLessonDoc(data as TextLessonData)} />;
+    }
     case "video":
       return (
         <LessonVideo

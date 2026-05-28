@@ -104,6 +104,33 @@ export function resolveTextLessonDoc(
   return fromLegacyMarkdown(legacy);
 }
 
+/**
+ * Pull the legacy free-form markdown string off a `text` lesson's
+ * data, if that's the shape it's stored in.
+ *
+ * Returns `null` when the lesson uses the newer structured `blocks`
+ * shape (which `resolveTextLessonDoc` + `BlockRenderer` handle) or
+ * when there's no legacy body at all. When it returns a string, that
+ * string is raw markdown authored by an instructor and should be
+ * rendered through `MarkdownBody` (react-markdown) — NOT dumped
+ * verbatim. `fromLegacyMarkdown` is the old verbatim path and is kept
+ * only as a fallback for the editor's promotion-on-first-edit flow.
+ */
+export function legacyMarkdownOf(
+  data: { blocks?: unknown; body_markdown?: unknown; body?: unknown } | null | undefined,
+): string | null {
+  if (!data) return null;
+  // Structured blocks win — that path is already formatted.
+  if (isBlockDoc(data.blocks)) return null;
+  const legacy =
+    typeof data.body_markdown === "string"
+      ? data.body_markdown
+      : typeof data.body === "string"
+        ? data.body
+        : "";
+  return legacy.trim().length > 0 ? legacy : null;
+}
+
 /* ---------------------------------------------------------------- */
 /*  Guards                                                           */
 /* ---------------------------------------------------------------- */
