@@ -40,7 +40,7 @@ test.describe("instructor golden path — AI outline + publish + analytics", () 
     page,
   }) => {
     // 1) Login.
-    await login(page, "teacher");
+    await login(page, "teacher", { rescueRedirect: true });
 
     // 2) Studio → new course.
     await page.goto("/studio");

@@ -34,7 +34,7 @@ const SEED_COURSE_SLUG = "fastapi-from-zero";
 test.describe("tutor citations golden path", () => {
   test("ask a question, response cites a real lesson id", async ({ page }) => {
     // 1) Login.
-    await login(page, "student");
+    await login(page, "student", { rescueRedirect: true });
 
     // 2) Open the learn surface for the seeded course.
     await page.goto(`/learn/${SEED_COURSE_SLUG}`);

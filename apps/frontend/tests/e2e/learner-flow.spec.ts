@@ -65,7 +65,7 @@ test.describe("learner golden path", () => {
     page,
   }) => {
     // 1) Login.
-    await login(page, "student");
+    await login(page, "student", { rescueRedirect: true });
 
     // 2) Catalog → seeded course detail page.
     await page.goto(`/courses/${SEED_COURSE_SLUG}`);

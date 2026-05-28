@@ -160,7 +160,7 @@ async function lookupDraftCourseId(page: Page): Promise<string> {
 
 test.describe("A5 — README hero + portfolio screenshot pack", () => {
   test("hero + trace timeline (learner-facing)", async ({ page }) => {
-    await login(page, "student");
+    await login(page, "student", { rescueRedirect: true });
     const ids = await lookupTutorIds(page);
 
     await page.goto(`/dashboard/tutor/${ids.conversationId}/turn/${ids.messageId}`);
@@ -190,7 +190,7 @@ test.describe("A5 — README hero + portfolio screenshot pack", () => {
   });
 
   test("studio replay (instructor self-critique)", async ({ page }) => {
-    await login(page, "teacher");
+    await login(page, "teacher", { rescueRedirect: true });
     const draftCourseId = await lookupDraftCourseId(page);
 
     await page.goto(`/studio/draft/${draftCourseId}/replay`);
@@ -225,7 +225,7 @@ test.describe("A5 — README hero + portfolio screenshot pack", () => {
   });
 
   test("admin observability + evals dashboards", async ({ page }) => {
-    await login(page, "admin");
+    await login(page, "admin", { rescueRedirect: true });
 
     // ---- Observability ----
     //

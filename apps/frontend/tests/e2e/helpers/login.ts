@@ -53,6 +53,25 @@ export async function preDismissOnboarding(page: Page): Promise<void> {
 }
 
 /**
+ * Options shared by {@link login} and {@link loginAs}.
+ *
+ * - ``waitForDashboard`` (default true): assert we land on /dashboard.
+ * - ``rescueRedirect`` (default false): if the form's client-side
+ *   `router.push("/dashboard")` races and parks us at /login, navigate
+ *   to /dashboard explicitly (the auth cookie is already set) instead
+ *   of failing. This is ONLY for specs whose subject is NOT the login
+ *   redirect itself — golden-path flows that just need to reach the
+ *   dashboard to test something downstream. The redirect's own
+ *   correctness stays asserted strictly by the default (e.g. the
+ *   auth.spec.ts password-reset sanity login), so a real regression in
+ *   `router.push(next)` is never masked across the whole suite.
+ */
+export type LoginOpts = {
+  waitForDashboard?: boolean;
+  rescueRedirect?: boolean;
+};
+
+/**
  * Sign in via the /login form and wait until the dashboard URL is
  * reached. Callers that need to land somewhere else can pass
  * ``waitForDashboard: false`` and route afterwards.
@@ -60,7 +79,7 @@ export async function preDismissOnboarding(page: Page): Promise<void> {
 export async function login(
   page: Page,
   role: SeedRole,
-  opts: { waitForDashboard?: boolean } = {},
+  opts: LoginOpts = {},
 ): Promise<void> {
   const creds = SEED_USERS[role];
   await loginAs(page, creds.email, creds.password, opts);
@@ -75,9 +94,10 @@ export async function loginAs(
   page: Page,
   email: string,
   password: string,
-  opts: { waitForDashboard?: boolean } = {},
+  opts: LoginOpts = {},
 ): Promise<void> {
   const waitForDashboard = opts.waitForDashboard ?? true;
+  const rescueRedirect = opts.rescueRedirect ?? false;
   await preDismissOnboarding(page);
   await page.goto("/login");
   // QA-iter1: wait for React's controlled-input onChange to be
@@ -107,22 +127,27 @@ export async function loginAs(
     .click();
   const resp = await loginPost;
 
-  if (waitForDashboard) {
-    // QA-iter7: the `router.push(next)` that the login form fires on
-    // success is a Next.js SPA pushState — it does NOT emit a fresh
-    // document 'load', and under CI cold-compile parallel pressure it
-    // intermittently races and leaves the page parked at /login
-    // (recurring flake across iter-1 + iter-6; iter-1 shipped the
-    // data-hydrated + one-shot-forward mitigations, which reduced but
-    // didn't eliminate it on chromium AND webkit). Auth itself is
-    // fine — manual prod logins always redirect.
-    //
-    // So: assert the dashboard URL with a generous poll; if the SPA
-    // redirect genuinely didn't fire, navigate explicitly. The session
-    // cookie is set by the successful POST above, so /dashboard loads
-    // authenticated. This ONLY rescues a raced client redirect — if
-    // auth actually failed (no cookie), the explicit goto bounces back
-    // to /login and the final assertion still fails loudly.
+  if (waitForDashboard && !rescueRedirect) {
+    // Default: assert the client-side `router.push("/dashboard")`
+    // redirect strictly. This is the canonical coverage for the login
+    // redirect (relied on by auth.spec.ts after a password reset), so
+    // it must NOT be rescued — a real regression should fail here.
+    // QA-iter1: 30s poll because Next.js SPA pushState doesn't emit a
+    // fresh document 'load' and webkit under cold-compile parallel
+    // pressure exceeds toHaveURL's default 5s ceiling.
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
+  } else if (waitForDashboard) {
+    // rescueRedirect: for golden-path specs whose subject is NOT the
+    // redirect (they just need to reach the dashboard to test
+    // something downstream). The `router.push(next)` SPA pushState
+    // intermittently races under CI cold-compile parallel pressure and
+    // parks at /login (recurring flake across iter-1 + iter-6, both
+    // browsers). Assert the URL with a generous poll; if the redirect
+    // genuinely didn't fire, navigate explicitly — the session cookie
+    // is set by the successful POST above, so /dashboard loads authed.
+    // If auth did NOT succeed the goto bounces back to /login and the
+    // assertion still fails loudly, so this never green-washes a
+    // broken login.
     try {
       await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
     } catch {

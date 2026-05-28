@@ -78,7 +78,7 @@ test.describe("multi-modal ingest golden path", () => {
     page,
   }) => {
     // 1) Login.
-    await login(page, "teacher");
+    await login(page, "teacher", { rescueRedirect: true });
 
     // 2) Studio → Import button.
     await page.goto("/studio");
