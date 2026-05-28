@@ -817,3 +817,36 @@ candidate, from iter-8 gap log); storageState Strict-cookie cleanup for
 the non-gated `visual-regression.spec.ts`; the deferred product-content
 call on "Understanding RAG Systems" (Red/Amber/Green vs. the AI/RAG
 narrative).
+
+
+
+---
+
+## Iter 10 — 2026-05-28 — mobile + keyboard a11y pass
+
+**Starting point:** iter 9 closed, prod on `8ca01f6`. Fresh angle —
+375px mobile overflow + keyboard, since prior iters leaned on
+golden-path + console.
+
+### Iter 10 — mobile overflow sweep (375×812)
+
+Measured `documentElement.scrollWidth` vs viewport across surfaces.
+Clean: `/`, `/courses`. **Overflow found on `/learn/[slug]`** —
+scrollWidth 495 > 375 (≈120px). Culprit: the syllabus `<aside>` was
+471px because it lacked `min-w-0`, so in the mobile single-column grid
+its long lesson titles (e.g. `` `Type 'string' is not assignable to
+type 'T'` ``) forced the grid item to min-content width. The `truncate`
+span inside the lesson buttons also couldn't engage — a flex child
+needs `min-w-0` to shrink-and-ellipsize.
+
+**FIXED** (`src/app/learn/[slug]/page.tsx`): added `min-w-0` to the
+syllabus aside + to the truncate span. The player `<section>` and tutor
+aside already had `min-w-0`; the syllabus was the lone omission.
+
+**Verified locally:** at 375px `/learn` scrollWidth back to 375 (no
+overflow); at 1280px the desktop grid is unchanged (`300px 908px`,
+aside 300px). eslint + tsc clean.
+
+### Iter 10 — commits
+
+`fix(qa-iter10)` learn syllabus aside min-w-0 — kills 120px mobile overflow (batched with iter-9 closeout doc)

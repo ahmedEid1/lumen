@@ -160,8 +160,11 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
           : "lg:grid-cols-[300px_1fr]",
       )}
     >
-      {/* Outline panel — surface-1, sticky on lg, subtle module dividers. */}
-      <aside className="order-2 lg:order-none">
+      {/* Outline panel — surface-1, sticky on lg, subtle module dividers.
+          min-w-0 so this grid item shrinks to the column instead of being
+          forced wide by long lesson titles — without it, mobile (single
+          column) overflowed the viewport by ~120px. */}
+      <aside className="order-2 min-w-0 lg:order-none">
         <div className="surface lg:sticky lg:top-20">
           <div className="border-b border-border p-5">
             <p className="mb-3 font-mono text-xs uppercase tracking-wider text-muted-foreground">
@@ -215,7 +218,7 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
                               aria-hidden
                             />
                           )}
-                          <span className="truncate">{lesson.title}</span>
+                          <span className="min-w-0 truncate">{lesson.title}</span>
                         </button>
                       </li>
                     );
