@@ -158,8 +158,16 @@ export function CommandPalette() {
     [navItems, query],
   );
 
+  // Only treat course results as current when the debounce has caught up to
+  // what's actually typed. `coursesQ` is keyed on `debouncedQuery`, which
+  // lags `query` by 200ms after a keystroke — during that gap `coursesQ.data`
+  // still holds the *previous* query's results. Rendering/highlighting those
+  // would make Enter open a stale course mid-type (codex iter16 P2), so we
+  // suppress results until `debouncedQuery === query`.
   const courseResults =
-    debouncedQuery.length >= 2 ? (coursesQ.data?.items ?? []) : [];
+    query === debouncedQuery && debouncedQuery.length >= 2
+      ? (coursesQ.data?.items ?? [])
+      : [];
 
   // Stable value scheme so we can drive the highlight deterministically.
   const courseValue = (id: string) => `course:${id}`;
