@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { LinkButton } from "@/components/ui/link-button";
@@ -216,6 +217,9 @@ export function CourseDetailView({ slug }: { slug: string }) {
           onCloseAutoFocus={onTutorCloseAutoFocus}
         >
           <DialogTitle className="sr-only">{t("tutor.askButton")}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {t("tutor.emptyPrompt")}
+          </DialogDescription>
           <TutorPanel courseId={course.id} />
         </DialogContent>
       </Dialog>

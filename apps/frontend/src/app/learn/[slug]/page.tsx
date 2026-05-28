@@ -20,7 +20,12 @@ import { Courses, Me } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { LessonPlayer } from "@/components/lesson/lesson-player";
 import { TutorPanel } from "@/components/tutor/tutor-panel";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useAuth } from "@/lib/auth/store";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { useT } from "@/lib/i18n/provider";
@@ -337,6 +342,9 @@ export default function LearnPage({ params }: { params: Promise<{ slug: string }
             aria-label={t("tutor.heading")}
           >
             <SheetTitle className="sr-only">{t("tutor.heading")}</SheetTitle>
+            <SheetDescription className="sr-only">
+              {t("tutor.emptyPrompt")}
+            </SheetDescription>
             {tutorOpen && (
               <TutorPanel
                 courseId={course.id}
