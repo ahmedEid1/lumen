@@ -695,7 +695,7 @@ described the pre-launch state and misled:
 | Streaming tutor 500s in prod | **FIXED** — per-task worker engine (`af68865`) |
 | Dev compose can't enable streaming | **FIXED** — flag pass-through (`a01b4ac`) |
 | Worker streaming path untested in CI | **MITIGATED** — unit regression across loops; full e2e of the streaming path still needs a worker in the e2e stack (logged, not built this iter) |
-| Streaming observability tiles (first-token p50/p95, disconnect, tool-mix) have no backend | **PROPOSED, not built (candidate ADR-0020).** A `GET /admin/observability/streaming` endpoint: active-streams + total-turn-latency are derivable from `tutor_turn_jobs` today, but first-token/disconnect/tool-mix are emitted over SSE and **not persisted** — wiring them needs producer instrumentation on the live SSE write path + likely a migration. Roadmap-scoped (L21); surfaced for owner. Copy now states this honestly rather than faking a "coming soon". |
+| Streaming observability tiles (first-token p50/p95, disconnect, tool-mix) have no backend | **PROPOSED, not built (candidate ADR-0021).** A `GET /admin/observability/streaming` endpoint: active-streams + total-turn-latency are derivable from `tutor_turn_jobs` today, but first-token/disconnect/tool-mix are emitted over SSE and **not persisted** — wiring them needs producer instrumentation on the live SSE write path + likely a migration. Roadmap-scoped (L21); surfaced for owner. Copy now states this honestly rather than faking a "coming soon". |
 | "Understanding RAG Systems" = Red/Amber/Green under Business | **DEFERRED (re-surfaced from iter-6)** — product-content call; first course a recruiter sees collides with the AI/RAG narrative. Propose-don't-implement. |
 
 ### Iter 8 — commits
@@ -752,7 +752,7 @@ lines in the 5 min after deploy. The headline feature is restored.
 — deferred this iteration because those flows exercise the worker tasks
 that were crashing, and the priority was landing + verifying the fix
 before walking them. Also iter-9: the streaming-metrics endpoint
-proposal (ADR-0020 candidate) and the storageState Strict-cookie
+proposal (ADR-0021 candidate) and the storageState Strict-cookie
 cleanup for non-gated VR specs.
 
 
@@ -812,7 +812,7 @@ holds). Deploy rolled; prod web on `8ca01f6`. Verified live: re-opened
 the "Generate course with AI" modal on prod — the Radix
 "Missing Description" console warning is **gone**.
 
-**Backlog → iter 10:** streaming-metrics endpoint proposal (ADR-0020
+**Backlog → iter 10:** streaming-metrics endpoint proposal (ADR-0021
 candidate, from iter-8 gap log); storageState Strict-cookie cleanup for
 the non-gated `visual-regression.spec.ts`; the deferred product-content
 call on "Understanding RAG Systems" (Red/Amber/Green vs. the AI/RAG
@@ -847,6 +847,28 @@ aside already had `min-w-0`; the syllabus was the lone omission.
 overflow); at 1280px the desktop grid is unchanged (`300px 908px`,
 aside 300px). eslint + tsc clean.
 
+### Iter 10 — deploy-gate: Google Fonts build fetch (→ self-hosted, ADR-0020)
+
+The iter-10 mobile fix (`d93d2fc`) **could not deploy**: the container
+build failed — `Failed to fetch 'Inter' from Google Fonts` — and failed
+**again on re-run** (not a one-off; Google was refusing the runner IPs).
+`next/font/google` fetches woff2 from `fonts.gstatic.com` at *build*
+time, so the whole deploy pipeline was hostage to Google's CDN. This is
+the structural-recurrence case (guardrail → ADR).
+
+**FIXED — self-hosted fonts** (`apps/frontend/src/lib/fonts.ts`):
+downloaded the Inter + JetBrains Mono variable woff2 (latin, from
+@fontsource) into `src/lib/fonts/`, switched `next/font/google` →
+`next/font/local`. Variable names + `.variable` classes unchanged →
+layout.tsx + globals.css untouched, rendering identical. Decision
+recorded in **ADR-0020**.
+
+**Verified:** the production **Docker image build** (the exact CI step)
+now compiles + prerenders all 38 routes with no gstatic call; on the
+running app `document.fonts` reports interDisplay/interBody/jetbrainsMono
+all `loaded`; eslint + tsc clean.
+
 ### Iter 10 — commits
 
-`fix(qa-iter10)` learn syllabus aside min-w-0 — kills 120px mobile overflow (batched with iter-9 closeout doc)
+`d93d2fc` fix(qa-iter10): learn syllabus aside min-w-0 — kills 120px mobile overflow
+`fix(qa-iter10)` self-host webfonts (next/font/local) + ADR-0020 — unblocks the deploy pipeline
