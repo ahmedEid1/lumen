@@ -543,3 +543,55 @@ ADR):** either (a) have the login form navigate via a server action
 re-discovering it.
 
 
+
+---
+
+## Iter 7 — 2026-05-28 — harden the recurring login→dashboard E2E race
+
+**Starting point:** iter 6 flagged the login→dashboard E2E race as
+structural (flaked on both browsers in iter-6 CI despite iter-1's two
+mitigations). Took option (b) from that note — test-harness hardening,
+no auth-semantics change.
+
+### Iter 7 — root cause
+
+`tests/e2e/helpers/login.ts` clicked submit then polled
+`toHaveURL(/\/dashboard/, {timeout: 30s})`. The form's success path is
+`await login()` → `router.push("/dashboard")`, a Next.js SPA pushState.
+Under CI cold-compile parallel pressure that push intermittently races
+and the page stays parked at `/login` → 30s timeout. Auth itself is
+fine — every manual prod login redirects, and `auth.setup.ts` (which
+logs in via `context.request.post`, not the form) never flaked.
+
+### Iter 7 — fix (test-only)
+
+- Couple the submit click with the `/api/v1/auth/login` POST so the
+  helper knows auth fired + succeeded before asserting navigation.
+- `rescueRedirect` opt (default **false**): default path keeps the
+  strict 30s redirect assertion, so the redirect's own correctness
+  stays covered (auth.spec.ts password-reset login uses the default).
+  Golden-path specs whose subject is NOT the redirect opt in
+  (learner-flow, tutor-citations, instructor-golden, ingest-multimodal,
+  screenshots ×3): they assert with a 15s poll and, only if the SPA
+  push genuinely didn't fire, navigate to /dashboard explicitly (cookie
+  already set). If auth failed, the goto bounces to /login and the
+  assertion still fails loudly — no green-washing.
+
+### Iter 7 — codex
+
+First pass (unconditional fallback) drew a P2 from codex: masks a real
+router.push regression. Refined to the opt-in design above; codex
+re-review came back clean ("No actionable correctness issues").
+
+### Iter 7 — verified
+
+- tsc + eslint clean on helper + all 6 touched specs.
+- tutor-citations.spec.ts (one of the two iter-6 CI flakers; routes
+  through the helper) passes 5/5 on chromium locally through the
+  rescue path. One intervening run failed on a *separate* tutor-LLM
+  citation-latency flake (1.1m timeout), unrelated to login.
+
+### Iter 7 — commits
+
+`ce1acf9` test(qa-iter7): deterministic login helper — rescue raced SPA redirect
+`44c82bc` test(qa-iter7): make login redirect-rescue opt-in (codex P2)
