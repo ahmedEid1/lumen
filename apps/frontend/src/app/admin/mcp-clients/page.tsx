@@ -103,12 +103,6 @@ export default function AdminMCPClientsPage() {
     enabled: !!user && user.role === "admin",
   });
 
-  const usersQ = useQuery({
-    queryKey: ["admin", "users", "for-mcp-picker"],
-    queryFn: () => api<AdminUserOut[]>(`/api/v1/admin/users`),
-    enabled: !!user && user.role === "admin" && createOpen,
-  });
-
   if (!ready || !user || user.role !== "admin") return null;
 
   return (
@@ -188,7 +182,6 @@ export default function AdminMCPClientsPage() {
 
       <CreateClientDialog
         open={createOpen}
-        users={usersQ.data ?? []}
         onClose={() => setCreateOpen(false)}
         onCreated={(resp) => {
           setCreateOpen(false);
@@ -198,7 +191,16 @@ export default function AdminMCPClientsPage() {
       />
       <RevealSecretDialog
         secret={revealSecret}
-        onClose={() => setRevealSecret(null)}
+        onClose={() => {
+          setRevealSecret(null);
+          // Codex rescue: clear the plaintext secret from React-Query
+          // mutation cache. Without this the `data` field on
+          // useMutation still holds it after dialog close — the
+          // "secret is unrecoverable" promise in the dialog copy is a
+          // lie if the secret is still in memory. The CreateClientDialog's
+          // mutation owns the cache row, so its onCreated callback
+          // also resets the mutation right after the reveal opens.
+        }}
       />
     </div>
   );
@@ -302,18 +304,38 @@ function ClientRow({
 
 function CreateClientDialog({
   open,
-  users,
   onClose,
   onCreated,
 }: {
   open: boolean;
-  users: AdminUserOut[];
   onClose: () => void;
   onCreated: (resp: MCPClientCreatedOut) => void;
 }) {
   const [ownerId, setOwnerId] = useState("");
+  const [ownerLabel, setOwnerLabel] = useState("");
+  const [userSearch, setUserSearch] = useState("");
   const [name, setName] = useState("");
   const [scopesCsv, setScopesCsv] = useState("*");
+
+  // Codex rescue #2: search-driven owner picker. The admin/users
+  // endpoint defaults to the 50 newest users, so a fixed dropdown
+  // couldn't reach older accounts. Debounce 200ms — keep the network
+  // calls reasonable while the admin types an email fragment.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(userSearch.trim()), 200);
+    return () => clearTimeout(id);
+  }, [userSearch]);
+
+  const usersQ = useQuery({
+    queryKey: ["admin", "users", "for-mcp-picker", debouncedSearch],
+    queryFn: () =>
+      api<AdminUserOut[]>(
+        `/api/v1/admin/users${debouncedSearch ? `?q=${encodeURIComponent(debouncedSearch)}` : ""}`,
+      ),
+    enabled: open,
+  });
+
   const createMut = useMutation({
     mutationFn: (body: { owner_user_id: string; name: string; scopes: string[] }) =>
       api<MCPClientCreatedOut>("/api/v1/admin/mcp-clients", {
@@ -322,10 +344,15 @@ function CreateClientDialog({
       }),
     onSuccess: (resp) => {
       onCreated(resp);
-      // Reset form for the next mint.
+      // Reset form for the next mint AND wipe the plaintext secret
+      // from useMutation's cache (Codex rescue #1) so the dialog's
+      // "the secret is unrecoverable after close" promise is honest.
       setOwnerId("");
+      setOwnerLabel("");
+      setUserSearch("");
       setName("");
       setScopesCsv("*");
+      createMut.reset();
     },
     onError: (err) => {
       toast.error(err instanceof ApiError ? err.message : "Mint failed");
@@ -358,25 +385,76 @@ function CreateClientDialog({
         <form className="space-y-3" onSubmit={onSubmit}>
           <div>
             <label
-              htmlFor="mcp-owner"
+              htmlFor="mcp-owner-search"
               className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground"
             >
               Owner user
             </label>
-            <select
-              id="mcp-owner"
-              value={ownerId}
-              onChange={(e) => setOwnerId(e.target.value)}
-              className="h-9 w-full rounded-md border border-border bg-muted px-3 font-body text-sm"
-              required
-            >
-              <option value="">Pick a user…</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.email} ({u.role})
-                </option>
-              ))}
-            </select>
+            {ownerId ? (
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted px-3 py-2 font-mono text-sm">
+                <span className="truncate">{ownerLabel}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setOwnerId("");
+                    setOwnerLabel("");
+                    setUserSearch("");
+                  }}
+                >
+                  Change
+                </Button>
+              </div>
+            ) : (
+              <>
+                <Input
+                  id="mcp-owner-search"
+                  type="search"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Search email or name…"
+                  autoComplete="off"
+                />
+                {usersQ.isFetching && (
+                  <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                    Searching…
+                  </p>
+                )}
+                {!usersQ.isFetching && (usersQ.data ?? []).length > 0 && (
+                  <ul
+                    className="mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-background"
+                    role="listbox"
+                    aria-label="User search results"
+                  >
+                    {(usersQ.data ?? []).slice(0, 20).map((u) => (
+                      <li key={u.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOwnerId(u.id);
+                            setOwnerLabel(`${u.email} (${u.role})`);
+                          }}
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left font-body text-sm hover:bg-muted/30"
+                        >
+                          <span className="truncate">{u.email}</span>
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {u.role}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!usersQ.isFetching &&
+                  debouncedSearch &&
+                  (usersQ.data ?? []).length === 0 && (
+                    <p className="mt-1 font-body text-xs text-muted-foreground">
+                      No users matched.
+                    </p>
+                  )}
+              </>
+            )}
           </div>
           <div>
             <label
