@@ -1282,9 +1282,13 @@ an environment artifact, not a test failure; CI builds the image fresh, and
 host vitest with the deps installed is green. No TS-client regen needed
 (notifications/reviews aren't in the generated `types.ts`).
 
-**Status:** merged + verified + codex-clean; **HELD** pending the iter-15
-deploy, then pushed as the iter-16 batch and prod-verified (markdown
-renders formatted; admin bell no longer 500s; course detail fits 375px).
+**Status:** **CLOSED** — pushed as the iter-16 batch (CI run 26582639361,
+commit 94f6176; all 6 jobs green, deploy auto-ran, no Docker-Hub flake so the
+iter-17 retry wasn't even exercised). Prod-verified on
+https://lumen.ahmedhobeishy.tech: lesson markdown emits real
+`<pre>`/`<code>`/`<strong>`/`<ul>` with zero raw `##`/`**` leakage; admin
+`/me/notifications` → HTTP 200 (bell shows 7 unread); course detail
+`scrollWidth == innerWidth == 375` (0px overflow) on two course pages.
 
 ### Iter 19 — doc-contradiction sweep + BE/FE parity gap log
 
