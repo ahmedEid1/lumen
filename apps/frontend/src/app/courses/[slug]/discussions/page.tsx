@@ -158,7 +158,9 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
           <p className="font-body text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : !threadsQ.data?.items.length ? (
           <div className="border-t border-border py-10">
-            <p className="font-body text-sm text-muted-foreground">{t("discussions.empty")}</p>
+            <p className="font-body text-sm text-muted-foreground">
+              {user ? t("discussions.empty") : t("discussions.emptyAnon")}
+            </p>
           </div>
         ) : (
           <ul className="divide-y divide-border border-y border-border">
