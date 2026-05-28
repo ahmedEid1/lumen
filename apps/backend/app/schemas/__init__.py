@@ -23,7 +23,6 @@ from app.schemas.course import (
     ProgressUpdate,
     ReviewCreate,
     ReviewOut,
-    ReviewUpdate,
     SubjectOut,
     TagOut,
 )
@@ -60,7 +59,6 @@ __all__ = [
     "RegisterRequest",
     "ReviewCreate",
     "ReviewOut",
-    "ReviewUpdate",
     "SubjectOut",
     "TagOut",
     "TokenResponse",

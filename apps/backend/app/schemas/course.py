@@ -273,10 +273,6 @@ class ReviewCreate(BaseModel):
     body: str = Field(default="", max_length=4000)
 
 
-class ReviewUpdate(ReviewCreate):
-    pass
-
-
 class ReviewOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

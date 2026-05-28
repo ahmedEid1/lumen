@@ -199,7 +199,7 @@ Lesson payload is discriminated by `type` (`text` | `video` | `image` | `file` |
 - `GET  /bookmarks`, `PUT /bookmarks/{course_id}`, `DELETE /bookmarks/{course_id}`
 
 ### Reviews (`/api/v1/courses/{course_id}/reviews`)
-- `GET`, `PUT` (upsert), `PATCH`, `DELETE` — enrolled-only writes, public reads
+- `GET`, `PUT` (upsert), `DELETE` — enrolled-only writes, public reads
 
 ### Chat (`/api/v1/chat`)
 - `GET  /courses/{course_id}/messages?before=&limit=` — paginated history

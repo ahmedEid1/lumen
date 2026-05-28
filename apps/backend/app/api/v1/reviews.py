@@ -8,7 +8,7 @@ from app.api.deps import CurrentUser, DBSession
 from app.core.errors import NotFoundError
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
-from app.schemas.course import ReviewCreate, ReviewOut, ReviewUpdate
+from app.schemas.course import ReviewCreate, ReviewOut
 from app.schemas.user import UserPublic
 from app.services import reviews as reviews_service
 
@@ -55,13 +55,6 @@ async def upsert_review(
         updated_at=review.updated_at,
         author=UserPublic.model_validate(user),
     )
-
-
-@router.patch("/{course_id}/reviews", response_model=ReviewOut)
-async def update_review(
-    course_id: str, payload: ReviewUpdate, user: CurrentUser, db: DBSession
-) -> ReviewOut:
-    return await upsert_review(course_id, payload, user, db)
 
 
 @router.delete("/{course_id}/reviews", response_model=OkResponse)

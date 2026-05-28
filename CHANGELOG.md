@@ -43,6 +43,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Anonymous visitors saw "Start the conversation above" pointing at a
   form gated behind sign-in — they now get a "Sign in to start" message.
 
+### Removed (QA loop iter 15 — parity cleanup)
+
+- **`PATCH /api/v1/courses/{course_id}/reviews`** — removed as a dead
+  duplicate of `PUT /api/v1/courses/{course_id}/reviews`. Its payload
+  type `ReviewUpdate(ReviewCreate)` was an empty subclass (no
+  partial-update semantic) and the handler body just delegated to the
+  PUT's `upsert_review`. The PUT's `upsert` already covers both create
+  and edit, and the frontend only ever called the PUT. The `ReviewUpdate`
+  schema and its `schemas/__init__.py` exports were dropped with it.
+
 ### Changed
 
 - **Self-hosted webfonts (ADR-0020).** Inter + JetBrains Mono now load

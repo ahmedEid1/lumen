@@ -15,11 +15,11 @@ from app.repositories import courses as courses_repo
 from app.repositories import notifications as notifications_repo
 
 if TYPE_CHECKING:
-    from app.schemas.course import ReviewCreate, ReviewUpdate
+    from app.schemas.course import ReviewCreate
 
 
 async def upsert(
-    db: AsyncSession, *, author: User, course: Course, payload: ReviewCreate | ReviewUpdate
+    db: AsyncSession, *, author: User, course: Course, payload: ReviewCreate
 ) -> Review:
     # Instructors can self-enroll in their own published course (to see what
     # students see). Without this guard they could then post a 5-star review

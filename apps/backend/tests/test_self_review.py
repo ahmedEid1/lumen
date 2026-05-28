@@ -60,7 +60,7 @@ async def test_owner_cannot_review_own_course_even_after_enrolling(
     enrolled = await client.post(f"/api/v1/me/enrollments/{course_id}", headers=teacher)
     assert enrolled.status_code in (200, 201)
 
-    # But the review attempt is rejected — both PUT and PATCH paths.
+    # But the review attempt is rejected via the upsert (PUT) path.
     r_put = await client.put(
         f"/api/v1/courses/{course_id}/reviews",
         json={"rating": 5, "body": "Best course ever (by me)."},
@@ -68,14 +68,6 @@ async def test_owner_cannot_review_own_course_even_after_enrolling(
     )
     assert r_put.status_code == 403, r_put.text
     assert r_put.json()["error"]["code"] == "review.self_review"
-
-    r_patch = await client.patch(
-        f"/api/v1/courses/{course_id}/reviews",
-        json={"rating": 5, "body": "Updating my self-review."},
-        headers=teacher,
-    )
-    assert r_patch.status_code == 403
-    assert r_patch.json()["error"]["code"] == "review.self_review"
 
 
 async def test_avg_rating_not_inflated_by_owner_attempts(
