@@ -203,10 +203,7 @@ export function useTutorStream(turnId: string | null): TutorStreamSnapshot {
   tokenRef.current = token;
 
   useEffect(() => {
-    if (!turnId) {
-      store.reset();
-      return;
-    }
+    if (!turnId) return;
     const controller = new AbortController();
     let cancelled = false;
 
@@ -253,6 +250,12 @@ export function useTutorStream(turnId: string | null): TutorStreamSnapshot {
   // backstop. isTurnSettled excludes "trim" (still polling /status while
   // the server runs), so closing during trim-polling still cancels.
   useEffect(() => {
+    // Fresh snapshot per turn. Without this the store keeps the PREVIOUS
+    // turn's terminal phase until this turn's first event arrives, so the
+    // cancel guard below would wrongly treat a brand-new turn as
+    // already-settled and skip the DELETE. Keyed on [turnId] (not token)
+    // so a mid-turn auth refresh never resets/cancels a live turn.
+    store.reset();
     if (!turnId) return;
     return () => {
       if (isTurnSettled(store.getSnapshot().phase)) return;
