@@ -595,3 +595,13 @@ re-review came back clean ("No actionable correctness issues").
 
 `ce1acf9` test(qa-iter7): deterministic login helper — rescue raced SPA redirect
 `44c82bc` test(qa-iter7): make login redirect-rescue opt-in (codex P2)
+
+### Iter 7 — CLOSED — shipped to prod (`de3c31f`)
+
+CI run 26552729505 went **green on the first pass** — all six jobs
+(Frontend, Backend, Accessibility, **E2E**, Build, Deploy) succeeded
+with no re-runs. The hardened login helper passed E2E in CI on the
+first attempt, which is the direct validation of the iter-7 fix: the
+login→dashboard race that flaked on both browsers in iter-6 did not
+recur. Prod verified on `de3c31f` (api + web + worker + beat all on
+the tag), `health/live` 200, `health/ready` db+redis ok.
