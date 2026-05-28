@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed (QA loop iters 8–14 — live-walk fixes)
+### Fixed (QA loop iters 8–16 — live-walk fixes)
 
 - **Tutor cost-reservation leak:** closing the tutor mid-turn now aborts
   the server turn (`DELETE /tutor/turns/{id}`) instead of only dropping
@@ -42,6 +42,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it to "Discussions · Lumen" (also covering the single-thread route).
   Anonymous visitors saw "Start the conversation above" pointing at a
   form gated behind sign-in — they now get a "Sign in to start" message.
+- **Lesson markdown rendered as raw text (iter 16).** Legacy text lessons
+  stored a markdown string that was dumped verbatim, so learners saw
+  literal `## heading`, `**bold**`, and fenced code. Now rendered as
+  sanitized markdown (`react-markdown` + `remark-gfm`, HTML-escaped — no
+  raw-HTML passthrough), with fenced code keeping Shiki highlighting.
+- **Admin notifications 500 (iter 16).** `GET /api/v1/me/notifications`
+  returned 500 for any admin who'd triggered the H6 refresh-reuse alarm:
+  `NotificationOut.kind` was typed as the `NotificationKind` enum but the
+  column is a `String(40)` carrying non-enum security sub-kinds. The schema
+  field is now `str`, matching the column.
+- **Course detail horizontal overflow on mobile (iter 16).** Long titles
+  and "What you'll learn" items pushed `/courses/{slug}` ~60px past a
+  375px viewport; added `min-w-0`/`break-words` containment.
+- **Command palette default selection (iter 16).** After typing a query,
+  the highlighted item was the Theme toggle, so Enter flipped the theme
+  instead of opening the top course match; results now order before
+  utilities and the highlight tracks the top (non-stale) result.
+
+### Added (QA loop iter 15 — backend↔UI parity)
+
+- **Admin subject inline-rename** wired to `PATCH /api/v1/admin/subjects/{id}`
+  (was create+delete only), and an **own-post edit affordance** on
+  discussion threads wired to `PATCH /api/v1/discussions/{id}` (gated to
+  author/admin/course-owner, matching backend authz).
 
 ### Removed (QA loop iter 15 — parity cleanup)
 

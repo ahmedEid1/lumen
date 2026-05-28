@@ -1193,7 +1193,7 @@ two new affordances + the removed endpoint (404 on the old PATCH).
 
 ---
 
-## Iter 16 — 2026-05-28 — prod walk findings (multi-agent wave, in progress)
+## Iter 16 — 2026-05-28 — prod walk findings (multi-agent wave)
 
 **Walk:** a browser agent walked prod across student/instructor/admin +
 mobile (375×812) + keyboard + axe-core on 5 surfaces. App broadly healthy —
@@ -1230,6 +1230,46 @@ markdown editor + live preview (pairs with fix #1); admin breadcrumb style
 consistency (`/admin/mcp-clients`, `/admin/observability` use plain text vs
 the styled eyebrow elsewhere).
 
-**Status:** 3 worktree agents in flight (notifications, markdown, mobile/UX
-bundle). Will merge + verify (test.web/test.api/tsc/codex) and ship iter-16
-as its own push AFTER iter-15 deploys.
+### Iter 16 — implementation (multi-agent wave, merged + verified)
+
+Three worktree agents ran in parallel during the iter-15 build; all
+cherry-picked onto main:
+
+- **A — `/me/notifications` 500 for admin** (`c313cf6`). Root cause: the
+  H6 refresh-reuse alarm writes `kind="security.refresh_reuse"`, an
+  intentional non-enum sub-kind (the column is `String(40)`), but
+  `NotificationOut.kind` was typed as the `NotificationKind` enum →
+  `model_validate` raised → 500 for any admin who'd triggered the alarm.
+  Fix: widen the schema field to `str` (honest to the column; the bell UI
+  already types `kind` as an open string). +2 regression tests.
+- **B — lesson markdown rendered raw** (`ed8648f`). Legacy `text` lessons
+  store a markdown *string* in `data.body_markdown`/`body` that
+  `fromLegacyMarkdown` dumped into one paragraph. Now rendered via
+  XSS-safe `react-markdown` + `remark-gfm` (default HTML-escaping, **no**
+  rehype-raw; a test asserts `<img onerror>` is escaped), with fenced code
+  routed to the existing Shiki `HighlightedCode`. Structured `blocks` +
+  the Studio editor untouched. +5 tests, +2 deps.
+- **C — mobile overflow + palette default** (`daaa851`). Course-detail
+  `min-w-0`/`break-words` so a long title/outcome can't widen the grid
+  past 375px (same pattern as the iter-10 `/learn` fix); command-palette
+  now renders course results before Navigate + controls cmdk's `value` so
+  Enter targets the top match, not the Theme toggle. (Catalog-in-mobile-nav
+  did **not** reproduce — already present via the shared `navLinksFor`.)
+- **Codex P2 follow-up** (`40c0750`): the palette read `coursesQ.data`
+  (keyed on the 200ms-lagged `debouncedQuery`), so mid-type the highlight
+  could target a *stale* course. Gated `courseResults` on
+  `query === debouncedQuery` so a stale result is never the Enter target.
+
+**Verification (merge gate):** frontend `tsc` clean; host `vitest` 66
+files / 364 tests green (incl. markdown-body, command-palette,
+i18n-parity); `make test.api` **760 passed** (real PG+Redis). Combined
+`codex review` caught the one P2 above; the re-run came back **clean** (no
+actionable regressions). Note: `make test.web` (runs vitest *in* the web
+container) failed on a stale baked `node_modules` lacking B's new deps —
+an environment artifact, not a test failure; CI builds the image fresh, and
+host vitest with the deps installed is green. No TS-client regen needed
+(notifications/reviews aren't in the generated `types.ts`).
+
+**Status:** merged + verified + codex-clean; **HELD** pending the iter-15
+deploy, then pushed as the iter-16 batch and prod-verified (markdown
+renders formatted; admin bell no longer 500s; course detail fits 375px).
