@@ -1185,11 +1185,23 @@ edits landed in the *main* repo path, not its worktree; it self-recovered
 confirmed main was intact afterward (HEAD still `5cdc436`, the three files
 unmodified). Defense-in-depth in the agent prompt is still warranted.
 
-**Status:** merged + fully verified locally (tsc, eslint, test.web 358,
-test.api 758, codex clean); **HELD** pending the iter-14 deploy (run
-`26576727104`, still building) — pushing would cancel its in-flight
-deploy. Push as the iter-15 batch once iter-14 lands, then prod-verify the
-two new affordances + the removed endpoint (404 on the old PATCH).
+### Iter 15 — CLOSED — shipped to prod (run `26579676736`, success)
+
+Verified locally (tsc, eslint, test.web 358, test.api 758, codex clean),
+then shipped. The CI run's Accessibility job first failed on a **transient
+Docker Hub pull flake** (`pgvector:pg17 manifest unknown` at "Start dev
+stack" — axe never ran), not a code issue; isolated via the route-scan
+(the axe spec scans none of iter-15's routes) + the E2E job passing, then
+`gh run rerun --failed` cleared it → all green → deployed.
+
+**Prod-verified:** `PATCH /api/v1/courses/{id}/reviews` → **405** (the
+dead-duplicate is gone), `PUT` → **401** (the upsert remains, auth-gated);
+deploy succeeded; `/api/v1/health/ready` → 200. The admin-rename +
+thread-edit affordances ship with their existing-endpoint wiring (the
+endpoints were already live; iter-15 added the UI consumers).
+
+(The Docker-Hub-pull flake → CI-resilience retry shipped as iter-17,
+bundled with the iter-16 push.)
 
 ---
 
