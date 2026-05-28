@@ -1089,11 +1089,15 @@ consumer) — decisions, all deferred to iter-15 so iter-14 ships isolated:
 2. `PATCH /api/v1/discussions/{id}` (edit thread) — thread detail does
    GET+DELETE only. **Decision: WIRE** an own-post edit affordance
    (table-stakes for a forum; not a new top-level feature).
-3. `PATCH /api/v1/courses/{id}/reviews` — body forwards to `upsert_review`
-   but takes `ReviewUpdate` (partial) vs the PUT's `ReviewCreate` (full);
-   UI uses the PUT. **Decision: CODEX-GATED** — delete only if the partial
-   path is truly redundant, else keep + document; not a slam-dunk delete
-   because the input contract differs.
+3. `PATCH /api/v1/courses/{id}/reviews` — **Decision: DELETE (confirmed
+   dead duplicate).** `ReviewUpdate(ReviewCreate)` is an *empty* subclass —
+   it overrides nothing, so it's structurally identical to `ReviewCreate`
+   (rating required, body defaulted); there is no partial-update semantic.
+   The PATCH handler just calls `upsert_review(...)`, the same service path
+   as the PUT, which the UI already uses. iter-15 removes the route, the
+   `ReviewUpdate` schema, its two `schemas/__init__.py` exports, and
+   simplifies `reviews_service.upsert`'s `ReviewCreate | ReviewUpdate` hint
+   to `ReviewCreate`. (Regenerate the TS client after — contract change.)
 4. `GET /api/v1/users/me` — no GET consumer; identity is sourced from
    `auth/me` by design (PATCH/DELETE on `users/me` *are* used).
    **Decision: KEEP** — idiomatic REST + API-client convenience; recorded
