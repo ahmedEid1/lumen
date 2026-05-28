@@ -6,6 +6,8 @@ import { useAuth } from "@/lib/auth/store";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CeleryTab } from "@/components/admin/observability/CeleryTab";
 import { LLMTracesTab } from "@/components/admin/observability/LLMTracesTab";
+import { LLMCostTab } from "@/components/admin/observability/LLMCostTab";
+import { RateLimitTab } from "@/components/admin/observability/RateLimitTab";
 import { RetrievalTab } from "@/components/admin/observability/RetrievalTab";
 import { StreamingTab } from "@/components/admin/observability/StreamingTab";
 import { useRuntimeFlags } from "@/lib/runtime-flags";
@@ -36,12 +38,25 @@ import { useRuntimeFlags } from "@/lib/runtime-flags";
  * single row of bordered buttons that doubles as a left-rail.
  */
 
-type Tab = "celery" | "traces" | "retrieval" | "streaming";
+type Tab =
+  | "celery"
+  | "traces"
+  | "retrieval"
+  | "streaming"
+  | "cost"
+  | "rate-limit";
 
 const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "celery", label: "Celery" },
   { id: "traces", label: "LLM Traces" },
   { id: "retrieval", label: "Retrieval Quality" },
+  // QA-iter3: closes two parity gaps where the backend already
+  // shipped operator-visibility endpoints (GET /admin/llm-calls/
+  // summary for the 14-day spend rollup, GET /admin/rate-limit-stats
+  // for the 429 counts by endpoint) but the admin had to hit the
+  // API directly to read them.
+  { id: "cost", label: "LLM Cost" },
+  { id: "rate-limit", label: "Rate Limits" },
 ];
 
 // L20.6 — Streaming tab placeholder. Always visible to admins
@@ -109,6 +124,12 @@ export default function AdminObservability() {
         </TabsContent>
         <TabsContent value="streaming">
           <StreamingTab />
+        </TabsContent>
+        <TabsContent value="cost">
+          <LLMCostTab />
+        </TabsContent>
+        <TabsContent value="rate-limit">
+          <RateLimitTab />
         </TabsContent>
       </Tabs>
     </div>
