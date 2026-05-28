@@ -1070,4 +1070,34 @@ lines. No discussions-specific vitest exists (metadata + i18n branch).
 **Status:** verified locally, **HELD** pending the iter-13 (`b8c1d05`)
 deploy — pushing now would trip CI cancel-in-progress and kill the live
 iter-12+13 deploy. Push + prod-verify ("Discussions · Lumen" title, anon
-empty-state copy) once that run finishes.
+empty-state copy) once that run finishes. Codex review on the batch came
+back **clean** (no correctness issue in the modified code).
+
+### Iter 14 — FE/BE parity gap log (full sweep, → iter-15)
+
+Ran a full backend↔frontend route diff this window (parallel subagent
+while the iter-13 build ran). **0 dangling frontend calls** — every
+`/api/v1/...` the UI calls resolves to a real backend route with a
+matching method. Tutor-streaming parity re-confirmed (POST `/tutor/turns`,
+GET `…/status`, GET `…/stream`, DELETE `…` all consumed by
+`use-tutor-stream.ts`). Four **backend orphans** (route with no UI
+consumer) — decisions, all deferred to iter-15 so iter-14 ships isolated:
+
+1. `PATCH /api/v1/admin/subjects/{id}` (rename) — admin UI only
+   creates+deletes. **Decision: WIRE** an inline rename (delete+recreate
+   would orphan a subject's courses; rename is the safe path). Improvement.
+2. `PATCH /api/v1/discussions/{id}` (edit thread) — thread detail does
+   GET+DELETE only. **Decision: WIRE** an own-post edit affordance
+   (table-stakes for a forum; not a new top-level feature).
+3. `PATCH /api/v1/courses/{id}/reviews` — body forwards to `upsert_review`
+   but takes `ReviewUpdate` (partial) vs the PUT's `ReviewCreate` (full);
+   UI uses the PUT. **Decision: CODEX-GATED** — delete only if the partial
+   path is truly redundant, else keep + document; not a slam-dunk delete
+   because the input contract differs.
+4. `GET /api/v1/users/me` — no GET consumer; identity is sourced from
+   `auth/me` by design (PATCH/DELETE on `users/me` *are* used).
+   **Decision: KEEP** — idiomatic REST + API-client convenience; recorded
+   here so it isn't re-proposed as a gap each sweep.
+
+Intentionally-internal endpoints (health, auth/session lifecycle,
+email-change confirm) excluded from the orphan count by design.
