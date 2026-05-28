@@ -22,7 +22,20 @@ vi.mock("@/lib/tutor/sse-client", () => ({
   openSseStream: vi.fn(() => new Promise<void>(() => {})),
 }));
 
-import { useTutorStream } from "@/lib/tutor/use-tutor-stream";
+import { isTurnSettled, useTutorStream } from "@/lib/tutor/use-tutor-stream";
+
+describe("isTurnSettled — only complete/failed are settled", () => {
+  it("treats in-flight phases (incl. trim-polling) as NOT settled", () => {
+    // "trim" is the trap: the display reducer counts it terminal, but
+    // the server is still running while the hook polls /status, so a
+    // close during trim must still cancel.
+    for (const phase of ["idle", "planning", "tool", "synth", "trim"] as const) {
+      expect(isTurnSettled(phase), `${phase} should be cancellable`).toBe(false);
+    }
+    expect(isTurnSettled("complete")).toBe(true);
+    expect(isTurnSettled("failed")).toBe(true);
+  });
+});
 
 describe("useTutorStream — abort on close", () => {
   afterEach(() => vi.restoreAllMocks());

@@ -166,6 +166,19 @@ class TutorStreamStore {
 const TERMINAL_PHASES: TutorStreamPhase[] = ["complete", "failed", "trim"];
 
 /**
+ * Whether the *server* turn is truly done (safe to skip cancellation).
+ *
+ * Distinct from {@link TERMINAL_PHASES}, the display reducer's settled
+ * set: that includes "trim", but a trimmed stream is still polling
+ * `/status` while the server keeps orchestrating — so closing during
+ * trim-polling must still abort the turn. Only "complete"/"failed" mean
+ * the reservation is already released.
+ */
+export function isTurnSettled(phase: TutorStreamPhase): boolean {
+  return phase === "complete" || phase === "failed";
+}
+
+/**
  * Subscribe to a tutor turn's SSE stream.
  *
  * Opens the connection on first mount (or when `turnId` changes),
@@ -227,8 +240,11 @@ export function useTutorStream(turnId: string | null): TutorStreamSnapshot {
       // server to abort it via DELETE so the reservation is released
       // now. `keepalive` lets the request outlive this unmount /
       // navigation (like a beacon); fire-and-forget — we're gone.
-      const { phase } = store.getSnapshot();
-      if (!TERMINAL_PHASES.includes(phase)) {
+      //
+      // See isTurnSettled: "trim" is NOT settled for cancellation (the
+      // hook is still polling /status while the server runs), so closing
+      // during trim-polling still aborts the turn.
+      if (!isTurnSettled(store.getSnapshot().phase)) {
         void fetch(`/api/v1/tutor/turns/${encodeURIComponent(turnId)}`, {
           method: "DELETE",
           credentials: "include",
