@@ -1385,6 +1385,9 @@ local e2e-test artifacts, not prod):**
   security-alarm path → think before shipping (don't hide signal).
 - LOW — `/learn/[slug]` + `/courses/[slug]/preview/[lessonId]` default page
   titles (standing metadata item, same pattern as iter-14 discussions layout).
+  **→ SHIPPED iter-21:** added server `layout.tsx` wrappers exporting
+  `title: "Learn"` / `"Preview"` (both pages are `"use client"` so can't
+  export metadata themselves); resolve via the root `"%s · Lumen"` template.
 - LOW — `/api/v1/auth/refresh → 401` console error on every anon cold mount
   (AuthProvider refreshes unconditionally). Standing item.
 - LOW — `/admin/observability` Workers panel "Active: none" while a worker is
