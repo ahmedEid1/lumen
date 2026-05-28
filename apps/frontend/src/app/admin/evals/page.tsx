@@ -1,11 +1,22 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowRight } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, Loader2, Play } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 
 /**
@@ -92,6 +103,8 @@ export default function AdminEvalsHome() {
         </p>
       </header>
 
+      <RunForm suites={suitesQ.data ?? []} />
+
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {(suitesQ.data ?? []).map((suite) => {
           const latest = latestBySuite[suite.name];
@@ -104,6 +117,116 @@ export default function AdminEvalsHome() {
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * QA-iter3 wires `POST /api/v1/admin/evals/runs` which was shipped
+ * without a UI consumer. The endpoint runs synchronously — it can
+ * block for tens of seconds (one item × judge_model is ~1-3s for the
+ * tutor suite, multiplied by whatever `limit` you pass). The button
+ * surfaces a Loader2 spinner + a yellow "may take 30s+" warning so
+ * the admin doesn't think the tab hung, and toasts on success with
+ * the new report_id. Reports list refetches on success.
+ */
+function RunForm({ suites }: { suites: SuiteInfo[] }) {
+  const qc = useQueryClient();
+  const [suite, setSuite] = useState<string>("");
+  const [limit, setLimit] = useState<string>("");
+  const runMut = useMutation({
+    mutationFn: (body: { suite: string; limit?: number }) =>
+      api<{
+        report_id: string;
+        suite: string;
+        mean_overall: number | null;
+        items_total: number;
+      }>("/api/v1/admin/evals/runs", { method: "POST", body }),
+    onSuccess: (resp) => {
+      toast.success(
+        `Run finished — ${resp.report_id} (${resp.items_total} items, mean ${resp.mean_overall?.toFixed(2) ?? "—"})`,
+      );
+      qc.invalidateQueries({ queryKey: ["admin", "evals"] });
+    },
+    onError: (err) => {
+      const msg = err instanceof ApiError ? err.message : "Run failed";
+      toast.error(msg);
+    },
+  });
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!suite) return;
+    const parsed = limit ? Number(limit) : undefined;
+    runMut.mutate({
+      suite,
+      ...(parsed && Number.isFinite(parsed) && parsed > 0
+        ? { limit: parsed }
+        : {}),
+    });
+  };
+  return (
+    <section className="surface mb-8 p-5">
+      <h2 className="mb-2 font-display text-lg leading-tight tracking-tight">
+        Trigger a new run
+      </h2>
+      <p className="mb-4 font-body text-sm text-muted-foreground">
+        Synchronously executes the selected suite against the configured
+        LLM provider + judge. May take 30s+ depending on suite size and
+        provider latency. Pass a `limit` for a quick smoke run.
+      </p>
+      <form
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={onSubmit}
+      >
+        <div className="min-w-[160px] flex-1">
+          <label
+            htmlFor="run-suite"
+            className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground"
+          >
+            Suite
+          </label>
+          <Select value={suite} onValueChange={setSuite}>
+            <SelectTrigger id="run-suite">
+              <SelectValue placeholder="Choose a suite" />
+            </SelectTrigger>
+            <SelectContent>
+              {suites.map((s) => (
+                <SelectItem key={s.name} value={s.name}>
+                  {s.name} ({s.item_count} items)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-[120px]">
+          <label
+            htmlFor="run-limit"
+            className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-muted-foreground"
+          >
+            Limit (optional)
+          </label>
+          <Input
+            id="run-limit"
+            type="number"
+            min={1}
+            max={200}
+            value={limit}
+            onChange={(e) => setLimit(e.target.value)}
+            placeholder="all"
+          />
+        </div>
+        <Button type="submit" disabled={!suite || runMut.isPending}>
+          {runMut.isPending ? (
+            <>
+              <Loader2 className="me-2 h-4 w-4 animate-spin" /> Running…
+            </>
+          ) : (
+            <>
+              <Play className="me-2 h-4 w-4" /> Run now
+            </>
+          )}
+        </Button>
+      </form>
+    </section>
   );
 }
 
@@ -150,7 +273,9 @@ function SuiteCard({
           ))
         ) : (
           <p className="font-mono text-xs text-muted-foreground">
-            No runs yet. Run <span className="text-foreground">python -m app.evals run --suite {suite.name}</span>.
+            No runs yet — use the "Run now" form above (or
+            <span className="text-foreground"> python -m app.evals run --suite {suite.name}</span>
+            from the api container).
           </p>
         )}
       </dl>
