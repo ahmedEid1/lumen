@@ -323,4 +323,46 @@ recoverable — they were on the ephemeral container fs.
 `ba5749e` feat(qa-iter3): /admin/observability — LLM cost + rate-limit tabs
 `454b7d4` feat(qa-iter3): "Run now" form on /admin/evals
 
+---
+
+## Iter 4 — 2026-05-28 — mcp-clients admin page
+
+**Starting point:** iter 3 closed; one parity gap deferred — the
+MCP client CRUD endpoints had no UI.
+
+### Iter 4 — batch 1 (738573a + 2c20150)
+
+New `/admin/mcp-clients` page covering all three endpoints:
+
+- **List** (`GET /api/v1/admin/mcp-clients`) — table with client
+  short-id, owner, scopes, last_used_at, created_at. Toggle for
+  "include revoked" rows.
+- **Mint** (`POST /api/v1/admin/mcp-clients`) — Dialog with owner
+  picker (debounced search against `/admin/users?q=…`), name,
+  comma-separated scopes (default `*`). One-time-secret reveal
+  Dialog on success — copy button + "I've saved it" close. Secret
+  is wiped from React-Query mutation cache after reveal (Codex
+  rescue) so the "unrecoverable" promise is honest.
+- **Revoke** (`DELETE /api/v1/admin/mcp-clients/{id}`) — per-row
+  two-step inline confirm (Cancel / Confirm swap). Soft-delete
+  keeps audit history available via the include-revoked toggle.
+
+Added `admin.tile.mcpClients.*` i18n keys + tile on /admin landing.
+
+### Iter 4 — commits
+
+`738573a` feat(qa-iter4): /admin/mcp-clients page (close last parity gap)
+`2c20150` fix(qa-iter4): mcp-clients — codex rescue
+
+### Backend↔UI parity audit — RESULT
+
+All 4 deferred orphans from iter 2 are closed:
+
+| Endpoint | Status | Shipped in |
+|----------|--------|------------|
+| `GET /api/v1/admin/llm-calls/summary` | ✓ UI on /admin/observability | iter 3 |
+| `GET /api/v1/admin/rate-limit-stats` | ✓ UI on /admin/observability | iter 3 |
+| `POST /api/v1/admin/evals/runs` | ✓ "Run now" form on /admin/evals | iter 3 |
+| `GET/POST/DELETE /api/v1/admin/mcp-clients` (+ `{id}`) | ✓ /admin/mcp-clients page | iter 4 |
+
 
