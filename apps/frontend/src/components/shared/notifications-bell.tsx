@@ -25,6 +25,13 @@ type Notification = {
   read_at: string | null;
 };
 
+// Mirrors the backend cap in notifications_repo.list_for_user (limit=50).
+// The endpoint exposes no paging param, so when the list is full there may
+// be older notifications the bell can't reach — surface that instead of
+// truncating silently. (A paginated "view all" + coalescing of repeated
+// security alarms are tracked as propose-only in docs/qa-loop/STATUS.md.)
+const NOTIF_CAP = 50;
+
 /** Map a notification to a deep-link URL using its kind + data payload. */
 function targetHref(n: Notification): string | null {
   const d = n.data || {};
@@ -73,6 +80,7 @@ export function NotificationsBell() {
   });
 
   const unread = (q.data ?? []).filter((n) => !n.read_at).length;
+  const atCap = (q.data?.length ?? 0) >= NOTIF_CAP;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -146,6 +154,11 @@ export function NotificationsBell() {
             </li>
           )}
         </ul>
+        {atCap && (
+          <p className="border-t border-border bg-muted/40 px-3 py-2 text-center font-mono text-[11px] text-muted-foreground">
+            {t("notif.capNote", { n: NOTIF_CAP })}
+          </p>
+        )}
       </PopoverContent>
     </Popover>
   );

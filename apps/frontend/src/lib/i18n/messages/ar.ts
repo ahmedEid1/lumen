@@ -246,6 +246,7 @@ export const ar: Record<MessageKey, string> = {
   "notif.markAllRead": "تعليم الكل مقروءًا",
   "notif.marking": "جارٍ التعليم…",
   "notif.empty": "لا شيء هنا بعد.",
+  "notif.capNote": "تُعرض أحدث {n} — قد تكون الأقدم مخفية.",
 
   // Preview lesson — non-enrolled visitors
   "preview.cartouche": "معاينة",

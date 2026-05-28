@@ -239,6 +239,7 @@ export const en = {
   "notif.markAllRead": "Mark all read",
   "notif.marking": "Marking…",
   "notif.empty": "Nothing here yet.",
+  "notif.capNote": "Showing the {n} most recent — older ones may be hidden.",
 
   // Preview lesson — non-enrolled visitors
   "preview.cartouche": "Preview",

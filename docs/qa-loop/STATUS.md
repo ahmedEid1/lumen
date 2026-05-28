@@ -1386,9 +1386,20 @@ local e2e-test artifacts, not prod):**
   51+. True pagination past 200 needs a backend cursor/offset — a deliberate
   feature, deferred (low value for a single-operator box with a handful of
   users; don't build speculative pagination).
-- MED — admin notification bell shows un-coalesced repeated security alarms
-  (refresh-reuse), no "view all", silent 50-cap. Coalescing touches the
-  security-alarm path → think before shipping (don't hide signal).
+- MED — admin notification bell: un-coalesced repeated security alarms
+  (refresh-reuse), no "view all", silent 50-cap. **→ SAFE SLICE SHIPPED
+  iter-24d:** the 50-cap is the backend `list_for_user(limit=50)` with no
+  paging param exposed, so the bell silently dropped older items. Added a
+  footer cap-note ("Showing the 50 most recent — older ones may be hidden")
+  shown only when the list is full — this *adds* signal (reveals truncation),
+  the opposite of hiding it. +2 tests, en/ar i18n keys. **PROPOSE-ONLY (not
+  shipped):** (1) coalescing repeated identical alarms — touches the
+  security-alarm path, risk of hiding signal, needs owner sign-off even with a
+  count badge; (2) a paginated "view all" page — needs a backend offset/cursor
+  on `GET /me/notifications` (a deliberate feature, same call as admin-users
+  pagination). Also noted: the unread BADGE counts only the fetched ≤50, so it
+  undercounts when >50 unread — fixing needs a backend unread-count endpoint
+  (deferred).
 - LOW — `/learn/[slug]` + `/courses/[slug]/preview/[lessonId]` default page
   titles (standing metadata item, same pattern as iter-14 discussions layout).
   **→ SHIPPED iter-21:** added server `layout.tsx` wrappers exporting

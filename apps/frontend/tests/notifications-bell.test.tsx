@@ -116,4 +116,27 @@ describe("NotificationsBell", () => {
     await user.click(await screen.findByRole("button", { name: /notifications/i }));
     expect(screen.queryByRole("button", { name: /mark all read/i })).toBeNull();
   });
+
+  it("surfaces the 50-item cap note only when the list is full", async () => {
+    // Full page (50) → the bell can't reach older notifications, so it says so.
+    const full = Array.from({ length: 50 }, (_, i) => ({
+      ...NOTIFS[1],
+      id: `c${i}`,
+      title: `Notice ${i}`,
+    }));
+    apiSpy.mockResolvedValueOnce(full as never);
+    renderWithClient(<NotificationsBell />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /notifications/i }));
+    expect(await screen.findByText(/most recent/i)).toBeInTheDocument();
+  });
+
+  it("does not show the cap note for a short list", async () => {
+    apiSpy.mockResolvedValueOnce(NOTIFS as never);
+    renderWithClient(<NotificationsBell />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /notifications/i }));
+    await screen.findByText("Welcome to FastAPI");
+    expect(screen.queryByText(/most recent/i)).toBeNull();
+  });
 });
