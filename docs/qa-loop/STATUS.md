@@ -1026,3 +1026,48 @@ shrugged them off in prod:
 `2acf531` fix: abort the server turn when the tutor closes mid-stream (parity + reservation leak)
 `f37affa` fix: accessible descriptions on the two tutor dialogs
 `3b1f5f6` `1ee8323` `80ffa28` `1b78eeb` `c81e206` `95ef3b2` — the six codex-P2 hardening fixes above
+
+---
+
+## Iter 14 — 2026-05-28 — discussions page-title metadata + anon empty-state
+
+**Walk finding (student/anon).** The `/courses/{slug}/discussions` route is
+a client component, so it can't export `metadata` — it inherited the
+`/courses` segment's "Catalog · Lumen" `<title>`, wrong on a Discussions
+page. Separately, an anonymous visitor saw "No threads yet. Start the
+conversation above." while the new-thread form is gated behind `user` and
+therefore *not present* for them — confusing copy.
+
+**Fix 1 — title.** Added a thin server `layout.tsx` exporting
+`metadata.title: "Discussions"`, which resolves through the parent
+`%s · Lumen` template to "Discussions · Lumen" and also covers the nested
+single-thread route.
+
+**Fix 2 — empty-state copy.** The empty-state now picks `discussions.empty`
+vs `discussions.emptyAnon` by auth; anon visitors are told to sign in
+rather than pointed at a form they can't see. Key added to both locales.
+
+**Process note (incomplete-commit catch).** The first iter-14 commit
+(`e24d10c`) shipped only the two i18n keys — the consuming code
+(page.tsx branch) and the title `layout.tsx` were left uncommitted in the
+working tree. Caught on session resume by diffing the commit against the
+working tree *before pushing*; would have shipped a dead key and **no
+title fix at all**. Completed in `cad25d8`. (Trust-but-verify earned its
+keep.)
+
+**Verified locally.** `tsc --noEmit` clean, eslint clean on both files,
+en+ar key parity confirmed (locale maps are type-checked, so a missing
+key fails tsc). Note: CI does **not** gate on prettier, and the repo's
+tailwind class order predates `prettier-plugin-tailwindcss`, so the edit
+keeps the file's existing class order rather than reflowing ~15 unrelated
+lines. No discussions-specific vitest exists (metadata + i18n branch).
+
+### Iter 14 — commits
+
+`e24d10c` fix(qa-iter14): correct the discussions page title + anon empty-state copy (i18n keys)
+`cad25d8` fix(qa-iter14): wire the discussions title layout + anon empty-state consumer
+
+**Status:** verified locally, **HELD** pending the iter-13 (`b8c1d05`)
+deploy — pushing now would trip CI cancel-in-progress and kill the live
+iter-12+13 deploy. Push + prod-verify ("Discussions · Lumen" title, anon
+empty-state copy) once that run finishes.
