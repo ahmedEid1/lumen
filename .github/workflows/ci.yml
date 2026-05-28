@@ -340,12 +340,14 @@ jobs:
           # transient registry hiccups (one such pull of pgvector cost the
           # a11y job — and a deploy — on 2026-05-28). `up -d` is idempotent,
           # so re-running after a partial/failed pull is safe.
+          ok=0
           for attempt in 1 2 3; do
-            docker compose up -d --build \
-              db redis s3 s3-init mail api worker web && break
+            if docker compose up -d --build \
+              db redis s3 s3-init mail api worker web; then ok=1; break; fi
             echo "::warning::dev-stack bring-up attempt $attempt failed (likely a transient registry pull) — retrying in 15s"
             sleep 15
           done
+          [ "$ok" = 1 ] || { echo "::error::dev-stack bring-up failed after 3 attempts"; exit 1; }
 
       - name: Wait for api healthy
         run: |
@@ -539,11 +541,13 @@ jobs:
         # skipped a deploy on 2026-05-28. `up -d` is idempotent, so a retry
         # after a failed pull is safe.
         run: |
+          ok=0
           for attempt in 1 2 3; do
-            docker compose up -d --build db redis s3 s3-init mail api web && break
+            if docker compose up -d --build db redis s3 s3-init mail api web; then ok=1; break; fi
             echo "::warning::dev-stack bring-up attempt $attempt failed (likely a transient registry pull) — retrying in 15s"
             sleep 15
           done
+          [ "$ok" = 1 ] || { echo "::error::dev-stack bring-up failed after 3 attempts"; exit 1; }
 
       - name: Wait for api healthy
         run: |

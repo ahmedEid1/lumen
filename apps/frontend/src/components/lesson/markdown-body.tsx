@@ -67,6 +67,16 @@ const components: Components = {
       </code>
     );
   },
+  // react-markdown wraps a fenced block as `<pre><code>`. Our `code`
+  // override renders fenced blocks via <HighlightedCode>, which is itself
+  // a block element (a `<div>`/`<pre>` wrapper) — so leaving react-markdown's
+  // `<pre>` in place nests a block inside `<pre>` (invalid markup; codex
+  // iter16 P2). Render `pre` as a passthrough so the highlighter provides
+  // the sole block container. Inline code isn't wrapped in `<pre>`, so this
+  // doesn't touch it.
+  pre({ children }: ComponentPropsWithoutRef<"pre">) {
+    return <>{children}</>;
+  },
   // Links: instructors paste arbitrary URLs, so mirror BlockRenderer's
   // policy — open in a new tab and strip window.opener with
   // `noopener noreferrer` so a learner click can't leak the opener to
