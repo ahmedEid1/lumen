@@ -413,17 +413,100 @@ prose copy (straight quotes/apostrophes inline in /admin/evals and
 `d9ab3bc` style(qa-iter5): escape JSX entities in admin/evals + admin/mcp-clients
 `cba8ab1` fix(qa-iter5): /admin/observability TabsList mobile overflow
 
-### Post-deploy operator step (still pending)
+### Post-deploy operator step — DONE
 
-The eval-reports volume + free-preview migration + new admin
-surfaces are all in the deploy queue behind `d9ab3bc`. Once prod is
-on `d9ab3bc` (or later), trigger:
+`d9ab3bc` shipped to prod (image tag confirmed via SSH). Pushed
+`cba8ab1` + `6700669` immediately after (mobile fix + this doc
+entry) — that batch is mid-deploy in CI 26549527679 as of this
+writing; deploy chain is automatic so no further action needed.
+
+Triggered `eval-baseline.yml -f suite=tutor -f limit=30 -f
+promote=true` (run 26549527677) right after the `d9ab3bc` deploy.
+Result on `/api/v1/eval/public`:
 
 ```
-gh workflow run eval-baseline.yml -f suite=tutor -f limit=30 -f promote=true
+suites.tutor = {
+  mean_overall: 1.211,
+  axes: { grounding: 3.33, accuracy: -0.06, style: 0.36 },
+  items_judged: 9,
+  judge: openai-compat/llama-3.3-70b-versatile,
+  report_id: tutor-baseline-2026-05-28T01-44Z
+}
 ```
 
-…to repopulate `/eval/public` with the +0.93 / grounding +2.78
-shape it had before the ephemeral-filesystem regression.
+Volume persistence fix is functional — the report survives the
+container roll. Grounding is back in the +3 range; mean is even
+higher than the pre-regression +0.93 baseline (this is a fresh
+30-item run against the now-multi-agent tutor; the absolute number
+isn't comparable to the L41 number anyway because L41 was the
+pre-multi-agent shape).
+
+Iter-3 + iter-4 parity surfaces verified on prod via API probe:
+`/api/v1/admin/llm-calls/summary` (7 calls, $0.0042 spend), `/api
+/v1/admin/rate-limit-stats` (0 in window), `/api/v1/admin/mcp-
+clients` (empty list), `/api/v1/admin/evals/suites` (3 suites). UI
+routes `/admin`, `/admin/observability`, `/admin/mcp-clients`,
+`/admin/evals`, `/profile` all 200.
+
+### Iter 5 — CLOSED
+
+---
+
+## Iter 6 — 2026-05-28 — full persona walk on d9ab3bc
+
+**Starting point:** iter 5 closed; prod on `d9ab3bc` with the
+volume + free-preview + mobile-fix queue in CI 26549527679 (build
+container images still running at iter-6 kickoff). Walked the live
+site as student, instructor, and admin via playwright-mcp.
+
+### Iter 6 — backend↔UI parity (re-audit)
+
+Fresh OpenAPI dump → 105 paths total. Frontend grep cross-reference
+catches **2** paths with no consumer:
+
+| Endpoint | Decision |
+|----------|----------|
+| `GET /api/v1/health/live` | KEEP — k8s/deploy smoke target |
+| `GET /api/v1/health/ready` | KEEP — k8s/deploy smoke target |
+
+Both are intentionally consumer-less. Parity is clean.
+
+### Iter 6 — findings + decisions
+
+| Surface | Finding | Decision |
+|---------|---------|----------|
+| /profile | Export card sat below the 50-row session list — buried under multi-screen of UA strings; recruiter scrolling would hit "delete account" before "download my data" | **FIXED** — Export moved above SessionsCard |
+| /admin/audit | Actor column was raw 21-char nanoids; admin had to mentally cross-ref against /admin/users to identify the human | **FIXED** — fetches /admin/users?limit=200, builds id→email map, renders email inline with raw ID still in `title` |
+| /admin/courses + /studio + /studio/[id] | Single-row status badge said "Drafts" (plural) — the i18n key was reused from the multi-row filter chip | **FIXED** — added `course.status.{draft,published,archived}` singular keys in en + ar, switched 3 row-badge sites |
+| /demo | (re-check) — Iter-1 noted anonymous visitors hit a dead-end auth wall | **ALREADY FIXED** — /demo redirects through /login?demo=1&next=... with pre-filled demo creds + callout |
+| /favicon.ico | 404 in network log | **ACCEPTABLE** — `app/icon.tsx` declares `<link rel="icon">` in head; modern browsers don't fall back to /favicon.ico. Only crawlers/legacy clients still hit the path. Not worth shipping a static .ico |
+| /dashboard/path | `GET /api/v1/me/learning-path → 404` logged in browser devtools when learner has no path | **DEFERRED** — UI handles the empty state cleanly; suppressing the network 404 would mean changing the endpoint contract (200 with nullable path) which forces an OpenAPI regen. Not worth a contract change for a devtools log line |
+| /dashboard/tutor | Bare route returns 404 (no index page; conversations live at /dashboard/tutor/[cid]/turn/[mid]) | **DEFERRED** — nothing in the app links here; only manual-typed URLs hit it. Adding a "tutor history" landing page would be a feature, not a fix |
+| Course content "Understanding RAG Systems" | Seeded as RAG = Red/Amber/Green (project-status reporting) under Business subject; collides with AI/ML "Retrieval-Augmented Generation" expectation a Lumen visitor brings | **DEFERRED** — content rewrite is a product-direction call (guardrail says propose, don't implement). Surfaced for owner decision |
+| AuthProvider cold-mount refresh | Iter-1 noted `POST /api/v1/auth/refresh → 401` fires on every anonymous landing | **DEFERRED** — fix needs a non-httpOnly session-hint cookie (auth-adjacent). Per guardrail: pause and ask before touching auth |
+
+### Iter 6 — commits (queued for push)
+
+`d58c012` fix(qa-iter6): move /profile Export card above the 50-row sessions list
+`7ea0914` feat(qa-iter6): resolve actor IDs to emails on /admin/audit
+`22a8bbb` fix(qa-iter6): singular row status badge "Draft" (was plural "Drafts")
+
+### Iter 6 — verified locally
+
+- 355 frontend vitest passed in 42s after the changes
+- tsc + eslint clean on changed files
+- Codex review `--base 6700669`: "no discrete regression that would
+  break existing behavior"
+- Visual walks of /profile, /admin/audit, /admin/courses, /studio,
+  /studio/[id], /admin/observability (all tabs), /admin/mcp-clients,
+  /admin/evals, /admin/users, /admin/observability/llm-calls/[id],
+  /dashboard, /dashboard/mastery, /dashboard/path, /dashboard/reviews
+  on prod as the matching persona
+
+### Iter 6 — push posture
+
+Holding push until CI 26549527679 (iter-5 mobile fix + status doc)
+finishes Build container images and rolls the deploy — pushing now
+would cancel-in-progress the iter-5 deploy chain.
 
 
