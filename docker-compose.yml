@@ -37,6 +37,13 @@ x-api-env: &api-env
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
   PROMETHEUS_ENABLED: ${PROMETHEUS_ENABLED:-true}
   SEED_DEMO: ${SEED_DEMO:-true}
+  # Runtime feature flags — mirror docker-compose.prod.yml so the
+  # streaming-tutor path is exercisable in dev/e2e exactly as in prod.
+  # It was the *absence* of this pass-through that let the prod-only
+  # asyncpg/prefork event-loop crash ship undetected (the dev stack
+  # could never turn streaming on). Defaults off; flip with
+  # ``FEATURE_TUTOR_STREAMING=true`` in the env.
+  FEATURE_TUTOR_STREAMING: ${FEATURE_TUTOR_STREAMING:-false}
   # LLM + embedding provider selection. The e2e workflow appends
   # ``LLM_PROVIDER=noop`` to the root .env to keep AI-touching paths
   # deterministic + free; without these explicit pass-throughs the
