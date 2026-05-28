@@ -282,6 +282,7 @@ export const ar: Record<MessageKey, string> = {
   "discussions.threadCount": "{n} موضوع",
   "discussions.threadCountOne": "موضوع واحد",
   "discussions.empty": "لا مواضيع بعد. ابدأ النقاش من الأعلى.",
+  "discussions.emptyAnon": "لا مواضيع بعد. سجّل الدخول لبدء النقاش.",
   "discussions.deletedUser": "مستخدم محذوف",
 
   // Error / Not-found pages
