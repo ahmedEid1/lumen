@@ -51,6 +51,14 @@ import { cn } from "@/lib/utils";
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // Controlled cmdk selection. With `shouldFilter={false}` cmdk defaults
+  // the highlight to the first *rendered* item; when a query filtered the
+  // Navigate group down to nothing, that first item was the Theme toggle —
+  // so Enter flipped the theme instead of opening the top search result
+  // (QA iter16). We now drive `value` ourselves: on each new query we reset
+  // the highlight to the top result (course match first, else nav match),
+  // while still letting arrow keys move it within the same query.
+  const [value, setValue] = useState("");
   // The element that had focus when the palette opened. The palette is
   // *controlled* (no Radix <DialogTrigger>), so Radix has nothing to
   // restore focus to on close — focus fell to <body>, stranding
@@ -140,6 +148,44 @@ export function CommandPalette() {
     return items;
   }, [user, t]);
 
+  // Nav items matching the current query (same substring filter the
+  // Navigate group renders with). When there's no query, all show.
+  const filteredNavItems = useMemo(
+    () =>
+      navItems.filter(
+        (it) => !query || it.label.toLowerCase().includes(query.toLowerCase()),
+      ),
+    [navItems, query],
+  );
+
+  const courseResults =
+    debouncedQuery.length >= 2 ? (coursesQ.data?.items ?? []) : [];
+
+  // Stable value scheme so we can drive the highlight deterministically.
+  const courseValue = (id: string) => `course:${id}`;
+
+  // The item that should be highlighted by default for the current query.
+  // With a query: top course result wins, else the first matching nav item.
+  // Without a query: first nav item (cmdk's natural default — Home).
+  const defaultValue = query
+    ? courseResults.length > 0
+      ? courseValue(courseResults[0].id)
+      : (filteredNavItems[0]?.id ?? "")
+    : (navItems[0]?.id ?? "");
+
+  // Reset the highlight to the computed default whenever the query or the
+  // set of course results changes. We intentionally depend on the result
+  // ids (joined) rather than the array reference so a re-fetch that returns
+  // the same courses doesn't yank the user's arrow-key selection. Arrow
+  // keys update `value` via onValueChange and persist until the next reset.
+  const resultKey = courseResults.map((c) => c.id).join(",");
+  useEffect(() => {
+    setValue(defaultValue);
+    // defaultValue is derived from query + resultKey + filteredNavItems;
+    // those are the inputs that should trigger a reset.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, resultKey]);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
@@ -163,6 +209,8 @@ export function CommandPalette() {
         </DialogDescription>
         <Command
           shouldFilter={false}
+          value={value}
+          onValueChange={setValue}
           className="flex flex-col"
           loop
         >
@@ -180,36 +228,10 @@ export function CommandPalette() {
               {t("palette.empty")}
             </Command.Empty>
 
-            {/* Navigate */}
-            <Command.Group
-              heading={
-                <span className="px-2 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {t("palette.section.navigate")}
-                </span>
-              }
-            >
-              {navItems
-                .filter(
-                  (it) =>
-                    !query ||
-                    it.label.toLowerCase().includes(query.toLowerCase()),
-                )
-                .map((it) => {
-                  const Icon = it.icon;
-                  return (
-                    <PaletteItem
-                      key={it.id}
-                      onSelect={() => go(it.href)}
-                      icon={<Icon className="h-3.5 w-3.5" aria-hidden />}
-                    >
-                      {it.label}
-                    </PaletteItem>
-                  );
-                })}
-            </Command.Group>
-
-            {/* Course search results */}
-            {debouncedQuery.length >= 2 && coursesQ.data && coursesQ.data.items.length > 0 && (
+            {/* Course search results — rendered first when there's a
+                query so the top match (not the Theme toggle) is the
+                natural Enter target. */}
+            {courseResults.length > 0 && (
               <Command.Group
                 heading={
                   <span className="px-2 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -217,9 +239,10 @@ export function CommandPalette() {
                   </span>
                 }
               >
-                {coursesQ.data.items.map((c) => (
+                {courseResults.map((c) => (
                   <PaletteItem
                     key={c.id}
+                    value={courseValue(c.id)}
                     onSelect={() => go(`/courses/${c.slug}`)}
                     icon={<BookOpen className="h-3.5 w-3.5" aria-hidden />}
                   >
@@ -232,6 +255,29 @@ export function CommandPalette() {
               </Command.Group>
             )}
 
+            {/* Navigate */}
+            <Command.Group
+              heading={
+                <span className="px-2 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {t("palette.section.navigate")}
+                </span>
+              }
+            >
+              {filteredNavItems.map((it) => {
+                const Icon = it.icon;
+                return (
+                  <PaletteItem
+                    key={it.id}
+                    value={it.id}
+                    onSelect={() => go(it.href)}
+                    icon={<Icon className="h-3.5 w-3.5" aria-hidden />}
+                  >
+                    {it.label}
+                  </PaletteItem>
+                );
+              })}
+            </Command.Group>
+
             {/* Theme */}
             <Command.Group
               heading={
@@ -241,6 +287,7 @@ export function CommandPalette() {
               }
             >
               <PaletteItem
+                value="theme-toggle"
                 onSelect={doToggleTheme}
                 icon={
                   resolvedTheme === "dark" ? (
@@ -266,6 +313,7 @@ export function CommandPalette() {
                 }
               >
                 <PaletteItem
+                  value="sign-out"
                   onSelect={doSignOut}
                   icon={<LogOut className="h-3.5 w-3.5" aria-hidden />}
                 >
@@ -281,16 +329,19 @@ export function CommandPalette() {
 }
 
 function PaletteItem({
+  value,
   onSelect,
   icon,
   children,
 }: {
+  value?: string;
   onSelect: () => void;
   icon?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <Command.Item
+      value={value}
       onSelect={onSelect}
       className={cn(
         "flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 font-body text-sm outline-none",

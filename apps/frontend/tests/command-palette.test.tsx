@@ -122,4 +122,33 @@ describe("CommandPalette", () => {
     expect(pushMock).toHaveBeenCalledWith("/courses");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  // QA iter16 regression: with a query, the default-highlighted item must
+  // be the top *result*, not the static Theme toggle. Previously, a query
+  // that emptied the Navigate group left "Switch to light" as the first
+  // rendered (and so selected) item, so Enter flipped the theme. Here we
+  // type a query that matches a nav item and assert the nav match — not the
+  // theme item — carries data-selected=true.
+  it("default highlight follows the query result, not the theme toggle", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    act(() => {
+      fireEvent.keyDown(document, { key: "k", metaKey: true });
+    });
+    await screen.findByRole("dialog");
+    // Type into the palette input so the Navigate group filters down to the
+    // "Catalog" match (which contains "cat"); "Home" and "Switch to light"
+    // do not match, so they should not be the default highlight.
+    const input = screen.getByPlaceholderText(
+      /search|jump|command/i,
+    ) as HTMLInputElement;
+    await user.click(input);
+    await user.keyboard("cat");
+    const catalog = await screen.findByText("Catalog");
+    const catalogItem = catalog.closest('[role="option"]');
+    expect(catalogItem).toHaveAttribute("data-selected", "true");
+    // "Home" should no longer render (filtered out) and the theme toggle,
+    // if present, must not be the default selection.
+    expect(screen.queryByText("Home")).not.toBeInTheDocument();
+  });
 });

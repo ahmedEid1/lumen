@@ -27,7 +27,7 @@ export function CourseOutcomes({ course }: { course: CourseDetail }) {
           {course.learning_outcomes.map((outcome, idx) => (
             <li key={idx} className="flex items-start gap-2 font-body text-sm">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              <span>{outcome}</span>
+              <span className="min-w-0 break-words">{outcome}</span>
             </li>
           ))}
         </ul>

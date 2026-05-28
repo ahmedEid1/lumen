@@ -170,8 +170,12 @@ export function CourseDetailView({ slug }: { slug: string }) {
 
   return (
     <div className="container mx-auto px-6 py-10">
+      {/* min-w-0 on both grid children so a long, unbreakable title or
+          outcome can't force the `1fr` track wider than the viewport.
+          Default grid `min-width: auto` is what overflowed mobile (375px)
+          by ~60px — same fix as the /learn syllabus aside. */}
       <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-8">
+        <div className="min-w-0 space-y-8">
           <CourseHeader course={course} />
 
           <div>

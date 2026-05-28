@@ -54,9 +54,11 @@ export function CourseSyllabus({
                   <div className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                     {t("courseDetail.module", { n: m.order + 1 })}
                   </div>
-                  <h3 className="font-display text-base leading-tight">{m.title}</h3>
+                  <h3 className="break-words font-display text-base leading-tight">
+                    {m.title}
+                  </h3>
                   {m.description && (
-                    <p className="mt-1 font-body text-sm text-muted-foreground">
+                    <p className="mt-1 break-words font-body text-sm text-muted-foreground">
                       {m.description}
                     </p>
                   )}

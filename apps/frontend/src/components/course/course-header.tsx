@@ -50,10 +50,10 @@ export function CourseHeader({ course }: { course: CourseDetail }) {
         ))}
       </div>
 
-      <h1 className="font-display text-4xl leading-tight tracking-tight md:text-5xl">
+      <h1 className="break-words font-display text-4xl leading-tight tracking-tight md:text-5xl">
         {course.title}
       </h1>
-      <p className="max-w-2xl font-body text-base leading-relaxed text-muted-foreground">
+      <p className="max-w-2xl break-words font-body text-base leading-relaxed text-muted-foreground">
         {course.overview}
       </p>
 
