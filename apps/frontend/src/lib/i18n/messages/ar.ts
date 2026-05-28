@@ -453,6 +453,8 @@ export const ar: Record<MessageKey, string> = {
   "admin.tile.observability.body": "أعماق الطوابير وآثار الوكلاء وجودة الاسترجاع.",
   "admin.tile.evals.title": "منصّة التقييم",
   "admin.tile.evals.body": "تشغيلات قياسية وتقييم بنموذج لغوي كحَكَم.",
+  "admin.tile.mcpClients.title": "عملاء MCP",
+  "admin.tile.mcpClients.body": "أصدر بيانات اعتماد بنمط OAuth لتكاملات MCP وأبطلها.",
   "admin.searchIndex.title": "فهرس البحث",
   "admin.searchIndex.body": "أعد بناء فهرس البحث من الدورات المنشورة. يعمل في الخلفية.",
   "admin.searchIndex.submit": "إعادة فهرسة الكتالوج",

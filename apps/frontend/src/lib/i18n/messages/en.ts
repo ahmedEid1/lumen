@@ -446,6 +446,8 @@ export const en = {
   "admin.tile.observability.body": "Queue depth, agent traces, retrieval quality.",
   "admin.tile.evals.title": "Eval harness",
   "admin.tile.evals.body": "Golden-dataset runs and LLM-as-judge scores.",
+  "admin.tile.mcpClients.title": "MCP clients",
+  "admin.tile.mcpClients.body": "Mint and revoke OAuth-style credentials for MCP integrations.",
   "admin.searchIndex.title": "Search index",
   "admin.searchIndex.body": "Rebuild the search index from published courses. Runs in the background.",
   "admin.searchIndex.submit": "Reindex catalog",
