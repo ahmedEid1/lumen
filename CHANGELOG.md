@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed (QA loop iters 8–12 — live-walk fixes)
+### Fixed (QA loop iters 8–13 — live-walk fixes)
+
+- **Tutor cost-reservation leak:** closing the tutor mid-turn now aborts
+  the server turn (`DELETE /tutor/turns/{id}`) instead of only dropping
+  the client connection — the reserved LLM cost is released immediately
+  rather than waiting for the 60s sweep.
 
 - **Streaming tutor crashed in production.** Every tutor turn (and the
   sweep beat) failed with `RuntimeError: got Future attached to a

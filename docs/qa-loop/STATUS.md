@@ -966,3 +966,44 @@ pre-fix). Reviewed the full diff (hook + 6 wirings) before push.
 ### Iter 12 — commits
 
 `50187e2` fix(qa-iter12): systemic dialog return-focus via useReturnFocus (WCAG 2.4.3)
+`11fa25d` fix(qa-iter12): reveal-secret dialog returns focus to the stable New-client trigger (codex P2)
+
+---
+
+## Iter 13 — 2026-05-28 — tutor-turn cancel + tutor-dialog descriptions
+
+**Source:** a read-only **audit subagent** (run in parallel during the
+iter-12 build) surfaced these. The walk this iteration was the audit's
+recon (parity sweep + a11y code scan + doc-contradiction sweep) plus a
+live walk of `/eval`, `/demo`, `/case-study` (all healthy; only the
+known/deferred cold-mount `/auth/refresh` 401 console noise).
+
+**Fix 1 — tutor-turn cancel (parity orphan + cost-reservation leak).**
+`DELETE /api/v1/tutor/turns/{id}` had no frontend caller; the SSE close
+only did `controller.abort()`, so closing the tutor mid-turn left the
+server orchestrating (burning LLM cost) until natural end / the 60s
+sweep. `useTutorStream` cleanup now fires DELETE when non-terminal
+(keepalive). Regression test added; live-verified the terminal-guard
+(a completed turn is not cancelled).
+
+**Fix 2 — two tutor dialogs missing descriptions.** Completes the iter-9
+sweep: added sr-only `DialogDescription` (course-detail tutor Dialog) +
+`SheetDescription` (`/learn` mobile tutor Sheet), reusing
+`tutor.emptyPrompt`.
+
+**Audit verdict on the other axes:** docs/comments **clean** (Meilisearch
+refs are correctly historical; no stale `legacy/` or `next/font/google`);
+code broken-spots **clean** (no shipped console.log, no swallowing
+catches, no auth/money TODOs). Net-new was just these two P2s — both
+fixed here.
+
+**Verified:** eslint + tsc + 357 frontend vitest green. (A transient
+local failure in `tutor-panel.test` was an artifact of my having
+streaming-enabled the local api for the cancel check — that test reads
+the live `/runtime-flags`; restoring the default cleared it. CI runs
+streaming-off, so it's a non-issue there.)
+
+### Iter 13 — commits
+
+`2acf531` fix(qa-iter13): abort the server turn when the tutor closes mid-stream (parity + cost-reservation leak)
+`f37affa` fix(qa-iter13): add accessible descriptions to the two tutor dialogs
