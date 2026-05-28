@@ -47,9 +47,7 @@ async def test_notifications_endpoint_serialises_out_of_enum_subkind(
     )
     await db_session.commit()
 
-    login = await client.post(
-        "/api/v1/auth/login", json={"email": email, "password": password}
-    )
+    login = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
     assert login.status_code == 200, login.text
     headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
@@ -87,9 +85,7 @@ async def test_notifications_endpoint_still_serialises_known_kinds(
     )
     await db_session.commit()
 
-    login = await client.post(
-        "/api/v1/auth/login", json={"email": email, "password": password}
-    )
+    login = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
     assert login.status_code == 200, login.text
     headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
