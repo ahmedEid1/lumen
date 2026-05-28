@@ -34,6 +34,7 @@ import {
 } from "@/lib/api/endpoints";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
+import { useReturnFocus } from "@/lib/a11y/use-return-focus";
 
 const NOTIFICATION_KINDS: NotificationKind[] = [
   "enrolled",
@@ -82,6 +83,9 @@ export default function ProfilePage() {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deletePwd, setDeletePwd] = useState("");
+  // Delete-confirmation Dialog is controlled (no <DialogTrigger>) —
+  // restore focus to the "Delete account" button on close (WCAG 2.4.3).
+  const onDeleteCloseAutoFocus = useReturnFocus(confirmDelete);
 
   // Notification preferences (Phase D4). Loaded once on mount and kept
   // in local state; saved as a whole-form PUT — the backend treats the
@@ -482,7 +486,10 @@ export default function ProfilePage() {
           if (!o) setDeletePwd("");
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent
+          className="max-w-md"
+          onCloseAutoFocus={onDeleteCloseAutoFocus}
+        >
           <DialogHeader>
             <DialogTitle className="text-destructive">
               {t("profile.delete.button")}

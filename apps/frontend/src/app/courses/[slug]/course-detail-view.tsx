@@ -25,6 +25,7 @@ import type { CourseDetail } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 import { qk } from "@/lib/query/keys";
+import { useReturnFocus } from "@/lib/a11y/use-return-focus";
 
 /**
  * Course detail page composition.
@@ -41,6 +42,11 @@ export function CourseDetailView({ slug }: { slug: string }) {
   const router = useRouter();
   const t = useT();
   const [tutorOpen, setTutorOpen] = useState(false);
+  // The tutor Dialog is controlled (no <DialogTrigger>) — capture the
+  // "Ask tutor" opener on the false→true transition and restore focus
+  // there on close (WCAG 2.4.3). Called unconditionally before the
+  // early returns below to keep hook order stable.
+  const onTutorCloseAutoFocus = useReturnFocus(tutorOpen);
 
   const courseQ = useQuery({
     queryKey: qk.course(slug),
@@ -207,6 +213,7 @@ export function CourseDetailView({ slug }: { slug: string }) {
         <DialogContent
           className="h-[80vh] max-w-xl overflow-hidden p-0"
           srLabelClose={t("tutor.closeButton")}
+          onCloseAutoFocus={onTutorCloseAutoFocus}
         >
           <DialogTitle className="sr-only">{t("tutor.askButton")}</DialogTitle>
           <TutorPanel courseId={course.id} />

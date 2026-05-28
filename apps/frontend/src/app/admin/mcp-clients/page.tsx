@@ -29,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
+import { useReturnFocus } from "@/lib/a11y/use-return-focus";
 
 /**
  * QA-iter4: admin/mcp-clients — closes the last parity gap from
@@ -316,6 +317,9 @@ function CreateClientDialog({
   const [userSearch, setUserSearch] = useState("");
   const [name, setName] = useState("");
   const [scopesCsv, setScopesCsv] = useState("*");
+  // Controlled dialog (no <DialogTrigger>) — restore focus to the
+  // "New client" button on close (WCAG 2.4.3).
+  const onCloseAutoFocus = useReturnFocus(open);
 
   // Codex rescue #2: search-driven owner picker. The admin/users
   // endpoint defaults to the 50 newest users, so a fixed dropdown
@@ -373,7 +377,7 @@ function CreateClientDialog({
   };
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent>
+      <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>Mint a new MCP client</DialogTitle>
           <DialogDescription>
@@ -520,6 +524,9 @@ function RevealSecretDialog({
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  // Controlled dialog (no <DialogTrigger>) — restore focus to the
+  // opener on close (WCAG 2.4.3).
+  const onCloseAutoFocus = useReturnFocus(!!secret);
   const onCopy = async () => {
     if (!secret) return;
     try {
@@ -532,7 +539,7 @@ function RevealSecretDialog({
   };
   return (
     <Dialog open={!!secret} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent>
+      <DialogContent onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>Client minted — copy the secret now</DialogTitle>
           <DialogDescription>

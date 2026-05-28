@@ -24,6 +24,7 @@ import type {
 } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { useT } from "@/lib/i18n/provider";
+import { useReturnFocus } from "@/lib/a11y/use-return-focus";
 import { cn } from "@/lib/utils";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
@@ -63,6 +64,10 @@ export function AIOutlineModal({ onClose }: { onClose: () => void }) {
   const [targetModules, setTargetModules] = useState(4);
   const [generating, setGenerating] = useState(false);
   const [outline, setOutline] = useState<CourseOutline | null>(null);
+  // Controlled dialog with no <DialogTrigger> — mounted only while
+  // open, so it's effectively always open here. Capture the opener on
+  // first render so focus returns there on close (WCAG 2.4.3).
+  const onCloseAutoFocus = useReturnFocus(true);
 
   async function handleGenerate() {
     if (!brief.trim()) return;
@@ -115,6 +120,7 @@ export function AIOutlineModal({ onClose }: { onClose: () => void }) {
       <DialogContent
         className="flex max-h-[90vh] w-full max-w-3xl flex-col gap-4 overflow-hidden p-6 sm:p-8"
         srLabelClose={t("common.cancel")}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
           <div className="flex items-center gap-2">

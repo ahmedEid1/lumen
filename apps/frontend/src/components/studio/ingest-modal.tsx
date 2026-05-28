@@ -25,6 +25,7 @@ import {
 } from "@/lib/api/endpoints";
 import { useT } from "@/lib/i18n/provider";
 import { qk } from "@/lib/query/keys";
+import { useReturnFocus } from "@/lib/a11y/use-return-focus";
 import { cn } from "@/lib/utils";
 
 /**
@@ -74,6 +75,10 @@ export function IngestModal({ open, onClose }: IngestModalProps) {
   const [committing, setCommitting] = useState(false);
   const [payload, setPayload] = useState<IngestPayload | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
+
+  // Controlled dialog with no <DialogTrigger> — Radix can't restore
+  // focus to the opener on close, so capture it ourselves (WCAG 2.4.3).
+  const onCloseAutoFocus = useReturnFocus(open);
 
   // Reset when the modal closes so re-opening starts fresh.
   useEffect(() => {
@@ -170,6 +175,7 @@ export function IngestModal({ open, onClose }: IngestModalProps) {
       <DialogContent
         className="flex max-h-[90vh] w-full max-w-3xl flex-col gap-6 overflow-y-auto p-6 sm:p-8"
         srLabelClose={t("studio.import.cancel")}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
           <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
