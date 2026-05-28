@@ -186,7 +186,50 @@ real orphans are:
 Health endpoints (`/health/live`, `/health/ready`) excluded — used by
 docker healthchecks + CI, not the SPA.
 
-### Iter 2 — batch 1 (this commit)
+### Iter 2 — walk findings
+
+Surfaces walked beyond iter 1's coverage:
+
+- **`/blog`, `/case-study`, `/eval/methodology`** — render clean, no
+  fixes needed. Per-route titles populate. No broken links.
+- **`/courses/[slug]/preview/[lessonId]`** — **parity gap found**.
+  The free-preview feature was wired end-to-end (column +
+  auth-bypass branch + UI link + page) but **zero seeded lessons
+  had is_preview=True**, so the link never surfaced and the
+  public-preview code path never fired in real use. Fixed via
+  seed update (first lesson of first module per course) + alembic
+  migration 0029 backfilling existing rows. After deploy: 11
+  preview lessons live.
+- **`/studio/draft/[courseId]/replay`** — renders with proper play-
+  by-play structure, replay totals, accept/revise/restart CTAs.
+  No findings.
+- **`/admin/observability/llm-calls/[callId]`** — renders the call
+  trace with header + steps. No findings.
+- **`/dashboard/tutor/[conv]/turn/[msg]`** — renders with agent run
+  totals, underlying LLM call, step-by-step timeline, retrieval
+  audits. No findings.
+- **`/admin/evals/[suite]`** — **prod-only data gap found**.
+  Showed "No runs yet for this suite" on prod even though
+  /eval/public had a promoted tutor run with mean=+0.93. SSH'd
+  to prod box → `docker exec lumen-prod-api-1 ls /app/evals/
+  reports/` returned only `.gitkeep`. Reports + PROMOTED.json
+  live on the container's ephemeral filesystem; every image
+  rebuild restores from the build snapshot, wiping the reports
+  the eval-baseline workflow had written. Fixed via named
+  `eval-reports` volume in docker-compose.prod.yml mounted on
+  api + worker. Operator must re-run eval-baseline post-deploy
+  to repopulate the surface (historical reports unrecoverable).
+- **`/courses/[slug]/discussions/[id]`** — skipped, no seeded
+  threads. Verified the parent /courses/[slug]/discussions
+  empty-state in iter 1.
+- **`/verify-email` token flow** — skipped at the token level; the
+  static page renders correctly and the cancellation race fix
+  shipped in qa-iter1's c7d2587.
+- **`/admin/evals/[suite]/[reportId]`** — would require a promoted
+  report on the local dev DB (file-based, none present in dev).
+  Covered by the volume-persistence fix.
+
+### Iter 2 — batch 1 (d7bb1cb)
 
 - Deleted `apps/backend/app/api/v1/search.py` + removed the
   `include_router` in `app/api/router.py`. Migrated the 4
@@ -197,4 +240,31 @@ docker healthchecks + CI, not the SPA.
   `<ExportDataCard>` between sessions + danger-zone. Click →
   fetches the JSON payload → downloads as
   `lumen-export-YYYY-MM-DD.json`. i18n keys added EN + AR.
+
+### Iter 2 — batch 2 (3ced529 + f052bee)
+
+- Demo + ts-variance seeds set `is_preview=True` on the first
+  lesson of the first module per course.
+- Alembic migration 0029 backfills the same on existing rows
+  (idempotent seed wouldn't touch them on prod).
+- Codex review caught a CI line-length blip (f052bee — ruff
+  format on `app/seeds/demo.py`).
+
+### Iter 2 — batch 3 (ae9124b)
+
+- Persists eval reports across image rebuilds via named volume
+  `eval-reports` mounted at `/app/evals/reports` on api + worker.
+  Post-deploy operator step: re-run eval-baseline workflow to
+  repopulate /eval/public (historical reports unrecoverable).
+
+### Iter 2 — parity gaps deferred to iter 3
+
+Documented but not yet shipped:
+
+| Endpoint | Decision |
+|----------|----------|
+| `GET /api/v1/admin/llm-calls/summary` | Cost rollup card on `/admin/observability`. ~150 LoC. |
+| `GET /api/v1/admin/rate-limit-stats` | Observability card. ~120 LoC. |
+| `POST /api/v1/admin/evals/runs` | "Run new eval" button + suite picker. ~200 LoC + a backend that doesn't block 60s synchronously (current impl is sync). |
+| `GET/POST/DELETE /api/v1/admin/mcp-clients` (+ `{id}`) | Full new admin page; Phase I1 MCP CRUD has no UI. ~400 LoC. |
 
