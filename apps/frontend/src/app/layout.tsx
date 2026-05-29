@@ -12,6 +12,7 @@ import { interDisplay, interBody, jetbrainsMono } from "@/lib/fonts";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://lumen.ahmedhobeishy.tech"),
   title: { default: "Lumen — Learn what you actually use.", template: "%s · Lumen" },
   description:
     "AI-first learning platform with a tutor grounded in the course itself, multi-modal authoring, and verifiable credentials.",
