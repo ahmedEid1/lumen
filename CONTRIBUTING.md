@@ -5,8 +5,8 @@ Thanks for your interest! Here's how to get set up and how we work.
 ## Local setup
 
 ```bash
-git clone https://github.com/ahmedEid1/E-Learning-Platform.git
-cd E-Learning-Platform
+git clone https://github.com/ahmedEid1/lumen.git
+cd lumen
 cp .env.example .env
 make up
 ```

@@ -4,9 +4,9 @@
   "title": "Lumen",
   "description": "Self-hostable agentic-AI LMS: catalog, RAG tutor, FSRS reviews, AI authoring, ingest.",
   "version": "1.1.0",
-  "websiteUrl": "https://github.com/ahmedEid1/E-Learning-Platform/blob/main/docs/mcp.md",
+  "websiteUrl": "https://github.com/ahmedEid1/lumen/blob/main/docs/mcp.md",
   "repository": {
-    "url": "https://github.com/ahmedEid1/E-Learning-Platform",
+    "url": "https://github.com/ahmedEid1/lumen",
     "source": "github",
     "subfolder": "apps/backend/app/mcp"
   },

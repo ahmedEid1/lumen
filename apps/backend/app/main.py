@@ -346,7 +346,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
         openapi_url="/openapi.json",
         lifespan=lifespan,
-        contact={"name": "Lumen", "url": "https://github.com/ahmedEid1/E-Learning-Platform"},
+        contact={"name": "Lumen", "url": "https://github.com/ahmedEid1/lumen"},
         license_info={"name": "MIT"},
     )
 

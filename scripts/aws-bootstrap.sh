@@ -8,7 +8,7 @@
 # before mutating.
 #
 # Usage (as root, via sudo):
-#   curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/main/scripts/aws-bootstrap.sh -o bootstrap.sh
+#   curl -fsSL https://raw.githubusercontent.com/ahmedEid1/lumen/main/scripts/aws-bootstrap.sh -o bootstrap.sh
 #   chmod +x bootstrap.sh
 #   sudo ./bootstrap.sh
 #
@@ -274,7 +274,7 @@ $(free -h | awk 'NR==1 || NR==2 || NR==3')
 Next (as $ADMIN_USER — log out and back in so docker group takes effect):
 
   ssh $ADMIN_USER@$PUBLIC_IP
-  git clone https://github.com/ahmedEid1/E-Learning-Platform.git lumen
+  git clone https://github.com/ahmedEid1/lumen.git lumen
   cd lumen
   cp .env.example .env.production
   # Source the values this script just generated so APP_DOMAIN +

@@ -10,15 +10,14 @@ Lumen started in late 2020 as a Django side-project — a learning platform for 
 
 Public deploy on AWS t4g.small (Graviton2 ARM, 2 vCPU + 2 GB RAM) — Caddy 2 fronts a single `docker-compose.prod.yml` running FastAPI + Celery + Postgres 17 (pgvector) + Redis 7 + MinIO. Real LLM calls via Groq Llama 3.3 70B; retrieval embeddings via Cloudflare Workers AI (`@cf/baai/bge-small-en-v1.5`). Runbook: [`docs/deployment/aws-vps.md`](docs/deployment/aws-vps.md).
 
-[![CI](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmedEid1/E-Learning-Platform/actions/workflows/ci.yml)
+[![CI](https://github.com/ahmedEid1/lumen/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmedEid1/lumen/actions/workflows/ci.yml)
 [![authoring eval: 3.85/5 (n=10)](https://img.shields.io/badge/authoring%20eval-3.85%2F5%20(n%3D10)-success)](docs/eval/authoring-n10-groq-20260525.jsonl)
 [![MCP registry](https://img.shields.io/badge/MCP%20registry-io.github.ahmedEid1%2Flumen-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.ahmedEid1%2Flumen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 [![Watch the captioned walkthrough →](docs/screencast/walkthrough-poster.jpg)](docs/screencast/walkthrough.mp4)
 
-*Silent 1:50 captioned walkthrough — landing → multi-agent tutor → agent reasoning panel → observable trace → self-critique authoring replay → admin observability. A voiced Loom is queued for re-record once the live demo lands; script at [`docs/release/loom-recording-script.md`](docs/release/loom-recording-script.md).*
-<!-- LOOM_URL_TBD: replace this captioned-walkthrough block with a Loom URL once the voiced version is recorded against the live demo -->
+*Silent 1:50 captioned walkthrough — landing → multi-agent tutor → agent reasoning panel → observable trace → self-critique authoring replay → admin observability.*
 
 ![Lumen home — Workbench UI redesign, lime accent on a dark canvas](docs/screenshots/hero.png)
 
@@ -33,16 +32,8 @@ Lumen is the live demo of how multi-agent systems, retrieval-augmented generatio
 - **AI-assisted authoring** — brief → outline → lesson bodies → quizzes; nothing auto-persists.
 - **Spaced-repetition reviews** — FSRS-6 scheduler; every completed quiz joins the learner's queue.
 - **Open Badges 3.0** — Ed25519-signed verifiable credentials; PDF certificate as the human-readable fallback.
-- **Observable agent traces** — every LLM call recorded with tokens, cost, latency, and (soon) the planner's tool-call log.
+- **Observable agent traces** — every LLM call recorded with tokens, cost, and latency, plus the planner's plan and which tools fired.
 - **Eval suite** — 30-item tutor + 10-item authoring + 10-item ingest golden datasets; LLM-as-judge; CI smoke gate.
-
-## Going live — operator handoff
-
-If you've cloned this and want to take the streaming demo live, the
-4-step operator handoff (flag flip → sealed eval run → screencap →
-repo rename) is at [`docs/release/operator-handoff.md`](docs/release/operator-handoff.md).
-Until those steps run, code lands flag-OFF and the public `/eval`
-surface stays honest-empty — by design.
 
 ## What to look at first
 
@@ -127,7 +118,7 @@ flowchart LR
     judge --> provider
 ```
 
-Architecture B+: AI-first OSS LMS. Provider-agnostic LLM layer; the live demo runs Groq Llama 3.3 70B for $0, prod-ready for Anthropic or OpenAI via the same `LLMProvider` abstraction. Every agent call goes through the cost-meter so observability and the per-user 24h budget guard work identically across providers. See [docs/architecture.md](docs/architecture.md) for the full topology.
+Architecture B+: AI-first OSS LMS. Provider-agnostic LLM layer; the live demo runs Groq Llama 3.3 70B on Groq's free tier, prod-ready for Anthropic or OpenAI via the same `LLMProvider` abstraction. Every agent call goes through the cost-meter so observability and the per-user 24h budget guard work identically across providers. See [docs/architecture.md](docs/architecture.md) for the full topology.
 
 ---
 
@@ -174,6 +165,8 @@ The resume bullets, with links to the code. Every item below is on the release b
 
 ## Eval scores
 
+> **How to read these numbers.** Three golden suites, judged by an LLM-as-judge and published whole — not a curated highlight reel. Authoring scores 3.85/5 (n=10) — strong. Tutor (2.33/5) and ingest (0.83/5) are early, with documented causes (below), not hidden. The point of publishing the weak numbers is that every score here is measured, reproducible, and gated by a CI smoke on every PR — so a regression is a public, falsifiable signal rather than a silent one.
+
 ### Headline number
 
 **Authoring suite, n=10, judge = Llama 3.3 70B (Groq): mean overall 3.85/5.** Per-axis breakdown — coverage 4.0, scope 4.0, learning_arc 3.9, brief_fidelity 3.5. All 10/10 items judged, zero judge errors. Full JSONL: [`docs/eval/authoring-n10-groq-20260525.jsonl`](docs/eval/authoring-n10-groq-20260525.jsonl) (10 individual items + summary record). Reproduce locally with the snippet below.
@@ -194,6 +187,8 @@ docker compose exec api python -m app.evals run --suite authoring
 
 Each item is scored 0–5 by an LLM-as-judge on suite-specific axes (`faithfulness`, `citation_correctness`, `helpfulness` for tutor; `coverage`, `learning_arc`, `scope`, `brief_fidelity` for authoring; `chunking_quality`, `metadata_completeness` for ingest). Reports carry per-axis means, an overall mean, and a regression diff vs. the previous run. CI gates a 3-item smoke on every PR via [`.github/workflows/pnpm-eval-smoke.yml`](.github/workflows/pnpm-eval-smoke.yml).
 
+**Current focus:** raise the tutor citation score (align golden `must_cite_ids` with retrieved chunks) and the ingest score (chapter-boundary detection in the v2 chunker). Both are tracked as follow-ups; the scores above update when those land.
+
 ---
 
 ## Run it locally
@@ -201,8 +196,8 @@ Each item is scored 0–5 by an LLM-as-judge on suite-specific axes (`faithfulne
 **Prereqs.** Docker Desktop 4.30+ (or Docker Engine 27 + Compose v2). Optional: an LLM API key — a Groq key is recommended for the free tier; without one, the AI features fall back to the deterministic `noop` provider so the rest of the app still works.
 
 ```bash
-git clone https://github.com/ahmedEid1/E-Learning-Platform.git
-cd E-Learning-Platform
+git clone https://github.com/ahmedEid1/lumen.git
+cd lumen
 cp .env.example .env
 docker compose up
 make migrate
@@ -230,17 +225,17 @@ The same `LLMProvider` abstraction also accepts native Anthropic (`LLM_PROVIDER=
 
 ---
 
-## Deploy it (AWS EC2 t4g.small, free through Dec 31 2026)
+## Deploy it (AWS EC2 t4g.small)
 
-The live demo runs on **one** AWS EC2 t4g.small Graviton2 VM (2 vCPU + 2 GB RAM + 30 GB gp3, ARM64 Ubuntu 24.04) — covered by AWS's t4g.small free-trial promo through Dec 31 2026 and absorbed by the new-account Free Plan credits before that. The unmodified `docker-compose.prod.yml` brings up FastAPI + Celery worker + beat + Postgres-pgvector + Redis + MinIO + a containerised Caddy 2 that auto-fetches a Let's Encrypt cert. The 2 GB RAM cap is handled by a 4 GB swapfile + tuned Postgres config in the bootstrap script. Cloudflare's DNS proxy in front is an optional next step, not a prerequisite.
+The live demo runs on **one** AWS EC2 t4g.small Graviton2 VM (2 vCPU + 2 GB RAM + 30 GB gp3, ARM64 Ubuntu 24.04). The unmodified `docker-compose.prod.yml` brings up FastAPI + Celery worker + beat + Postgres-pgvector + Redis + MinIO + a containerised Caddy 2 that auto-fetches a Let's Encrypt cert. The 2 GB RAM cap is handled by a 4 GB swapfile + tuned Postgres config in the bootstrap script. Cloudflare's DNS proxy in front is an optional next step, not a prerequisite.
 
 tl;dr after the EC2 instance is running and you've SSHed in:
 
 ```bash
 ssh -i ~/.ssh/lumen-prod.pem ubuntu@<elastic-ip>
-curl -fsSL https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/main/scripts/aws-bootstrap.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/ahmedEid1/lumen/main/scripts/aws-bootstrap.sh | sudo bash
 # log out, log back in as the new admin user, then:
-git clone https://github.com/ahmedEid1/E-Learning-Platform.git lumen && cd lumen
+git clone https://github.com/ahmedEid1/lumen.git lumen && cd lumen
 cp .env.example .env.production    # fill APP_DOMAIN + secrets (see runbook step 5)
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 ```
@@ -278,7 +273,9 @@ Once installed, ask Claude `'list my Lumen courses'` and watch the MCP tool call
 
 ## Built by
 
-**Ahmed Hobeishy** — full-stack engineer (Python + TypeScript + DevOps), based in Essen, Germany. Building Lumen as the centrepiece of an agentic-AI engineering portfolio. **Currently open to senior agentic-AI engineering roles.**
+**Ahmed Hobeishy** — AI / Agent Engineer based in Essen, Germany. I build LLM agents you can trust — measured with golden evals, per-claim citation checks, and full tracing — on a foundation of 3+ years shipping production software. Lumen is the centrepiece of that work.
+
+**Open to AI / Agent Engineer roles in Germany where evaluation and observability are first-class.**
 
 - LinkedIn: <https://www.linkedin.com/in/ahmedhobeishy/>
 - GitHub: <https://github.com/ahmedEid1>
@@ -290,4 +287,4 @@ Once installed, ask Claude `'list my Lumen courses'` and watch the MCP tool call
 
 MIT — see [LICENSE](LICENSE).
 
-Status: actively built. 1.1.0-agentic shipped 2026-05-22 (Phase H + all five Phase I items — MCP server, multi-agent tutor, self-critique authoring, learner-trace surface, learning-path agent). Wave 2 portfolio-activation prep completed 2026-05-25 (eval harness wiring + agentic-demo seed + screenshot pack + single-VM deploy runbook + MCP registry metadata + README truthing). The deploy target pivoted from Oracle Always Free to AWS t4g.small after Frankfurt Always-Free capacity stayed saturated for 24h and Oracle's PAYG region-subscription cap blocked the Stockholm fallback; the new AWS runbook (`docs/deployment/aws-vps.md`) ships ~$0/mo wall-clock on a new-account Free Plan through end-of-2026. Remaining work is operator-side: provision the EC2 instance and run the deploy runbook, mint the live tutor-eval score against Groq, record the 90-second Loom, and start applying. The MCP server is already published to `registry.modelcontextprotocol.io` as `io.github.ahmedEid1/lumen` v1.1.0.
+Status: live at [lumen.ahmedhobeishy.tech](https://lumen.ahmedhobeishy.tech). 1.1.0-agentic shipped 2026-05-22 (Phase H + all five Phase I items — MCP server, multi-agent tutor, self-critique authoring, learner-trace surface, learning-path agent). Public `/eval` is populated, and the MCP server is published to `registry.modelcontextprotocol.io` as `io.github.ahmedEid1/lumen` v1.1.0.

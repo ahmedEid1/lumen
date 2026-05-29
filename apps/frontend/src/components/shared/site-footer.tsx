@@ -17,7 +17,7 @@ export function SiteFooter() {
           </a>
           <a
             className="transition-colors duration-[160ms] hover:text-foreground"
-            href="https://github.com/ahmedEid1/E-Learning-Platform"
+            href="https://github.com/ahmedEid1/lumen"
           >
             GitHub
           </a>

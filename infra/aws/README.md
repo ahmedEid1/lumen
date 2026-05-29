@@ -72,7 +72,7 @@ sudo LUMEN_BOOTSTRAP_NONINTERACTIVE=1 \
 # current canonical default. If you fork and deploy from a different
 # branch, update this ref.
 curl -fsSL -o /tmp/aws-bootstrap.sh \
-  https://raw.githubusercontent.com/ahmedEid1/E-Learning-Platform/main/scripts/aws-bootstrap.sh
+  https://raw.githubusercontent.com/ahmedEid1/lumen/main/scripts/aws-bootstrap.sh
 chmod +x /tmp/aws-bootstrap.sh
 sudo /tmp/aws-bootstrap.sh
 ```

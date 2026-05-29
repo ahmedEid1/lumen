@@ -250,7 +250,7 @@ jobs:
               echo "::warning::~/lumen is not a working git checkout — re-cloning from origin"
               cd ~
               rm -rf lumen
-              git clone --depth=50 https://github.com/ahmedEid1/E-Learning-Platform.git lumen
+              git clone --depth=50 https://github.com/ahmedEid1/lumen.git lumen
               cd lumen
             fi
 
