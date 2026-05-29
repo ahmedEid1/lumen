@@ -41,6 +41,29 @@ export function EvalPublicView() {
   const hasPromoted = promotedSuites.length > 0;
   return (
     <div className="container mx-auto max-w-5xl px-6 py-14">
+      {/* Honest-numbers framing banner (F08) — additive, no logic change. */}
+      <section
+        className="surface mb-10 p-6"
+        aria-label="How to read these numbers"
+        data-testid="eval-honest-numbers-banner"
+      >
+        <div className="mb-2 flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+          <ShieldCheck className="h-3 w-3 text-primary" aria-hidden />
+          <span>How to read these numbers</span>
+        </div>
+        <p className="max-w-3xl font-body text-sm text-muted-foreground">
+          Three golden suites, judged honestly and published whole — strong and
+          weak alike. Authoring scores 3.85/5 (n=10). Tutor (2.33/5) and ingest
+          (0.83/5) are early, with documented causes: the tutor&apos;s low
+          citation score is a mismatch between the eval&apos;s expected citations
+          and what the retriever pulls (relevant chunks land, just not the
+          hardcoded ones), and ingest scored only the items that fully ingested
+          while the v1 chunker emits one module per video. The point of
+          publishing the weak numbers is that every score is measured,
+          reproducible, and gated by a CI smoke on every PR.
+        </p>
+      </section>
+
       {/* Hero */}
       <header className="mb-12 flex flex-col gap-3">
         <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
