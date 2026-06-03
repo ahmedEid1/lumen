@@ -20,9 +20,16 @@ class ProviderInfo(BaseModel):
 
 
 class ProviderRegistryOut(BaseModel):
-    """The full read-only registry response."""
+    """The full read-only registry response.
+
+    ``byok_enabled`` mirrors ``Settings.feature_byok_enabled`` so the
+    frontend tab can gate itself on the server's flag instead of guessing
+    (Gate-B fix: with the flag off the registry is empty and the flag is
+    ``False`` — the whole surface reads inert).
+    """
 
     providers: list[ProviderInfo]
+    byok_enabled: bool = True
 
 
 __all__ = ["ProviderInfo", "ProviderRegistryOut"]

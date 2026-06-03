@@ -41,6 +41,7 @@ from app.models.user_llm_credential import (
 from app.repositories import audit as audit_repo
 from app.repositories import user_llm_credentials as cred_repo
 from app.services.byok import build_provider_from_spec
+from app.services.byok import is_auth_error as byok_is_auth_error
 from app.services.capabilities import can_use_byok
 from app.services.llm import ChatMessage
 from app.services.llm_providers import PROVIDER_REGISTRY, get_spec
@@ -166,9 +167,22 @@ async def upsert(
         data={"provider": provider, "model": model},
     )
 
-    # Auto-validate ONCE on create (no auto-revalidate loop).
+    # Auto-validate ONCE on create (no auto-revalidate loop). The probe
+    # shares the manual-validate anti-oracle caps (Gate-A fix): when the
+    # caps are exhausted the credential is still stored, just unvalidated —
+    # the UI's manual validate (itself capped) picks it up later. Storage
+    # is not the oracle; the probe is.
     if is_create:
-        await _run_validation(db, user=user, cred=cred, api_key=api_key, count_audit=True)
+        try:
+            await _enforce_validation_caps(db, user.id)
+        except ByokValidateRateLimitedError:
+            log.info(
+                "byok_auto_validate_skipped_capped",
+                user_id=user.id,
+                provider=provider,
+            )
+        else:
+            await _run_validation(db, user=user, cred=cred, api_key=api_key, count_audit=True)
 
     return cred
 
@@ -252,6 +266,26 @@ async def _count_distinct_keys_today(db: AsyncSession, user_id: str) -> int:
     return int((await db.execute(stmt)).scalar_one() or 0)
 
 
+async def _enforce_validation_caps(db: AsyncSession, user_id: str) -> None:
+    """Raise when the anti-oracle probe caps are exhausted (R-S4).
+
+    ≤5 validations/10min and ≤10 distinct fingerprints/day, counted from
+    the audit trail so manual validates and create-time auto-validates
+    share one budget (Gate-A fix: the auto-validate path previously ran
+    uncapped, so delete/recreate cycling gave unlimited free probes).
+    """
+    if await _count_recent_validations(db, user_id) >= _VALIDATE_MAX_PER_WINDOW:
+        raise ByokValidateRateLimitedError(
+            "Too many validation attempts. Try again later.",
+            details={"window_minutes": 10},
+        )
+    if await _count_distinct_keys_today(db, user_id) >= _DISTINCT_KEY_MAX_PER_DAY:
+        raise ByokValidateRateLimitedError(
+            "Too many distinct keys validated today. Try again later.",
+            details={"window": "day"},
+        )
+
+
 async def validate(db: AsyncSession, *, user: User, provider: str) -> tuple[str, str]:
     """Probe the stored key against the registry-fixed base (R-S4).
 
@@ -265,16 +299,7 @@ async def validate(db: AsyncSession, *, user: User, provider: str) -> tuple[str,
         # No stored credential → cannot validate (must store before validate).
         raise ByokCredentialNotFoundError("No credential to validate for that provider.")
 
-    if await _count_recent_validations(db, user.id) >= _VALIDATE_MAX_PER_WINDOW:
-        raise ByokValidateRateLimitedError(
-            "Too many validation attempts. Try again later.",
-            details={"window_minutes": 10},
-        )
-    if await _count_distinct_keys_today(db, user.id) >= _DISTINCT_KEY_MAX_PER_DAY:
-        raise ByokValidateRateLimitedError(
-            "Too many distinct keys validated today. Try again later.",
-            details={"window": "day"},
-        )
+    await _enforce_validation_caps(db, user.id)
 
     api_key = secrets_crypto.decrypt(cred.enc_blob).decode("utf-8")
     return await _run_validation(db, user=user, cred=cred, api_key=api_key, count_audit=True)
@@ -306,9 +331,10 @@ async def _run_validation(
             message = "Valid"
         except Exception as exc:
             # Normalize: classify auth-ish failures as invalid; everything
-            # else as a transient error. NEVER surface the raw exception text.
-            name = type(exc).__name__.lower()
-            if "auth" in name or "permission" in name or "apikey" in name or "401" in str(exc)[:8]:
+            # else as a transient error. NEVER surface the raw exception
+            # text. Shares byok.is_auth_error so validation and dispatch
+            # (ADR-0027 §4 item 3) classify identically.
+            if byok_is_auth_error(exc):
                 status = VALIDATION_INVALID
                 message = "Invalid key"
             else:

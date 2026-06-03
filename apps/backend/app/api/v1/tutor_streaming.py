@@ -40,16 +40,20 @@ from app.core.cost_scripts import (
 from app.core.errors import (
     AppError,
     NotFoundError,
+    QuotaExceededError,
     TutorConcurrencyLimitError,
     TutorGlobalCapError,
     TutorIpCapError,
     TutorUserCapError,
 )
 from app.core.ratelimit import limiter
+from app.models.llm_call import BILLING_BYOK
 from app.models.tutor_turn_job import TERMINAL_TURN_STATUSES, TURN_STATUS_ABORTED
 from app.services import byok as byok_service
+from app.services.llm_call_log import quota_limits, user_request_count
 from app.services.redis_streams import check_trim, consume_stream
 from app.services.tutor_turn_service import (
+    count_active_turns_in_window,
     create_turn,
     get_turn_for_user,
     mark_terminal,
@@ -162,24 +166,27 @@ async def post_turn(
     redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=False)
     user_concurrency_key = f"concurrent:user:{user.id}"
 
-    async def _release_reservation() -> None:
+    async def _release_reservation(*, release_cost: bool = True) -> None:
         """L33-rescue P1: full reservation rollback on post-reserve
-        failures. Releases both the cost budget (negative-delta
-        reconcile) and the concurrency slot. Wrapped in suppress
-        because a Redis flake during cleanup shouldn't mask the
-        underlying error."""
+        failures. Releases the cost budget (negative-delta reconcile)
+        only when this turn actually reserved it — a BYOK turn skips the
+        dollar reservation (Gate-A fix), and reconciling unheld cost
+        would free platform budget that was never taken. Concurrency is
+        always released. Wrapped in suppress because a Redis flake
+        during cleanup shouldn't mask the underlying error."""
         import contextlib
 
-        with contextlib.suppress(Exception):
-            from app.core.cost_scripts import reconcile_cost
+        if release_cost:
+            with contextlib.suppress(Exception):
+                from app.core.cost_scripts import reconcile_cost
 
-            await reconcile_cost(
-                redis_client,
-                user_key=f"cost:user:{user.id}",
-                ip_key=f"cost:ip:{client_ip}",
-                global_key="cost:global",
-                delta_microcents=-settings.tutor_estimate_microcents,
-            )
+                await reconcile_cost(
+                    redis_client,
+                    user_key=f"cost:user:{user.id}",
+                    ip_key=f"cost:ip:{client_ip}",
+                    global_key="cost:global",
+                    delta_microcents=-settings.tutor_estimate_microcents,
+                )
         with contextlib.suppress(Exception):
             await release_concurrency(redis_client, user_key=user_concurrency_key)
 
@@ -195,42 +202,72 @@ async def post_turn(
             raise TutorConcurrencyLimitError("Too many concurrent streaming turns for this user.")
         reservation_holds_concurrency = True
 
-        reserve_ok, reserve_tag = await reserve_cost(
-            redis_client,
-            user_key=f"cost:user:{user.id}",
-            ip_key=f"cost:ip:{client_ip}",
-            global_key="cost:global",
-            estimate_microcents=settings.tutor_estimate_microcents,
-            max_user_microcents=settings.tutor_cap_user_microcents,
-            max_ip_microcents=settings.tutor_cap_ip_microcents,
-            max_global_microcents=settings.tutor_cap_global_microcents,
-        )
-        if not reserve_ok:
-            # Release the slot we just acquired before raising —
-            # otherwise a flat-out-broke caller would slowly drain
-            # their own concurrency budget by retrying.
-            await release_concurrency(redis_client, user_key=user_concurrency_key)
-            reservation_holds_concurrency = False
-            if reserve_tag == "user_cap":
-                raise TutorUserCapError("Per-user cost cap reached.")
-            if reserve_tag == "ip_cap":
-                raise TutorIpCapError("Per-IP cost cap reached.")
-            if reserve_tag == "global_cap":
-                raise TutorGlobalCapError("Global cost cap reached for the day.")
-            # invalid_estimate — caller misuse, treat as 4xx.
-            raise TutorUserCapError(f"reservation rejected: {reserve_tag}")
-        reservation_holds_cost = True
-
-        # The reservation's microcent value converted to USD for the
-        # row. Decimal arithmetic so we don't accrue float drift
-        # across reconcile + sweep paths.
-        reserved_usd = Decimal(settings.tutor_estimate_microcents) / Decimal(USD_TO_MICROCENTS)
-
         # S5.12/R-S1'': resolve the foreground BYOK context at enqueue time
         # and persist its credential_id on the turn (never the key). The
         # worker re-resolves + decrypts from this id inside its trust
-        # boundary.
+        # boundary. Resolved BEFORE the dollar reservation (Gate-A fix): a
+        # BYOK turn pays the user's own provider, so it must neither consume
+        # nor be blocked by platform cost buckets (charter decision 5).
         byok_ctx = await byok_service.resolve_context(db, user_id=user.id)
+
+        if byok_ctx.credential_id is not None:
+            # Non-dollar BYOK request windows at enqueue (ADR-0027 §5).
+            # Terminal streamed turns are visible through the llm_calls
+            # rows the worker writes; the in-flight remainder through the
+            # non-terminal turn count — together they close the burst
+            # undercount. The route limiter + the concurrency slot above
+            # stay in force.
+            limit_24h, limit_1h = quota_limits(BILLING_BYOK)
+            for window_seconds, limit, dimension in (
+                (24 * 60 * 60, limit_24h, "requests_24h"),
+                (60 * 60, limit_1h, "requests_1h"),
+            ):
+                used = await user_request_count(db, user.id, window_seconds)
+                used += await count_active_turns_in_window(
+                    db, user_id=user.id, window_seconds=window_seconds
+                )
+                if used >= limit:
+                    await release_concurrency(redis_client, user_key=user_concurrency_key)
+                    reservation_holds_concurrency = False
+                    raise QuotaExceededError(
+                        "You've reached your request limit for now.",
+                        details={"dimension": dimension, "used": used, "limit": limit},
+                    )
+            # No platform dollar reservation for a BYOK turn; the worker's
+            # finally skips reconcile when reserved_microcents == 0.
+            reserved_usd = Decimal(0)
+        else:
+            reserve_ok, reserve_tag = await reserve_cost(
+                redis_client,
+                user_key=f"cost:user:{user.id}",
+                ip_key=f"cost:ip:{client_ip}",
+                global_key="cost:global",
+                estimate_microcents=settings.tutor_estimate_microcents,
+                max_user_microcents=settings.tutor_cap_user_microcents,
+                max_ip_microcents=settings.tutor_cap_ip_microcents,
+                max_global_microcents=settings.tutor_cap_global_microcents,
+            )
+            if not reserve_ok:
+                # Release the slot we just acquired before raising —
+                # otherwise a flat-out-broke caller would slowly drain
+                # their own concurrency budget by retrying.
+                await release_concurrency(redis_client, user_key=user_concurrency_key)
+                reservation_holds_concurrency = False
+                if reserve_tag == "user_cap":
+                    raise TutorUserCapError("Per-user cost cap reached.")
+                if reserve_tag == "ip_cap":
+                    raise TutorIpCapError("Per-IP cost cap reached.")
+                if reserve_tag == "global_cap":
+                    raise TutorGlobalCapError("Global cost cap reached for the day.")
+                # invalid_estimate — caller misuse, treat as 4xx.
+                raise TutorUserCapError(f"reservation rejected: {reserve_tag}")
+            reservation_holds_cost = True
+
+            # The reservation's microcent value converted to USD for the
+            # row. Decimal arithmetic so we don't accrue float drift
+            # across reconcile + sweep paths.
+            reserved_usd = Decimal(settings.tutor_estimate_microcents) / Decimal(USD_TO_MICROCENTS)
+
         turn = await create_turn(
             db,
             user_id=user.id,
@@ -253,9 +290,10 @@ async def post_turn(
     except Exception:
         # L33-rescue P1: if any post-reserve step fails (course
         # resolve already passed, but create_turn / flush / commit
-        # could still raise), release the reservation we hold.
+        # could still raise), release the reservation we hold. BYOK
+        # turns never hold cost, so only the slot comes back.
         if reservation_holds_concurrency or reservation_holds_cost:
-            await _release_reservation()
+            await _release_reservation(release_cost=reservation_holds_cost)
         raise
     finally:
         import contextlib

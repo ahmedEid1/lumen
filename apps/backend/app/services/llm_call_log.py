@@ -89,15 +89,22 @@ _BUDGET_WINDOW_SECONDS = 24 * 60 * 60
 
 
 async def _user_cost_last_24h(session: AsyncSession, user_id: str):
-    """Return the sum of ``cost_usd`` for ``user_id`` over 24h.
+    """Return the sum of platform-billed ``cost_usd`` for ``user_id`` over 24h.
 
     Excludes the ``__system__`` sentinel from the guard window —
     that bucket is metered for admin observability but isn't a
     per-user cap. ``COALESCE`` to zero so an empty window returns a
     valid number we can compare directly.
+
+    Gate-A fix: filters to ``billing_mode='platform'``. BYOK rows persist
+    their real informational cost (the user's own-provider spend on priced
+    models like gpt-4o-mini), and summing them here let own-key usage eat —
+    and eventually trip — the PLATFORM dollar budget. BYOK is capped by the
+    non-dollar request windows instead (charter decision 5 / DR-16).
     """
     stmt = select(func.coalesce(func.sum(LLMCall.cost_usd), 0)).where(
         LLMCall.user_id == user_id,
+        LLMCall.billing_mode == BILLING_PLATFORM,
         LLMCall.created_at
         > func.now() - func.make_interval(0, 0, 0, 0, 0, 0, _BUDGET_WINDOW_SECONDS),
     )
@@ -125,14 +132,66 @@ async def _user_request_count(session: AsyncSession, user_id: str, window_second
     return int((await session.execute(stmt)).scalar_one() or 0)
 
 
-def _quota_limits(billing_mode: str) -> tuple[int, int]:
-    """Return ``(limit_24h, limit_1h)`` for the billing mode (R-G1)."""
+def quota_limits(billing_mode: str) -> tuple[int, int]:
+    """Return ``(limit_24h, limit_1h)`` for the billing mode (R-G1).
+
+    Public: the streaming-turn enqueue path reuses these numbers for its
+    BYOK request windows (Gate-A fix — streaming turns never produce
+    ``llm_calls`` rows, so they enforce the same limits over
+    ``tutor_turn_jobs`` instead).
+    """
     s = get_settings()
     if billing_mode == BILLING_BYOK:
         # BYOK users get a higher 24h request ceiling (they pay their own
         # provider); the 1h burst window is shared.
         return int(s.byok_requests_24h), int(s.llm_user_request_quota_1h)
     return int(s.llm_user_request_quota_24h), int(s.llm_user_request_quota_1h)
+
+
+# Backwards-compatible private alias (existing call sites/tests).
+_quota_limits = quota_limits
+
+
+async def user_request_count(session: AsyncSession, user_id: str, window_seconds: int) -> int:
+    """Public window counter for the streaming enqueue path (Gate-A fix)."""
+    return await _user_request_count(session, user_id, window_seconds)
+
+
+async def record_streamed_turn_row(
+    session: AsyncSession,
+    *,
+    user_id: str,
+    provider: str,
+    model: str,
+    cost_usd: float,
+    latency_ms: int,
+    status: str,
+    error_kind: str | None,
+    billing_mode: str,
+) -> None:
+    """Persist an ``llm_calls`` row for a terminal streamed tutor turn.
+
+    Gate-B fix / ADR-0027 §Consequences: streamed turns previously wrote no
+    ``llm_calls`` row at all, so they escaped the non-dollar request windows
+    and the admin ``billing_mode`` rollup. The worker calls this at the
+    terminal transition. Token counts aren't plumbed through the stream
+    usage events yet, so they persist as zero — the request COUNT and
+    ``billing_mode``/``cost_usd`` are the quota- and rollup-bearing fields.
+    """
+    await _persist_row(
+        session,
+        user_id=user_id,
+        feature="tutor.stream",
+        provider=provider,
+        model=model,
+        prompt_tokens=0,
+        completion_tokens=0,
+        cost_usd=cost_usd,
+        latency_ms=latency_ms,
+        status=status,
+        error_kind=error_kind,
+        billing_mode=billing_mode,
+    )
 
 
 async def _check_request_quota(
@@ -372,8 +431,9 @@ async def call_logged(
             )
 
         # ---------- Platform dollar guard (unchanged for platform users) ----------
-        # Run for both modes; BYOK rows cost $0 so this never trips them, but
-        # keeping it unconditional avoids a behavioral fork.
+        # Runs for both modes but the window sum is platform-rows-only
+        # (Gate-A fix — BYOK rows carry real informational cost for priced
+        # models, so an unfiltered sum let own-key spend trip this guard).
         current_spend = await _user_cost_last_24h(session, user_id)
         if current_spend is not None and current_spend > settings.llm_user_budget_24h_usd:
             await _persist_row(
@@ -416,6 +476,7 @@ async def call_logged(
 
     # ---------- Provider call (timed) ----------
     started = time.perf_counter()
+    byok_dispatch_exc: Exception | None = None
     try:
         try:
             response = await _invoke_provider(provider, messages, temperature)
@@ -442,9 +503,50 @@ async def call_logged(
                 error_kind=type(exc).__name__,
                 latency_ms=latency_ms,
             )
-            raise
+            if mode == BILLING_BYOK and ctx is not None:
+                # Adjudicated below, AFTER the finally releases this call's
+                # concurrency lease — the consent fallback re-enters
+                # call_logged, and the lease is fail-closed at the limit, so
+                # holding it through the retry would wedge max_concurrent=1.
+                byok_dispatch_exc = exc
+            else:
+                raise
     finally:
         await _release_concurrency_quiet(lease_client, lease_key)
+
+    if byok_dispatch_exc is not None:
+        # ADR-0027 §4 item 3 (Gate-B fix): an auth-class failure on a BYOK
+        # dispatch marks the credential invalid and — with the user's
+        # consent — retries THIS request on the platform model. Without
+        # consent the handler raises the redacted ByokProviderError.
+        # Non-auth (transient/rate-limit/timeout) failures re-raise as-is:
+        # item 4 forbids fallback there so cost ownership stays predictable.
+        from app.services import byok as byok_service  # cycle-safe local import
+
+        fallback = await byok_service.handle_dispatch_auth_failure(
+            session, ctx, byok_dispatch_exc
+        )
+        if fallback is None:
+            raise byok_dispatch_exc
+        fb_provider, fb_mode = fallback
+        log.info(
+            "byok_dispatch_platform_fallback",
+            user_id=user_id,
+            feature=feature,
+        )
+        # Re-enter with platform billing: the fallback call is platform
+        # usage, so platform request quotas and the dollar guard apply to
+        # it. Recursion depth is bounded at 1 — the platform mode can't
+        # take this branch.
+        return await call_logged(
+            fb_provider,
+            messages,
+            user_id=user_id,
+            feature=feature,
+            session=session,
+            temperature=temperature,
+            billing_mode=fb_mode,
+        )
 
     latency_ms = int((time.perf_counter() - started) * 1000)
     cost = compute_cost_usd(response.model, response.prompt_tokens, response.completion_tokens)

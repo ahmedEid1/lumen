@@ -11,6 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response
 
 from app.api.deps import CurrentUser, DBSession
+from app.core.config import get_settings
 from app.core.ratelimit import limiter
 from app.repositories import user_llm_credentials as cred_repo
 from app.schemas.common import OkResponse
@@ -27,7 +28,15 @@ router = APIRouter()
 
 @router.get("/me/llm-credentials", response_model=list[LLMCredentialPublic])
 async def list_my_credentials(user: CurrentUser, db: DBSession) -> list[LLMCredentialPublic]:
-    """List the user's live credentials — masked metadata only."""
+    """List the user's live credentials — masked metadata only.
+
+    Reads empty with ``feature_byok_enabled`` off (Gate-B fix): stored
+    rows stay intact for a later flag flip, but the surface is inert
+    during the flag-off deploy window — consistent with the write paths'
+    403 and the empty provider registry.
+    """
+    if not get_settings().feature_byok_enabled:
+        return []
     rows = await cred_repo.list_for_user(db, user.id)
     return [LLMCredentialPublic.model_validate(r) for r in rows]
 

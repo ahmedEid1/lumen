@@ -27,7 +27,7 @@ chain internally 0038 -> 0039 -> 0040; at integration the head of the
 landed chain (after S1/S2's revisions) replaces "0030" here.
 
 Revision ID: 0038
-Revises: 0030
+Revises: 0032
 Create Date: 2026-08-05
 """
 

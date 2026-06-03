@@ -155,6 +155,9 @@ export interface LLMProvider {
 
 export interface LLMProviderRegistry {
   providers: LLMProvider[];
+  /** Server's feature_byok_enabled flag — the settings tab gates on this
+   * (with the flag off the registry reads empty + false). */
+  byok_enabled: boolean;
 }
 
 export type LLMValidationStatus =

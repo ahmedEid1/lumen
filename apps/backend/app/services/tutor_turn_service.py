@@ -26,11 +26,35 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.tutor_turn_job import (
+    TERMINAL_TURN_STATUSES,
     TURN_STATUS_PENDING,
     TutorTurnJob,
 )
 
 log = get_logger(__name__)
+
+
+async def count_active_turns_in_window(
+    db: AsyncSession, *, user_id: str, window_seconds: int
+) -> int:
+    """COUNT the user's non-terminal turns created in the window.
+
+    Gate-A fix: BYOK streamed turns skip the platform dollar reservation,
+    so the enqueue path enforces the non-dollar BYOK request windows
+    instead — terminal turns are visible to that count through their
+    ``llm_calls`` rows (written by the worker at the terminal transition);
+    this counts the in-flight remainder so an enqueue burst can't
+    undercount. Index-covered by ``(user_id, created_at DESC)``.
+    """
+    from sqlalchemy import func, select
+
+    stmt = select(func.count(TutorTurnJob.id)).where(
+        TutorTurnJob.user_id == user_id,
+        TutorTurnJob.status.notin_(TERMINAL_TURN_STATUSES),
+        TutorTurnJob.created_at
+        > func.now() - func.make_interval(0, 0, 0, 0, 0, 0, window_seconds),
+    )
+    return int((await db.execute(stmt)).scalar_one() or 0)
 
 
 async def create_turn(

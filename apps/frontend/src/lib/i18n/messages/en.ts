@@ -1076,6 +1076,7 @@ export const en = {
   "blog.empty.body": "The first entries will trail the case study — design choices behind the agent tutor, the eval methodology, and the cost-latency math.",
 
   // BYOK — bring-your-own-key model config (S5 / ADR-0027 §Frontend)
+  "byok.unavailable": "Bring-your-own-key is not available right now. Your tutor runs on the free platform model.",
   "byok.title": "Your model",
   "byok.subtitle": "Use your own AI provider and key instead of the free platform model.",
   "byok.provider": "Provider",

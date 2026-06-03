@@ -39,8 +39,10 @@ from app.core.cost_scripts import (
 )
 from app.db.base import make_worker_engine
 from app.models.course import Course
+from app.models.llm_call import BILLING_BYOK, BILLING_PLATFORM, STATUS_ERROR, STATUS_OK
 from app.models.tutor_turn_job import TURN_STATUS_COMPLETE, TURN_STATUS_FAILED
 from app.services import byok as byok_service
+from app.services.llm_call_log import record_streamed_turn_row
 from app.services.redis_streams import emit_event, set_stream_ttl
 from app.services.tutor_orchestrator_stream import orchestrate_stream
 from app.services.tutor_subagents.retriever import RetrieverChunk
@@ -66,6 +68,20 @@ def run_turn(self, turn_id: str) -> None:
     asyncio.run(_run_turn_async(turn_id))
 
 
+def _stream_provider_name(byok_dispatch: dict[str, str] | None) -> str:
+    """Provider label for the streamed turn's llm_calls row."""
+    if byok_dispatch:
+        return byok_dispatch.get("transport", "byok")
+    return str(getattr(get_settings(), "llm_provider", "platform") or "platform")
+
+
+def _stream_model_name(byok_dispatch: dict[str, str] | None) -> str:
+    """Model label for the streamed turn's llm_calls row."""
+    if byok_dispatch:
+        return byok_dispatch.get("model", "unknown")
+    return str(getattr(get_settings(), "llm_model", "") or "unknown")
+
+
 async def _run_turn_async(turn_id: str) -> None:
     settings = get_settings()
     # Per-task NullPool engine — a Celery prefork task gets a fresh
@@ -89,6 +105,9 @@ async def _run_turn_async(turn_id: str) -> None:
     reservation_ip_key: str | None = None
     actual_cost_microcents: int = 0
     credential_id: str | None = None
+    byok_dispatch: dict[str, str] | None = None
+    final_cost_usd: float = 0.0
+    final_total_ms: int = 0
 
     try:
         async with Session() as db:
@@ -109,14 +128,19 @@ async def _run_turn_async(turn_id: str) -> None:
 
         # S5.12/R-S1'': re-resolve + decrypt the user's BYOK key IN THE WORKER
         # from the carried credential_id (never the key bytes — FR-BYOK-26).
-        # Returns None for the platform path (no cred / flag off / drift).
-        byok_dispatch = None
+        # Returns None for the platform path (no cred / flag off / consented
+        # drift-fallback). NOT wrapped in suppress (Gate-A fix): a
+        # no-consent drift raises ByokModelUnavailableError, which must FAIL
+        # the turn via the generic handler below — swallowing it silently
+        # dispatched the turn on the platform model against the user's
+        # explicit allow_platform_fallback=False.
         if credential_id:
-            with contextlib.suppress(Exception):
-                async with Session() as db:
-                    byok_dispatch = await byok_service.stream_dispatch_for_turn(
-                        db, credential_id=credential_id, user_id=user_id
-                    )
+            async with Session() as db:
+                byok_dispatch = await byok_service.stream_dispatch_for_turn(
+                    db, credential_id=credential_id, user_id=user_id
+                )
+                # _handle_drift may have flushed needs_attention — persist it.
+                await db.commit()
 
         # L32 — pgvector retrieval. Best-effort: a retrieval failure
         # degrades to "no course context" but doesn't fail the turn.
@@ -162,6 +186,8 @@ async def _run_turn_async(turn_id: str) -> None:
             if ev["event"] == "turn_complete":
                 cost_usd = float(ev["data"].get("cost_usd", 0.0) or 0.0)
                 actual_cost_microcents = int(cost_usd * USD_TO_MICROCENTS)
+                final_cost_usd = cost_usd
+                final_total_ms = int(float(ev["data"].get("total_ms", 0) or 0))
             await emit_event(
                 redis_client,
                 turn_id=turn_id,
@@ -169,9 +195,23 @@ async def _run_turn_async(turn_id: str) -> None:
                 data=ev["data"],
             )
 
-        # Terminal DB transition + stream TTL.
+        # Terminal DB transition + stream TTL. The llm_calls row makes the
+        # streamed turn visible to the non-dollar request windows and the
+        # admin billing_mode rollup (Gate-B fix / ADR-0027 §Consequences —
+        # streamed turns previously wrote no row at all).
         async with Session() as db:
             await mark_terminal(db, turn_id=turn_id, status=TURN_STATUS_COMPLETE)
+            await record_streamed_turn_row(
+                db,
+                user_id=user_id,
+                provider=_stream_provider_name(byok_dispatch),
+                model=_stream_model_name(byok_dispatch),
+                cost_usd=final_cost_usd,
+                latency_ms=final_total_ms,
+                status=STATUS_OK,
+                error_kind=None,
+                billing_mode=BILLING_BYOK if byok_dispatch else BILLING_PLATFORM,
+            )
             await db.commit()
 
         with contextlib.suppress(Exception):
@@ -179,6 +219,15 @@ async def _run_turn_async(turn_id: str) -> None:
 
     except Exception as exc:
         log.exception("tutor_turn_failed", extra={"turn_id": turn_id})
+        # ADR-0027 §4 item 3, streaming arm (Gate-B fix): an auth-class
+        # provider failure on a BYOK stream marks the credential invalid;
+        # the user's next turn resolves to platform (items 1/5) and the
+        # credential banner carries the notice. Best-effort by design.
+        if credential_id is not None and byok_service.is_auth_error(exc):
+            with contextlib.suppress(Exception):
+                async with Session() as db:
+                    await byok_service.mark_credential_invalid(db, credential_id)
+                    await db.commit()
         # Best-effort: mark the row failed + emit a turn_failed event.
         # Both wrapped in suppress so a DB-down or Redis-down state
         # doesn't trip another exception during cleanup.
@@ -190,6 +239,20 @@ async def _run_turn_async(turn_id: str) -> None:
                     status=TURN_STATUS_FAILED,
                     error_code=f"tutor.runtime: {type(exc).__name__}",
                 )
+                if user_id is not None:
+                    # Failed turns count toward the request windows too —
+                    # a failing key must not grant unmetered retries.
+                    await record_streamed_turn_row(
+                        db,
+                        user_id=user_id,
+                        provider=_stream_provider_name(byok_dispatch),
+                        model=_stream_model_name(byok_dispatch),
+                        cost_usd=0.0,
+                        latency_ms=0,
+                        status=STATUS_ERROR,
+                        error_kind=type(exc).__name__,
+                        billing_mode=BILLING_BYOK if byok_dispatch else BILLING_PLATFORM,
+                    )
                 await db.commit()
         with contextlib.suppress(Exception):
             await emit_event(

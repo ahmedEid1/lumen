@@ -218,11 +218,90 @@ def redact_provider_error(exc: BaseException) -> ByokProviderError:
     return ByokProviderError("Your provider rejected the request. Check your key.")
 
 
+# Auth-class markers in SDK exception type names: openai/anthropic raise
+# AuthenticationError / PermissionDeniedError on 401/403. Shared with the
+# validate probe so dispatch and validation classify identically.
+_AUTH_ERROR_MARKERS = ("auth", "permission", "apikey", "unauthorized", "forbidden")
+
+
+def is_auth_error(exc: BaseException) -> bool:
+    """Classify a provider failure as invalid-credential class (401/403).
+
+    By exception type name (the SDKs' contract) with an HTTP-status-prefix
+    fallback for thin clients that surface raw status text. Transient /
+    rate-limit / timeout errors are NOT auth errors (ADR-0027 §4 item 4:
+    those never fall back).
+    """
+    name = type(exc).__name__.lower()
+    if any(marker in name for marker in _AUTH_ERROR_MARKERS):
+        return True
+    head = str(exc)[:16].lstrip()
+    return head.startswith(("401", "403"))
+
+
+async def mark_credential_invalid(db: AsyncSession, credential_id: str) -> None:
+    """Mark a credential ``invalid`` after an auth-class dispatch failure.
+
+    Streaming-path arm of ADR-0027 §4 item 3: the turn has already failed
+    (no mid-stream re-dispatch), so only the marking applies here — the
+    user's NEXT turn resolves to platform per items 1/5 and the credential
+    banner carries the one-time notice.
+    """
+    cred = await cred_repo.get_by_id(db, credential_id)
+    if cred is not None and cred.last_validation_status != VALIDATION_INVALID:
+        cred.last_validation_status = VALIDATION_INVALID
+        await db.flush()
+        log.info(
+            "byok_credential_marked_invalid",
+            credential_id=credential_id,
+            provider=cred.provider,
+        )
+
+
+async def handle_dispatch_auth_failure(
+    db: AsyncSession, ctx: LLMContext, exc: BaseException
+) -> tuple[LLMProvider, str] | None:
+    """ADR-0027 §4 item 3 — the provider rejected the user's key at dispatch.
+
+    Marks the credential ``invalid`` (the one-time notice surfaces through
+    the credential-status banner), then applies the consent rule:
+
+    * ``allow_platform_fallback=True`` → return a platform
+      ``(provider, billing_mode)`` for THIS request;
+    * ``False`` → raise the redacted :class:`ByokProviderError` (never the
+      vendor's raw error).
+
+    Returns ``None`` when this wasn't an auth-class BYOK failure — the
+    caller re-raises the original exception (item 4: transient errors
+    surface cleanly, no fallback).
+    """
+    if not ctx.credential_id or not is_auth_error(exc):
+        return None
+    cred = await cred_repo.get_by_id(db, ctx.credential_id)
+    if cred is None:
+        return None
+    if cred.last_validation_status != VALIDATION_INVALID:
+        cred.last_validation_status = VALIDATION_INVALID
+        await db.flush()
+    log.info(
+        "byok_dispatch_auth_failed",
+        credential_id=cred.id,
+        provider=cred.provider,
+        error_kind=type(exc).__name__,
+        fallback=cred.allow_platform_fallback,
+    )
+    if cred.allow_platform_fallback:
+        return llm_service.get_provider(), BILLING_PLATFORM
+    raise redact_provider_error(exc) from exc
+
+
 __all__ = [
     "PLATFORM_CONTEXT",
     "LLMContext",
     "base_url_forbidden",
     "build_provider",
+    "handle_dispatch_auth_failure",
+    "is_auth_error",
     "redact_provider_error",
     "resolve_context",
     "stream_dispatch_for_turn",

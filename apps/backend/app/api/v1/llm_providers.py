@@ -11,6 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.deps import CurrentUser
+from app.core.config import get_settings
 from app.schemas.llm_provider import ProviderInfo, ProviderRegistryOut
 from app.services.llm_providers import PROVIDER_REGISTRY
 
@@ -22,8 +23,14 @@ async def list_llm_providers(_: CurrentUser) -> ProviderRegistryOut:
     """List allowlisted providers + their curated models.
 
     Requires authentication. Exposes ``provider``/``display_name``/``models``
-    only — never ``base_url`` or any secret.
+    only — never ``base_url`` or any secret. With ``feature_byok_enabled``
+    off the registry reads empty + ``byok_enabled=false`` (Gate-B fix —
+    "ALL of S5 inert" includes the read surface; the frontend tab gates on
+    this field).
     """
+    byok_enabled = bool(get_settings().feature_byok_enabled)
+    if not byok_enabled:
+        return ProviderRegistryOut(providers=[], byok_enabled=False)
     return ProviderRegistryOut(
         providers=[
             ProviderInfo(
@@ -32,5 +39,6 @@ async def list_llm_providers(_: CurrentUser) -> ProviderRegistryOut:
                 models=list(spec.models),
             )
             for spec in PROVIDER_REGISTRY.values()
-        ]
+        ],
+        byok_enabled=True,
     )
