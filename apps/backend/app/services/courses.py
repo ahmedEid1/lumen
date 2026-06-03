@@ -16,7 +16,13 @@ from app.models.course import Course, CourseStatus, Lesson, LessonType, Module
 from app.models.user import User
 from app.repositories import courses as courses_repo
 
+# Re-export the central authorizer's can_view_course (ADR-0026 §3 / S2.4) so
+# existing callers of ``courses.can_view_course`` are unchanged.
+from app.services.visibility import can_view_course
+
 log = get_logger(__name__)
+
+__all__ = ["can_view_course"]
 
 if TYPE_CHECKING:
     from app.schemas.course import (
@@ -421,19 +427,9 @@ async def slug_or_id(db: AsyncSession, key: str, *, with_modules: bool = False) 
     return course
 
 
-async def can_view_course(db: AsyncSession, course: Course, viewer: User | None) -> bool:
-    """Authoritative visibility check for the course detail endpoint.
-
-    Returns True for published courses, owners, admins, OR for learners who
-    are currently enrolled (regardless of course status). The last branch is
-    important: an instructor who archives a course must not lock out the
-    learners already paying it down.
-    """
-    if course.status == CourseStatus.published:  # noqa: published-check — PENDING S2.x migration
-        return True
-    if viewer is None:
-        return False
-    if viewer.is_admin() or course.owner_id == viewer.id:
-        return True
-    enrollment = await courses_repo.get_enrollment(db, user_id=viewer.id, course_id=course.id)
-    return enrollment is not None
+# ``can_view_course`` now lives in the central authorizer (ADR-0026 §3 / S2.4):
+# it is imported at module top and re-exported via ``__all__`` so existing
+# callers (courses.py, discussions.py, api/v1/discussions.py) keep their call
+# sites unchanged while routing through the single visibility predicate
+# (is_publicly_listed OR owner/admin/enrolled, with csam/illegal quarantine
+# suppression). See the import + __all__ near the top of this module.

@@ -33,6 +33,7 @@ from app.schemas.course import (
 from app.services import analytics as analytics_service
 from app.services import courses as courses_service
 from app.services import enrollment as enrollment_service
+from app.services import visibility as visibility_service
 
 router = APIRouter()
 
@@ -306,11 +307,11 @@ async def get_lesson(lesson_id: str, viewer: OptionalUser, db: DBSession) -> Les
     if course is None:
         raise NotFoundError("Course not found", code="course.not_found")
 
-    # `course.status` is `Mapped[CourseStatus]` declared as a String
-    # column without a TypeDecorator, so SQLAlchemy returns a plain
-    # str on read and `.value` blows up. Same trap also bit
-    # `user.role` and `lesson.type`.
-    if lesson.is_preview and str(course.status) == "published":  # noqa: published-check — PENDING S2.x migration
+    # A free-preview lesson is anonymously readable only when the course is
+    # publicly LISTED (not merely published) — a published-private course's
+    # preview must not leak to strangers (S2.4 / ADR-0026 §3). Route through
+    # the central authorizer instead of the raw status string.
+    if lesson.is_preview and visibility_service.is_publicly_listed(course):
         return LessonOut.model_validate(lesson)
     if viewer is None:
         raise UnauthorizedError("Authentication required", code="auth.required")

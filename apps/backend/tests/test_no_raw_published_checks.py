@@ -104,12 +104,12 @@ _ALL_MARKERS = (
 READERS_PENDING_MIGRATION: set[str] = {
     "repositories/courses.py::list_subjects subject-tile count",
     "repositories/courses.py::search_courses only_published",
-    "api/v1/courses.py::lesson free-preview gate (str form)",
+    # S2.4 migrated — can_view_course re-exports visibility.can_view_course;
+    # the free-preview gate now calls visibility.is_publicly_listed.
     "api/v1/tutor_streaming.py::slug->id published gate",
     "services/enrollment.py::enroll status gate",
     "api/v1/admin.py::reindex fan-out published selection",
     "api/v1/admin.py::platform-stats courses_published count",
-    "services/courses.py::can_view_course",
     "services/authoring_subagents/researcher.py::primary catalog read",
     "services/authoring_subagents/researcher.py::fallback recent published",
     "services/learning_path.py::_condense_catalog primary",
