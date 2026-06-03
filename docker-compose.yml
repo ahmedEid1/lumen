@@ -54,6 +54,9 @@ x-api-env: &api-env
   BYOK_MASTER_KEYS: ${BYOK_MASTER_KEYS:-{}}
   BYOK_MASTER_KEY_VERSION: ${BYOK_MASTER_KEY_VERSION:-1}
   BYOK_ALLOW_DERIVED_KEK: ${BYOK_ALLOW_DERIVED_KEK:-false}
+  # S2 sharing axis (R-S8' step-4): OFF until the operator flips it.
+  # Same pass-through lesson as FEATURE_BYOK_ENABLED above (S2 Gate-C).
+  FEATURE_PRIVATE_PUBLISH_ENABLED: ${FEATURE_PRIVATE_PUBLISH_ENABLED:-false}
   # Per-IP login rate limit. Default 10 (matches Settings + prod). The
   # e2e workflow raises it: the parallel chromium+webkit Playwright
   # suite logs in many times from one runner IP and tripped the cap.
