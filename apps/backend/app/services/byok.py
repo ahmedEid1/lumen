@@ -41,7 +41,13 @@ from app.models.user_llm_credential import (
     UserLLMCredential,
 )
 from app.repositories import user_llm_credentials as cred_repo
-from app.services.llm import LLMProvider, build_provider_from_spec, get_provider
+
+# Late-bind the provider lookup through the module (not a from-import):
+# tests monkeypatch ``llm_service.get_provider`` (the established seam used
+# by every orchestrator suite), and an import-time binding here would pin
+# the real provider before the patch lands. S5 merge-gate fix.
+from app.services import llm as llm_service
+from app.services.llm import LLMProvider, build_provider_from_spec
 from app.services.llm_providers import get_spec
 
 log = get_logger(__name__)
@@ -123,7 +129,7 @@ async def build_provider(db: AsyncSession, ctx: LLMContext) -> tuple[LLMProvider
           provider with the user's model → billing_mode="byok".
     """
     if not ctx.foreground or not ctx.credential_id or not _byok_enabled():
-        return get_provider(), BILLING_PLATFORM
+        return llm_service.get_provider(), BILLING_PLATFORM
 
     cred = await cred_repo.get_by_id(db, ctx.credential_id)
     if (
@@ -134,7 +140,7 @@ async def build_provider(db: AsyncSession, ctx: LLMContext) -> tuple[LLMProvider
     ):
         # The credential vanished / was disabled / went invalid between
         # resolve and dispatch → platform (no decrypt).
-        return get_provider(), BILLING_PLATFORM
+        return llm_service.get_provider(), BILLING_PLATFORM
 
     spec = get_spec(cred.provider)
     if spec is None:
@@ -165,7 +171,7 @@ async def _handle_drift(db: AsyncSession, cred: UserLLMCredential) -> tuple[LLMP
             credential_id=cred.id,
             provider=cred.provider,
         )
-        return get_provider(), BILLING_PLATFORM
+        return llm_service.get_provider(), BILLING_PLATFORM
     raise ByokModelUnavailableError(
         "The selected model is no longer available.",
         details={"provider": cred.provider},

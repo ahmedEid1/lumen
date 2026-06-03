@@ -241,10 +241,14 @@ async def test_replan_swallows_per_user_errors(
     # to fail for ``bad`` and succeed for ``good``.
     real_replan = learning_path_service.replan_for_user
 
-    async def _selective(db, *, user_id):
+    async def _selective(db, *, user_id, ctx=None):
         if user_id == bad.id:
             raise RuntimeError("simulated failure for the bad learner")
-        return await real_replan(db, user_id=user_id)
+        # S5: forward the initiation ctx (PLATFORM_CONTEXT from the beat);
+        # fall back to the service default when a caller omits it.
+        if ctx is None:
+            return await real_replan(db, user_id=user_id)
+        return await real_replan(db, user_id=user_id, ctx=ctx)
 
     monkeypatch.setattr(learning_path_service, "replan_for_user", _selective)
     # Also patch the bound name inside the task module — Python

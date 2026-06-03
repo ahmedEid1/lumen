@@ -56,10 +56,11 @@ async def test_one_live_credential_per_provider(db_session, make_user) -> None:
     user = await make_user()
     await _make_cred(db_session, user.id, provider="openai")
     await db_session.commit()
-    # Second LIVE openai credential -> partial-unique violation.
-    await _make_cred(db_session, user.id, provider="openai")
+    # Second LIVE openai credential -> partial-unique violation. The
+    # violation surfaces at the helper's flush (asyncpg raises on INSERT),
+    # not at commit — S5 merge-gate fix.
     with pytest.raises(IntegrityError):
-        await db_session.commit()
+        await _make_cred(db_session, user.id, provider="openai")
     await db_session.rollback()
 
 
@@ -92,9 +93,10 @@ async def test_at_most_one_active_per_user(db_session, make_user) -> None:
     user = await make_user()
     await _make_cred(db_session, user.id, provider="openai", active=True)
     await db_session.commit()
-    await _make_cred(db_session, user.id, provider="anthropic", active=True)
+    # Second ACTIVE credential -> partial-unique violation at the helper's
+    # flush (asyncpg raises on INSERT), not at commit — S5 merge-gate fix.
     with pytest.raises(IntegrityError):
-        await db_session.commit()
+        await _make_cred(db_session, user.id, provider="anthropic", active=True)
     await db_session.rollback()
 
 

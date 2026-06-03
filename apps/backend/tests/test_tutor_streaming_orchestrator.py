@@ -172,7 +172,7 @@ async def test_with_chunks_synth_prompt_carries_citation_contract() -> None:
     # after recording the call.
     captured: dict = {}
 
-    async def _fake_stream_chat(messages):
+    async def _fake_stream_chat(messages, byok_dispatch=None):  # S5: new kwarg
         captured["messages"] = messages
         # Emit one synth chunk + a terminal so the orchestrator's
         # post-loop "turn_complete" branch fires.
@@ -214,7 +214,7 @@ async def test_no_chunks_synth_prompt_omits_citation_contract() -> None:
     fabricate citation ids, poisoning the eval suite."""
     captured: dict = {}
 
-    async def _fake_stream_chat(messages):
+    async def _fake_stream_chat(messages, byok_dispatch=None):  # S5: new kwarg
         captured["messages"] = messages
         from app.services.llm_stream import StreamChunk
 

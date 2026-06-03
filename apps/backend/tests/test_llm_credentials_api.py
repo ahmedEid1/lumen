@@ -42,7 +42,12 @@ def _stub_validation(monkeypatch):
             if self.behavior == "ok":
                 return ChatResponse(text="ok", prompt_tokens=1, completion_tokens=1, model="m")
             if self.behavior == "auth":
-                raise RuntimeError("AuthenticationError: x-request-id=req_LEAKME_123 bad key")
+                # SDK-shaped: openai/anthropic raise AuthenticationError on
+                # 401 and the service classifies by exception type name.
+                class AuthenticationError(Exception):
+                    pass
+
+                raise AuthenticationError("x-request-id=req_LEAKME_123 bad key")
             raise RuntimeError("TimeoutError")
 
     state = {"behavior": "ok"}
@@ -242,7 +247,7 @@ async def test_export_excludes_credentials(client, make_user, _stub_validation) 
         json={"model": "gpt-4o-mini", "api_key": "sk-SENTINEL-EXPORT-00001234"},
         headers=h,
     )
-    exp = await client.get("/api/v1/me/export", headers=h)
+    exp = await client.get("/api/v1/users/me/export", headers=h)
     assert exp.status_code == 200
     assert "SENTINEL" not in exp.text
     assert "llm_credential" not in exp.text.lower()

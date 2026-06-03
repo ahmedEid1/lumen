@@ -157,6 +157,9 @@ async def test_sentinel_absent_from_me_export(client, make_user) -> None:
         "/api/v1/auth/login", json={"email": monkey_email, "password": "Password!1234"}
     )
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
-    exp = await client.get("/api/v1/me/export", headers=h)
+    exp = await client.get("/api/v1/users/me/export", headers=h)
+    # Guard against silent rot: a 404 error envelope would vacuously pass
+    # the sentinel asserts without exercising the export sink at all.
+    assert exp.status_code == 200, exp.text
     assert SENTINEL not in exp.text
     assert "api_key" not in exp.text
