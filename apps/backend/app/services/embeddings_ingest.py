@@ -160,6 +160,12 @@ async def ingest_lesson(
             f"Embedding provider returned {len(vectors)} vectors for {len(chunks)} chunks"
         )
 
+    # Stamp the per-chunk embedding provenance (ADR-0029 §D6 / FR-EMBED-03) from
+    # the resolving provider — getattr-defensive so a provider stub without
+    # ``model_id`` (legacy/test double) doesn't break ingest; the columns are
+    # nullable until migration 0043 tightens them.
+    model_id = getattr(prov, "model_id", None)
+    dim = getattr(prov, "dim", None)
     rows = [
         LessonChunk(
             id=new_id(),
@@ -168,6 +174,8 @@ async def ingest_lesson(
             text=text,
             embedding=vec,
             token_count=_approx_token_count(text),
+            embedding_model=model_id,
+            embedding_dim=dim,
         )
         for i, (text, vec) in enumerate(zip(chunks, vectors, strict=True))
     ]
