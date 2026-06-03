@@ -372,7 +372,7 @@ async def reindex_search(admin: RequireAdmin, db: DBSession) -> OkResponse:
     res = await db.execute(
         select(Course.id).where(
             Course.deleted_at.is_(None),
-            Course.status == CourseStatus.published,
+            Course.status == CourseStatus.published,  # noqa: published-check — PENDING S2.x migration
         )
     )
     for (course_id,) in res.all():
@@ -413,7 +413,7 @@ async def platform_stats(_: RequireAdmin, db: DBSession) -> PlatformStatsOut:
         courses_total=await _scalar_count(db, select(func.count(Course.id)).where(live)),
         courses_published=await _scalar_count(
             db,
-            select(func.count(Course.id)).where(live, Course.status == CourseStatus.published),
+            select(func.count(Course.id)).where(live, Course.status == CourseStatus.published),  # noqa: published-check — PENDING S2.x migration
         ),
         courses_draft=await _scalar_count(
             db,

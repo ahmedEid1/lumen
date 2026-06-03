@@ -344,7 +344,7 @@ async def apply(
             "Evaluate a RAG system on recall, grounding, and answer quality",
         ],
         difficulty=Difficulty.intermediate,
-        status=CourseStatus.published,
+        status=CourseStatus.published,  # noqa: published-check — seed write
         published_at=datetime.now(UTC),
         is_featured=True,
     )

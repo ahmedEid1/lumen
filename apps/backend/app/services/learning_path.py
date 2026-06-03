@@ -548,7 +548,7 @@ async def _condense_catalog(
         .join(Module, Module.id == Lesson.module_id)
         .join(Course, Course.id == Module.course_id)
         .where(
-            Course.status == CourseStatus.published,
+            Course.status == CourseStatus.published,  # noqa: published-check — PENDING S2.x migration
             Course.deleted_at.is_(None),
             Lesson.deleted_at.is_(None),
         )
@@ -610,7 +610,7 @@ async def _fallback_recent_published(db: AsyncSession, top_k: int) -> list[Cours
     stmt = (
         select(Course)
         .where(
-            Course.status == CourseStatus.published,
+            Course.status == CourseStatus.published,  # noqa: published-check — PENDING S2.x migration
             Course.deleted_at.is_(None),
         )
         .order_by(Course.published_at.desc().nullslast(), Course.created_at.desc())
@@ -930,7 +930,7 @@ async def _first_lesson_for_slug(db: AsyncSession, *, slug: str) -> str | None:
         .where(
             Course.slug == slug,
             Course.deleted_at.is_(None),
-            Course.status == CourseStatus.published,
+            Course.status == CourseStatus.published,  # noqa: published-check — PENDING S2.x migration
             Lesson.deleted_at.is_(None),
         )
         .order_by(Module.order.asc(), Lesson.order.asc())

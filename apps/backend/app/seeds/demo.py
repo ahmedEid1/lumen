@@ -448,7 +448,7 @@ async def _build_course(
         overview=overview,
         learning_outcomes=learning_outcomes,
         difficulty=difficulty,
-        status=CourseStatus.published,
+        status=CourseStatus.published,  # noqa: published-check — seed write
         published_at=datetime.now(UTC),
         is_featured=True,
     )

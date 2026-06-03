@@ -267,7 +267,7 @@ async def _ensure_course(
         learning_outcomes=spec["outcomes"],
         difficulty=spec["difficulty"],
         cover_url=_cover(spec["slug"]),
-        status=CourseStatus.published,
+        status=CourseStatus.published,  # noqa: published-check — seed write
         published_at=datetime.now(UTC),
         is_featured=False,
     )

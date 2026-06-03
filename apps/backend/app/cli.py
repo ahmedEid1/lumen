@@ -181,7 +181,7 @@ async def _seed() -> None:
                 overview="Learn to build production-ready APIs with FastAPI, SQLAlchemy 2, and async Python.",
                 difficulty=Difficulty.beginner,
                 cover_url=None,
-                status=CourseStatus.published,
+                status=CourseStatus.published,  # noqa: published-check — seed write
                 published_at=datetime.now(UTC),
                 is_featured=True,
             )
@@ -348,7 +348,7 @@ async def _ingest_embeddings(only_slug: str | None) -> None:
 
     Session = get_sessionmaker()
     async with Session() as db:
-        stmt = select(Course).where(Course.status == CourseStatus.published)
+        stmt = select(Course).where(Course.status == CourseStatus.published)  # noqa: published-check — PENDING S2.x migration
         if only_slug:
             stmt = stmt.where(Course.slug == only_slug)
         courses = (await db.execute(stmt)).scalars().all()

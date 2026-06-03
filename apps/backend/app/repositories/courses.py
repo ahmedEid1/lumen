@@ -44,7 +44,7 @@ async def list_subjects(db: AsyncSession) -> list[tuple[Subject, int]]:
             Course,
             and_(
                 Course.subject_id == Subject.id,
-                Course.status == CourseStatus.published,
+                Course.status == CourseStatus.published,  # noqa: published-check — PENDING S2.x migration
                 # A soft-deleted course retains its published status until
                 # the row is reaped, so we must filter it out explicitly
                 # — otherwise the catalog tile claims more courses than it
@@ -136,7 +136,7 @@ async def search_courses(
     stmt = _course_with_relations().where(Course.deleted_at.is_(None))
 
     if only_published:
-        stmt = stmt.where(Course.status == CourseStatus.published)
+        stmt = stmt.where(Course.status == CourseStatus.published)  # noqa: published-check — PENDING S2.x migration
     if owner_id:
         stmt = stmt.where(Course.owner_id == owner_id)
     if subject_slug:

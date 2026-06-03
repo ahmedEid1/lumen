@@ -88,7 +88,7 @@ async def _maybe_issue_certificate(
 
 
 async def enroll(db: AsyncSession, *, user: User, course: Course) -> Enrollment:
-    if course.status != CourseStatus.published:
+    if course.status != CourseStatus.published:  # noqa: published-check — PENDING S2.x migration
         raise ForbiddenError("Course is not available", code="enrollment.not_available")
     existing = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
     if existing:

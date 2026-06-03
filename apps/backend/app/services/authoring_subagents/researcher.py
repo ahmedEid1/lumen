@@ -243,7 +243,7 @@ async def _fetch_catalog_neighbours(
         .join(Module, Module.id == Lesson.module_id)
         .join(Course, Course.id == Module.course_id)
         .where(
-            Course.status == CourseStatus.published,
+            Course.status == CourseStatus.published,  # noqa: published-check — PENDING S2.x migration
             Course.deleted_at.is_(None),
             Lesson.deleted_at.is_(None),
         )
@@ -287,7 +287,7 @@ async def _fallback_recent_published(
     stmt = (
         select(Course.slug, Course.title)
         .where(
-            Course.status == CourseStatus.published,
+            Course.status == CourseStatus.published,  # noqa: published-check — PENDING S2.x migration
             Course.deleted_at.is_(None),
         )
         .order_by(Course.published_at.desc().nullslast(), Course.created_at.desc())

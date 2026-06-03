@@ -147,7 +147,7 @@ async def post_turn(
             select(Course.id).where(
                 Course.slug == body.course_slug,
                 Course.deleted_at.is_(None),
-                Course.status == CourseStatus.published,
+                Course.status == CourseStatus.published,  # noqa: published-check — PENDING S2.x migration
             )
         )
         course_id = result.scalar_one_or_none()

@@ -310,7 +310,7 @@ async def get_lesson(lesson_id: str, viewer: OptionalUser, db: DBSession) -> Les
     # column without a TypeDecorator, so SQLAlchemy returns a plain
     # str on read and `.value` blows up. Same trap also bit
     # `user.role` and `lesson.type`.
-    if lesson.is_preview and str(course.status) == "published":
+    if lesson.is_preview and str(course.status) == "published":  # noqa: published-check — PENDING S2.x migration
         return LessonOut.model_validate(lesson)
     if viewer is None:
         raise UnauthorizedError("Authentication required", code="auth.required")
