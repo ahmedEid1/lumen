@@ -269,6 +269,31 @@ def test_ingest_unknown_source_raises() -> None:
 
 
 # ---------- API: /studio/ingest/* ----------
+#
+# S1.7 / DR-M12 / FR-SEC-02: the ingest routes moved off RequireInstructor to
+# RequireIngestUrl — they are now CLOSED by construction (admin-only AND the
+# global `ingest_url_enabled` flag, default OFF). The role collapse does NOT
+# open the SSRF surface. The happy-path tests therefore run as an admin with
+# the flag flipped on; the negative tests assert the closed posture.
+
+from app.core.config import get_settings
+
+
+@pytest.fixture
+def ingest_enabled(monkeypatch: pytest.MonkeyPatch):
+    """Turn the global `ingest_url_enabled` flag ON for one test.
+
+    conftest force-clears the Settings cache after env overrides; we mirror
+    that so the dependency reads the flipped flag.
+    """
+    monkeypatch.setenv("INGEST_URL_ENABLED", "true")
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+    yield
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+
+async def _admin_headers(auth_headers) -> dict[str, str]:
+    return await auth_headers(role=Role.admin)
 
 
 async def _make_subject(db: AsyncSession) -> Subject:
@@ -295,8 +320,11 @@ async def _make_course(db: AsyncSession, owner: User, subject: Subject) -> Cours
     return course
 
 
-async def test_detect_endpoint(client: AsyncClient, auth_headers) -> None:
-    headers = await auth_headers(role=Role.instructor)
+async def test_detect_endpoint_open_for_admin_when_flag_on(
+    client: AsyncClient, auth_headers, ingest_enabled
+) -> None:
+    # S1.7: admin + INGEST_URL_ENABLED=true reaches the handler.
+    headers = await _admin_headers(auth_headers)
     r = await client.post(
         "/api/v1/studio/ingest/detect",
         json={"url": "https://youtu.be/dQw4w9WgXcQ"},
@@ -306,19 +334,38 @@ async def test_detect_endpoint(client: AsyncClient, auth_headers) -> None:
     assert r.json() == {"source": "youtube"}
 
 
-async def test_detect_requires_instructor(client: AsyncClient, auth_headers) -> None:
-    student = await auth_headers(role=Role.student)
+async def test_ingest_closed_for_regular_user(client: AsyncClient, auth_headers) -> None:
+    # S1.7 / FR-SEC-02 negative test: an active `user`-role caller is denied
+    # even though authoring is otherwise ungated — ingest stays admin-only.
+    headers = await auth_headers(role=Role.user)
     r = await client.post(
         "/api/v1/studio/ingest/detect",
         json={"url": "https://youtu.be/dQw4w9WgXcQ"},
-        headers=student,
+        headers=headers,
     )
     assert r.status_code == 403
+    body = r.json()["error"]
+    assert body["code"] == "auth.capability"
+    assert body["details"]["capability"] == "can_ingest_url"
+
+
+async def test_ingest_closed_for_admin_when_flag_off(client: AsyncClient, auth_headers) -> None:
+    # S1.7: even an admin is denied while the flag is OFF (the default).
+    headers = await _admin_headers(auth_headers)
+    r = await client.post(
+        "/api/v1/studio/ingest/detect",
+        json={"url": "https://youtu.be/dQw4w9WgXcQ"},
+        headers=headers,
+    )
+    assert r.status_code == 403
+    assert r.json()["error"]["code"] == "auth.capability"
+    assert r.json()["error"]["details"]["capability"] == "can_ingest_url"
 
 
 async def test_preview_endpoint_uses_extractor(
     client: AsyncClient,
     auth_headers,
+    ingest_enabled,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The route delegates to ``content_ingest.ingest``; replace it
@@ -343,7 +390,7 @@ async def test_preview_endpoint_uses_extractor(
 
     monkeypatch.setattr(endpoint_mod, "ingest", lambda url: fake_payload)
 
-    headers = await auth_headers(role=Role.instructor)
+    headers = await _admin_headers(auth_headers)
     r = await client.post(
         "/api/v1/studio/ingest/preview",
         json={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"},
@@ -357,8 +404,10 @@ async def test_preview_endpoint_uses_extractor(
     assert body["modules"][0]["lessons"][0]["title"] == "l1"
 
 
-async def test_preview_unsupported_url_returns_422(client: AsyncClient, auth_headers) -> None:
-    headers = await auth_headers(role=Role.instructor)
+async def test_preview_unsupported_url_returns_422(
+    client: AsyncClient, auth_headers, ingest_enabled
+) -> None:
+    headers = await _admin_headers(auth_headers)
     r = await client.post(
         "/api/v1/studio/ingest/preview",
         json={"url": "https://example.com/whatever"},
@@ -369,11 +418,11 @@ async def test_preview_unsupported_url_returns_422(client: AsyncClient, auth_hea
 
 
 async def test_commit_creates_modules_and_lessons(
-    client: AsyncClient, auth_headers, make_user, db_session: AsyncSession
+    client: AsyncClient, auth_headers, make_user, ingest_enabled, db_session: AsyncSession
 ) -> None:
     """End-to-end: commit a 2-module, 3-lesson payload and verify the
-    syllabus reflects it."""
-    headers = await auth_headers(role=Role.instructor)
+    syllabus reflects it. Runs as admin with the ingest flag on (S1.7)."""
+    headers = await _admin_headers(auth_headers)
     me = await client.get("/api/v1/auth/me", headers=headers)
     owner_id = me.json()["id"]
     owner = await db_session.get(User, owner_id)
@@ -426,15 +475,20 @@ async def test_commit_creates_modules_and_lessons(
     assert "https://x/y" in mid["data"]["body_markdown"]
 
 
-async def test_commit_forbidden_for_non_owner(
+async def test_commit_closed_for_regular_user(
     client: AsyncClient, auth_headers, make_user, db_session: AsyncSession
 ) -> None:
-    """Instructor B cannot commit drafts into instructor A's course."""
-    owner_a = await make_user(role=Role.instructor)
+    """S1.7: the commit route is closed to non-admins (RequireIngestUrl).
+
+    Previously this asserted instructor-B-cannot-commit-into-A's-course; with
+    the role collapse, ingest is admin-only and admins bypass ownership, so
+    the only reachable denial on `/commit` is the capability gate itself.
+    """
+    owner_a = await make_user(role=Role.user)
     subject = await _make_subject(db_session)
     course = await _make_course(db_session, owner_a, subject)
 
-    instructor_b = await auth_headers(role=Role.instructor)
+    user_b = await auth_headers(role=Role.user)
     payload = {
         "course_id": course.id,
         "payload": {
@@ -444,13 +498,15 @@ async def test_commit_forbidden_for_non_owner(
             "modules": [{"title": "m", "lessons": [{"title": "l", "type": "text", "body": "b"}]}],
         },
     }
-    r = await client.post("/api/v1/studio/ingest/commit", json=payload, headers=instructor_b)
+    r = await client.post("/api/v1/studio/ingest/commit", json=payload, headers=user_b)
     assert r.status_code == 403
-    assert r.json()["error"]["code"] == "course.forbidden"
+    assert r.json()["error"]["code"] == "auth.capability"
 
 
-async def test_commit_unknown_course_returns_404(client: AsyncClient, auth_headers) -> None:
-    headers = await auth_headers(role=Role.instructor)
+async def test_commit_unknown_course_returns_404(
+    client: AsyncClient, auth_headers, ingest_enabled
+) -> None:
+    headers = await _admin_headers(auth_headers)
     payload = {
         "course_id": "does-not-exist",
         "payload": {
