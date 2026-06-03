@@ -77,6 +77,10 @@ export const Courses = {
     api<CourseDetail>(`/api/v1/courses/${id}/publish`, { method: "POST", token }),
   unpublish: (id: string, token?: string) =>
     api<CourseDetail>(`/api/v1/courses/${id}/unpublish`, { method: "POST", token }),
+  archive: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/archive`, { method: "POST", token }),
+  restore: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/restore`, { method: "POST", token }),
   share: (id: string, token?: string) =>
     api<CourseDetail>(`/api/v1/courses/${id}/share`, { method: "POST", body: {}, token }),
   unshare: (id: string, token?: string) =>

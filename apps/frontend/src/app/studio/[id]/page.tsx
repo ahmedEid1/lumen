@@ -73,19 +73,74 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
   });
   const [newModuleTitle, setNewModuleTitle] = useState("");
 
+  // Two-control model (S2.11 / ADR-0026, FR-VIS-08/23): the lifecycle axis
+  // (publish/unpublish/archive/restore) replaces the old PATCH-as-publish path,
+  // which 422s since S2. A separate Share control (below) drives the sharing
+  // axis. Invalidating the catalog/my-courses/moderation prefixes keeps every
+  // listing view in sync after a transition.
+  const invalidateCourseViews = async () => {
+    await qc.invalidateQueries({ queryKey: qk.course(id) });
+    await qc.invalidateQueries({ queryKey: qk.catalogRoot });
+    await qc.invalidateQueries({ queryKey: qk.myCourses });
+    await qc.invalidateQueries({ queryKey: qk.moderationQueue });
+  };
+
+  // The publish rejection codes (course.no_lessons etc.) still come back from
+  // POST /publish, so the i18n mapping is preserved on the lifecycle error path.
+  const onLifecycleError = (e: Error) => {
+    const code = e instanceof ApiError ? e.code : undefined;
+    const keyed = code ? PUBLISH_REJECTION_KEYS[code] : undefined;
+    toast.error((keyed ? t(keyed) : undefined) ?? e?.message ?? t("studioEdit.statusError"));
+  };
+
   const publish = useMutation({
-    mutationFn: (next: "published" | "draft" | "archived") => Courses.patch(id, { status: next }),
-    onSuccess: () => {
-      toast.success(t("studioEdit.statusToast"));
-      qc.invalidateQueries({ queryKey: qk.course(id) });
+    mutationFn: () => Courses.publish(id),
+    onSuccess: async () => {
+      toast.success(t("studioEdit.publishedToast"));
+      await invalidateCourseViews();
     },
-    onError: (e: Error) => {
-      const code = e instanceof ApiError ? e.code : undefined;
-      const keyed = code ? PUBLISH_REJECTION_KEYS[code] : undefined;
-      toast.error(
-        (keyed ? t(keyed) : undefined) ?? e?.message ?? t("studioEdit.statusError"),
-      );
+    onError: onLifecycleError,
+  });
+
+  const unpublish = useMutation({
+    mutationFn: () => Courses.unpublish(id),
+    onSuccess: async () => {
+      toast.success(t("studioEdit.unpublishedToast"));
+      await invalidateCourseViews();
     },
+    onError: onLifecycleError,
+  });
+
+  const archive = useMutation({
+    mutationFn: () => Courses.archive(id),
+    onSuccess: async () => {
+      toast.success(t("studioEdit.archivedToast"));
+      await invalidateCourseViews();
+    },
+    onError: onLifecycleError,
+  });
+
+  const restore = useMutation({
+    mutationFn: () => Courses.restore(id),
+    onSuccess: async () => {
+      toast.success(t("studioEdit.restoredToast"));
+      await invalidateCourseViews();
+    },
+    onError: onLifecycleError,
+  });
+
+  // Sharing axis (S2.12 / ADR-0026, FR-VIS-23): a second control, enabled only
+  // once the course is published. While FEATURE_PRIVATE_PUBLISH_ENABLED is off
+  // server-side the share/unshare endpoints 404 — surfaced as a toast, exactly
+  // as the draft trace page does.
+  const isPublicShared = courseQ.data?.visibility === "public";
+  const share = useMutation({
+    mutationFn: () => (isPublicShared ? Courses.unshare(id) : Courses.share(id)),
+    onSuccess: async () => {
+      toast.success(isPublicShared ? t("studioEdit.unshareToast") : t("studioEdit.shareToast"));
+      await invalidateCourseViews();
+    },
+    onError: (e: Error) => toast.error(e?.message ?? t("studioEdit.shareError")),
   });
 
   const createModule = useMutation({
@@ -197,17 +252,75 @@ export default function StudioCoursePage({ params }: { params: Promise<{ id: str
             </h1>
             <p className="font-body text-sm text-muted-foreground">{t("studioEdit.subtitle")}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href={`/courses/${course.slug}`} target="_blank">
-              <Button variant="outline">{t("studioEdit.previewAsStudent")}</Button>
-            </Link>
-            {course.status !== "published" && (
-              <Button onClick={() => publish.mutate("published")}>{t("studioEdit.publish")}</Button>
-            )}
-            {course.status === "published" && (
-              <Button variant="outline" onClick={() => publish.mutate("draft")}>
-                {t("studioEdit.unpublish")}
-              </Button>
+          <div className="flex flex-col items-end gap-2">
+            {/* Lifecycle axis — publish keeps the course PRIVATE (FR-VIS-08). */}
+            <div className="flex flex-wrap gap-2">
+              <Link href={`/courses/${course.slug}`} target="_blank">
+                <Button variant="outline">{t("studioEdit.previewAsStudent")}</Button>
+              </Link>
+              {course.status === "draft" && (
+                <Button onClick={() => publish.mutate()} disabled={publish.isPending}>
+                  {t("studioEdit.publish")}
+                </Button>
+              )}
+              {course.status === "published" && (
+                <Button
+                  variant="outline"
+                  onClick={() => unpublish.mutate()}
+                  disabled={unpublish.isPending}
+                >
+                  {t("studioEdit.unpublish")}
+                </Button>
+              )}
+              {course.status === "archived" ? (
+                <Button
+                  variant="outline"
+                  onClick={() => restore.mutate()}
+                  disabled={restore.isPending}
+                >
+                  {t("studioEdit.restore")}
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  onClick={() => archive.mutate()}
+                  disabled={archive.isPending}
+                >
+                  {t("studioEdit.archive")}
+                </Button>
+              )}
+            </div>
+            {/* Sharing axis — second control, enabled only once published
+                (FR-VIS-23). Hidden for archived courses (force-private). */}
+            {course.status !== "archived" && (
+              <div className="flex flex-col items-end gap-1">
+                <Button
+                  variant={isPublicShared ? "outline" : "default"}
+                  disabled={course.status !== "published" || share.isPending}
+                  onClick={() => share.mutate()}
+                  title={
+                    course.status !== "published" ? t("studio.share.disabledHint") : undefined
+                  }
+                >
+                  {isPublicShared ? t("studio.share.unshareCta") : t("studio.share.shareCta")}
+                </Button>
+                {isPublicShared && course.moderation_state ? (
+                  <p
+                    className="font-mono text-xs text-muted-foreground"
+                    data-testid="moderation-state"
+                  >
+                    {course.moderation_state === "pending_review"
+                      ? t("studio.share.pendingReview")
+                      : course.moderation_state === "approved"
+                        ? t("studio.share.approved")
+                        : course.moderation_state === "rejected"
+                          ? t("studio.share.rejected")
+                          : course.moderation_state === "delisted"
+                            ? t("studio.share.delisted")
+                            : course.moderation_state}
+                  </p>
+                ) : null}
+              </div>
             )}
           </div>
         </div>
