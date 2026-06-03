@@ -30,7 +30,7 @@ Chain position: this Phase-D NOT-NULL tighten is the LAST revision in the chain
 aware code against a missing column (Codex P1 / Gate-C).
 
 Revision ID: 0043
-Revises: 0044
+Revises: 0045
 Create Date: 2026-08-07
 """
 
@@ -46,7 +46,7 @@ revision: str = "0043"
 # INTEGRATION: re-point at merge. Chain is 0033 -> 0041 -> 0042 -> 0044 -> 0043.
 # This Phase-D boundary moved to the END of the chain so it follows the Phase-A
 # quarantine column (0044); see the module docstring (Codex P1 / Gate-C).
-down_revision: str | Sequence[str] | None = "0044"
+down_revision: str | Sequence[str] | None = "0045"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

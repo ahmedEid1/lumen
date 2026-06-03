@@ -3,7 +3,7 @@
 Two layers:
 
 * **Structural (pure-unit, no DB)** — revision identity + chain link (0045 is
-  the head, chaining off the reordered 0043 NOT-NULL boundary), phase
+  Phase-A, chained BEFORE the gated 0043 boundary), phase
   annotation (A — additive ``SET DEFAULT``, no rewrite), and the upgrade /
   downgrade ``SET DEFAULT now()`` / ``DROP DEFAULT`` shape.
 
@@ -54,9 +54,10 @@ def _src(stem: str) -> str:
 def test_migration_0045_identity_and_phase():
     m = _load("0045")
     assert m.revision == "0045"
-    # 0045 chains off the reordered Phase-D boundary 0043, which is now the
-    # second-to-last rev (post-reorder chain 0042 -> 0044 -> 0043 -> 0045).
-    assert m.down_revision == "0043"
+    # Confirm-round-2: 0045 is itself Phase-A and must precede the gated
+    # boundary too (chain 0042 -> 0044 -> 0045 -> 0043(head)) — chained after
+    # it, migrate.safe would never apply the very fix this migration ships.
+    assert m.down_revision == "0044"
     assert getattr(m, "PHASE", None) == "A"
 
 

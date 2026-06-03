@@ -26,7 +26,7 @@ boundary order-wise it is the head, but it carries no data rewrite or lock of
 note (catalog-only).
 
 Revision ID: 0045
-Revises: 0043
+Revises: 0044
 Create Date: 2026-08-16
 """
 
@@ -41,7 +41,7 @@ from alembic import op
 revision: str = "0045"
 # Chains off the new head 0043 (post-reorder chain:
 # 0033 -> 0041 -> 0042 -> 0044 -> 0043 -> 0045, head).
-down_revision: str | Sequence[str] | None = "0043"
+down_revision: str | Sequence[str] | None = "0044"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

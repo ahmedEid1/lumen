@@ -83,19 +83,45 @@ def test_0030_is_in_chain(script_dir):
 
 
 def test_quarantine_phase_a_precedes_notnull_phase_d_boundary(script_dir):
-    """Codex P1 / Gate-C: the Phase-A quarantine column (0044) must come BEFORE
-    the Phase-D NOT-NULL boundary (0043) so a ``migrate.safe``-only deploy lands
-    the column the visibility SQL references instead of stopping at the gated
-    0043 with quarantine code running against a missing column. Pinned linear
-    order: 0041 -> 0042 -> 0044 -> 0043 -> 0045 (head)."""
+    """Codex P1 / Gate-C (two rounds!): every Phase-A revision must come BEFORE
+    the Phase-D NOT-NULL boundary (0043) so a ``migrate.safe``-only deploy
+    lands them all. Round 1 moved 0044 (quarantine column — referenced by the
+    visibility SQL) ahead of the boundary; the confirm round caught 0045 (the
+    moderation_events timestamp defaults — the /share 500 fix) re-making the
+    same mistake behind it. Pinned linear order:
+    0041 -> 0042 -> 0044 -> 0045 -> 0043 (head, the gated boundary last)."""
     by_rev = {s.revision: s for s in script_dir.walk_revisions()}
     for rev in ("0041", "0042", "0043", "0044", "0045"):
         assert rev in by_rev, f"{rev} missing from chain"
     assert by_rev["0042"].down_revision == "0041"
-    assert by_rev["0044"].down_revision == "0042"  # Phase-A quarantine before...
-    assert by_rev["0043"].down_revision == "0044"  # ...the Phase-D NOT-NULL boundary
-    assert by_rev["0045"].down_revision == "0043"  # 0045 is the head
-    # The boundary is still 0043 (Phase D); it just moved to the chain's end.
+    assert by_rev["0044"].down_revision == "0042"  # Phase-A quarantine, then...
+    assert by_rev["0045"].down_revision == "0044"  # ...Phase-A share-500 fix, then...
+    assert by_rev["0043"].down_revision == "0045"  # ...the Phase-D boundary LAST (head)
     assert by_rev["0043"].module.PHASE == "D"
     assert by_rev["0044"].module.PHASE == "A"
     assert by_rev["0045"].module.PHASE == "A"
+
+
+def test_release_window_phase_a_revisions_precede_first_gated_boundary(script_dir):
+    """GENERIC invariant — the class of error behind both Codex rounds above:
+    within the current release window (0033 = this release's first revision,
+    update the anchor per release), walking base→head, NO Phase-A revision may
+    appear after the first phase-gated revision. A Phase-A migration chained
+    behind a gated boundary silently never applies on the migrate.safe path
+    while the code that references its schema ships immediately."""
+    from app.db.migration_phase_guard import is_phase_gated
+
+    _RELEASE_ANCHOR = "0033"
+    ordered = list(reversed(list(script_dir.walk_revisions())))  # base → head
+    revs = [s.revision for s in ordered]
+    window = ordered[revs.index(_RELEASE_ANCHOR) :]
+    seen_gated = None
+    for script in window:
+        if is_phase_gated(script.module):
+            seen_gated = script.revision
+        elif seen_gated is not None:
+            raise AssertionError(
+                f"Phase-A revision {script.revision} is chained AFTER the gated "
+                f"boundary {seen_gated} — migrate.safe will never apply it; "
+                f"re-point it before the boundary"
+            )
