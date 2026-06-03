@@ -226,6 +226,14 @@ its three gates are green:**
   `main`. Rationale: per [[aws-deployment-state]]/[[deploy-approval-reflex]], CI-green on `main` ⇒ AUTO-DEPLOY
   to live prod — committing a half-built rebuild to main would deploy a broken app. Build + local live-test on
   the branch throughout; merge to main only at W12 (deploy), then live prod test. Prod stays safe during build.
+- **2026-06-03** — **WAVE 0 (S7-pre foundation) DONE + ALL GATES GREEN** (commit 913b978). Built TDD by a
+  build agent; gates: full suite 830 green → Codex Gate-A "fix-required" (KEK guard accepted ≥32 bytes but
+  crypto requires exactly 32 — fixed + regression test) → Claude Gate-B "foundation-ready" (2 fixes applied:
+  explicit worker configure_logging; migration-test docstring honesty — DB-backed alembic harness lands with
+  S1.10 and must retrofit 0030) → Gate-C live (migration 0030 applied, API+worker boot through the KEK guard,
+  browser sign-in as all 3 seeded accounts, no regression). Carry-forwards: S7pre.9 make-migrate phase guard
+  must land BEFORE S1's irreversible 0031; PR-19 live no-KEK-with-credential check fires at S5.
+  **Opening Wave 1: S1 (role collapse), S2 (visibility/authorizer), S5 (BYOK) in parallel worktrees.**
 
 ---
 
