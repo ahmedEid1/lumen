@@ -172,6 +172,36 @@ async def _handle_drift(db: AsyncSession, cred: UserLLMCredential) -> tuple[LLMP
     )
 
 
+async def stream_dispatch_for_turn(
+    db: AsyncSession, *, credential_id: str | None, user_id: str
+) -> dict[str, str] | None:
+    """Resolve a streaming BYOK dispatch dict for a worker turn (S5.12).
+
+    The streaming tutor runs in a Celery worker; the turn row carries the
+    foreground-resolved ``credential_id`` (never the key — FR-BYOK-26). Here,
+    inside the worker trust boundary, we rebuild the foreground ctx and run
+    ``build_provider`` (the only decrypt site) to get the per-request key,
+    then return ``{transport, base_url, api_key, model}`` for
+    ``stream_chat(byok_dispatch=...)``. Returns ``None`` for the platform path
+    (no credential / flag off / drift fallback) so the streamer uses the
+    global provider switch unchanged.
+    """
+    if not credential_id or not _byok_enabled():
+        return None
+    ctx = LLMContext(user_id=user_id, credential_id=credential_id, foreground=True, mode="byok")
+    provider, mode = await build_provider(db, ctx)
+    if mode != BILLING_BYOK:
+        return None
+    # ``provider`` is a SecretStr-wrapped registry provider; pull the
+    # per-request key + base from it for the streaming client.
+    return {
+        "transport": "anthropic" if type(provider).__name__ == "AnthropicProvider" else "openai",
+        "base_url": getattr(provider, "_api_base", "") or "",
+        "api_key": provider._key_value(),  # type: ignore[attr-defined]
+        "model": getattr(provider, "_model", ""),
+    }
+
+
 def redact_provider_error(exc: BaseException) -> ByokProviderError:
     """Wrap a provider dispatch failure in a redacted, fallback-free error.
 
@@ -189,4 +219,5 @@ __all__ = [
     "build_provider",
     "redact_provider_error",
     "resolve_context",
+    "stream_dispatch_for_turn",
 ]

@@ -40,6 +40,7 @@ from app.core.cost_scripts import (
 from app.db.base import make_worker_engine
 from app.models.course import Course
 from app.models.tutor_turn_job import TURN_STATUS_COMPLETE, TURN_STATUS_FAILED
+from app.services import byok as byok_service
 from app.services.redis_streams import emit_event, set_stream_ttl
 from app.services.tutor_orchestrator_stream import orchestrate_stream
 from app.services.tutor_subagents.retriever import RetrieverChunk
@@ -87,6 +88,7 @@ async def _run_turn_async(turn_id: str) -> None:
     reserved_microcents: int = 0
     reservation_ip_key: str | None = None
     actual_cost_microcents: int = 0
+    credential_id: str | None = None
 
     try:
         async with Session() as db:
@@ -99,10 +101,22 @@ async def _run_turn_async(turn_id: str) -> None:
             course_id = turn.course_id
             user_message_content = turn.user_message or ""
             reservation_ip_key = turn.reservation_ip_key
+            credential_id = turn.credential_id
             # The row stores USD as Decimal; convert back to the
             # integer microcent shape the reconcile Lua expects.
             reserved_microcents = int(turn.reserved_cost_usd * USD_TO_MICROCENTS)
             await db.commit()
+
+        # S5.12/R-S1'': re-resolve + decrypt the user's BYOK key IN THE WORKER
+        # from the carried credential_id (never the key bytes — FR-BYOK-26).
+        # Returns None for the platform path (no cred / flag off / drift).
+        byok_dispatch = None
+        if credential_id:
+            with contextlib.suppress(Exception):
+                async with Session() as db:
+                    byok_dispatch = await byok_service.stream_dispatch_for_turn(
+                        db, credential_id=credential_id, user_id=user_id
+                    )
 
         # L32 — pgvector retrieval. Best-effort: a retrieval failure
         # degrades to "no course context" but doesn't fail the turn.
@@ -143,6 +157,7 @@ async def _run_turn_async(turn_id: str) -> None:
             course_id=course_id,
             retrieved_chunks=retrieved_chunks or None,
             retrieval_latency_ms=retrieval_latency_ms,
+            byok_dispatch=byok_dispatch,
         ):
             if ev["event"] == "turn_complete":
                 cost_usd = float(ev["data"].get("cost_usd", 0.0) or 0.0)

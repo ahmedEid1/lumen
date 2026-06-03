@@ -108,6 +108,7 @@ async def orchestrate_stream(
     course_id: str | None = None,
     retrieved_chunks: list[RetrieverChunk] | None = None,
     retrieval_latency_ms: int | None = None,
+    byok_dispatch: dict[str, str] | None = None,
 ) -> AsyncIterator[StreamEvent]:
     """Yield a stream of events for a tutor turn.
 
@@ -168,7 +169,7 @@ async def orchestrate_stream(
     messages = _build_synth_messages(user_message, retrieved_chunks)
     total_cost_usd = 0.0
     try:
-        async for chunk in stream_chat(messages):
+        async for chunk in stream_chat(messages, byok_dispatch=byok_dispatch):
             if chunk.done:
                 total_cost_usd = float(chunk.usage.get("cost_usd", 0.0) or 0.0)
                 break

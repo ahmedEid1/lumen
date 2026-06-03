@@ -89,8 +89,10 @@ from app.models.llm_call import SYSTEM_USER_ID
 from app.models.user import User
 from app.repositories import courses as courses_repo
 from app.services import ai_authoring
+from app.services import byok as byok_service
 from app.services import llm as llm_service
 from app.services.authoring_subagents import ResearchBundle, run_researcher
+from app.services.byok import PLATFORM_CONTEXT, LLMContext
 from app.services.courses import _unique_slug
 from app.services.llm_call_log import call_logged
 
@@ -468,6 +470,7 @@ async def _chat_with_retry[M: BaseModel](
     model: type[M],
     feature: str,
     temperature: float = 0.4,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> tuple[M | None, str, str | None]:
     """Single LLM call + one retry on malformed JSON.
 
@@ -481,7 +484,9 @@ async def _chat_with_retry[M: BaseModel](
     pay separately — that's the right shape: the second turn really
     is extra spend the operator should see in the cost dashboard.
     """
-    provider = llm_service.get_provider()
+    # S5.12/DR-8: BYOK for a user-initiated authoring draft; platform for the
+    # default ctx. The decrypt happens inside byok.build_provider only.
+    provider, billing_mode = await byok_service.build_provider(db, ctx)
     messages = [
         llm_service.ChatMessage(role="system", content=system),
         llm_service.ChatMessage(role="user", content=user),
@@ -493,6 +498,7 @@ async def _chat_with_retry[M: BaseModel](
         feature=feature,
         session=db,
         temperature=temperature,
+        billing_mode=billing_mode,
     )
     raw = response.text
     parsed, err = _try_parse(raw, model)
@@ -524,6 +530,7 @@ async def _chat_with_retry[M: BaseModel](
         feature=feature,
         session=db,
         temperature=max(0.1, temperature - 0.3),
+        billing_mode=billing_mode,
     )
     raw2 = response2.text
     parsed2, err2 = _try_parse(raw2, model)
@@ -543,6 +550,7 @@ async def _draft_lesson_content(
     course_overview: str,
     lesson_title: str,
     lesson_type: LessonType,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> dict[str, Any]:
     """Draft one lesson's body + quiz via the existing E2 helpers.
 
@@ -568,6 +576,7 @@ async def _draft_lesson_content(
                 n=4,
                 session=db,
                 user_id=user_id,
+                ctx=ctx,
             )
             return {
                 "type": "quiz",
@@ -589,6 +598,7 @@ async def _draft_lesson_content(
             course_context=context,
             session=db,
             user_id=user_id,
+            ctx=ctx,
         )
         return {
             "type": "text",
@@ -651,6 +661,7 @@ async def draft_course(
     user: User,
     brief: str,
     subject_slug: str,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> OrchestratorResult:
     """Run the full self-critique authoring pipeline.
 
@@ -719,6 +730,7 @@ async def draft_course(
         user_id=metered_user_id,
         brief=brief,
         research=research_bundle,
+        ctx=ctx,
     )
     outline_phase_calls += 1
     if outline is None:
@@ -790,6 +802,7 @@ async def draft_course(
             user_id=metered_user_id,
             brief=brief,
             outline=outline,
+            ctx=ctx,
         )
         outline_phase_calls += 1
         if critique is None:
@@ -844,6 +857,7 @@ async def draft_course(
             brief=brief,
             outline=outline,
             critique=critique,
+            ctx=ctx,
         )
         outline_phase_calls += 1
         revisions_used += 1
@@ -920,6 +934,7 @@ async def draft_course(
                 course_overview=outline.overview,
                 lesson_title=lesson.title,
                 lesson_type=lesson.type,
+                ctx=ctx,
             )
             lesson.data = data
             await db.flush()
@@ -949,6 +964,7 @@ async def draft_course(
         brief=brief,
         outline=outline,
         lesson_count=lesson_count,
+        ctx=ctx,
     )
     await _record_trace(
         db,
@@ -997,6 +1013,7 @@ async def _call_outliner(
     user_id: str,
     brief: str,
     research: ResearchBundle,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> tuple[ai_authoring.CourseOutline | None, str, str | None]:
     """First-pass outline call with the research bundle in the prompt."""
     user_msg = (
@@ -1010,6 +1027,7 @@ async def _call_outliner(
         model=ai_authoring.CourseOutline,
         feature=FEATURE_OUTLINER,
         temperature=0.5,
+        ctx=ctx,
     )
 
 
@@ -1019,6 +1037,7 @@ async def _call_critic(
     user_id: str,
     brief: str,
     outline: ai_authoring.CourseOutline,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> tuple[CritiqueResult | None, str, str | None]:
     """Critic call against a candidate outline."""
     user_msg = (
@@ -1034,6 +1053,7 @@ async def _call_critic(
         model=CritiqueResult,
         feature=FEATURE_CRITIC,
         temperature=0.2,
+        ctx=ctx,
     )
 
 
@@ -1044,6 +1064,7 @@ async def _call_reviser(
     brief: str,
     outline: ai_authoring.CourseOutline,
     critique: CritiqueResult,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> tuple[ai_authoring.CourseOutline | None, str, str | None]:
     """Revise a flagged outline against the critic's weak-spot list."""
     weak_block = (
@@ -1064,6 +1085,7 @@ async def _call_reviser(
         model=ai_authoring.CourseOutline,
         feature=FEATURE_REVISER,
         temperature=0.4,
+        ctx=ctx,
     )
 
 
@@ -1074,6 +1096,7 @@ async def _call_final_critic(
     brief: str,
     outline: ai_authoring.CourseOutline,
     lesson_count: int,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> CritiqueResult:
     """Final critic. Always returns a :class:`CritiqueResult`.
 
@@ -1095,6 +1118,7 @@ async def _call_final_critic(
         model=CritiqueResult,
         feature=FEATURE_FINAL_CRITIC,
         temperature=0.2,
+        ctx=ctx,
     )
     if critique is not None:
         return critique

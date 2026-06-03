@@ -77,6 +77,7 @@ async def stream_chat(
     messages: list[ChatMessage],
     *,
     temperature: float = 0.2,
+    byok_dispatch: dict[str, str] | None = None,
 ) -> AsyncIterator[StreamChunk]:
     """Provider-agnostic streaming dispatcher.
 
@@ -85,11 +86,40 @@ async def stream_chat(
     yielded chunks and maps them to SSE ``synth_chunk`` /
     ``turn_complete`` events.
 
-    Today's matrix:
+    S5.12/DR-8: when ``byok_dispatch`` is supplied (the worker resolved a
+    BYOK credential for the foreground user — ``{transport, base_url,
+    api_key, model}``) the global ``settings.llm_provider`` switch is
+    BYPASSED and the request is dispatched to the registry-fixed base with
+    the user's already-decrypted key + model. The decrypt happened upstream
+    in ``byok.build_provider`` (the only decrypt site); this function only
+    receives the per-request dispatch dict.
+
+    Today's platform matrix:
     - ``noop`` → :func:`_stream_chat_noop` (canned word-by-word)
     - ``openai`` → :func:`_stream_chat_openai` (real streaming)
     - ``anthropic`` → :func:`_stream_chat_anthropic` (real streaming, L37)
     """
+    if byok_dispatch is not None:
+        if byok_dispatch.get("transport") == "anthropic":
+            async for chunk in _stream_chat_anthropic_compat(
+                messages,
+                temperature=temperature,
+                api_key=byok_dispatch["api_key"],
+                api_base=byok_dispatch["base_url"],
+                model=byok_dispatch["model"],
+            ):
+                yield chunk
+            return
+        async for chunk in _stream_chat_openai_compat(
+            messages,
+            temperature=temperature,
+            api_key=byok_dispatch["api_key"],
+            api_base=byok_dispatch["base_url"],
+            model=byok_dispatch["model"],
+        ):
+            yield chunk
+        return
+
     provider_name = get_settings().llm_provider
     if provider_name == "noop":
         async for chunk in _stream_chat_noop(messages, temperature=temperature):
@@ -280,6 +310,34 @@ async def _stream_chat_anthropic(
       ``completion_tokens`` / ``cost_usd`` via the shared pricing
       helper for symmetric reconciliation downstream
     """
+    s = get_settings()
+    api_key = s.anthropic_api_key.get_secret_value() if s.anthropic_api_key else ""
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY is required for LLM_PROVIDER=anthropic streaming")
+    async for chunk in _stream_chat_anthropic_compat(
+        messages,
+        temperature=temperature,
+        api_key=api_key,
+        api_base=s.anthropic_api_base or None,
+        model=s.llm_model or "claude-3-5-haiku-latest",
+    ):
+        yield chunk
+
+
+async def _stream_chat_anthropic_compat(
+    messages: list[ChatMessage],
+    *,
+    temperature: float,
+    api_key: str,
+    api_base: str | None,
+    model: str,
+) -> AsyncIterator[StreamChunk]:
+    """S5.12 — Anthropic streaming with explicit key/base/model.
+
+    Shared core so both the platform path (``_stream_chat_anthropic``) and
+    the BYOK path (``stream_chat(byok_dispatch=...)``) reuse one streamer.
+    The base URL is always registry-fixed for BYOK callers (DR-17).
+    """
     try:
         from anthropic import AsyncAnthropic  # type: ignore[import-not-found]
     except ImportError as e:
@@ -288,13 +346,9 @@ async def _stream_chat_anthropic(
         ) from e
 
     s = get_settings()
-    api_key = s.anthropic_api_key.get_secret_value() if s.anthropic_api_key else ""
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY is required for LLM_PROVIDER=anthropic streaming")
-
     client_kwargs: dict[str, Any] = {"api_key": api_key}
-    if s.anthropic_api_base:
-        client_kwargs["base_url"] = s.anthropic_api_base
+    if api_base:
+        client_kwargs["base_url"] = api_base
     client = AsyncAnthropic(**client_kwargs)
 
     # Messages API quirk: ``system`` is a top-level kwarg, not a
@@ -303,8 +357,6 @@ async def _stream_chat_anthropic(
     system_parts = [m.content for m in messages if m.role == "system"]
     system = "\n\n".join(system_parts) if system_parts else ""
     turns = [{"role": m.role, "content": m.content} for m in messages if m.role != "system"]
-
-    model = s.llm_model or "claude-3-5-haiku-latest"
 
     stream_kwargs: dict[str, Any] = {
         "model": model,

@@ -49,7 +49,9 @@ from app.models.llm_call import SYSTEM_USER_ID
 from app.models.user import User
 from app.repositories import courses as courses_repo
 from app.schemas.course import QuizQuestion
+from app.services import byok as byok_service
 from app.services import llm as llm_service
+from app.services.byok import PLATFORM_CONTEXT, LLMContext
 from app.services.courses import _owned_course
 from app.services.llm_call_log import call_logged
 
@@ -241,6 +243,7 @@ async def generate_outline(
     *,
     session: AsyncSession | None = None,
     user_id: str | None = None,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> CourseOutline:
     """Call the LLM and return a parsed :class:`CourseOutline`.
 
@@ -269,6 +272,7 @@ async def generate_outline(
         session=session,
         user_id=user_id,
         feature="authoring.outline",
+        ctx=ctx,
     )
 
 
@@ -278,6 +282,7 @@ async def generate_lesson_body(
     *,
     session: AsyncSession | None = None,
     user_id: str | None = None,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> dict[str, Any]:
     """Return a Tiptap block document as a plain dict.
 
@@ -301,6 +306,7 @@ async def generate_lesson_body(
         session=session,
         user_id=user_id,
         feature="authoring.lesson",
+        ctx=ctx,
     )
     return doc.model_dump()
 
@@ -319,6 +325,7 @@ async def generate_quiz(
     *,
     session: AsyncSession | None = None,
     user_id: str | None = None,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> list[QuizQuestion]:
     """Return ``n`` MCQ questions for a quiz lesson."""
     lesson_title = lesson_title.strip()
@@ -338,6 +345,7 @@ async def generate_quiz(
         session=session,
         user_id=user_id,
         feature="authoring.quiz",
+        ctx=ctx,
     )
     return list(payload.questions)
 
@@ -449,6 +457,7 @@ async def _chat_one(
     session: AsyncSession | None,
     user_id: str | None,
     feature: str,
+    billing_mode: str = "platform",
 ) -> str:
     """Run one provider turn — metered when a session is available.
 
@@ -467,6 +476,7 @@ async def _chat_one(
             feature=feature,
             session=session,
             temperature=temperature,
+            billing_mode=billing_mode,
         )
         return response.text
     return await provider.chat(messages, temperature=temperature)
@@ -495,6 +505,7 @@ async def _chat_with_retry[M: BaseModel](
     session: AsyncSession | None = None,
     user_id: str | None = None,
     feature: str = "authoring",
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> M:
     """Send one chat turn, validate as ``model``, retry once on failure.
 
@@ -511,7 +522,13 @@ async def _chat_with_retry[M: BaseModel](
     Without ``session``, falls back to the unmetered ``provider.chat``
     path so existing tests keep working.
     """
-    provider = llm_service.get_provider()
+    # S5.12/DR-8: resolve provider from the initiation ctx when we have a
+    # session to decrypt against; otherwise (unmetered/backfill path) keep
+    # the zero-arg platform provider.
+    if session is not None:
+        provider, billing_mode = await byok_service.build_provider(session, ctx)
+    else:
+        provider, billing_mode = llm_service.get_provider(), "platform"
     messages = [
         llm_service.ChatMessage(role="system", content=system),
         llm_service.ChatMessage(role="user", content=user),
@@ -523,6 +540,7 @@ async def _chat_with_retry[M: BaseModel](
         session=session,
         user_id=user_id,
         feature=feature,
+        billing_mode=billing_mode,
     )
     parsed, err = _try_parse(raw, model)
     if parsed is not None:
@@ -550,6 +568,7 @@ async def _chat_with_retry[M: BaseModel](
         session=session,
         user_id=user_id,
         feature=feature,
+        billing_mode=billing_mode,
     )
     parsed, err = _try_parse(raw2, model)
     if parsed is not None:

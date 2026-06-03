@@ -43,6 +43,7 @@ async def create_turn(
     prompt_template_hash: str | None = None,
     user_message: str | None = None,
     course_id: str | None = None,
+    credential_id: str | None = None,
     enqueue_task: bool = True,
 ) -> TutorTurnJob:
     """Insert a new turn row.
@@ -65,6 +66,9 @@ async def create_turn(
         reserved_cost_usd=reserved_cost_usd,
         reservation_ip_key=reservation_ip_key,
         prompt_template_hash=prompt_template_hash,
+        # S5.12/R-S1'': the foreground-resolved credential id carried to the
+        # worker (never the key — FR-BYOK-26).
+        credential_id=credential_id,
     )
     db.add(turn)
     await db.flush()
