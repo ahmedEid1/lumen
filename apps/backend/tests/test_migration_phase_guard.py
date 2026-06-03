@@ -22,6 +22,7 @@ from app.db.migration_phase_guard import (
     RevisionPhase,
     classify_phase,
     is_phase_gated,
+    select_phase_target,
     select_safe_target,
 )
 
@@ -102,6 +103,36 @@ def test_select_safe_target_returns_none_when_first_pending_is_gated():
 
 def test_select_safe_target_empty_pending_returns_none():
     assert select_safe_target([]) is None
+
+
+def test_select_phase_target_stops_at_first_boundary():
+    """Regression (Codex Gate-A): one phase boundary per `migrate.phase` run.
+    Pending B then C must target ONLY the B revision — never head."""
+    pending = [
+        _FakeModule("0030", phase="A"),
+        _FakeModule("0031", phase="B", irreversible=True),
+        _FakeModule("0032", phase="C"),
+        _FakeModule("0033", phase="A"),
+    ]
+    assert select_phase_target(pending) == "0031"
+
+
+def test_select_phase_target_second_run_reaches_next_boundary():
+    """After 0031 is applied, the next run targets 0032 (the next boundary)."""
+    remaining = [
+        _FakeModule("0032", phase="C"),
+        _FakeModule("0033", phase="A"),
+    ]
+    assert select_phase_target(remaining) == "0032"
+
+
+def test_select_phase_target_no_gated_goes_to_newest():
+    pending = [_FakeModule("0033", phase="A"), _FakeModule("0034", phase="A")]
+    assert select_phase_target(pending) == "0034"
+
+
+def test_select_phase_target_empty_returns_none():
+    assert select_phase_target([]) is None
 
 
 def test_safe_run_refuses_gated_without_flag():

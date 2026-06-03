@@ -57,9 +57,11 @@ migrate.safe: ## Apply only additive (phase-A) migrations; refuses to cross a ph
 	$(COMPOSE) exec api python -m app.db.migration_phase_guard safe
 
 .PHONY: migrate.phase
-migrate.phase: ## Apply phase-gated migrations to head. Requires ALLOW_PHASE_MIGRATION=1.
+migrate.phase: ## Apply up to and incl. the NEXT phase boundary (one phase per run). Requires ALLOW_PHASE_MIGRATION=1.
 	# Explicit, operator-acknowledged step for a phased release (DR-12).
-	# Run ONE phase at a time per the deploy runbook, e.g. Phase B then C.
+	# Applies exactly ONE phase boundary per invocation, then stops — re-run
+	# for the next phase (Codex Gate-A: never cross two boundaries in one go).
+	# Fresh/empty DBs (make reset bootstrap) go straight to head.
 	$(COMPOSE) exec -e ALLOW_PHASE_MIGRATION=$(ALLOW_PHASE_MIGRATION) api \
 		python -m app.db.migration_phase_guard phase
 

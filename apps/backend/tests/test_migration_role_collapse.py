@@ -54,8 +54,8 @@ async def _seed_user(db: AsyncSession, *, email: str, role: str) -> str:
     await db.execute(
         text(
             "INSERT INTO users (id, email, password_hash, full_name, role, is_active, "
-            "notification_prefs, created_at, updated_at) "
-            "VALUES (:id, :email, :ph, :fn, :role, true, '{}', now(), now())"
+            "failed_login_attempts, notification_prefs, created_at, updated_at) "
+            "VALUES (:id, :email, :ph, :fn, :role, true, 0, '{}', now(), now())"
         ),
         {"id": uid, "email": email, "ph": hash_password("Password!1234"), "fn": "X", "role": role},
     )
@@ -169,8 +169,8 @@ async def test_0032_sets_default_user(db_session: AsyncSession):
     await db_session.execute(
         text(
             "INSERT INTO users (id, email, password_hash, full_name, is_active, "
-            "notification_prefs, created_at, updated_at) "
-            "VALUES (:id, :email, :ph, :fn, true, '{}', now(), now())"
+            "failed_login_attempts, notification_prefs, created_at, updated_at) "
+            "VALUES (:id, :email, :ph, :fn, true, 0, '{}', now(), now())"
         ),
         {
             "id": "u_default_role",
@@ -220,8 +220,8 @@ async def test_0030_legacy_tombstone_backfill_sql(db_session: AsyncSession):
     await db_session.execute(
         text(
             "INSERT INTO users (id, email, password_hash, full_name, role, is_active, "
-            "deleted_at, notification_prefs, created_at, updated_at) VALUES "
-            "(:id, :email, :ph, 'T', 'user', false, NULL, '{}', now(), now())"
+            "deleted_at, failed_login_attempts, notification_prefs, created_at, updated_at) VALUES "
+            "(:id, :email, :ph, 'T', 'user', false, NULL, 0, '{}', now(), now())"
         ),
         {
             "id": "u_tombstone",
@@ -232,8 +232,8 @@ async def test_0030_legacy_tombstone_backfill_sql(db_session: AsyncSession):
     await db_session.execute(
         text(
             "INSERT INTO users (id, email, password_hash, full_name, role, is_active, "
-            "deleted_at, notification_prefs, created_at, updated_at) VALUES "
-            "(:id, :email, :ph, 'L', 'user', true, NULL, '{}', now(), now())"
+            "deleted_at, failed_login_attempts, notification_prefs, created_at, updated_at) VALUES "
+            "(:id, :email, :ph, 'L', 'user', true, NULL, 0, '{}', now(), now())"
         ),
         {"id": "u_live", "email": "live@lumen.test", "ph": hash_password("x")},
     )

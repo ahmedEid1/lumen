@@ -24,7 +24,8 @@ foot-gun. This module is the guard:
 * ``main`` is the CLI the ``Makefile`` calls — it builds the pending list
   from the live Alembic ``ScriptDirectory`` + DB head and either runs the
   safe upgrade or, with ``ALLOW_PHASE_MIGRATION=1`` (``migrate.phase``),
-  runs all the way to head.
+  applies up to and including the NEXT phase boundary only — one phase per
+  invocation (fresh/empty DBs bootstrap straight to head).
 
 The split keeps the policy testable in a worktree that has no stack: the
 classifier + target-selection logic carry the correctness load; the thin
@@ -131,6 +132,29 @@ def select_safe_target(
     return safe
 
 
+def select_phase_target(pending: Sequence[Any] | Iterable[Any]) -> str | None:
+    """Pick the target for ONE ``migrate.phase`` invocation.
+
+    Codex Gate-A (S1): a phase run must apply **exactly one phase boundary**
+    — upgrading straight to ``head`` would happily cross 0031 (Phase B) *and*
+    0032 (Phase C) in a single command, defeating the one-phase-at-a-time
+    deploy discipline (DR-12).
+
+    Returns the revision id of the FIRST phase-gated pending revision:
+    upgrading to it applies every additive rev before it plus exactly that
+    boundary, then stops. When nothing pending is gated, returns the newest
+    pending rev (equivalent to head — nothing left to protect). ``None`` when
+    nothing is pending.
+    """
+    pending_list = list(pending)
+    if not pending_list:
+        return None
+    for module in pending_list:
+        if is_phase_gated(module):
+            return getattr(module, "revision", None)
+    return getattr(pending_list[-1], "revision", None)
+
+
 def _pending_modules(config: Any, *, from_rev: str | None) -> list[Any]:  # pragma: no cover
     """Load the ordered pending revision modules from Alembic.
 
@@ -157,14 +181,18 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover — CLI 
       phase-gated rev blocks further progress, apply what is safe and exit
       non-zero with an explanatory message (so ``make migrate`` surfaces the
       boundary instead of silently crossing it).
-    * ``phase`` — upgrade to ``head``, but **only** when ``ALLOW_PHASE_MIGRATION=1``
-      is set; otherwise refuse.
+    * ``phase`` — with ``ALLOW_PHASE_MIGRATION=1``: on a FRESH database (no
+      alembic head yet — ``make reset`` bootstrap) upgrade straight to head
+      (phases protect live data and a running fleet; an empty DB has
+      neither). On an EXISTING database, apply up to and including the NEXT
+      phase boundary only, then stop — one phase per invocation (Codex
+      Gate-A); re-run for each subsequent phase per the deploy runbook.
     """
+    from alembic.config import Config
+    from alembic.runtime.migration import MigrationContext
     from sqlalchemy import create_engine
 
     from alembic import command
-    from alembic.config import Config
-    from alembic.runtime.migration import MigrationContext
     from app.core.config import get_settings
 
     args = list(sys.argv[1:] if argv is None else argv)
@@ -185,7 +213,29 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover — CLI 
                 f"(IRREVERSIBLE/B/C/D) revisions — see the deploy runbook.\n"
             )
             return 2
-        command.upgrade(config, "head")
+        if current is None:
+            # Fresh database (make reset / first boot): no live data, no
+            # fleet — phases are meaningless; bootstrap straight to head.
+            command.upgrade(config, "head")
+            return 0
+        pending = _pending_modules(config, from_rev=current)
+        target = select_phase_target(pending)
+        if target is None:
+            return 0
+        command.upgrade(config, target)
+        # One phase per invocation (Codex Gate-A): if another boundary
+        # remains, say so explicitly instead of silently crossing it.
+        idx = next(
+            (i for i, m in enumerate(pending) if getattr(m, "revision", None) == target),
+            len(pending) - 1,
+        )
+        remaining = pending[idx + 1 :]
+        if any(is_phase_gated(m) for m in remaining):
+            sys.stderr.write(
+                f"applied through phase boundary {target}; further phase-gated "
+                f"revisions remain (next stop: {select_phase_target(remaining)}). "
+                f"Re-run `make migrate.phase` for the next phase per the runbook.\n"
+            )
         return 0
 
     # mode == "safe" (default, what `make migrate` calls)
