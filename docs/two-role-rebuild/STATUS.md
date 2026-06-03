@@ -11,8 +11,8 @@
 |---|---|---|---|---|---|
 | S7-pre foundation | ✅ | ✅ 913b978 | ✅ | ✅ | ✅ |
 | S1 role collapse | ✅ | ✅ 506e1f5+acf390e | ✅ | ✅ | ✅ |
-| S5 BYOK | ✅ | ✅ 89fea7a + merge-gate fixes | ⏳ next | ⏳ next | ⏳ next |
-| S2 visibility/authorizer | ✅ (worktree `agent-a719f9a8a9f298534`, 16 commits) | ⬜ after S5 gates | ⬜ | ⬜ | ⬜ |
+| S5 BYOK | ✅ | ✅ 89fea7a + fixes →e9720e5 | 🟡 fixed, confirm-round running | ✅ after fixes | ✅ live-proven |
+| S2 visibility/authorizer | ✅ (worktree `agent-a719f9a8a9f298534`, 16 commits) | ⬜ after S5 confirm | ⬜ | ⬜ | ⬜ |
 | S3 goal intake→build | ⬜ Wave 2 (needs S1+S2) | | | | |
 | S4 clone/remix | ⬜ Wave 2 (needs S2) | | | | |
 | S6 admin/moderation | ⬜ Wave 2 | | | | |
@@ -28,10 +28,14 @@ S2 carries `0033 → 0041 → 0042 → 0043 (NOT-NULL boundary) → 0044`; integ
 
 ## Carry-forwards (owed, not lost)
 
-- PR-19 live no-KEK-with-credential boot check — verify at S5 Gate-C.
+- ~~PR-19 live no-KEK-with-credential boot check~~ — CLOSED at S5 Gate-C (prod+empty-KEK+credential
+  rows → boot-guard refusal, live-verified 2026-06-03).
 - Suspended-user 401-vs-403 contract — S7 contract pass.
 - Ingest "Import from URL" button visible to non-admin (API refuses; UI polish) — S2/S6.
-- `feature_byok_enabled` default OFF — flip decision belongs to W12 release planning.
+- `feature_byok_enabled` default OFF — flip decision belongs to W12 release planning. Prod flip
+  REQUIRES setting `BYOK_MASTER_KEYS={"1":"<b64 32B>"}` in .env.production first (boot guard).
+- Streamed-turn `llm_calls` rows persist tokens=0 (usage tokens aren't plumbed through stream
+  events yet) — token-window quota for streaming is COUNT-based only; plumb usage at S7 if wanted.
 
 ## Standing process rules
 

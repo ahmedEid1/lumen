@@ -251,6 +251,22 @@ its three gates are green:**
   storageState auth only; never form-fill credentials for >1 account per session context; never retry after
   a block. Memory: aup-block-multi-account-logins. New session resumed; finishing S5 integration.
 
+- **2026-06-03** — **S5 BYOK MERGED + GATES RUN** (merge 89fea7a; integration b4e2144/7907607; fixes
+  540ccd9/4e5ba9f/e9720e5). Merge-gate surfaced 39 failures (byok.py import-time get_provider binding broke
+  the provider test seam = 34 of them; 5 test repairs) → 978 green. Gate-A (Codex) "fix-required" (4 findings)
+  + Gate-B (Claude) "needs-work" (2 major + 2 minor) — ALL verified vs source, all real: auto-validate cap
+  bypass; dollar guard summing BYOK rows; streaming reserve-before-resolve + streamed turns invisible to
+  quotas/rollup (no llm_calls rows); worker suppressing no-consent dispatch errors; ADR-0027 §4 item-3
+  consent-at-dispatch unimplemented (redact_provider_error dead code); flag-off reads not inert + frontend
+  tab ungated + missing auth guard (Gate-C); compose BYOK env pass-through MISSING in dev+prod (flag was
+  unflippable — the FEATURE_TUTOR_STREAMING lesson again). All closed; regression tests written by the
+  s5-gate-fix-tests workflow (5 agents, 18 backend + 3 frontend tests, zero fix-code bugs). Suites: backend
+  996 / frontend 390 green. Gate-C live (scripted persona auth, zero credential form-fills): flag-off
+  inertness (403 capability_revoked write, empty reads, unavailable notice, auth-guard redirect); flag-on
+  full walk — store fake key → auto-validate vs real OpenAI → "Invalid key" with the REDACTED message
+  on-screen; DB blob encrypted (no plaintext, position=0), 0 log/llm_calls leaks, audit events present;
+  activate toggle persists; PR-19 carry-forward CLOSED (prod+empty-KEK+credential rows → boot guard refusal,
+  live-verified). Codex confirmation round on the fix commits pending; flag restored to ship-inert false.
 ---
 
 ## 6a. Verified RBAC inventory (ground truth, 2026-06-03)
