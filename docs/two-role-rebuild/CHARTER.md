@@ -280,6 +280,27 @@ its three gates are green:**
   regression tests ran as workflows (s5-gate-fix-tests: 5 agents/21 tests; s5-confirm-round-tests)
   per the head-orchestrates-workflows-build correction. **Opening S2 merge (workflow
   s2-merge-integration): merge worktree-agent-a719f9a8a9f298534, re-point 0033→0040, merge-gate.**
+- **2026-06-04** — **S2 MERGED + GATES RUN.** Merge workflow's agent merged (8860c7e, 66 files, 0033→0040
+  re-point) then died on a session limit mid-merge-gate; head recovered its diagnosis (117 failures from
+  the S2 contract shift: PATCH{status}→422, published≠listed) + its conftest fixtures. Continuation
+  workflow s2-merge-gate-repairs (5 file-disjoint clusters, 160 tests migrated) found THE merge regression
+  4×-independently: courses.py:14 lost RequireInstructor from S1's rewritten import while S2's 5 lifecycle
+  handlers still used it — `from __future__ import annotations` hid the NameError and FastAPI silently
+  degraded `user` to a query param (all 5 endpoints 422). HEAD ADJUDICATION: agents' re-import fix would
+  have shipped an admin-only lockout (legacy alias gates a role no production user holds; their tests
+  passed on legacy-role seeds) — fixed as RequireAuthor per ADR-0025 (9f15016). Gates: Codex "needs-work"
+  (3 real: 0044 Phase-A chained behind the 0043 boundary; ACL missing the R-VIS-13 enrollment arm; sticky
+  queue staleness); Gate-B "s2-ready" (verified the 14-site reader inventory, ACL threading, R-M9, DR-18-R2
+  quarantine, S2×S5 worker interaction; 3 minors incl. dead ef_search setting). Gate-C live findings:
+  studio editor publish = dead PATCH button; archived state UNREACHABLE (no endpoint); sharing flag had no
+  compose pass-through (3rd occurrence); 0033 omitted moderation_events timestamp defaults → share 500'd on
+  every migration-built DB while create_all test schemas passed. Fix workflow s2-gate-fixes closed all of
+  it (chain now 0042→0044→0043→0045; enrollment arm with head-added deleted_at guard — the SQL path lacks
+  the ORM authorizer's repo-404 precondition; archive/restore endpoints; editor two-control rewire).
+  Suites: backend 1119 / frontend 403 green. Gate-C walk COMPLETE live: publish→published-private,
+  share→public+pending_review (hidden until approved), admin queue shows/drops it (sticky DB state),
+  archive→restore with moderation history surviving (R-C2). Dev keeps FEATURE_PRIVATE_PUBLISH_ENABLED=true
+  for Wave-2/W11. Codex confirmation round on the fix wave running.
 ---
 
 ## 6a. Verified RBAC inventory (ground truth, 2026-06-03)
