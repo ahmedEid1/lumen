@@ -62,10 +62,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import get_settings
 from app.core.errors import AppError, ForbiddenError, NotFoundError
 from app.core.logging import get_logger
 from app.models.agent_trace import TRACE_STATUS_ERROR, TRACE_STATUS_OK
@@ -522,6 +523,24 @@ async def get_today_action(db: AsyncSession, *, user_id: str) -> dict[str, Any] 
 # ---------- Catalog condensation ----------
 
 
+async def _set_catalog_ef_search(db: AsyncSession) -> None:
+    """Raise ``hnsw.ef_search`` for the upcoming cross-course vector SELECT.
+
+    ADR-0029 D5.2: the cross-catalog ACL clause can discard most candidates
+    before reaching ``top_k`` ("filtered-out recall"), so we widen the HNSW
+    search frontier via ``Settings.rag_hnsw_ef_search_catalog`` on this
+    transaction only. ``SET LOCAL`` is scoped to the active transaction and is
+    a no-op (with a server warning) outside one, so we open a transaction first
+    if the session isn't already in one. The value is a validated ``int`` from
+    settings, so interpolating it into the statement is injection-safe (the GUC
+    setter does not accept bind parameters).
+    """
+    if not db.in_transaction():
+        await db.begin()
+    ef = int(get_settings().rag_hnsw_ef_search_catalog)
+    await db.execute(text(f"SET LOCAL hnsw.ef_search = {ef}"))
+
+
 async def _condense_catalog(
     db: AsyncSession,
     goal: str,
@@ -546,6 +565,12 @@ async def _condense_catalog(
         return []
     prov = embedding_provider or get_embedding_provider()
     [query_vec] = prov.embed([goal])
+
+    # ADR-0029 D5.2: widen the HNSW search frontier on the cross-course path so
+    # post-filter recall holds when the ACL clause discards most private
+    # candidates. SET LOCAL is transaction-scoped, so ensure a live transaction
+    # first (the autocommit case would silently no-op the GUC).
+    await _set_catalog_ef_search(db)
 
     distance_col = LessonChunk.embedding.cosine_distance(query_vec).label("distance")
     stmt = (

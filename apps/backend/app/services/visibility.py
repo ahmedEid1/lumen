@@ -25,9 +25,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ColumnElement, and_, or_
+from sqlalchemy import ColumnElement, and_, or_, select
 
-from app.models.course import Course, CourseStatus, ModerationState, Visibility
+from app.models.course import Course, CourseStatus, Enrollment, ModerationState, Visibility
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -173,17 +173,30 @@ async def can_enroll(
 def retrieval_acl_clause(requesting_user_id: str | None) -> ColumnElement[bool]:
     """SQL ACL over the already-joined ``Course`` row for RAG retrieval.
 
-    ``is_publicly_listed OR (owner AND live AND not-failed-draft)``. The owner
-    branch (R-S12) lets a user's own private/draft courses into *their* cross-
-    course context while never leaking another user's private course. A
-    ``None`` requesting user (pure system context) collapses to the listed
-    clause only.
+    ``is_publicly_listed OR (owner …) OR (enrolled …)`` — the SQL embodiment of
+    :func:`can_view_course`'s grandfathering (R-VIS-13). The owner branch
+    (R-S12) lets a user's own private/draft courses into *their* cross-course
+    context; the enrollment branch lets a grandfathered learner keep retrieving
+    a course they enrolled in before it went private/unpublished. Neither
+    branch ever leaks another user's private course. A ``None`` requesting user
+    (pure system context) collapses to the listed clause only.
+
+    Quarantine is a full lockout (R-C6′ / DR-18-R2): a quarantined course is
+    excluded from *every* branch — listed (via :func:`publicly_listed_sql`),
+    owner, and enrolled — mirroring ``can_view_course`` which returns ``False``
+    even for the owner or an enrolled learner. ``severe_abuse`` (the tutor-
+    disable signal where the owner keeps view/edit) is a separate
+    ``moderation_event`` read (S6) and, like ``can_view_course``, is not gated
+    here.
 
     ``build_failed`` is an S3 ``CourseStatus`` value that may not exist yet —
     we reference it defensively as a string literal so the owner branch
     excludes the owner's failed drafts the moment S3 lands the enum value,
     without S2 importing a symbol that doesn't exist (R-S12 / PR-9 follow-up).
-    ``AND NOT quarantined`` is added to this owner branch in S2.10.
+
+    The enrollment branch is an index-friendly correlated ``EXISTS`` keyed on
+    ``enrollments(user_id, course_id)`` (the ``uq_enrollments_user_course``
+    unique index), so it costs at most one index probe per candidate course.
     """
     listed = publicly_listed_sql()
     if requesting_user_id is None:
@@ -197,4 +210,23 @@ def retrieval_acl_clause(requesting_user_id: str | None) -> ColumnElement[bool]:
         # DR-18-R2: a quarantined course never leaks even via the owner branch.
         Course.quarantined.is_(False),
     )
-    return or_(listed, owner)
+    # Grandfathered enrollment (R-VIS-13): the learner enrolled while the course
+    # was visible and keeps retrieval access even after it goes private/
+    # unpublished — but NEVER if it is quarantined (R-C6′ full lockout). Mirrors
+    # ``can_view_course``'s ``get_enrollment is not None`` branch. Unlike the
+    # ORM authorizer — whose callers 404 soft-deleted courses at the repo load,
+    # a precondition this SQL path doesn't have — every SQL branch must carry
+    # ``deleted_at IS NULL`` itself (the listed and owner branches already do;
+    # soft-delete does NOT remove enrollment rows, so without the guard an
+    # ex-enrollee could retrieve chunks of a deleted course).
+    enrolled = and_(
+        Course.quarantined.is_(False),
+        Course.deleted_at.is_(None),
+        select(Enrollment.id)
+        .where(
+            Enrollment.user_id == requesting_user_id,
+            Enrollment.course_id == Course.id,
+        )
+        .exists(),
+    )
+    return or_(listed, owner, enrolled)

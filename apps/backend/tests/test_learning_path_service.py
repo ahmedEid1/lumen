@@ -266,6 +266,43 @@ async def test_condense_catalog_falls_back_when_no_chunks(
     assert course.slug in slugs
 
 
+async def test_condense_catalog_sets_ef_search(
+    db_session: AsyncSession, make_user, monkeypatch
+) -> None:
+    """ADR-0029 D5.2: the cross-course path issues SET LOCAL hnsw.ef_search on
+    its transaction before the vector SELECT (recall guard). Captured via a
+    db.execute spy — we assert the statement is issued, not the recall."""
+    from sqlalchemy.sql.elements import TextClause
+
+    teacher = await make_user(role=Role.instructor)
+    course = await _seed_published_course(
+        db_session,
+        owner_id=teacher.id,
+        title="EF Search",
+        slug=f"ef-search-{uuid.uuid4().hex[:6]}",
+        overview="ef search probe",
+        lesson_bodies=["text"],
+    )
+    await ingest_course(db_session, course.id)
+
+    seen: list[str] = []
+    real_execute = db_session.execute
+
+    async def _spy(statement, *args, **kwargs):
+        if isinstance(statement, TextClause):
+            seen.append(str(statement))
+        return await real_execute(statement, *args, **kwargs)
+
+    monkeypatch.setattr(db_session, "execute", _spy)
+    await learning_path_service._condense_catalog(
+        db_session, "build something", top_k=5, requesting_user_id=teacher.id
+    )
+    ef = get_settings().rag_hnsw_ef_search_catalog
+    assert any("hnsw.ef_search" in s and str(ef) in s for s in seen), (
+        f"expected SET LOCAL hnsw.ef_search = {ef}; saw {seen}"
+    )
+
+
 # ---------- build_path ----------
 
 

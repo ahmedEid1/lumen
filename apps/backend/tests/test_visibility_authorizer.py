@@ -398,3 +398,128 @@ async def test_retrieval_acl_clause_none_viewer_listed_only(db_session: AsyncSes
         ).all()
     }
     assert private.id not in ids
+
+
+async def _mk_learner(db: AsyncSession):
+    from app.core.ids import new_id
+    from app.core.security import hash_password
+    from app.models.user import Role, User
+
+    learner = User(
+        email=f"l-{new_id()[:8]}@lumen.test",
+        password_hash=hash_password("Password!1234"),
+        full_name="Learner",
+        role=Role.student,
+    )
+    db.add(learner)
+    await db.commit()
+    await db.refresh(learner)
+    return learner
+
+
+@pytest.mark.asyncio
+async def test_retrieval_acl_clause_enrolled_grandfather(db_session: AsyncSession):
+    """R-VIS-13: a grandfathered learner keeps retrieval on a now-private course.
+
+    Mirrors ``can_view_course``'s enrollment branch in SQL — the learner
+    enrolled while the course was visible and keeps chunk-level access even
+    after the owner unpublishes/unshares it. The non-enrolled stranger never
+    sees it.
+    """
+    from app.models.course import Course, Enrollment
+
+    owner, subject = await _seed_owner_subject(db_session)
+    learner = await _mk_learner(db_session)
+    stranger = await _mk_learner(db_session)
+
+    # A course the learner enrolled in, then it went private + unpublished.
+    private = await _mk_course(
+        db_session,
+        owner,
+        subject,
+        visibility=Visibility.private,
+        status=CourseStatus.draft,
+        moderation_state=ModerationState.none,
+    )
+    db_session.add(Enrollment(user_id=learner.id, course_id=private.id))
+    await db_session.commit()
+
+    learner_ids = {
+        row[0]
+        for row in (
+            await db_session.execute(select(Course.id).where(vis.retrieval_acl_clause(learner.id)))
+        ).all()
+    }
+    assert private.id in learner_ids  # enrolled grandfather -> eligible
+
+    stranger_ids = {
+        row[0]
+        for row in (
+            await db_session.execute(select(Course.id).where(vis.retrieval_acl_clause(stranger.id)))
+        ).all()
+    }
+    assert private.id not in stranger_ids  # non-enrolled non-owner -> blocked
+
+
+@pytest.mark.asyncio
+async def test_retrieval_acl_clause_enrolled_quarantined_blocked(db_session: AsyncSession):
+    """R-C6′ full lockout: even an enrolled learner gets nothing on a quarantined
+    course — mirrors ``can_view_course`` returning False for the enrolled."""
+    from app.models.course import Course, Enrollment
+
+    owner, subject = await _seed_owner_subject(db_session)
+    learner = await _mk_learner(db_session)
+
+    quarantined = await _mk_course(
+        db_session,
+        owner,
+        subject,
+        visibility=Visibility.public,
+        status=CourseStatus.published,
+        moderation_state=ModerationState.approved,
+    )
+    quarantined.quarantined = True
+    db_session.add(Enrollment(user_id=learner.id, course_id=quarantined.id))
+    await db_session.commit()
+
+    ids = {
+        row[0]
+        for row in (
+            await db_session.execute(select(Course.id).where(vis.retrieval_acl_clause(learner.id)))
+        ).all()
+    }
+    assert quarantined.id not in ids  # quarantine beats enrollment (full lockout)
+
+
+async def test_retrieval_acl_clause_enrolled_deleted_course_blocked(db_session: AsyncSession):
+    """Head fix on the enrollment arm: soft-delete does NOT remove enrollment
+    rows, and the SQL path has no repo-load 404 precondition — without an
+    explicit ``deleted_at IS NULL`` guard an ex-enrollee could retrieve chunks
+    of a deleted course. Every SQL branch carries the guard itself."""
+    from datetime import UTC, datetime
+
+    from app.models.course import Course, Enrollment
+
+    owner, subject = await _seed_owner_subject(db_session)
+    learner = await _mk_learner(db_session)
+
+    deleted = await _mk_course(
+        db_session,
+        owner,
+        subject,
+        visibility=Visibility.public,
+        status=CourseStatus.published,
+        moderation_state=ModerationState.approved,
+    )
+    db_session.add(Enrollment(user_id=learner.id, course_id=deleted.id))
+    await db_session.flush()
+    deleted.deleted_at = datetime.now(UTC)
+    await db_session.commit()
+
+    ids = {
+        row[0]
+        for row in (
+            await db_session.execute(select(Course.id).where(vis.retrieval_acl_clause(learner.id)))
+        ).all()
+    }
+    assert deleted.id not in ids  # deletion beats enrollment grandfathering

@@ -162,3 +162,54 @@ def test_migrated_readers_no_raw_status_clause():
     ):
         assert "retrieval_acl_clause" in src
         assert "CourseStatus.published" not in src
+
+
+# --------------------------------------------------------------------------
+# ef_search (ADR-0029 D5.2): the cross-catalog vector path widens the HNSW
+# search frontier on its transaction before the SELECT.
+# --------------------------------------------------------------------------
+
+
+class _StubEmbed:
+    """Returns a fixed 384-d vector so the researcher reaches the SET LOCAL +
+    SELECT without loading the local embedding model."""
+
+    dim = 384
+    model_id = "stub"
+
+    def embed(self, texts):
+        from app.models.lesson_chunk import EMBEDDING_DIM
+
+        return [[0.1] * EMBEDDING_DIM for _ in texts]
+
+
+@pytest.mark.asyncio
+async def test_researcher_catalog_sets_ef_search(db_session: AsyncSession, monkeypatch):
+    """ADR-0029 D5.2: _fetch_catalog_neighbours issues SET LOCAL hnsw.ef_search
+    before the vector SELECT. Captured via a db.execute spy."""
+    from sqlalchemy.sql.elements import TextClause
+
+    from app.core.config import get_settings
+    from app.services.authoring_subagents import researcher as r
+
+    a = await _owner(db_session)
+    seen: list[str] = []
+    real_execute = db_session.execute
+
+    async def _spy(statement, *args, **kwargs):
+        if isinstance(statement, TextClause):
+            seen.append(str(statement))
+        return await real_execute(statement, *args, **kwargs)
+
+    monkeypatch.setattr(db_session, "execute", _spy)
+    await r._fetch_catalog_neighbours(
+        db_session,
+        brief="anything at all",
+        top_k=5,
+        embedding_provider=_StubEmbed(),
+        requesting_user_id=a.id,
+    )
+    ef = get_settings().rag_hnsw_ef_search_catalog
+    assert any("hnsw.ef_search" in s and str(ef) in s for s in seen), (
+        f"expected SET LOCAL hnsw.ef_search = {ef}; saw {seen}"
+    )

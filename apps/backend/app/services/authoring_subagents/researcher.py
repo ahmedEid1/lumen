@@ -32,9 +32,10 @@ import os
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.course import Course, Lesson, Module
 from app.models.lesson_chunk import LessonChunk
@@ -194,6 +195,21 @@ async def _fetch_web_snippets(
     return snippets, ""
 
 
+async def _set_catalog_ef_search(db: AsyncSession) -> None:
+    """Raise ``hnsw.ef_search`` for the upcoming cross-catalog vector SELECT.
+
+    ADR-0029 D5.2 — see ``learning_path._set_catalog_ef_search`` for the full
+    rationale. ``SET LOCAL`` is transaction-scoped (a no-op outside one), so we
+    ensure a live transaction first. The value is a validated ``int`` from
+    settings, so interpolating it is injection-safe (the GUC setter takes no
+    bind parameters).
+    """
+    if not db.in_transaction():
+        await db.begin()
+    ef = int(get_settings().rag_hnsw_ef_search_catalog)
+    await db.execute(text(f"SET LOCAL hnsw.ef_search = {ef}"))
+
+
 async def _fetch_catalog_neighbours(
     db: AsyncSession,
     *,
@@ -232,6 +248,11 @@ async def _fetch_catalog_neighbours(
             error_kind=type(exc).__name__,
         )
         return []
+
+    # ADR-0029 D5.2: widen the HNSW search frontier on this cross-catalog path
+    # so post-filter recall holds when the ACL clause discards most private
+    # candidates (mirrors learning_path._condense_catalog).
+    await _set_catalog_ef_search(db)
 
     distance_col = LessonChunk.embedding.cosine_distance(query_vec).label("distance")
     stmt = (

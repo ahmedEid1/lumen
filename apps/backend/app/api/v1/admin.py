@@ -298,17 +298,33 @@ async def moderation_queue(
 ) -> list[CourseListItem]:
     """The pending-review moderation queue (S2.11 minimal API; S6 enriches).
 
-    Lists courses with ``moderation_state == pending_review`` so an admin can
-    approve/reject them (the approve/reject ACTIONS are S6's). The
-    ``/admin/moderation`` page renders this queue.
+    Lists courses awaiting review that still carry an **active sharing intent**:
+    ``moderation_state == pending_review`` AND ``visibility == public`` AND
+    ``status == published`` (DR-21: the queue is for courses the owner is
+    actually asking to list publicly). The approve/reject ACTIONS are S6's;
+    the ``/admin/moderation`` page renders this queue.
+
+    ``moderation_state`` itself is **sticky** — unsharing (public→private) or
+    unpublishing (published→draft) does NOT reset it to ``none`` (see
+    ``courses.unshare_course``/``unpublish_course``). So a course can sit at
+    ``pending_review`` in the DB while being absent from this queue: the
+    sticky state is preserved for the eventual re-share (R-M9 reuses any prior
+    approval), but the admin only sees it here while the sharing intent is
+    live. Re-sharing flips ``visibility`` back to public and the row reappears
+    without a fresh owner action.
     """
-    from app.models.course import ModerationState
+    from app.models.course import CourseStatus, ModerationState, Visibility
 
     stmt = (
         select(Course)
         .where(
             Course.deleted_at.is_(None),
             Course.moderation_state == ModerationState.pending_review,
+            # Active sharing intent only (DR-21): a course unshared/unpublished
+            # back to private/draft keeps its sticky pending_review state but
+            # drops out of the live queue.
+            Course.visibility == Visibility.public,
+            Course.status == CourseStatus.published,  # noqa: published-check — lifecycle stat
         )
         .order_by(Course.updated_at.asc())  # oldest-waiting first
         .limit(limit)

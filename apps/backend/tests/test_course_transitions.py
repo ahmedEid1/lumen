@@ -79,7 +79,7 @@ async def test_invalid_transition_blocked(
     assert exc.value.code == "course.invalid_transition"
 
 
-async def test_only_owner_or_admin_can_edit(
+async def test_non_owner_cannot_edit_course(
     client: AsyncClient, auth_headers, db_session: AsyncSession
 ) -> None:
     teacher_a = await auth_headers(role=Role.instructor)
