@@ -393,6 +393,8 @@ export const ar: Record<MessageKey, string> = {
   "adminUsers.role.student": "طالب",
   "adminUsers.role.instructor": "مدرّس",
   "adminUsers.role.admin": "مسؤول",
+  // S1.11 (two-role collapse): canonical non-admin role label.
+  "adminUsers.role.user": "مستخدم",
   "adminUsers.status.active": "نشط",
   "adminUsers.status.disabled": "معطّل",
   "adminUsers.disable": "تعطيل",
@@ -448,6 +450,9 @@ export const ar: Record<MessageKey, string> = {
   "admin.stat.users": "المستخدمون",
   "admin.stat.active": "النشِطون",
   "admin.stat.instructors": "المدرّسون",
+  // S1.11 (two-role collapse): admins + authors supersede instructors.
+  "admin.stat.admins": "المسؤولون",
+  "admin.stat.authors": "المؤلّفون",
   "admin.stat.courses": "الدورات",
   "admin.stat.published": "منشورة",
   "admin.stat.drafts": "مسودّات",

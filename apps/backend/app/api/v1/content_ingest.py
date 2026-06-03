@@ -16,7 +16,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.api.deps import DBSession, RequireInstructor
+from app.api.deps import DBSession, RequireIngestUrl
 from app.core.ratelimit import limiter
 from app.services.content_ingest import (
     IngestPayload,
@@ -62,7 +62,7 @@ class IngestCommitResponse(BaseModel):
 @limiter.limit("60/minute")
 async def detect_ingest_source(
     payload: IngestPreviewRequest,
-    _: RequireInstructor,
+    _: RequireIngestUrl,
     request: Request,
     response: Response,
 ) -> IngestDetectResponse:
@@ -77,7 +77,7 @@ async def detect_ingest_source(
 @limiter.limit("3/minute")
 async def preview_ingest(
     payload: IngestPreviewRequest,
-    _: RequireInstructor,
+    _: RequireIngestUrl,
     request: Request,
     response: Response,
 ) -> IngestPayload:
@@ -99,7 +99,7 @@ async def preview_ingest(
 @limiter.limit("10/minute")
 async def commit_ingest(
     payload: IngestCommitRequest,
-    user: RequireInstructor,
+    user: RequireIngestUrl,
     db: DBSession,
     request: Request,
     response: Response,

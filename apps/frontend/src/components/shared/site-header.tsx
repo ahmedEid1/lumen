@@ -22,6 +22,7 @@ import { NotificationsBell } from "@/components/shared/notifications-bell";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
+import type { Role } from "@/lib/api/types";
 
 /**
  * Lumen mark — an open square bracket with a pulsing dot inside.
@@ -83,20 +84,21 @@ function initials(name: string) {
 
 type NavLink = { href: string; labelKey: MessageKey };
 
-function navLinksFor(role: "student" | "instructor" | "admin" | undefined): NavLink[] {
+function navLinksFor(role: Role | undefined): NavLink[] {
   const links: NavLink[] = [{ href: "/courses", labelKey: "nav.catalog" }];
   if (!role) return links;
   links.push({ href: "/dashboard", labelKey: "nav.dashboard" });
-  // Reviews is shown to everyone authenticated — instructors and admins
-  // can have learner cards too if they've taken any quizzes (and the
-  // empty-state copy handles the "no cards yet" case cleanly).
+  // Reviews is shown to everyone authenticated — learner cards accrue from
+  // quizzes regardless of authoring activity (and the empty-state copy
+  // handles the "no cards yet" case cleanly).
   links.push({ href: "/dashboard/reviews", labelKey: "nav.reviews" });
   // Mastery (Phase E7) sits next to Reviews — it's the
   // "what should I revisit next" surface that combines E4's FSRS
   // queue with E1's tutor signals and quiz history. Same audience.
   links.push({ href: "/dashboard/mastery", labelKey: "nav.mastery" });
-  if (role === "instructor" || role === "admin")
-    links.push({ href: "/studio", labelKey: "nav.studio" });
+  // S1.11: Studio is available to any authenticated user (authoring is
+  // ungated from the instructor role).
+  links.push({ href: "/studio", labelKey: "nav.studio" });
   if (role === "admin") links.push({ href: "/admin", labelKey: "nav.admin" });
   return links;
 }

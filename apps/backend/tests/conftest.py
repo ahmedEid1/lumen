@@ -224,7 +224,12 @@ async def make_user(db_session: AsyncSession):
         *,
         email: str | None = None,
         password: str = "Password!1234",
-        role: Role = Role.student,
+        # S1.12: the role-collapse default is the canonical `user`. Explicit
+        # `role=Role.instructor`/`Role.student` overrides still work — the enum
+        # stays wide through Phase A, so the legacy-tolerance tests (S1.6 MCP
+        # legacy-instructor principal, role-collapse migration seeds) keep
+        # planting legacy rows on demand.
+        role: Role = Role.user,
         full_name: str = "Test User",
     ) -> User:
         user = User(
@@ -273,7 +278,7 @@ async def seed_lesson(client: AsyncClient):
 
 @pytest_asyncio.fixture
 async def auth_headers(client: AsyncClient, make_user):
-    async def _login(*, role: Role = Role.student) -> dict[str, str]:
+    async def _login(*, role: Role = Role.user) -> dict[str, str]:
         email = f"login-{uuid.uuid4().hex[:8]}@lumen.test"
         password = "Password!1234"
         await make_user(email=email, password=password, role=role)

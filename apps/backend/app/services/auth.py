@@ -55,7 +55,9 @@ async def register(
         email=str(payload.email),
         password_hash=hash_password(payload.password),
         full_name=payload.full_name,
-        role=Role.student,
+        # S1.8: new signups default to the canonical `user` role (every active
+        # user can author + learn; admin is granted explicitly).
+        role=Role.user,
     )
     await audit_repo.record(
         db,

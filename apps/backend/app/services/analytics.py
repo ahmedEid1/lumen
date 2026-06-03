@@ -13,6 +13,7 @@ from app.core.errors import ForbiddenError, NotFoundError
 from app.models.course import Enrollment, Lesson, LessonProgress, Module, Review
 from app.models.user import User
 from app.repositories import courses as courses_repo
+from app.services import capabilities as cap
 
 
 async def _scalar_count(db: AsyncSession, stmt) -> int:
@@ -31,11 +32,18 @@ async def _total_lessons(db: AsyncSession, course_id: str) -> int:
 
 
 async def _load_owned_course(db: AsyncSession, course_id: str, viewer: User, *, forbid_code: str):
-    """Fetch course → 404 → owner-or-admin → 403, returning the row."""
+    """Fetch course → 404 → owner-or-admin → 403, returning the row.
+
+    S1.5 / ADR-0025 §D4: the analytics route is the one "author route" that
+    is actually *owner-or-admin*, not all-active-users. The route now carries
+    `RequireAuthor` (any active user reaches the handler), so the real
+    owner/admin gate lives here as the capability re-check
+    `cap.can_view_course_analytics` — authorization is never route-only.
+    """
     course = await courses_repo.get_course(db, course_id)
     if not course:
         raise NotFoundError("Course not found", code="course.not_found")
-    if not (viewer.is_admin() or course.owner_id == viewer.id):
+    if not cap.can_view_course_analytics(viewer, course):
         raise ForbiddenError("Not your course", code=forbid_code)
     return course
 

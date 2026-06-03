@@ -145,11 +145,14 @@ async def _seed() -> None:
             ]
         }
 
-        # Users
+        # Users — S1.8: the two demo accounts keep their familiar emails but
+        # are seeded as the canonical `user` role (both can author + learn;
+        # admin is the only elevated role). The persona shim in the frontend
+        # e2e / conftest maps teacher@/student@ → user.
         users = {
             "admin@lumen.test": ("Admin", Role.admin, "Admin!2026"),
-            "teacher@lumen.test": ("Tareq Hassan", Role.instructor, "Teach!2026"),
-            "student@lumen.test": ("Lina Park", Role.student, "Learn!2026"),
+            "teacher@lumen.test": ("Tareq Hassan", Role.user, "Teach!2026"),
+            "student@lumen.test": ("Lina Park", Role.user, "Learn!2026"),
         }
         created = {}
         for email, (full_name, role, password) in users.items():

@@ -1,6 +1,12 @@
 /* Domain types — kept hand-written for now; regenerate via `pnpm openapi:generate`. */
 
-export type Role = "student" | "instructor" | "admin";
+// S1.11 / ADR-0025: the two-role model. Hand-edited (never `make api-client`,
+// DR-5); the OpenAPI↔types drift check is owned by S7. The backend enum stays
+// wide (student/instructor) through the Phase-A collapse window, but the UI
+// only ever models + assigns the canonical two roles. A stale `/me` carrying a
+// legacy role is harmless: every author gate is capability-by-default, and the
+// badge path normalises display-side.
+export type Role = "user" | "admin";
 
 export interface UserPublic {
   id: string;

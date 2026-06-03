@@ -36,14 +36,45 @@ async def test_admin_can_crud_subjects(client: AsyncClient, auth_headers) -> Non
 
 
 async def test_admin_can_promote_users(client: AsyncClient, auth_headers, make_user) -> None:
+    # S1.8: the only promotable role is `admin` (the two-role model).
     admin = await auth_headers(role=Role.admin)
-    student = await make_user(email="promote@lumen.test", password="Password!1234")
+    user = await make_user(email="promote@lumen.test", password="Password!1234")
 
     promote = await client.patch(
-        f"/api/v1/admin/users/{student.id}/role", json={"role": "instructor"}, headers=admin
+        f"/api/v1/admin/users/{user.id}/role", json={"role": "admin"}, headers=admin
     )
     assert promote.status_code == 200
-    assert promote.json()["role"] == "instructor"
+    assert promote.json()["role"] == "admin"
+
+
+async def test_admin_can_demote_admin_to_user(client: AsyncClient, auth_headers, make_user) -> None:
+    # S1.8: an admin can revoke another admin back to `user`.
+    admin = await auth_headers(role=Role.admin)
+    other = await make_user(email="demote@lumen.test", role=Role.admin)
+    r = await client.patch(
+        f"/api/v1/admin/users/{other.id}/role", json={"role": "user"}, headers=admin
+    )
+    assert r.status_code == 200
+    assert r.json()["role"] == "user"
+
+
+async def test_set_user_role_rejects_legacy_values(
+    client: AsyncClient, auth_headers, make_user
+) -> None:
+    # S1.8 / FR-RBAC-06: legacy `student`/`instructor` are write-forbidden;
+    # `user` is accepted. Read-tolerance is unaffected (the wide enum loads).
+    admin = await auth_headers(role=Role.admin)
+    target = await make_user(email="legacy-write@lumen.test")
+    for legacy in ("student", "instructor"):
+        r = await client.patch(
+            f"/api/v1/admin/users/{target.id}/role", json={"role": legacy}, headers=admin
+        )
+        assert r.status_code == 422, f"{legacy} should be rejected"
+    ok = await client.patch(
+        f"/api/v1/admin/users/{target.id}/role", json={"role": "user"}, headers=admin
+    )
+    assert ok.status_code == 200
+    assert ok.json()["role"] == "user"
 
 
 async def test_admin_cannot_self_demote(client: AsyncClient, auth_headers, db_session) -> None:
@@ -51,9 +82,9 @@ async def test_admin_cannot_self_demote(client: AsyncClient, auth_headers, db_se
     # Pull the admin's id from /auth/me
     me = await client.get("/api/v1/auth/me", headers=admin)
     aid = me.json()["id"]
-    r = await client.patch(
-        f"/api/v1/admin/users/{aid}/role", json={"role": "student"}, headers=admin
-    )
+    # Demoting self to `user` (the now-valid non-admin role) trips the
+    # self-demote guard, not the legacy-role validator.
+    r = await client.patch(f"/api/v1/admin/users/{aid}/role", json={"role": "user"}, headers=admin)
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "user.self_demote"
 

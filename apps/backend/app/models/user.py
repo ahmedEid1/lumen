@@ -17,8 +17,15 @@ if TYPE_CHECKING:
 
 
 class Role(StrEnum):
+    # Two-role collapse (ADR-0025 §D1). Phase A widens the set to tolerate
+    # both the legacy ``student``/``instructor`` rows (until 0031 backfills
+    # them to ``user``) and the new canonical ``user``. ``student`` and
+    # ``instructor`` are removed in the evidence-gated Phase-D cut (S1.13);
+    # keep them here so legacy rows load and stale request bodies don't crash
+    # deserialization during the transition window (R-C5).
     student = "student"
     instructor = "instructor"
+    user = "user"
     admin = "admin"
 
 
@@ -33,7 +40,9 @@ class User(IdMixin, TimestampMixin, Base):
     full_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     bio: Mapped[str | None] = mapped_column(String(1000), nullable=True)
-    role: Mapped[Role] = mapped_column(String(20), nullable=False, default=Role.student, index=True)
+    # S1.8: the ORM-side default flips to `user` here; the DB `server_default`
+    # flip is migration 0032 (Phase C). Both land in the narrowed-enum release.
+    role: Mapped[Role] = mapped_column(String(20), nullable=False, default=Role.user, index=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # ADR-0030 §D1 / Migration 0030. Tombstone marker that distinguishes a

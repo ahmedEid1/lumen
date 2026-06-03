@@ -54,8 +54,9 @@ export default function StudioPage() {
 
   useEffect(() => {
     if (!ready) return;
+    // S1.11: Studio is open to any authenticated user (authoring is ungated
+    // from the instructor role). Only anonymous visitors are redirected.
     if (!user) router.replace("/login?next=/studio");
-    else if (user.role === "student") router.replace("/dashboard");
   }, [ready, user, router]);
 
   const counts = useMemo(() => {
@@ -67,16 +68,14 @@ export default function StudioPage() {
     return c;
   }, [mine.data]);
 
-  if (!ready || !user || user.role === "student") return null;
+  if (!ready || !user) return null;
 
   return (
     <div className="container mx-auto px-6 py-14">
-      {(user.role === "instructor" || user.role === "admin") && (
-        <OnboardingTour
-          steps={instructorSteps(t)}
-          storageKey="lumen.onboarding.instructor.dismissed"
-        />
-      )}
+      <OnboardingTour
+        steps={instructorSteps(t)}
+        storageKey="lumen.onboarding.instructor.dismissed"
+      />
       <header className="mb-10 flex flex-col gap-3">
         <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
           {t("studio.cartouche")}

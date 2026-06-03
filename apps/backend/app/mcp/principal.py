@@ -94,7 +94,34 @@ class Principal:
 
     @property
     def is_instructor(self) -> bool:
+        """DEPRECATED (ADR-0025 §D5). Kept only so the legacy
+        ``auth=="instructor"`` server branch can resolve a stale `instructor`
+        principal during the R1–R2 collapse window. Write-gating now uses
+        :attr:`can_author`. Removed in the Phase-D cut (S1.13)."""
         return self.role in (Role.instructor, Role.admin)
+
+    @property
+    def can_author(self) -> bool:
+        """Capability gate for MCP writes — mirrors
+        :func:`app.services.capabilities.can_author`. Any active user (the
+        underlying ``User`` row, re-read live at resolve time) may author;
+        suspension is the single revocation axis (R-CAP)."""
+        return self.user is not None and bool(self.user.is_active)
+
+    def can_use_mcp_authoring(self, settings: Any) -> bool:
+        """Active principal AND the global ``mcp_authoring_enabled`` flag —
+        mirrors :func:`app.services.capabilities.can_use_mcp_authoring`."""
+        return self.can_author and bool(getattr(settings, "mcp_authoring_enabled", False))
+
+    def can_ingest_url(self, settings: Any) -> bool:
+        """Active AND admin AND the global ``ingest_url_enabled`` flag (default
+        OFF) — mirrors :func:`app.services.capabilities.can_ingest_url`.
+        URL ingest is NOT auto-opened by the role collapse (DR-M12)."""
+        return (
+            self.can_author
+            and self.is_admin
+            and bool(getattr(settings, "ingest_url_enabled", False))
+        )
 
 
 def _principal_from_client_row(

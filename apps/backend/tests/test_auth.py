@@ -22,6 +22,24 @@ async def test_register_then_login(client: AsyncClient) -> None:
     assert body["access_token"]
 
 
+async def test_signup_defaults_to_user_role(client: AsyncClient) -> None:
+    # S1.8 / FR-RBAC-06: a fresh signup is the canonical `user` role, not the
+    # legacy `student`.
+    email = "defaultrole@lumen.test"
+    pwd = "Password!1234"
+    r = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": pwd, "full_name": "Default"},
+    )
+    assert r.status_code == 201, r.text
+
+    login = await client.post("/api/v1/auth/login", json={"email": email, "password": pwd})
+    token = login.json()["access_token"]
+    me = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200, me.text
+    assert me.json()["role"] == "user"
+
+
 async def test_register_rejects_weak_password(client: AsyncClient) -> None:
     r = await client.post(
         "/api/v1/auth/register",

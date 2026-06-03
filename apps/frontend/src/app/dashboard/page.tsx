@@ -88,12 +88,11 @@ export default function DashboardPage() {
 
   return (
     <div className="container mx-auto px-6 py-14 sm:py-20">
-      {user.role === "student" && (
-        <OnboardingTour
-          steps={learnerSteps(t)}
-          storageKey="lumen.onboarding.learner.dismissed"
-        />
-      )}
+      {/* S1.11: the dashboard is the learn surface for every user (the
+          two-role model merges learner + author). Show the learner tour to
+          any authenticated user, not just the legacy `student` role. */}
+      <OnboardingTour steps={learnerSteps(t)} storageKey="lumen.onboarding.learner.dismissed" />
+
       <header className="mb-12 flex flex-col gap-3">
         <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
           {t("dashboard.cartouche")}

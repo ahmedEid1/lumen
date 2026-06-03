@@ -47,19 +47,19 @@ export default function DraftTracePage({
 
   useEffect(() => {
     if (!ready) return;
+    // S1.11: the draft studio is open to any authenticated user.
     if (!user) router.replace(`/login?next=/studio/draft/${courseId}`);
-    else if (user.role === "student") router.replace("/dashboard");
   }, [ready, user, router, courseId]);
 
   const traceQ = useQuery({
     queryKey: ["draft-trace", courseId],
     queryFn: () => AI.draftTrace(courseId),
-    enabled: !!user && user.role !== "student",
+    enabled: !!user,
   });
   const courseQ = useQuery({
     queryKey: qk.course(courseId),
     queryFn: () => Courses.get(courseId),
-    enabled: !!user && user.role !== "student",
+    enabled: !!user,
   });
 
   const publish = useMutation({
@@ -74,7 +74,7 @@ export default function DraftTracePage({
     },
   });
 
-  if (!ready || !user || user.role === "student") return null;
+  if (!ready || !user) return null;
 
   if (traceQ.isLoading || courseQ.isLoading) {
     return (
