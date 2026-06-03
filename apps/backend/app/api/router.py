@@ -23,6 +23,7 @@ from app.api.v1 import (
     health,
     learner_traces,
     learning_path,
+    llm_providers,
     mastery,
     notifications,
     reviews,
@@ -109,3 +110,7 @@ api_router.include_router(runtime_flags.router, tags=["runtime-flags"])
 # L20.6 — Curated demo-question library. Anon-readable; consumed by
 # the L22 chip rail above the tutor composer + the L25 eval suite.
 api_router.include_router(demo_questions.router, tags=["demo-questions"])
+# S5 (BYOK) — read-only allowlisted provider+model registry. Mounted with
+# no extra prefix → /api/v1/llm-providers. Authenticated; exposes no
+# base_url/keys.
+api_router.include_router(llm_providers.router, tags=["llm-providers"])
