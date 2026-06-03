@@ -26,18 +26,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/case-study`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
   ];
 
-  // Best-effort enumeration of published courses. If the API is unreachable
-  // at build/regen time, skip the dynamic entries instead of failing the
-  // route — robots/sitemap should never 500.
+  // Best-effort enumeration of publicly-LISTED courses (S2.12). The catalog
+  // endpoint is already visibility-filtered server-side (publicly_listed_sql),
+  // so a private / pending / delisted / quarantined course never appears here.
+  // We additionally guard on `visibility === "public"` as defense-in-depth.
+  // If the API is unreachable at build/regen time, skip the dynamic entries
+  // instead of failing the route — robots/sitemap should never 500.
   let courses: MetadataRoute.Sitemap = [];
   try {
     const page = await Catalog.courses({ page: 1, page_size: 100, sort: "-published_at" });
-    courses = page.items.map((c) => ({
-      url: `${base}/courses/${c.slug}`,
-      lastModified: new Date(c.published_at ?? c.created_at),
-      changeFrequency: "weekly",
-      priority: c.is_featured ? 0.8 : 0.7,
-    }));
+    courses = page.items
+      .filter((c) => c.visibility === "public")
+      .map((c) => ({
+        url: `${base}/courses/${c.slug}`,
+        lastModified: new Date(c.published_at ?? c.created_at),
+        changeFrequency: "weekly",
+        priority: c.is_featured ? 0.8 : 0.7,
+      }));
   } catch {
     courses = [];
   }

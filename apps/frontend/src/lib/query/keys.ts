@@ -15,4 +15,10 @@ export const qk = {
   demoQuestions: (courseSlug?: string) =>
     ["demo-questions", courseSlug ?? "all"] as const,
   evalPublic: ["eval-public"] as const,
+  // S2.12 — moderation surfaces. ``catalogRoot`` is the prefix used to
+  // invalidate every catalog/subjects/tags query in one call on a share/
+  // approve/delist mutation.
+  catalogRoot: ["catalog"] as const,
+  moderationQueue: ["admin", "moderation", "queue"] as const,
+  courseModeration: (id: string) => ["course", id, "moderation"] as const,
 };

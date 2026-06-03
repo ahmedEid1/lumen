@@ -62,15 +62,42 @@ export default function DraftTracePage({
     enabled: !!user && user.role !== "student",
   });
 
+  // Two-control model (S2.11 / ADR-0026): the lifecycle control publishes
+  // (draft↔published, course stays PRIVATE), and a separate Share control
+  // (enabled only once published) flips public/private. Publishing alone no
+  // longer lists the course; sharing routes it through moderation.
+  const invalidateCourseViews = async () => {
+    await qc.invalidateQueries({ queryKey: qk.course(courseId) });
+    // Prefix-invalidate every catalog/subjects/tags query at once.
+    await qc.invalidateQueries({ queryKey: qk.catalogRoot });
+    await qc.invalidateQueries({ queryKey: qk.myCourses });
+    await qc.invalidateQueries({ queryKey: qk.moderationQueue });
+  };
+
   const publish = useMutation({
-    mutationFn: () => Courses.patch(courseId, { status: "published" }),
+    mutationFn: () => Courses.publish(courseId),
     onSuccess: async () => {
-      toast.success("Course published.");
-      await qc.invalidateQueries({ queryKey: qk.course(courseId) });
+      toast.success("Course published (private). Use Share to list it publicly.");
+      await invalidateCourseViews();
       router.push(`/studio/${courseId}`);
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Publish failed.");
+    },
+  });
+
+  const isPublished = courseQ.data?.status === "published";
+  const isPublic = courseQ.data?.visibility === "public";
+  const moderationState = courseQ.data?.moderation_state ?? null;
+
+  const share = useMutation({
+    mutationFn: () => (isPublic ? Courses.unshare(courseId) : Courses.share(courseId)),
+    onSuccess: async () => {
+      toast.success(isPublic ? "Course unshared (now private)." : "Submitted for review.");
+      await invalidateCourseViews();
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Share toggle failed.");
     },
   });
 
@@ -142,10 +169,43 @@ export default function DraftTracePage({
             <FinalScoreBadge score={finalScore} />
           </div>
           <div className="flex shrink-0 flex-col gap-2">
-            <PublishAnywayButton
-              onClick={() => publish.mutate()}
-              disabled={publish.isPending}
-            />
+            {/* Lifecycle control — publish keeps the course PRIVATE. */}
+            {!isPublished ? (
+              <PublishAnywayButton
+                onClick={() => publish.mutate()}
+                disabled={publish.isPending}
+              />
+            ) : null}
+            {/* Share control — enabled only once published (FR-VIS-23). */}
+            <Button
+              variant={isPublic ? "outline" : "default"}
+              className="w-full"
+              disabled={!isPublished || share.isPending}
+              onClick={() => share.mutate()}
+              title={
+                !isPublished
+                  ? "Publish the course before sharing it publicly"
+                  : undefined
+              }
+            >
+              {isPublic ? "Make private" : "Share publicly"}
+            </Button>
+            {isPublic && moderationState ? (
+              <p
+                className="font-mono text-xs text-muted-foreground"
+                data-testid="moderation-state"
+              >
+                {moderationState === "pending_review"
+                  ? "Pending review"
+                  : moderationState === "approved"
+                    ? "Approved · listed publicly"
+                    : moderationState === "rejected"
+                      ? "Rejected — revise and resubmit"
+                      : moderationState === "delisted"
+                        ? "Delisted by an admin"
+                        : moderationState}
+              </p>
+            ) : null}
             <Link href={`/studio/${courseId}`}>
               <Button variant="outline" className="w-full">
                 Edit before publishing

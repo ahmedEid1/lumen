@@ -66,6 +66,23 @@ export const Courses = {
   remove: (id: string, token?: string) =>
     api<{ ok: true }>(`/api/v1/courses/${id}`, { method: "DELETE", token }),
 
+  // Two-control lifecycle + share model (S2.11 / ADR-0026). publish/unpublish
+  // are the lifecycle axis; share/unshare/resubmit are the (flag-gated)
+  // sharing axis — while FEATURE_PRIVATE_PUBLISH_ENABLED is off the share
+  // endpoints 404.
+  publish: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/publish`, { method: "POST", token }),
+  unpublish: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/unpublish`, { method: "POST", token }),
+  share: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/share`, { method: "POST", body: {}, token }),
+  unshare: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/unshare`, { method: "POST", body: {}, token }),
+  resubmit: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/resubmit`, { method: "POST", body: {}, token }),
+  moderationQueue: (token?: string) =>
+    api<CourseListItem[]>("/api/v1/admin/courses/moderation-queue", { token }),
+
   createModule: (courseId: string, input: { title: string; description?: string }, token?: string) =>
     api<ModuleOut>(`/api/v1/courses/${courseId}/modules`, { method: "POST", body: input, token }),
   reorderModules: (courseId: string, order: Record<string, number>, token?: string) =>
