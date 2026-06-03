@@ -73,14 +73,16 @@ def publicly_listed_sql() -> ColumnElement[bool]:
     """The SQL embodiment of :func:`is_publicly_listed` over the ``Course`` row.
 
     The **only** place the four-column AND is expressed for queries (catalog,
-    search, subject counts, sitemap, MCP catalog, admin stats). S2.10 adds
-    ``Course.quarantined.is_(False)`` once the column exists.
+    search, subject counts, sitemap, MCP catalog, admin stats). Includes
+    ``NOT quarantined`` (DR-18-R2 / S2.10) so a csam/illegal-quarantined course
+    can never leak via any listing query — index-covered by ``ix_courses_listed``.
     """
     return and_(
         Course.visibility == Visibility.public,
         Course.status == CourseStatus.published,  # noqa: published-check — central authorizer
         Course.moderation_state == ModerationState.approved,
         Course.deleted_at.is_(None),
+        Course.quarantined.is_(False),
     )
 
 
@@ -192,5 +194,7 @@ def retrieval_acl_clause(requesting_user_id: str | None) -> ColumnElement[bool]:
         # String compare so this stays valid before S3's enum value exists; the
         # column is a String(20) so the literal compares correctly either way.
         Course.status != "build_failed",
+        # DR-18-R2: a quarantined course never leaks even via the owner branch.
+        Course.quarantined.is_(False),
     )
     return or_(listed, owner)

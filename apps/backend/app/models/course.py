@@ -137,7 +137,9 @@ class Course(IdMixin, TimestampMixin, Base):
             "status",
             "subject_id",
             "owner_id",
-            postgresql_where=text("deleted_at IS NULL"),
+            # ``quarantined = false`` in the partial WHERE keeps the listing
+            # predicate index-covered after migration 0044 (DR-18-R2).
+            postgresql_where=text("deleted_at IS NULL AND quarantined = false"),
         ),
     )
 
@@ -185,6 +187,15 @@ class Course(IdMixin, TimestampMixin, Base):
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Full-quarantine flag (DR-18-R2 / migration 0044). Set TRUE only by the
+    # admin hard-removal moderation action for reason ∈ {csam, illegal} (NOT
+    # severe_abuse); cleared only by admin. Single source of truth for the
+    # legally-sensitive case in BOTH the Python authorizer (can_view_course)
+    # AND the SQL clauses (publicly_listed_sql / retrieval_acl_clause) — a
+    # quarantined course is invisible everywhere, even to enrolled learners.
+    quarantined: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false"), default=False
+    )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Postgres GENERATED ALWAYS AS STORED tsvector over title + overview.
     # Read-only at the ORM level; populated and refreshed by the DB on
