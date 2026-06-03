@@ -23,6 +23,30 @@ export const SEED_USERS = {
 export type SeedRole = keyof typeof SEED_USERS;
 
 /**
+ * S1.12 — two-role persona shim (ADR-0025). The seeded `teacher@`/`student@`
+ * accounts keep their familiar credentials but are now `role=user` (cli.py).
+ * In the collapsed model there is no "instructor" vs "student" — there is an
+ * authoring user, a learning user, and an admin. These aliases let new specs
+ * read in capability-neutral terms while reusing the existing storage states
+ * (the `teacher`/`student` keys + `.auth/<role>.json` files are unchanged so
+ * existing specs keep working):
+ *
+ *   PERSONA.authoring → the user who authors (ex-`teacher`, now role=user)
+ *   PERSONA.learning  → the user who learns  (ex-`student`, now role=user)
+ *   PERSONA.admin     → the admin
+ *
+ * Both `authoring` and `learning` are plain `user`-role accounts — the only
+ * difference is what each persona *does* in its spec, not what role gates it.
+ */
+export const PERSONA = {
+  admin: "admin",
+  authoring: "teacher",
+  learning: "student",
+} as const satisfies Record<string, SeedRole>;
+
+export type Persona = keyof typeof PERSONA;
+
+/**
  * First-login onboarding tour (`apps/frontend/src/components/onboarding/
  * onboarding-tour.tsx`) renders as a `role="dialog" aria-modal="true"`
  * full-viewport overlay on `/dashboard` (learner) and `/studio`
