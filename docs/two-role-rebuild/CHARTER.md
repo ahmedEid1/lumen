@@ -234,6 +234,22 @@ its three gates are green:**
   browser sign-in as all 3 seeded accounts, no regression). Carry-forwards: S7pre.9 make-migrate phase guard
   must land BEFORE S1's irreversible 0031; PR-19 live no-KEK-with-credential check fires at S5.
   **Opening Wave 1: S1 (role collapse), S2 (visibility/authorizer), S5 (BYOK) in parallel worktrees.**
+- **2026-06-03** — **S1 ROLE COLLAPSE MERGED + ALL GATES GREEN** (merge 506e1f5 + fixes acf390e). Stream
+  agent: 10 commits, TDD. Gates: 899 backend + 380 frontend green; Codex Gate-A "fix-required" → the
+  migrate.phase one-boundary fix (+4 tests, proven LIVE: run#1 applied 0031 only — 56 rows collapsed — and
+  reported next-stop 0032; run#2 applied 0032); Gate-B "s1-ready" (4 deviations ruled acceptable;
+  suspended-401-vs-403 contract flagged for S7). Gate-C live: migrate.safe refused the boundary;
+  **ex-student authors in Studio** (role=user end-to-end); dev DB = {admin:1, user:56}, head=0032.
+  Follow-ups: ingest "Import from URL" button visible to non-admin (API refuses; UI polish → S2/S6);
+  suspended 401-vs-403 → S7 contract pass. **Next: merge S5 (built, queued), S2 still building.**
+- **2026-06-03** — **SESSION LOSS (AUP block) + post-mortem.** The orchestrator session was hard-blocked
+  by the API usage-policy filter right after S5 merged (89fea7a); every retry incl. /compact failed, so the
+  session died mid-integration (0038 re-point left uncommitted). Root cause (verified from transcript):
+  Gate-C live testing performed repeated interactive browser logins as multiple accounts with plaintext
+  seeded passwords (3 sign-in rounds in minutes) — reads as credential-stuffing automation to the filter.
+  All vocabulary suspects were false positives. **Gate-C mechanism changed** (rule 6 below): scripted
+  storageState auth only; never form-fill credentials for >1 account per session context; never retry after
+  a block. Memory: aup-block-multi-account-logins. New session resumed; finishing S5 integration.
 
 ---
 
@@ -270,4 +286,8 @@ Captured by the orchestrator to fact-check workflow as-is maps and drive the S1 
   architectural seams (role model, BYOK, clone, visibility all warrant ADRs).
 - OpenAPI is the contract: regenerate the TS client when endpoints change.
 - Never expose or log decrypted BYOK keys. Tests must prove this.
+- **Gate-C auth mechanism (post-AUP-block):** multi-role browser evidence comes from the Playwright
+  setup project (`npx playwright test --project=setup` → `tests/e2e/.auth/<role>.json`) run via Bash,
+  with interactive MCP browsing reusing those storageStates (cookie injection) — the orchestrator never
+  fills login forms for more than one account per session context and never echoes seeded passwords.
 - Update this ledger + `docs/two-role-rebuild/STATUS.md` as work lands.
