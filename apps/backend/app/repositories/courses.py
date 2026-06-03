@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Select, and_, case, exists, func, or_, select
+from sqlalchemy import ColumnElement, Select, and_, case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.course import (
     Course,
-    CourseStatus,
     Enrollment,
     Lesson,
     LessonProgress,
@@ -17,6 +17,22 @@ from app.models.course import (
     Subject,
     Tag,
 )
+
+if TYPE_CHECKING:
+    from app.models.moderation import ModerationEvent
+
+
+def _publicly_listed_sql() -> ColumnElement[bool]:
+    """The central authorizer's catalog/listing clause (S2.5).
+
+    Deferred import keeps the repository layer free of a hard top-level
+    dependency on the services package (avoids any import-order coupling); the
+    SQL clause itself is the single source of truth in ``app.services.visibility``.
+    """
+    from app.services.visibility import publicly_listed_sql
+
+    return publicly_listed_sql()
+
 
 # Allow-list for `?sort=` on the catalog. Restricted to columns whose
 # ``desc()`` / ``asc()`` is meaningful and that don't leak internal state.
@@ -44,12 +60,11 @@ async def list_subjects(db: AsyncSession) -> list[tuple[Subject, int]]:
             Course,
             and_(
                 Course.subject_id == Subject.id,
-                Course.status == CourseStatus.published,
-                # A soft-deleted course retains its published status until
-                # the row is reaped, so we must filter it out explicitly
-                # — otherwise the catalog tile claims more courses than it
-                # actually shows.
-                Course.deleted_at.is_(None),
+                # Subject-tile counts only count publicly-LISTED courses (S2.5 /
+                # ADR-0026 §3). publicly_listed_sql already ANDs
+                # ``deleted_at IS NULL`` so a soft-deleted course never inflates
+                # the tile count.
+                _publicly_listed_sql(),
             ),
         )
         .group_by(Subject.id)
@@ -127,7 +142,7 @@ async def search_courses(
     subject_slug: str | None = None,
     tag_slug: str | None = None,
     difficulty: str | None = None,
-    only_published: bool = True,
+    publicly_listed_only: bool = True,
     owner_id: str | None = None,
     sort: str = "-created_at",
     page: int = 1,
@@ -135,8 +150,11 @@ async def search_courses(
 ) -> tuple[list[Course], int]:
     stmt = _course_with_relations().where(Course.deleted_at.is_(None))
 
-    if only_published:
-        stmt = stmt.where(Course.status == CourseStatus.published)
+    if publicly_listed_only:
+        # Catalog discoverability routes through the single authorizer (S2.5 /
+        # ADR-0026 §3): public AND published AND approved AND live. /mine
+        # passes publicly_listed_only=False so an owner sees all their courses.
+        stmt = stmt.where(_publicly_listed_sql())
     if owner_id:
         stmt = stmt.where(Course.owner_id == owner_id)
     if subject_slug:
@@ -455,5 +473,35 @@ async def list_reviews_for_course(
         .order_by(Review.created_at.desc())
         .offset(offset)
         .limit(limit)
+    )
+    return list(res.scalars().all())
+
+
+async def latest_moderation_event(db: AsyncSession, course_id: str) -> ModerationEvent | None:
+    """Most recent moderation event for a course (R-M9 re-approval / quarantine reason).
+
+    Used by the share path to decide whether a re-share returns to ``approved``
+    (a prior approval with no later reject/delist) or ``pending_review``, and by
+    the (S6) admin paths to read the latest ``reason_code``.
+    """
+    from app.models.moderation import ModerationEvent
+
+    res = await db.execute(
+        select(ModerationEvent)
+        .where(ModerationEvent.course_id == course_id)
+        .order_by(ModerationEvent.created_at.desc())
+        .limit(1)
+    )
+    return res.scalar_one_or_none()
+
+
+async def moderation_events_for_course(db: AsyncSession, course_id: str) -> list[ModerationEvent]:
+    """All moderation events for a course, newest first (R-M9 history scan)."""
+    from app.models.moderation import ModerationEvent
+
+    res = await db.execute(
+        select(ModerationEvent)
+        .where(ModerationEvent.course_id == course_id)
+        .order_by(ModerationEvent.created_at.desc())
     )
     return list(res.scalars().all())

@@ -161,6 +161,19 @@ class Settings(BaseSettings):
     embedding_openai_api_key: SecretStr | None = None
     embedding_openai_api_base: str | None = None
 
+    # ---------- RAG retrieval ACL + index freshness (ADR-0029 / PR-22) ----------
+    # Cross-course HNSW ``ef_search`` (D5.2 / PR-4): on the cross-catalog path
+    # the ACL clause can discard most private candidates before reaching
+    # ``top_k`` (the "filtered-out recall" problem), so we widen the search
+    # frontier there. Per-course retrieval keeps the pgvector default.
+    rag_hnsw_ef_search_catalog: int = 100
+    # Inline-index fallback bound (R-U2′ / D8): when a viewable course has live
+    # lessons but zero chunks, the tutor triggers inline top-N indexing within
+    # this staleness window so it never permanently refuses (FR-EMBED-02).
+    index_max_staleness_s: int = 60
+    index_inline_top_n: int = 5
+    index_inline_timeout_s: int = 8
+
     # ---------- LLM (Phase E1 RAG tutor + E2 authoring assistant) ----------
     # Provider selector for ``app.services.llm`` — drives both the
     # RAG tutor (Phase E1) and the AI-assisted authoring service
@@ -261,6 +274,15 @@ class Settings(BaseSettings):
     # L21b's flag-flip PR; until then the existing non-streaming POST
     # /tutor/conversations/{id}/messages path stays canonical.
     feature_tutor_streaming: bool = False
+
+    # ``feature_private_publish_enabled`` (DR-13/DR-22 / S2.11) — gates the
+    # visibility WRITE axis (the /share, /unshare, /resubmit endpoints). The
+    # authorizer + columns ship first (backfilled → behaviour identical); this
+    # flag flips to true only AFTER the authorizer-bearing image is fleet-
+    # confirmed and the grep-guard is green (R-S8′ step 4). While OFF, the
+    # sharing endpoints 404 — so no non-default visibility can be written and
+    # there is no leak window. Env: FEATURE_PRIVATE_PUBLISH_ENABLED.
+    feature_private_publish_enabled: bool = False
 
     # ---------- L33 — Tutor cost caps & concurrency ----------
     # Per-turn estimate the POST handler reserves up-front. The

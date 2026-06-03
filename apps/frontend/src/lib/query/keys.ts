@@ -18,4 +18,10 @@ export const qk = {
   // S5 (BYOK)
   llmProviders: ["llm-providers"] as const,
   llmCredentials: ["me", "llm-credentials"] as const,
+  // S2.12 — moderation surfaces. ``catalogRoot`` is the prefix used to
+  // invalidate every catalog/subjects/tags query in one call on a share/
+  // approve/delist mutation.
+  catalogRoot: ["catalog"] as const,
+  moderationQueue: ["admin", "moderation", "queue"] as const,
+  courseModeration: (id: string) => ["course", id, "moderation"] as const,
 };

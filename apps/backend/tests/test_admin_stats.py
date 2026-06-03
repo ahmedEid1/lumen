@@ -43,6 +43,20 @@ async def test_platform_stats_reports_admins_and_authors(
     course_id = create.json()["id"]
     await seed_lesson(course_id, author)
     await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=author)
+    # S2: publishing keeps a course PRIVATE (published-private self-learn). To
+    # make it publicly listed (and so enrollable + counted in courses_listed)
+    # set the share+approval state directly (the /share + admin /approve
+    # endpoints land in S2.11 / S6).
+    from sqlalchemy import update
+
+    from app.models.course import Course, ModerationState, Visibility
+
+    await db_session.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(visibility=Visibility.public, moderation_state=ModerationState.approved)
+    )
+    await db_session.commit()
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=learner)
 
     r = await client.get("/api/v1/admin/stats", headers=admin)
@@ -58,5 +72,6 @@ async def test_platform_stats_reports_admins_and_authors(
     assert body["admins"] >= 1
     assert body["authors"] >= 1
     assert body["courses_total"] >= 1
-    assert body["courses_published"] >= 1
+    assert body["courses_published"] >= 1  # lifecycle count (incl. private)
+    assert body["courses_listed"] >= 1  # publicly-listed count (S2.8)
     assert body["enrollments"] >= 1

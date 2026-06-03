@@ -52,6 +52,7 @@ export default function AdminHome() {
         authors: number;
         courses_total: number;
         courses_published: number;
+        courses_listed: number;
         courses_draft: number;
         enrollments: number;
       }>("/api/v1/admin/stats"),
@@ -64,6 +65,7 @@ export default function AdminHome() {
     { href: "/admin/subjects", titleKey: "admin.tile.subjects.title", bodyKey: "admin.tile.subjects.body" },
     { href: "/admin/tags", titleKey: "admin.tile.tags.title", bodyKey: "admin.tile.tags.body" },
     { href: "/admin/courses", titleKey: "admin.tile.courses.title", bodyKey: "admin.tile.courses.body" },
+    { href: "/admin/moderation", titleKey: "admin.tile.moderation.title", bodyKey: "admin.tile.moderation.body" },
     { href: "/admin/users", titleKey: "admin.tile.users.title", bodyKey: "admin.tile.users.body" },
     { href: "/admin/audit", titleKey: "admin.tile.audit.title", bodyKey: "admin.tile.audit.body" },
     { href: "/admin/observability", titleKey: "admin.tile.observability.title", bodyKey: "admin.tile.observability.body" },
@@ -96,6 +98,7 @@ export default function AdminHome() {
             <StatTile label={t("admin.stat.authors")} value={stats.data.authors} />
             <StatTile label={t("admin.stat.courses")} value={stats.data.courses_total} />
             <StatTile label={t("admin.stat.published")} value={stats.data.courses_published} />
+            <StatTile label={t("admin.stat.listed")} value={stats.data.courses_listed} />
             <StatTile label={t("admin.stat.drafts")} value={stats.data.courses_draft} />
             <StatTile label={t("admin.stat.enrollments")} value={stats.data.enrollments} />
           </dl>

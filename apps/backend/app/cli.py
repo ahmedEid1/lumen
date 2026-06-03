@@ -184,7 +184,7 @@ async def _seed() -> None:
                 overview="Learn to build production-ready APIs with FastAPI, SQLAlchemy 2, and async Python.",
                 difficulty=Difficulty.beginner,
                 cover_url=None,
-                status=CourseStatus.published,
+                status=CourseStatus.published,  # noqa: published-check — seed write
                 published_at=datetime.now(UTC),
                 is_featured=True,
             )
@@ -348,10 +348,13 @@ def ingest_embeddings(
 
 async def _ingest_embeddings(only_slug: str | None) -> None:
     from app.services.embeddings_ingest import ingest_course
+    from app.services.visibility import publicly_listed_sql
 
     Session = get_sessionmaker()
     async with Session() as db:
-        stmt = select(Course).where(Course.status == CourseStatus.published)
+        # Enumerate only publicly-listed courses (S2.6 / ADR-0026 §3) through
+        # the central authorizer rather than the raw status proxy.
+        stmt = select(Course).where(publicly_listed_sql())
         if only_slug:
             stmt = stmt.where(Course.slug == only_slug)
         courses = (await db.execute(stmt)).scalars().all()

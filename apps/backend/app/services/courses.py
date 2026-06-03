@@ -12,11 +12,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.ids import new_id
 from app.core.logging import get_logger
-from app.models.course import Course, CourseStatus, Lesson, LessonType, Module
+from app.models.course import (
+    Course,
+    CourseStatus,
+    Lesson,
+    LessonType,
+    ModerationState,
+    Module,
+    Visibility,
+)
+from app.models.moderation import ModerationEvent
 from app.models.user import User
+from app.repositories import audit as audit_repo
 from app.repositories import courses as courses_repo
+from app.services import moderation_safety
+from app.services import visibility as visibility_service
+
+# Re-export the central authorizer's can_view_course (ADR-0026 §3 / S2.4) so
+# existing callers of ``courses.can_view_course`` are unchanged.
+from app.services.visibility import can_view_course
 
 log = get_logger(__name__)
+
+__all__ = ["can_view_course"]
 
 if TYPE_CHECKING:
     from app.schemas.course import (
@@ -115,8 +133,9 @@ async def update_course(
         course.tags = await courses_repo.list_tags_by_ids(db, payload.tag_ids)
     if payload.learning_outcomes is not None:
         course.learning_outcomes = list(payload.learning_outcomes)
-    if payload.status is not None:
-        await _transition_status(db, course, payload.status)
+    # S2.11 / FR-VIS-08: PATCH no longer transitions status. Lifecycle moved to
+    # the explicit publish/unpublish endpoints; ``status`` was dropped from
+    # CourseUpdate (extra="forbid" rejects it).
     # When the title changed we minted a new slug via _unique_slug, but
     # that check is racy — a concurrent rename could have just claimed
     # the same candidate. Flush the slug update inside a savepoint with
@@ -134,8 +153,8 @@ async def delete_course(db: AsyncSession, *, course_id: str, owner: User) -> Non
 
 
 _VALID_STATUS_TRANSITIONS: dict[CourseStatus, set[CourseStatus]] = {
-    CourseStatus.draft: {CourseStatus.published, CourseStatus.archived},
-    CourseStatus.published: {CourseStatus.draft, CourseStatus.archived},
+    CourseStatus.draft: {CourseStatus.published, CourseStatus.archived},  # noqa: published-check — state-machine write
+    CourseStatus.published: {CourseStatus.draft, CourseStatus.archived},  # noqa: published-check — state-machine write
     CourseStatus.archived: {CourseStatus.draft},
 }
 
@@ -147,7 +166,7 @@ async def _transition_status(db: AsyncSession, course: Course, target: CourseSta
         raise ValidationAppError(
             f"Invalid transition {course.status} → {target}", code="course.invalid_transition"
         )
-    if target == CourseStatus.published:
+    if target == CourseStatus.published:  # noqa: published-check — state-machine write
         if not course.title or not course.overview:
             raise ValidationAppError(
                 "Course must have a title and overview to publish", code="course.missing_fields"
@@ -165,7 +184,15 @@ async def _transition_status(db: AsyncSession, course: Course, target: CourseSta
             )
         course.published_at = datetime.now(UTC)
     course.status = target
-    if target == CourseStatus.published:
+    if target in (CourseStatus.draft, CourseStatus.archived):
+        # Force-private side-effects on unpublish/archive (ADR-0026 §4): a
+        # course can only be public while published, so leaving published
+        # atomically drops it private + unfeatures it. moderation_state is
+        # left UNTOUCHED — it is sticky (R-C2), so a previously-approved or
+        # rejected course keeps that history for R-M9 re-approval.
+        course.visibility = Visibility.private
+        course.is_featured = False
+    if target == CourseStatus.published:  # noqa: published-check — state-machine write
         _schedule_embedding_index(course.id)
 
 
@@ -190,6 +217,219 @@ def _schedule_embedding_index(course_id: str) -> None:
         index_course_embeddings.delay(course_id)
     except Exception:  # pragma: no cover — broker may be down
         log.warning("embedding_index_enqueue_failed", course_id=course_id)
+
+
+# Redis key holding a monotonically-increasing catalog cache version. Every
+# transition that can change what is publicly listed bumps it; the catalog
+# response cache keys off it so a share/approve/delist invalidates in O(1)
+# without a per-row purge (ADR-0026 §"Consequences"; the Caddy surrogate-key
+# path is unconfirmed, so this version bump is the durable fallback).
+_CATALOG_CACHE_VERSION_KEY = "catalog:cache_version"
+
+
+async def _bump_catalog_cache_version() -> None:
+    """Best-effort O(1) catalog-cache invalidation (ADR-0026).
+
+    Swallows broker errors like the embedding enqueue (Celery/Redis is
+    best-effort in dev) so a moderation/lifecycle transition never fails
+    because Redis blipped.
+    """
+    try:
+        import redis.asyncio as redis
+
+        from app.core.config import get_settings
+
+        client = redis.Redis.from_url(get_settings().redis_url, decode_responses=True)
+        try:
+            await client.incr(_CATALOG_CACHE_VERSION_KEY)
+        finally:
+            await client.aclose()
+    except Exception:  # pragma: no cover — Redis may be down
+        log.warning("catalog_cache_version_bump_failed")
+
+
+# ---------- Owner-intent lifecycle + share (ADR-0026 §4; S2.9) ----------
+#
+# S2 ships the OWNER-INTENT transitions: publish / unpublish (lifecycle) and
+# share / unshare / resubmit (sharing). The ADMIN-AUTHORITY transitions
+# (approve / reject / delist / relist / remove) are S6's — they are the only
+# way ``approved`` is set, which is what makes the flag-flip rollout meaningful.
+
+
+async def _write_moderation_event(
+    db: AsyncSession,
+    *,
+    course: Course,
+    actor_id: str | None,
+    from_state: str | None,
+    to_state: str,
+    reason_code: str | None = None,
+    note: str | None = None,
+    classifier_signal: dict | None = None,
+) -> ModerationEvent:
+    event = ModerationEvent(
+        course_id=course.id,
+        actor_id=actor_id,
+        from_state=from_state,
+        to_state=to_state,
+        reason_code=reason_code,
+        note=note,
+        classifier_signal=classifier_signal,
+    )
+    db.add(event)
+    await db.flush()
+    return event
+
+
+async def publish_course(db: AsyncSession, *, course_id: str, owner: User) -> Course:
+    """Owner publishes a draft course (draft→published). Visibility unchanged
+    (stays private — published-private self-learn). Audits ``course.publish``."""
+    course = await _owned_course(db, course_id, owner)
+    await _transition_status(db, course, CourseStatus.published)  # noqa: published-check — state-machine write
+    await audit_repo.record(
+        db, actor_id=owner.id, action="course.publish", target_type="course", target_id=course.id
+    )
+    return course
+
+
+async def unpublish_course(db: AsyncSession, *, course_id: str, owner: User) -> Course:
+    """Owner unpublishes (published→draft). Atomic force-private + unfeature;
+    moderation_state stays sticky. Audits ``course.unpublish``."""
+    course = await _owned_course(db, course_id, owner)
+    was_featured = course.is_featured
+    await _transition_status(db, course, CourseStatus.draft)
+    await audit_repo.record(
+        db, actor_id=owner.id, action="course.unpublish", target_type="course", target_id=course.id
+    )
+    if was_featured:
+        await audit_repo.record(
+            db,
+            actor_id=owner.id,
+            action="course.unfeatured",
+            target_type="course",
+            target_id=course.id,
+        )
+    await _bump_catalog_cache_version()
+    return course
+
+
+def _reshare_target_state(events: list[ModerationEvent]) -> ModerationState:
+    """R-M9: re-share returns to ``approved`` iff there is a prior approval with
+    NO later reject/delist; otherwise ``pending_review``. ``events`` newest-first.
+    """
+    for ev in events:  # newest-first
+        if ev.to_state in (ModerationState.rejected.value, ModerationState.delisted.value):
+            return ModerationState.pending_review
+        if ev.to_state == ModerationState.approved.value:
+            return ModerationState.approved
+    return ModerationState.pending_review
+
+
+async def share_course(db: AsyncSession, *, course_id: str, owner: User) -> Course:
+    """Owner shares a published course publicly (private→public).
+
+    Requires ``status==published`` and ``can_publish_public(owner)``. Sets
+    ``visibility=public`` and ``moderation_state`` to the re-approval target
+    (R-M9): ``approved`` only if a prior approval with no later reject/delist
+    exists, else ``pending_review``. Runs the advisory classifier (never
+    auto-approves; fail-closed). Emits a ``ModerationEvent`` + ``course.shared``
+    audit. **Does NOT list** unless the resolved state is ``approved``.
+    """
+    course = await _owned_course(db, course_id, owner)
+    if course.status != CourseStatus.published:  # noqa: published-check — state-machine write
+        raise ValidationAppError(
+            "Only a published course can be shared publicly", code="course.invalid_transition"
+        )
+    if not visibility_service.can_publish_public(owner):
+        raise ForbiddenError("You cannot publish publicly", code="course.publish_public_forbidden")
+
+    from_state = str(course.moderation_state)
+    events = await courses_repo.moderation_events_for_course(db, course.id)
+    target = _reshare_target_state(events)
+
+    # Advisory classifier — sets queue priority only, NEVER auto-approves.
+    signal = moderation_safety.classify(
+        title=course.title, overview=course.overview, outcomes=list(course.learning_outcomes or [])
+    )
+
+    course.visibility = Visibility.public
+    course.moderation_state = target
+    await _write_moderation_event(
+        db,
+        course=course,
+        actor_id=owner.id,
+        from_state=from_state,
+        to_state=str(target),
+        classifier_signal=signal.to_payload(),
+    )
+    await audit_repo.record(
+        db, actor_id=owner.id, action="course.shared", target_type="course", target_id=course.id
+    )
+    await _bump_catalog_cache_version()
+    if target == ModerationState.approved:
+        # Re-listed without a fresh admin pass (R-M9) — refresh public RAG.
+        _schedule_embedding_index(course.id)
+    return course
+
+
+async def unshare_course(db: AsyncSession, *, course_id: str, owner: User) -> Course:
+    """Owner unshares (public→private). moderation_state stays STICKY (NOT
+    reset to none — corrects spec L457). Unfeatures. Audits ``course.unshared``."""
+    course = await _owned_course(db, course_id, owner)
+    was_featured = course.is_featured
+    course.visibility = Visibility.private
+    course.is_featured = False
+    await audit_repo.record(
+        db, actor_id=owner.id, action="course.unshared", target_type="course", target_id=course.id
+    )
+    if was_featured:
+        await audit_repo.record(
+            db,
+            actor_id=owner.id,
+            action="course.unfeatured",
+            target_type="course",
+            target_id=course.id,
+        )
+    await _bump_catalog_cache_version()
+    return course
+
+
+async def resubmit_course(db: AsyncSession, *, course_id: str, owner: User) -> Course:
+    """Owner resubmits a rejected/delisted course for review (→pending_review).
+
+    Re-runs the advisory classifier; emits a ``ModerationEvent`` + audit. The
+    course must currently be public (sharing intent) and not already approved.
+    """
+    course = await _owned_course(db, course_id, owner)
+    if course.moderation_state not in (
+        ModerationState.rejected,
+        ModerationState.delisted,
+    ):
+        raise ValidationAppError(
+            "Only a rejected or delisted course can be resubmitted",
+            code="course.invalid_transition",
+        )
+    from_state = str(course.moderation_state)
+    signal = moderation_safety.classify(
+        title=course.title, overview=course.overview, outcomes=list(course.learning_outcomes or [])
+    )
+    course.moderation_state = ModerationState.pending_review
+    await _write_moderation_event(
+        db,
+        course=course,
+        actor_id=owner.id,
+        from_state=from_state,
+        to_state=str(ModerationState.pending_review),
+        classifier_signal=signal.to_payload(),
+    )
+    await audit_repo.record(
+        db,
+        actor_id=owner.id,
+        action="course.resubmitted",
+        target_type="course",
+        target_id=course.id,
+    )
+    return course
 
 
 async def _unique_slug(db: AsyncSession, title: str, *, exclude_id: str | None = None) -> str:
@@ -410,7 +650,14 @@ async def _owned_lesson(db: AsyncSession, lesson_id: str, owner: User) -> Lesson
 
 
 def _can_edit_course(user: User, course: Course) -> bool:
-    return user.is_admin() or course.owner_id == user.id
+    """Owner-only mutation gate (FR-MOD-05 / S2.8).
+
+    Narrowed from the old ``is_admin() OR owner`` rule: admins may VIEW any
+    course but must act on non-owned courses through the moderation endpoints
+    (S6), never through owner-shaped PATCH/DELETE. ``test_admin_cannot_edit_others_course``
+    pins this; S6.5 owns the richer admin-moderation surface.
+    """
+    return course.owner_id == user.id
 
 
 async def slug_or_id(db: AsyncSession, key: str, *, with_modules: bool = False) -> Course:
@@ -423,19 +670,9 @@ async def slug_or_id(db: AsyncSession, key: str, *, with_modules: bool = False) 
     return course
 
 
-async def can_view_course(db: AsyncSession, course: Course, viewer: User | None) -> bool:
-    """Authoritative visibility check for the course detail endpoint.
-
-    Returns True for published courses, owners, admins, OR for learners who
-    are currently enrolled (regardless of course status). The last branch is
-    important: an instructor who archives a course must not lock out the
-    learners already paying it down.
-    """
-    if course.status == CourseStatus.published:
-        return True
-    if viewer is None:
-        return False
-    if viewer.is_admin() or course.owner_id == viewer.id:
-        return True
-    enrollment = await courses_repo.get_enrollment(db, user_id=viewer.id, course_id=course.id)
-    return enrollment is not None
+# ``can_view_course`` now lives in the central authorizer (ADR-0026 §3 / S2.4):
+# it is imported at module top and re-exported via ``__all__`` so existing
+# callers (courses.py, discussions.py, api/v1/discussions.py) keep their call
+# sites unchanged while routing through the single visibility predicate
+# (is_publicly_listed OR owner/admin/enrolled, with csam/illegal quarantine
+# suppression). See the import + __all__ near the top of this module.

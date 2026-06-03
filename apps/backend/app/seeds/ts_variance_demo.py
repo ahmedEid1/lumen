@@ -364,7 +364,7 @@ async def apply(
             "Pick the right type-level tool for a real-world API client",
         ],
         difficulty=Difficulty.intermediate,
-        status=CourseStatus.published,
+        status=CourseStatus.published,  # noqa: published-check — seed write
         published_at=datetime.now(UTC),
         is_featured=True,
     )

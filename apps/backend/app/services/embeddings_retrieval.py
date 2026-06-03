@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.logging import get_logger
-from app.models.course import Lesson, Module
+from app.models.course import Course, Lesson, Module
 from app.models.lesson_chunk import LessonChunk
 from app.models.llm_call import SYSTEM_USER_ID
 from app.models.retrieval_audit import (
@@ -40,6 +40,7 @@ from app.models.retrieval_audit import (
     RetrievalAudit,
 )
 from app.services.embeddings import EmbeddingProvider, get_provider
+from app.services.visibility import retrieval_acl_clause
 
 log = get_logger(__name__)
 
@@ -50,6 +51,8 @@ async def find_relevant_chunks(
     course_id: str,
     query: str,
     top_k: int = 5,
+    viewer: str | None = None,
+    enforce_acl: bool = True,
     provider: EmbeddingProvider | None = None,
     audit: bool = False,
     audit_user_id: str | None = None,
@@ -59,20 +62,22 @@ async def find_relevant_chunks(
 
     Restricted to live lessons inside ``course_id`` — soft-deleted
     lessons (``Lesson.deleted_at IS NOT NULL``) are filtered out, and
-    chunks belonging to lessons in other courses are unreachable. The
-    caller is responsible for any further authz check (e.g. "is the
-    asker enrolled or the owner?") — this helper is data-layer only.
+    chunks belonging to lessons in other courses are unreachable.
 
-    When ``audit=True``, after the retrieval succeeds we also write
-    a ``retrieval_audits`` row capturing the query + top-K chunks +
-    their cosine-distance scores. The write is best-effort and
-    SAVEPOINT-isolated — a hiccup persisting the audit row will not
-    fail the retrieval. ``audit_user_id`` defaults to the
-    ``"__system__"`` sentinel for callers that haven't threaded a
-    user id through (e.g. eval suites); ``audit_feature`` defaults
-    to ``"tutor"`` because that's the only existing caller, but
-    future surfaces (learning-path planner, etc.) should pass their
-    own slug.
+    **Data-level ACL (PR-22 / ADR-0029 §D3-D4).** When ``enforce_acl=True``
+    (default) the query additionally JOINs ``Course`` (reachable via
+    ``Module.course_id``) and ANDs ``retrieval_acl_clause(viewer)`` —
+    defense-in-depth so the SQL cannot return another user's private chunk
+    even if a caller forgets the course-level authorizer. ``viewer`` is the
+    requesting user's id (``None`` = anonymous/system → publicly-listed only).
+
+    ``enforce_acl=False`` is reserved for the owner-proven inline-index
+    fallback (ownership already established by ``can_view_course``) and the
+    eval harness; a CI grep-guard (``test_no_unallowlisted_enforce_acl_false``)
+    forbids new ``enforce_acl=False`` sites outside the allowlist.
+
+    When ``audit=True``, after the retrieval succeeds we also write a
+    ``retrieval_audits`` row (best-effort, SAVEPOINT-isolated).
     """
     if not query.strip() or top_k <= 0:
         return []
@@ -106,6 +111,7 @@ async def find_relevant_chunks(
             .limit(top_k)
             .options(selectinload(LessonChunk.lesson))
         )
+        stmt = _apply_acl(stmt, enforce_acl=enforce_acl, viewer=viewer)
         rows = (await db.execute(stmt)).all()
         chunks_with_scores: list[tuple[LessonChunk, float]] = [(r[0], float(r[1])) for r in rows]
         chunks = [c for c, _ in chunks_with_scores]
@@ -132,8 +138,80 @@ async def find_relevant_chunks(
         .limit(top_k)
         .options(selectinload(LessonChunk.lesson))
     )
+    stmt = _apply_acl(stmt, enforce_acl=enforce_acl, viewer=viewer)
     res = await db.execute(stmt)
     return list(res.scalars().all())
+
+
+def _apply_acl(stmt, *, enforce_acl: bool, viewer: str | None):
+    """JOIN ``Course`` + AND the central retrieval ACL when enforcing (PR-22).
+
+    The course-scoped SELECTs already filter ``Module.course_id``, so the JOIN
+    to the single target course's row is cheap (index-covered by
+    ``ix_courses_listed``). The clause is redundant-by-design with the
+    caller's ``can_view_course`` gate for per-course retrieval (R-U4 leak test
+    pins it) and IS the boundary for any caller that forgot it.
+    """
+    if not enforce_acl:
+        return stmt
+    return stmt.join(Course, Course.id == Module.course_id).where(retrieval_acl_clause(viewer))
+
+
+async def find_relevant_chunks_inline_fallback(
+    db: AsyncSession,
+    *,
+    course_id: str,
+    query: str,
+    top_k: int = 5,
+    provider: EmbeddingProvider | None = None,
+) -> list[LessonChunk]:
+    """Owner-proven inline-index fallback (R-U2′ / ADR-0029 §D8.3, PR-22).
+
+    The **only** legitimate ``enforce_acl=False`` site. When a viewable course
+    has live lessons but zero chunks (no worker in dev, or first tutor turn on
+    a fresh private course), the tutor calls this AFTER ``can_view_course`` has
+    already proven the caller may see the course — so the data-level ACL is
+    redundant and we skip it (it would otherwise require the viewer id we no
+    longer need). It indexes the ``index_inline_top_n`` most-recently-updated
+    live lessons (bounded best-effort) then retrieves over whatever now exists.
+
+    Ownership/visibility MUST be established by the caller first; this helper
+    does not re-check it. The single ``enforce_acl=False`` call below is what
+    ``test_no_unallowlisted_enforce_acl_false`` allowlists.
+    """
+    from app.core.config import get_settings
+    from app.services.embeddings_ingest import ingest_lesson
+
+    settings = get_settings()
+    top_n = max(1, int(getattr(settings, "index_inline_top_n", 5)))
+
+    # The N most-recently-updated live lessons of this (owner-proven) course.
+    lesson_stmt = (
+        select(Lesson)
+        .join(Module, Module.id == Lesson.module_id)
+        .where(Module.course_id == course_id, Lesson.deleted_at.is_(None))
+        .order_by(Lesson.updated_at.desc())
+        .limit(top_n)
+    )
+    lessons = list((await db.execute(lesson_stmt)).scalars().all())
+    prov = provider or get_provider()
+    for lesson in lessons:
+        try:
+            await ingest_lesson(db, lesson, provider=prov)
+        except Exception:  # pragma: no cover — best-effort, never block the turn
+            log.warning("inline_index_lesson_failed", lesson_id=lesson.id)
+    await db.commit()
+
+    # Retrieve over whatever now exists. ACL is intentionally NOT enforced here
+    # (ownership already proven upstream) — the single allowlisted bypass.
+    return await find_relevant_chunks(
+        db,
+        course_id=course_id,
+        query=query,
+        top_k=top_k,
+        enforce_acl=False,  # noqa: enforce-acl — owner-proven inline-index fallback (R-U2′)
+        provider=prov,
+    )
 
 
 async def _persist_audit(

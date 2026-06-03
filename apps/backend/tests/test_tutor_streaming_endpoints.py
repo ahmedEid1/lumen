@@ -126,7 +126,14 @@ async def test_post_with_course_slug_resolves_to_course_id(
     to scope the pgvector retrieval."""
     import uuid
 
-    from app.models.course import Course, CourseStatus, Difficulty, Subject
+    from app.models.course import (
+        Course,
+        CourseStatus,
+        Difficulty,
+        ModerationState,
+        Subject,
+        Visibility,
+    )
 
     s = get_settings()
     monkeypatch.setattr(s, "feature_tutor_streaming", True)
@@ -144,6 +151,10 @@ async def test_post_with_course_slug_resolves_to_course_id(
         overview="o",
         difficulty=Difficulty.beginner,
         status=CourseStatus.published,
+        # S2.6: the streaming slug lookup now gates on can_view_course, so a
+        # non-owner student can only resolve a publicly-LISTED course.
+        visibility=Visibility.public,
+        moderation_state=ModerationState.approved,
     )
     db_session.add(course)
     await db_session.commit()

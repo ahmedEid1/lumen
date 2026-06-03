@@ -321,7 +321,7 @@ async def list_courses(
     courses, _total = await courses_repo.search_courses(
         db,
         q=(filter or None),
-        only_published=True,
+        publicly_listed_only=True,
         page=1,
         page_size=limit,
     )
@@ -397,10 +397,14 @@ async def search_lesson_content(
         course_id=course.id,
         query=query,
         top_k=top_k,
+        viewer=principal.user_id,
         audit=True,
         audit_user_id=principal.user_id,
         audit_feature="mcp.search_lesson_content",
     )
+
+    from app.models.course import Course as _Course
+    from app.services.visibility import retrieval_acl_clause as _acl
 
     [query_vec] = _embed_provider().embed([query])
     distance = LessonChunk.embedding.cosine_distance(list(query_vec))
@@ -408,9 +412,13 @@ async def search_lesson_content(
         select(LessonChunk, distance.label("distance"))
         .join(Lesson, Lesson.id == LessonChunk.lesson_id)
         .join(Module, Module.id == Lesson.module_id)
+        # PR-22 / ADR-0029 §174: the second hand-rolled scored query gets the
+        # same central ACL clause so no raw course-id-only filter survives.
+        .join(_Course, _Course.id == Module.course_id)
         .where(
             Module.course_id == course.id,
             Lesson.deleted_at.is_(None),
+            _acl(principal.user_id),
         )
         .order_by(distance)
         .limit(top_k)

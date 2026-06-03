@@ -449,6 +449,7 @@ export const en = {
   "admin.stat.authors": "Authors",
   "admin.stat.courses": "Courses",
   "admin.stat.published": "Published",
+  "admin.stat.listed": "Listed",
   "admin.stat.drafts": "Drafts",
   "admin.stat.enrollments": "Enrollments",
   "admin.tile.subjects.title": "Subjects",
@@ -457,6 +458,8 @@ export const en = {
   "admin.tile.tags.body": "Curate the public tag list.",
   "admin.tile.courses.title": "Courses",
   "admin.tile.courses.body": "Oversee the catalog, set featured.",
+  "admin.tile.moderation.title": "Moderation",
+  "admin.tile.moderation.body": "Review courses awaiting approval to list.",
   "admin.tile.users.title": "Users",
   "admin.tile.users.body": "Promote instructors, manage activity.",
   "admin.tile.audit.title": "Audit log",
@@ -1100,6 +1103,38 @@ export const en = {
   "byok.error.providerError": "Your provider rejected the request. Check your key.",
   "byok.error.rateLimited": "Too many validation attempts. Try again later.",
   "byok.quota.exceeded": "You've reached your request limit for now.",
+
+  // Studio two-control publish + share (S2.12 / ADR-0026)
+  "studio.lifecycle.draft": "Draft",
+  "studio.lifecycle.published": "Published",
+  "studio.share.private": "Private",
+  "studio.share.public": "Public",
+  "studio.share.shareCta": "Share publicly",
+  "studio.share.unshareCta": "Make private",
+  "studio.share.disabledHint": "Publish the course before sharing it publicly.",
+  "studio.share.pendingReview": "Pending review",
+  "studio.share.approved": "Approved · listed publicly",
+  "studio.share.rejected": "Rejected — revise and resubmit",
+  "studio.share.delisted": "Delisted by an admin",
+
+  // Admin moderation queue (S2.12 — S6 ships the actions)
+  "adminModeration.cartouche": "Moderation",
+  "adminModeration.title": "Moderation queue",
+  "adminModeration.subtitle": "Courses awaiting review before they list publicly.",
+  "adminModeration.empty": "Nothing awaiting review.",
+  "adminModeration.col.course": "Course",
+  "adminModeration.col.owner": "Owner",
+  "adminModeration.col.submitted": "Submitted",
+  "adminModeration.approve": "Approve",
+  "adminModeration.reject": "Reject",
+  "adminModeration.delist": "Delist",
+  "adminModeration.relist": "Relist",
+  "adminModeration.remove": "Remove",
+  "adminModeration.confirmRemove": "Remove this course permanently?",
+
+  // New error-code copy (S2.12)
+  "course.notListable": "This course cannot be listed in its current state.",
+  "course.publishPublicForbidden": "You cannot publish publicly.",
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -18,7 +18,17 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint, func
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin
@@ -50,6 +60,15 @@ class LessonChunk(IdMixin, Base):
     # treats the Python side as ``list[float]`` on read/write.
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Per-chunk embedding provenance (ADR-0029 §D6 / R-C3 / FR-EMBED-03).
+    # Stamped by ``ingest_lesson`` from the resolving provider. Kept NULLABLE at
+    # the ORM level: a platform model change does NOT mass-invalidate (existing
+    # chunks stay queryable under their recorded model), and mixed-model within
+    # a course mid-reindex is allowed transiently. Migrations 0041 (add
+    # nullable) → 0042 (operator-confirmed backfill) → 0043 (NOT NULL, Phase-D-
+    # gated) tighten the DB column once the fleet stamps them on every insert.
+    embedding_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    embedding_dim: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     # We don't pull in ``TimestampMixin`` because chunks are append-only
     # at the row level (re-ingest deletes + reinserts), so an
     # ``updated_at`` column would always equal ``created_at`` — noise.

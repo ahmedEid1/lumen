@@ -5,7 +5,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models.course import CourseStatus, Difficulty, LessonType
+from app.models.course import CourseStatus, Difficulty, LessonType, ModerationState, Visibility
 from app.schemas.user import UserPublic
 
 # ----- Subjects / Tags -----
@@ -201,13 +201,18 @@ class CourseCreate(BaseModel):
 
 
 class CourseUpdate(BaseModel):
+    # ``status`` is intentionally REMOVED (S2.11 / FR-VIS-08): PATCH no longer
+    # publishes. Lifecycle moved to POST /courses/{id}/publish|unpublish and
+    # sharing to /share|/unshare|/resubmit. ``extra="forbid"`` so a stray
+    # ``status`` in the body is a 422, not silently ignored.
+    model_config = ConfigDict(extra="forbid")
+
     title: str | None = Field(default=None, min_length=1, max_length=200)
     subject_id: str | None = None
     overview: str | None = Field(default=None, max_length=10_000)
     difficulty: Difficulty | None = None
     tag_ids: list[str] | None = Field(default=None, max_length=20)
     cover_url: str | None = Field(default=None, max_length=500)
-    status: CourseStatus | None = None
     learning_outcomes: list[str] | None = Field(default=None, max_length=12)
 
     @field_validator("learning_outcomes")
@@ -226,6 +231,12 @@ class CourseListItem(BaseModel):
     difficulty: Difficulty
     cover_url: str | None = None
     status: CourseStatus
+    # Read-only sharing intent (S2.11 / ADR-0026). Always exposed — it is the
+    # owner-controlled "private vs public" axis a viewer may legitimately see.
+    visibility: Visibility = Visibility.private
+    # Internal moderation churn — REDACTED for non-owner/non-admin (FR-VIS-21):
+    # the builder only populates it for the owner/admin; None otherwise.
+    moderation_state: ModerationState | None = None
     is_featured: bool
     published_at: datetime | None = None
     created_at: datetime
@@ -241,10 +252,30 @@ class CourseDetail(CourseListItem):
     modules: list[ModuleOut] = Field(default_factory=list)
     is_enrolled: bool = False
     progress_pct: float = 0.0
+    # Derived (read-only): the canonical R-C1′ predicate result.
+    is_publicly_listed: bool = False
+    # Owner-only capability hint (None for non-owner/non-admin viewers).
+    can_publish_public: bool | None = None
     # "What you'll learn" bullet list. Empty list means the
     # instructor hasn't filled it in — the detail page hides the
     # section in that case.
     learning_outcomes: list[str] = Field(default_factory=list)
+
+
+class ShareRequest(BaseModel):
+    """Body for POST /courses/{id}/share. No fields today (reserved for an
+    optional note); kept explicit so the endpoint has a stable request shape."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ModerationActionRequest(BaseModel):
+    """Body for the admin moderation actions (S6 consumes; S2 ships the shape)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = Field(default=None, max_length=40)
+    note: str | None = Field(default=None, max_length=2_000)
 
 
 # ----- Enrollment & progress -----

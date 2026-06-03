@@ -700,7 +700,11 @@ async def draft_course(
 
     # ---------- Step 1. Researcher ----------
     started = time.perf_counter()
-    research_bundle: ResearchBundle = await run_researcher(db, brief=brief)
+    # S2.7: thread the authoring user so the researcher's cross-catalog read
+    # may surface the author's OWN private courses but never another user's.
+    research_bundle: ResearchBundle = await run_researcher(
+        db, brief=brief, requesting_user_id=user_id
+    )
     research_duration_ms = int((time.perf_counter() - started) * 1000)
     await _record_trace(
         db,

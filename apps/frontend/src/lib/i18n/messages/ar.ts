@@ -455,6 +455,7 @@ export const ar: Record<MessageKey, string> = {
   "admin.stat.authors": "المؤلّفون",
   "admin.stat.courses": "الدورات",
   "admin.stat.published": "منشورة",
+  "admin.stat.listed": "مُدرجة",
   "admin.stat.drafts": "مسودّات",
   "admin.stat.enrollments": "التسجيلات",
   "admin.tile.subjects.title": "المواضيع",
@@ -463,6 +464,8 @@ export const ar: Record<MessageKey, string> = {
   "admin.tile.tags.body": "نظّم قائمة الوسوم العامّة.",
   "admin.tile.courses.title": "الدورات",
   "admin.tile.courses.body": "أشرف على الكتالوج وحدّد الدورات المميّزة.",
+  "admin.tile.moderation.title": "الإشراف",
+  "admin.tile.moderation.body": "راجِع الدورات بانتظار الموافقة على الإدراج.",
   "admin.tile.users.title": "المستخدمون",
   "admin.tile.users.body": "رقّ المدرّسين وأدر نشاط الحسابات.",
   "admin.tile.audit.title": "سجل المراقبة",
@@ -1105,4 +1108,36 @@ export const ar: Record<MessageKey, string> = {
   "byok.error.providerError": "رفض مزوّدك الطلب. تحقّق من مفتاحك.",
   "byok.error.rateLimited": "محاولات تحقّق كثيرة جدًا. حاول لاحقًا.",
   "byok.quota.exceeded": "لقد بلغت حدّ الطلبات حاليًا.",
+
+  // Studio two-control publish + share (S2.12 / ADR-0026) — translation_status: mt-draft
+  "studio.lifecycle.draft": "مسودة",
+  "studio.lifecycle.published": "منشورة",
+  "studio.share.private": "خاصة",
+  "studio.share.public": "عامة",
+  "studio.share.shareCta": "مشاركة علنًا",
+  "studio.share.unshareCta": "اجعلها خاصة",
+  "studio.share.disabledHint": "انشر الدورة قبل مشاركتها علنًا.",
+  "studio.share.pendingReview": "قيد المراجعة",
+  "studio.share.approved": "تمت الموافقة · مُدرجة علنًا",
+  "studio.share.rejected": "مرفوضة — راجِع وأعد الإرسال",
+  "studio.share.delisted": "أُزيلت من الإدراج بواسطة مشرف",
+
+  // Admin moderation queue (S2.12) — translation_status: mt-draft
+  "adminModeration.cartouche": "الإشراف",
+  "adminModeration.title": "قائمة الإشراف",
+  "adminModeration.subtitle": "دورات بانتظار المراجعة قبل إدراجها علنًا.",
+  "adminModeration.empty": "لا شيء بانتظار المراجعة.",
+  "adminModeration.col.course": "الدورة",
+  "adminModeration.col.owner": "المالك",
+  "adminModeration.col.submitted": "أُرسلت",
+  "adminModeration.approve": "موافقة",
+  "adminModeration.reject": "رفض",
+  "adminModeration.delist": "إزالة من الإدراج",
+  "adminModeration.relist": "إعادة الإدراج",
+  "adminModeration.remove": "حذف",
+  "adminModeration.confirmRemove": "هل تريد حذف هذه الدورة نهائيًا؟",
+
+  // New error-code copy (S2.12) — translation_status: mt-draft
+  "course.notListable": "لا يمكن إدراج هذه الدورة في حالتها الحالية.",
+  "course.publishPublicForbidden": "لا يمكنك النشر علنًا.",
 };

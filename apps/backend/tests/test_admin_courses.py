@@ -104,3 +104,41 @@ async def test_feature_unknown_course_404(client: AsyncClient, auth_headers) -> 
         headers=admin,
     )
     assert r.status_code == 404
+
+
+async def test_admin_cannot_edit_others_course(
+    client: AsyncClient, auth_headers, db_session
+) -> None:
+    """FR-MOD-05 / S2.8: an admin may VIEW any course but must NOT mutate a
+    non-owned course via the owner-shaped PATCH/DELETE endpoints — admin
+    course-state changes go through the moderation endpoints (S6) only.
+    Coordinates with S6.5 (which keeps this as its regression test).
+    """
+    teacher = await auth_headers(role=Role.instructor)
+    admin = await auth_headers(role=Role.admin)
+    subject = await _make_subject(db_session)
+    create = await client.post(
+        "/api/v1/courses",
+        json={"title": "Owned by teacher", "subject_id": subject.id, "overview": "x"},
+        headers=teacher,
+    )
+    course_id = create.json()["id"]
+
+    # Admin CAN view it via the admin listing (any course).
+    listing = await client.get("/api/v1/admin/courses", headers=admin)
+    assert listing.status_code == 200
+    assert any(c["id"] == course_id for c in listing.json())
+
+    # Admin CANNOT PATCH a non-owned course via the owner-shaped endpoint.
+    patched = await client.patch(
+        f"/api/v1/courses/{course_id}",
+        json={"overview": "admin edit attempt"},
+        headers=admin,
+    )
+    assert patched.status_code == 403
+    assert patched.json()["error"]["code"] == "course.forbidden"
+
+    # Admin CANNOT DELETE a non-owned course via the owner-shaped endpoint.
+    deleted = await client.delete(f"/api/v1/courses/{course_id}", headers=admin)
+    assert deleted.status_code == 403
+    assert deleted.json()["error"]["code"] == "course.forbidden"
