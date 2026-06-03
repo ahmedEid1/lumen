@@ -48,7 +48,11 @@ from app.core.errors import (
 )
 from app.core.ratelimit import limiter
 from app.models.llm_call import BILLING_BYOK
-from app.models.tutor_turn_job import TERMINAL_TURN_STATUSES, TURN_STATUS_ABORTED
+from app.models.tutor_turn_job import (
+    TERMINAL_TURN_STATUSES,
+    TURN_STATUS_ABORTED,
+    TURN_STATUS_PENDING,
+)
 from app.services import byok as byok_service
 from app.services.llm_call_log import quota_limits, user_request_count
 from app.services.redis_streams import check_trim, consume_stream
@@ -365,6 +369,12 @@ async def cancel_turn(turn_id: str, user: CurrentUser, db: DBSession) -> None:
         reserved_microcents = int(turn.reserved_cost_usd * USD_TO_MICROCENTS)
         reservation_ip_key = turn.reservation_ip_key
         user_id_for_release = turn.user_id
+        # Captured BEFORE mark_terminal mutates the row: a still-PENDING
+        # turn was never claimed, so no worker finally will ever release
+        # its concurrency slot — the API must (confirm-round fix: BYOK
+        # turns reserve zero cost, so the reserved>0 release condition
+        # alone leaked their slot until the Redis TTL).
+        was_unclaimed = turn.status == TURN_STATUS_PENDING
 
         await mark_terminal(
             db,
@@ -374,7 +384,14 @@ async def cancel_turn(turn_id: str, user: CurrentUser, db: DBSession) -> None:
         )
         await db.commit()
 
-        if reserved_microcents > 0 and reservation_ip_key is not None:
+        # Release semantics: cost reconciles only when this turn actually
+        # held a reservation (unchanged); the concurrency slot releases
+        # when it held cost (original L33 behavior for claimed turns) OR
+        # when the turn was still unclaimed — a zero-reserved BYOK cancel
+        # previously leaked its slot until the Redis TTL (confirm-round
+        # fix). Claimed turns' slots are the worker finally's job.
+        held_cost = reserved_microcents > 0 and reservation_ip_key is not None
+        if held_cost or was_unclaimed:
             settings = get_settings()
             redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=False)
             try:
@@ -382,14 +399,15 @@ async def cancel_turn(turn_id: str, user: CurrentUser, db: DBSession) -> None:
 
                 from app.core.cost_scripts import reconcile_cost
 
-                with contextlib.suppress(Exception):
-                    await reconcile_cost(
-                        redis_client,
-                        user_key=f"cost:user:{user_id_for_release}",
-                        ip_key=f"cost:ip:{reservation_ip_key}",
-                        global_key="cost:global",
-                        delta_microcents=-reserved_microcents,
-                    )
+                if held_cost:
+                    with contextlib.suppress(Exception):
+                        await reconcile_cost(
+                            redis_client,
+                            user_key=f"cost:user:{user_id_for_release}",
+                            ip_key=f"cost:ip:{reservation_ip_key}",
+                            global_key="cost:global",
+                            delta_microcents=-reserved_microcents,
+                        )
                 with contextlib.suppress(Exception):
                     await release_concurrency(
                         redis_client,

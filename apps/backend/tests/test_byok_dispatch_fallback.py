@@ -257,3 +257,59 @@ async def test_byok_cost_rows_do_not_trip_platform_budget(
             session=db_session,
             billing_mode=BILLING_PLATFORM,
         )
+
+
+@pytest.mark.asyncio
+async def test_platform_budget_does_not_block_byok(db_session, make_user, monkeypatch) -> None:
+    """Confirm-round fix: a user who exhausted the FREE platform dollar
+    budget and then configured their own key must NOT stay blocked. The
+    platform dollar guard runs only for ``billing_mode='platform'`` —
+    ``current_spend`` is None for BYOK, so an over-budget PLATFORM history
+    no longer wedges the user's own-key dispatch."""
+    user = await make_user()
+    await _store_cred(db_session, user.id, fallback=False)
+    settings = get_settings()
+    monkeypatch.setattr(settings, "llm_user_budget_24h_usd", Decimal("1.00"))
+
+    # Seed PLATFORM spend far beyond the (monkeypatched) platform budget.
+    for _ in range(3):
+        db_session.add(
+            LLMCall(
+                user_id=user.id,
+                feature="test.platform",
+                provider="scripted",
+                model="scripted-model",
+                prompt_tokens=1,
+                completion_tokens=1,
+                cost_usd=Decimal("5.00"),
+                latency_ms=1,
+                status=STATUS_OK,
+                billing_mode=BILLING_PLATFORM,
+            )
+        )
+    await db_session.flush()
+
+    # A BYOK call still succeeds — the platform guard is skipped for it.
+    ok_provider = _ScriptedProvider(text="byok says hi")
+    resp = await call_logged(
+        ok_provider,
+        [ChatMessage(role="user", content="q")],
+        user_id=user.id,
+        feature="test.byok",
+        session=db_session,
+        billing_mode=BILLING_BYOK,
+    )
+    assert resp.text == "byok says hi"
+    assert ok_provider.calls == 1
+
+    # Sanity: the SAME over-budget platform history still trips the guard on
+    # a PLATFORM call (so the fix narrowed the guard, didn't disable it).
+    with pytest.raises(BudgetExceededError):
+        await call_logged(
+            _ScriptedProvider(text="platform says hi"),
+            [ChatMessage(role="user", content="q")],
+            user_id=user.id,
+            feature="test.platform",
+            session=db_session,
+            billing_mode=BILLING_PLATFORM,
+        )

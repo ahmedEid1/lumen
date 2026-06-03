@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
+from decimal import Decimal
 
 import redis.asyncio as redis
 from celery.utils.log import get_task_logger
@@ -36,6 +37,7 @@ from app.core.cost_scripts import (
     USD_TO_MICROCENTS,
     reconcile_cost,
     release_concurrency,
+    reserve_cost,
 )
 from app.db.base import make_worker_engine
 from app.models.course import Course
@@ -47,7 +49,7 @@ from app.services.redis_streams import emit_event, set_stream_ttl
 from app.services.tutor_orchestrator_stream import orchestrate_stream
 from app.services.tutor_subagents.retriever import RetrieverChunk
 from app.services.tutor_subagents.retriever import run as run_retriever
-from app.services.tutor_turn_service import claim_pending_turn, mark_terminal
+from app.services.tutor_turn_service import claim_pending_turn, mark_terminal, set_reserved_cost
 from app.workers.celery_app import celery
 
 log = get_task_logger(__name__)
@@ -66,6 +68,12 @@ def run_turn(self, turn_id: str) -> None:
     ADR-0017). The async work happens inside the body.
     """
     asyncio.run(_run_turn_async(turn_id))
+
+
+class PlatformFallbackCapError(RuntimeError):
+    """A BYOK turn fell back to platform in the worker but the platform
+    cost reservation refused (confirm-round fix). Fails the turn via the
+    generic handler — error_code ``tutor.runtime: PlatformFallbackCapError``."""
 
 
 def _stream_provider_name(byok_dispatch: dict[str, str] | None) -> str:
@@ -141,6 +149,41 @@ async def _run_turn_async(turn_id: str) -> None:
                 )
                 # _handle_drift may have flushed needs_attention — persist it.
                 await db.commit()
+
+            if byok_dispatch is None:
+                # Confirm-round fix: the enqueue path skipped the platform
+                # dollar reservation because this turn resolved BYOK — but
+                # the credential fell back to platform here (consented
+                # drift / disabled / flag flipped between enqueue and run).
+                # The dispatch below WILL spend platform dollars, so
+                # reserve them now, worker-side; a refusal fails the turn
+                # exactly like the API-side cap errors. The row's
+                # reserved_cost_usd is updated so the cancel path and the
+                # sweep see the truth, and reserved_microcents feeds the
+                # finally-reconcile as usual.
+                settings_now = get_settings()
+                reserve_ok, reserve_tag = await reserve_cost(
+                    redis_client,
+                    user_key=f"cost:user:{user_id}",
+                    ip_key=f"cost:ip:{reservation_ip_key or 'unknown'}",
+                    global_key="cost:global",
+                    estimate_microcents=settings_now.tutor_estimate_microcents,
+                    max_user_microcents=settings_now.tutor_cap_user_microcents,
+                    max_ip_microcents=settings_now.tutor_cap_ip_microcents,
+                    max_global_microcents=settings_now.tutor_cap_global_microcents,
+                )
+                if not reserve_ok:
+                    raise PlatformFallbackCapError(
+                        f"platform fallback rejected by cost reservation: {reserve_tag}"
+                    )
+                reserved_microcents = int(settings_now.tutor_estimate_microcents)
+                async with Session() as db:
+                    await set_reserved_cost(
+                        db,
+                        turn_id=turn_id,
+                        reserved_cost_usd=Decimal(reserved_microcents) / Decimal(USD_TO_MICROCENTS),
+                    )
+                    await db.commit()
 
         # L32 — pgvector retrieval. Best-effort: a retrieval failure
         # degrades to "no course context" but doesn't fail the turn.

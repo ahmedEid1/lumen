@@ -51,8 +51,7 @@ async def count_active_turns_in_window(
     stmt = select(func.count(TutorTurnJob.id)).where(
         TutorTurnJob.user_id == user_id,
         TutorTurnJob.status.notin_(TERMINAL_TURN_STATUSES),
-        TutorTurnJob.created_at
-        > func.now() - func.make_interval(0, 0, 0, 0, 0, 0, window_seconds),
+        TutorTurnJob.created_at > func.now() - func.make_interval(0, 0, 0, 0, 0, 0, window_seconds),
     )
     return int((await db.execute(stmt)).scalar_one() or 0)
 
@@ -187,6 +186,29 @@ async def mark_terminal(
             """
         ),
         {"id": turn_id, "status": status, "error_code": error_code},
+    )
+    return (result.rowcount or 0) > 0
+
+
+async def set_reserved_cost(db: AsyncSession, *, turn_id: str, reserved_cost_usd) -> bool:
+    """Record a reservation taken AFTER enqueue (confirm-round fix).
+
+    A BYOK turn enqueues with ``reserved_cost_usd = 0``; when the worker
+    discovers it must fall back to platform it reserves cost itself and
+    stamps the row here so the cancel path and the sweep release the
+    truth. Refuses terminal rows (same guard shape as ``mark_terminal``).
+    """
+    result = await db.execute(
+        text(
+            """
+            UPDATE tutor_turn_jobs
+            SET reserved_cost_usd = :reserved,
+                updated_at = NOW()
+            WHERE id = :id
+              AND status NOT IN ('complete', 'failed', 'aborted')
+            """
+        ),
+        {"id": turn_id, "reserved": reserved_cost_usd},
     )
     return (result.rowcount or 0) > 0
 

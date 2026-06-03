@@ -108,9 +108,20 @@ def _patch_worker_seams(monkeypatch, *, turn, mocks):
     # Retrieval is gated behind course_id (None here) but patch defensively.
     monkeypatch.setattr(tutor_streaming, "run_retriever", AsyncMock())
 
+    # Confirm-round C2: a credential that resolves to a None dispatch (drift
+    # fallback to platform) now reserves platform cost worker-side and stamps
+    # the row. Both seams default to "succeeded" so the happy-path fallback
+    # tests stay green; the cap-refusal test overrides reserve_cost per-test.
+    reserve_cost = AsyncMock(return_value=(True, "ok"))
+    monkeypatch.setattr(tutor_streaming, "reserve_cost", reserve_cost)
+    set_reserved = AsyncMock(return_value=True)
+    monkeypatch.setattr(tutor_streaming, "set_reserved_cost", set_reserved)
+
     mocks["mark_terminal"] = mark_terminal
     mocks["record_row"] = record_row
     mocks["claim"] = claim
+    mocks["reserve_cost"] = reserve_cost
+    mocks["set_reserved_cost"] = set_reserved
 
 
 # ---------------------------------------------------------------------
@@ -306,6 +317,100 @@ async def test_completed_turn_with_credential_but_null_dispatch_is_platform(
     _args, kwargs = mocks["record_row"].await_args
     assert kwargs["status"] == STATUS_OK
     assert kwargs["billing_mode"] == BILLING_PLATFORM
+
+
+# ---------------------------------------------------------------------
+# C2 — worker-side platform fallback reserves cost + stamps the row.
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fallback_dispatch_reserves_platform_cost(monkeypatch) -> None:
+    """Confirm-round C2: a credential that resolves to a None dispatch
+    (consented drift fallback to platform) now reserves platform dollars
+    worker-side — the enqueue path skipped that reservation because the
+    turn resolved BYOK. On success the row is stamped with the estimate via
+    ``set_reserved_cost`` and the turn runs normally."""
+    from app.core.config import get_settings
+    from app.core.cost_scripts import USD_TO_MICROCENTS
+
+    turn = _make_turn(credential_id="cred_fallback")
+    mocks: dict = {}
+    _patch_worker_seams(monkeypatch, turn=turn, mocks=mocks)
+
+    dispatch = AsyncMock(return_value=None)
+    monkeypatch.setattr(tutor_streaming.byok_service, "stream_dispatch_for_turn", dispatch)
+    monkeypatch.setattr(tutor_streaming.byok_service, "is_auth_error", lambda exc: False)
+
+    orchestrated: list[bool] = []
+
+    def _orchestrate(**_kwargs):
+        orchestrated.append(True)
+
+        async def _gen():
+            yield {"event": "synth_chunk", "data": {"delta": "x"}}
+            yield {
+                "event": "turn_complete",
+                "data": {"cost_usd": 0.001, "total_ms": 50, "first_token_ms": 5},
+            }
+
+        return _gen()
+
+    monkeypatch.setattr(tutor_streaming, "orchestrate_stream", _orchestrate)
+
+    await tutor_streaming._run_turn_async("turn_fallback_reserve")
+
+    # The credential WAS resolved (returned None) → worker reserved platform $.
+    dispatch.assert_awaited_once()
+    mocks["reserve_cost"].assert_awaited_once()
+
+    # The row was stamped with the estimate (Decimal microcents / 1e6).
+    estimate = get_settings().tutor_estimate_microcents
+    expected = Decimal(estimate) / Decimal(USD_TO_MICROCENTS)
+    mocks["set_reserved_cost"].assert_awaited_once()
+    _sr_args, sr_kwargs = mocks["set_reserved_cost"].await_args
+    assert sr_kwargs["turn_id"] == "turn_fallback_reserve"
+    assert sr_kwargs["reserved_cost_usd"] == expected
+
+    # Orchestration ran (reservation succeeded → stream proceeds) + completed.
+    assert orchestrated == [True]
+    _mt_args, mt_kwargs = mocks["mark_terminal"].await_args
+    assert mt_kwargs["status"] == TURN_STATUS_COMPLETE
+
+
+@pytest.mark.asyncio
+async def test_fallback_dispatch_cap_refusal_fails_turn(monkeypatch) -> None:
+    """Confirm-round C2: when the worker-side platform reservation is
+    REFUSED (e.g. user cap), the turn fails with a
+    ``PlatformFallbackCapError`` and ``orchestrate_stream`` never runs — the
+    platform model is never dispatched for a turn whose dollars were denied."""
+    turn = _make_turn(credential_id="cred_fallback_cap")
+    mocks: dict = {}
+    _patch_worker_seams(monkeypatch, turn=turn, mocks=mocks)
+
+    dispatch = AsyncMock(return_value=None)
+    monkeypatch.setattr(tutor_streaming.byok_service, "stream_dispatch_for_turn", dispatch)
+    monkeypatch.setattr(tutor_streaming.byok_service, "is_auth_error", lambda exc: False)
+    # The reservation refuses (user cap exhausted).
+    mocks["reserve_cost"].return_value = (False, "user_cap")
+
+    orchestrate = MagicMock()
+    monkeypatch.setattr(tutor_streaming, "orchestrate_stream", orchestrate)
+
+    with pytest.raises(tutor_streaming.PlatformFallbackCapError):
+        await tutor_streaming._run_turn_async("turn_fallback_cap")
+
+    # The reservation was attempted but refused → turn FAILED with the cap
+    # error's class name; the row was NEVER stamped (no reservation held).
+    mocks["reserve_cost"].assert_awaited_once()
+    mocks["set_reserved_cost"].assert_not_awaited()
+
+    _mt_args, mt_kwargs = mocks["mark_terminal"].await_args
+    assert mt_kwargs["status"] == TURN_STATUS_FAILED
+    assert "PlatformFallbackCapError" in mt_kwargs["error_code"]
+
+    # Hard invariant: the platform model was NEVER dispatched.
+    orchestrate.assert_not_called()
 
 
 # ---------------------------------------------------------------------

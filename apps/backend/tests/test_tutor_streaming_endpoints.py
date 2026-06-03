@@ -523,3 +523,110 @@ async def test_platform_turn_still_reserves(
     )
     assert r.status_code == 201, r.text
     _stub_cost_scripts["reserve_cost"].assert_called_once()
+
+
+# ----------------------------------------------------------------------------
+# C3 (confirm-round) — cancelling a still-PENDING BYOK turn (reserved $0) must
+# release its concurrency slot even though it held no cost reservation. The
+# previous `reserved>0` release condition leaked the slot until the Redis TTL.
+# ----------------------------------------------------------------------------
+
+
+async def test_cancel_pending_byok_turn_releases_concurrency(
+    client: AsyncClient,
+    make_user,
+    db_session: AsyncSession,
+    monkeypatch,
+    _byok_on,
+    _stub_cost_scripts,
+) -> None:
+    """A BYOK turn reserves zero dollars, so the cancel path's release
+    condition can't key off ``reserved>0`` — it must release the slot
+    because the still-PENDING turn was never claimed by a worker (whose
+    finally would otherwise own the release). ``reconcile_cost`` must NOT
+    run (nothing was reserved)."""
+    from unittest.mock import AsyncMock
+
+    s = get_settings()
+    monkeypatch.setattr(s, "feature_tutor_streaming", True)
+
+    user, headers = await _login_headers(client, make_user, role=Role.student)
+    await _store_active_credential(db_session, user.id)
+
+    # POST a BYOK turn: 201, pending, reserved $0 (the F3 skip-reservation path).
+    r = await client.post(
+        "/api/v1/tutor/turns",
+        json={"content": "byok cancel me"},
+        headers=headers,
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["status"] == TURN_STATUS_PENDING
+    turn_id = body["id"]
+    _stub_cost_scripts["reserve_cost"].assert_not_called()
+
+    row = await db_session.execute(select(TutorTurnJob).where(TutorTurnJob.id == turn_id))
+    turn = row.scalar_one_or_none()
+    assert turn is not None
+    from decimal import Decimal
+
+    assert turn.reserved_cost_usd == Decimal(0)
+
+    # cancel_turn imports reconcile_cost locally from app.core.cost_scripts —
+    # patch that binding to prove it is NOT invoked for a zero-reservation
+    # cancel (the fixture only stubs release_concurrency / reserve_cost).
+    reconcile_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr("app.core.cost_scripts.reconcile_cost", reconcile_mock)
+
+    d = await client.delete(f"/api/v1/tutor/turns/{turn_id}", headers=headers)
+    assert d.status_code == 204, d.text
+
+    # The slot was released (was_unclaimed branch) even though reserved == 0.
+    # cancel_turn calls release_concurrency directly = the patched module
+    # binding (app.api.v1.tutor_streaming.release_concurrency).
+    _stub_cost_scripts["release_concurrency"].assert_called_once()
+    # Zero reservation → no cost reconciliation.
+    reconcile_mock.assert_not_called()
+
+
+async def test_cancel_pending_platform_turn_releases_both(
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    monkeypatch,
+    _stub_cost_scripts,
+) -> None:
+    """Sanity for the C3 reshape: a still-PENDING PLATFORM turn (reserved>0)
+    still reconciles its cost AND releases its slot — the held-cost branch is
+    unchanged for claimed-by-nobody platform turns."""
+    from decimal import Decimal
+    from unittest.mock import AsyncMock
+
+    s = get_settings()
+    monkeypatch.setattr(s, "feature_tutor_streaming", True)
+    monkeypatch.setattr(s, "tutor_estimate_microcents", 5_000)
+
+    headers = await auth_headers(role=Role.student)
+    r = await client.post(
+        "/api/v1/tutor/turns",
+        json={"content": "platform cancel me"},
+        headers=headers,
+    )
+    assert r.status_code == 201, r.text
+    turn_id = r.json()["id"]
+    _stub_cost_scripts["reserve_cost"].assert_called_once()
+
+    row = await db_session.execute(select(TutorTurnJob).where(TutorTurnJob.id == turn_id))
+    turn = row.scalar_one_or_none()
+    assert turn is not None
+    assert turn.reserved_cost_usd > Decimal(0)
+
+    reconcile_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr("app.core.cost_scripts.reconcile_cost", reconcile_mock)
+
+    d = await client.delete(f"/api/v1/tutor/turns/{turn_id}", headers=headers)
+    assert d.status_code == 204, d.text
+
+    # Platform turn held cost → both release AND reconcile fire.
+    _stub_cost_scripts["release_concurrency"].assert_called_once()
+    reconcile_mock.assert_called_once()

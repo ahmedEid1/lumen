@@ -430,11 +430,15 @@ async def call_logged(
                 details={"dimension": dimension, "used": used, "limit": limit},
             )
 
-        # ---------- Platform dollar guard (unchanged for platform users) ----------
-        # Runs for both modes but the window sum is platform-rows-only
-        # (Gate-A fix — BYOK rows carry real informational cost for priced
-        # models, so an unfiltered sum let own-key spend trip this guard).
-        current_spend = await _user_cost_last_24h(session, user_id)
+        # ---------- Platform dollar guard (platform-billed calls only) ----------
+        # Confirm-round fix: the guard itself is skipped for BYOK calls —
+        # a user who exhausted the FREE platform budget and then configured
+        # their own key must not stay blocked (BYOK is governed by the
+        # request windows above; its spend goes to the user's provider).
+        # The window sum is platform-rows-only for the same reason.
+        current_spend = (
+            await _user_cost_last_24h(session, user_id) if mode == BILLING_PLATFORM else None
+        )
         if current_spend is not None and current_spend > settings.llm_user_budget_24h_usd:
             await _persist_row(
                 session,
@@ -523,9 +527,7 @@ async def call_logged(
         # item 4 forbids fallback there so cost ownership stays predictable.
         from app.services import byok as byok_service  # cycle-safe local import
 
-        fallback = await byok_service.handle_dispatch_auth_failure(
-            session, ctx, byok_dispatch_exc
-        )
+        fallback = await byok_service.handle_dispatch_auth_failure(session, ctx, byok_dispatch_exc)
         if fallback is None:
             raise byok_dispatch_exc
         fb_provider, fb_mode = fallback

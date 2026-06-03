@@ -84,11 +84,24 @@ def test_guard_fires_in_dev_when_credentials_exist(monkeypatch):
     assert problems, "missing KEK with existing secret rows must be flagged in any env"
 
 
-def test_secret_rows_probe_tolerates_missing_tables():
-    """The table-read probe must not raise when the tables don't exist yet —
-    it returns False (no rows) instead of propagating ProgrammingError."""
-    # In the current schema neither table exists; the probe should be a
-    # clean False, never an exception.
+def test_secret_rows_probe_tolerates_missing_tables(monkeypatch):
+    """The table-read probe must not raise when the tables don't exist —
+    it returns False (no rows) instead of propagating ProgrammingError.
+
+    Hermetic since the S5 confirm round: the probe builds its own sync
+    engine from ``settings.database_url_sync`` (which conftest does NOT
+    repoint at the transient test DB), so the original unpinned version
+    silently read the shared dev database and started flapping the moment
+    a real credential row landed there (Gate-C stored one). Point it at
+    the server's default ``postgres`` database instead — guaranteed to
+    have no lumen tables, which is the exact contract under test."""
+    from sqlalchemy.engine import make_url
+
+    from app.core.config import get_settings
+
+    s = get_settings()
+    bare = make_url(s.database_url_sync).set(database="postgres")
+    monkeypatch.setattr(s, "database_url_sync", str(bare))
     result = prod_guards._byok_secret_rows_exist()
     assert result is False
 
