@@ -11,7 +11,7 @@ from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, ConfigDict
 from starlette.responses import Response as StarletteResponse
 
-from app.api.deps import DBSession, OptionalUser, RequireInstructor
+from app.api.deps import DBSession, OptionalUser, RequireAuthor
 from app.api.v1 import _builders
 from app.core.errors import ForbiddenError, NotFoundError, UnauthorizedError
 from app.models.course import Course
@@ -83,7 +83,7 @@ def _course_detail_etag(
 
 @router.post("", response_model=CourseListItem, status_code=status.HTTP_201_CREATED)
 async def create_course(
-    payload: CourseCreate, user: RequireInstructor, db: DBSession
+    payload: CourseCreate, user: RequireAuthor, db: DBSession
 ) -> CourseListItem:
     course = await courses_service.create_course(db, user, payload)
     refreshed, stats = await _load_course_with_stats(db, course.id)
@@ -91,7 +91,7 @@ async def create_course(
 
 
 @router.get("/mine", response_model=list[CourseListItem])
-async def my_courses(user: RequireInstructor, db: DBSession) -> list[CourseListItem]:
+async def my_courses(user: RequireAuthor, db: DBSession) -> list[CourseListItem]:
     courses, _ = await courses_repo.search_courses(
         db, owner_id=user.id, only_published=False, page=1, page_size=100
     )
@@ -176,7 +176,7 @@ async def get_course(
 
 @router.patch("/{course_id}", response_model=CourseDetail)
 async def update_course(
-    course_id: str, payload: CourseUpdate, user: RequireInstructor, db: DBSession
+    course_id: str, payload: CourseUpdate, user: RequireAuthor, db: DBSession
 ) -> CourseDetail:
     await courses_service.update_course(db, course_id=course_id, owner=user, payload=payload)
     course = await courses_repo.get_course(db, course_id, with_modules=True)
@@ -199,7 +199,7 @@ async def update_course(
 
 
 @router.delete("/{course_id}", response_model=OkResponse, status_code=status.HTTP_200_OK)
-async def delete_course(course_id: str, user: RequireInstructor, db: DBSession) -> OkResponse:
+async def delete_course(course_id: str, user: RequireAuthor, db: DBSession) -> OkResponse:
     await courses_service.delete_course(db, course_id=course_id, owner=user)
     return OkResponse()
 
@@ -209,7 +209,7 @@ async def delete_course(course_id: str, user: RequireInstructor, db: DBSession) 
 
 @router.post("/{course_id}/modules", response_model=ModuleOut, status_code=status.HTTP_201_CREATED)
 async def create_module(
-    course_id: str, payload: ModuleCreate, user: RequireInstructor, db: DBSession
+    course_id: str, payload: ModuleCreate, user: RequireAuthor, db: DBSession
 ) -> ModuleOut:
     mod = await courses_service.create_module(db, course_id=course_id, owner=user, payload=payload)
     return ModuleOut(
@@ -219,7 +219,7 @@ async def create_module(
 
 @router.patch("/modules/{module_id}", response_model=ModuleOut)
 async def update_module(
-    module_id: str, payload: ModuleUpdate, user: RequireInstructor, db: DBSession
+    module_id: str, payload: ModuleUpdate, user: RequireAuthor, db: DBSession
 ) -> ModuleOut:
     mod = await courses_service.update_module(db, module_id=module_id, owner=user, payload=payload)
     return ModuleOut(
@@ -234,14 +234,14 @@ async def update_module(
 
 
 @router.delete("/modules/{module_id}", response_model=OkResponse)
-async def delete_module(module_id: str, user: RequireInstructor, db: DBSession) -> OkResponse:
+async def delete_module(module_id: str, user: RequireAuthor, db: DBSession) -> OkResponse:
     await courses_service.delete_module(db, module_id=module_id, owner=user)
     return OkResponse()
 
 
 @router.post("/{course_id}/modules/order", response_model=OkResponse)
 async def reorder_modules(
-    course_id: str, payload: OrderUpdateRequest, user: RequireInstructor, db: DBSession
+    course_id: str, payload: OrderUpdateRequest, user: RequireAuthor, db: DBSession
 ) -> OkResponse:
     await courses_service.reorder_modules(
         db, course_id=course_id, owner=user, mapping=payload.order
@@ -256,7 +256,7 @@ async def reorder_modules(
     "/modules/{module_id}/lessons", response_model=LessonOut, status_code=status.HTTP_201_CREATED
 )
 async def create_lesson(
-    module_id: str, payload: LessonCreate, user: RequireInstructor, db: DBSession
+    module_id: str, payload: LessonCreate, user: RequireAuthor, db: DBSession
 ) -> LessonOut:
     lesson = await courses_service.create_lesson(
         db, module_id=module_id, owner=user, payload=payload
@@ -266,7 +266,7 @@ async def create_lesson(
 
 @router.patch("/lessons/{lesson_id}", response_model=LessonOut)
 async def update_lesson(
-    lesson_id: str, payload: LessonUpdate, user: RequireInstructor, db: DBSession
+    lesson_id: str, payload: LessonUpdate, user: RequireAuthor, db: DBSession
 ) -> LessonOut:
     lesson = await courses_service.update_lesson(
         db, lesson_id=lesson_id, owner=user, payload=payload
@@ -275,14 +275,14 @@ async def update_lesson(
 
 
 @router.delete("/lessons/{lesson_id}", response_model=OkResponse)
-async def delete_lesson(lesson_id: str, user: RequireInstructor, db: DBSession) -> OkResponse:
+async def delete_lesson(lesson_id: str, user: RequireAuthor, db: DBSession) -> OkResponse:
     await courses_service.delete_lesson(db, lesson_id=lesson_id, owner=user)
     return OkResponse()
 
 
 @router.post("/modules/{module_id}/lessons/order", response_model=OkResponse)
 async def reorder_lessons(
-    module_id: str, payload: OrderUpdateRequest, user: RequireInstructor, db: DBSession
+    module_id: str, payload: OrderUpdateRequest, user: RequireAuthor, db: DBSession
 ) -> OkResponse:
     await courses_service.reorder_lessons(
         db, module_id=module_id, owner=user, mapping=payload.order
@@ -341,7 +341,7 @@ class CourseAnalyticsOut(BaseModel):
 
 @router.get("/{course_id}/analytics", response_model=CourseAnalyticsOut)
 async def course_analytics(
-    course_id: str, user: RequireInstructor, db: DBSession
+    course_id: str, user: RequireAuthor, db: DBSession
 ) -> CourseAnalyticsOut:
     data = await analytics_service.for_course(db, course_id=course_id, viewer=user)
     return CourseAnalyticsOut.model_validate(data)
@@ -363,15 +363,13 @@ class CohortRowOut(BaseModel):
 
 
 @router.get("/{course_id}/students", response_model=list[CohortRowOut])
-async def course_cohort(
-    course_id: str, user: RequireInstructor, db: DBSession
-) -> list[CohortRowOut]:
+async def course_cohort(course_id: str, user: RequireAuthor, db: DBSession) -> list[CohortRowOut]:
     rows = await analytics_service.cohort_for_course(db, course_id=course_id, viewer=user)
     return [CohortRowOut.model_validate(r) for r in rows]
 
 
 @router.get("/{course_id}/students.csv")
-async def course_cohort_csv(course_id: str, user: RequireInstructor, db: DBSession) -> Response:
+async def course_cohort_csv(course_id: str, user: RequireAuthor, db: DBSession) -> Response:
     """Same data the cohort UI shows, dumped as CSV so instructors can
     import into a gradebook / spreadsheet. Reuses the cohort service
     (same authz, same soft-delete handling, same 500-row cap).

@@ -32,7 +32,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field
 
-from app.api.deps import CurrentUser, DBSession, RequireInstructor
+from app.api.deps import CurrentUser, DBSession, RequireAuthor
 from app.core.errors import ForbiddenError, NotFoundError
 from app.core.ratelimit import limiter
 from app.models.course import Course
@@ -167,7 +167,7 @@ class DraftTraceResponse(BaseModel):
 @limiter.limit("5/minute")
 async def generate_outline(
     payload: OutlineRequest,
-    user: RequireInstructor,
+    user: RequireAuthor,
     db: DBSession,
     request: Request,
     response: Response,
@@ -191,7 +191,7 @@ async def generate_outline(
 @limiter.limit("5/minute")
 async def generate_lesson_body(
     payload: LessonBodyRequest,
-    user: RequireInstructor,
+    user: RequireAuthor,
     db: DBSession,
     request: Request,
     response: Response,
@@ -216,7 +216,7 @@ async def generate_lesson_body(
 @limiter.limit("5/minute")
 async def generate_quiz(
     payload: QuizRequest,
-    user: RequireInstructor,
+    user: RequireAuthor,
     db: DBSession,
     request: Request,
     response: Response,
@@ -246,7 +246,7 @@ async def generate_quiz(
 @limiter.limit("5/minute")
 async def commit_outline(
     payload: CommitOutlineRequest,
-    user: RequireInstructor,
+    user: RequireAuthor,
     db: DBSession,
     request: Request,
     response: Response,
@@ -307,7 +307,7 @@ def _commit_response(course: Course) -> CommitOutlineResponse:
 @limiter.limit("5/minute")
 async def draft_course(
     payload: DraftCourseRequest,
-    user: RequireInstructor,
+    user: RequireAuthor,
     db: DBSession,
     request: Request,
     response: Response,

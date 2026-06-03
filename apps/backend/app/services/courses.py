@@ -66,9 +66,11 @@ def _validate_complete_order(mapping: dict[str, int], *, present_ids: set[str], 
 
 
 async def create_course(db: AsyncSession, owner: User, payload: CourseCreate) -> Course:
-    if not owner.is_instructor_or_admin():
-        raise ForbiddenError("Only instructors can create courses", code="courses.forbidden")
-
+    # S1.5 / FR-RBAC-04: course creation is ungated from the instructor role —
+    # any active user may author (the route's `RequireAuthor` capability dep
+    # already rejects anonymous/suspended callers; ownership of *edits* stays
+    # enforced via `_can_edit_course`). The old `courses.forbidden` business
+    # gate is removed (ADR-0025 §D4); no code path raises it anymore.
     subject = await courses_repo.get_subject(db, payload.subject_id)
     if not subject:
         raise NotFoundError("Subject not found", code="subject.not_found")
