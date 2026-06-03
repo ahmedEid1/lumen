@@ -22,7 +22,7 @@ takes their credentials with them).
 Phase: A (additive). Apply with any deploy; the BYOK code is flag-gated OFF
 (``feature_byok_enabled=false``) until the KEK is confirmed fleet-wide.
 
-down_revision: "0030" — INTEGRATION: re-point at merge. S5's migrations
+down_revision: "0032" — re-pointed at S5 merge (chains after the S1 role collapse).
 chain internally 0038 -> 0039 -> 0040; at integration the head of the
 landed chain (after S1/S2's revisions) replaces "0030" here.
 
@@ -40,9 +40,8 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0038"
-# INTEGRATION: re-point at merge — S5 temporarily chains off 0030 (the
 # foundation head); the integrator re-points this at the real chain head.
-down_revision: str | Sequence[str] | None = "0030"
+down_revision: str | Sequence[str] | None = "0032"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
