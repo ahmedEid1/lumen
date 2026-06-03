@@ -11,8 +11,8 @@
 |---|---|---|---|---|---|
 | S7-pre foundation | ✅ | ✅ 913b978 | ✅ | ✅ | ✅ |
 | S1 role collapse | ✅ | ✅ 506e1f5+acf390e | ✅ | ✅ | ✅ |
-| S5 BYOK | ✅ | ✅ 89fea7a + fixes →e9720e5 | 🟡 fixed, confirm-round running | ✅ after fixes | ✅ live-proven |
-| S2 visibility/authorizer | ✅ (worktree `agent-a719f9a8a9f298534`, 16 commits) | ⬜ after S5 confirm | ⬜ | ⬜ | ⬜ |
+| S5 BYOK | ✅ | ✅ 89fea7a + fixes →2ca6d33 | ✅ (rounds 4→4→3→1→0) | ✅ | ✅ live-proven |
+| S2 visibility/authorizer | ✅ (worktree `agent-a719f9a8a9f298534`, 16 commits) | 🟡 merge workflow running | ⬜ | ⬜ | ⬜ |
 | S3 goal intake→build | ⬜ Wave 2 (needs S1+S2) | | | | |
 | S4 clone/remix | ⬜ Wave 2 (needs S2) | | | | |
 | S6 admin/moderation | ⬜ Wave 2 | | | | |

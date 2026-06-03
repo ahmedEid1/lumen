@@ -267,6 +267,19 @@ its three gates are green:**
   on-screen; DB blob encrypted (no plaintext, position=0), 0 log/llm_calls leaks, audit events present;
   activate toggle persists; PR-19 carry-forward CLOSED (prod+empty-KEK+credential rows → boot guard refusal,
   live-verified). Codex confirmation round on the fix commits pending; flag restored to ship-inert false.
+- **2026-06-03** — **S5 BYOK ALL GATES GREEN.** Confirmation rounds converged 4→4→3→1→0: round-2 (Codex)
+  caught 3 P2 cost-coupling gaps in the head's own F3 fix (dollar guard still gating BYOK dispatch;
+  worker platform-fallback spending unreserved — now reserves worker-side via set_reserved_cost +
+  PlatformFallbackCapError; cancelled pending BYOK turns leaking their concurrency slot) → fixed
+  (cfd0789) + workflow-built regressions (s5-confirm-round-tests; also repaired a pre-existing seam gap
+  in the worker-test helper and hermetic-ized test_secret_rows_probe — it silently read the DEV DB via
+  database_url_sync and flapped when Gate-C stored a row). Round-3 (Codex) caught a TOCTOU claim/cancel
+  race in the round-2 cancel fix (stale ORM-status read → double slot release → cap bypass) → closed
+  with the atomic abort_pending pending→aborted verdict (2ca6d33). Round-4 (Codex, one-commit scope):
+  CLEAN. Final suites: backend 1003 / frontend 390 green, ruff/eslint/tsc clean. Process note: gate-fix
+  regression tests ran as workflows (s5-gate-fix-tests: 5 agents/21 tests; s5-confirm-round-tests)
+  per the head-orchestrates-workflows-build correction. **Opening S2 merge (workflow
+  s2-merge-integration): merge worktree-agent-a719f9a8a9f298534, re-point 0033→0040, merge-gate.**
 ---
 
 ## 6a. Verified RBAC inventory (ground truth, 2026-06-03)
