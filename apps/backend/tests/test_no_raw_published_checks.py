@@ -108,14 +108,16 @@ READERS_PENDING_MIGRATION: set[str] = {
     # _publicly_listed_sql(); the param is publicly_listed_only; MCP search too.
     # S2.6 migrated — enrollment.enroll -> can_enroll; tutor_streaming slug
     # lookup -> can_view_course (owner self-learn); cli -> publicly_listed_sql.
+    # S2.7 migrated — learning_path (_condense_catalog primary + fallback,
+    # _first_lesson_for_slug) + researcher (primary + fallback) route through
+    # retrieval_acl_clause(requesting_user_id).
+    #
+    # Remaining: the two admin.py LIFECYCLE counts (a published-count stat + the
+    # reindex fan-out) are NOT access reads — S2.8 re-classifies them with the
+    # 'lifecycle stat' marker (DR-3-R2: the grep-guard is the source of truth, a
+    # lifecycle count is not a discoverability read).
     "api/v1/admin.py::reindex fan-out published selection",
     "api/v1/admin.py::platform-stats courses_published count",
-    "services/authoring_subagents/researcher.py::primary catalog read",
-    "services/authoring_subagents/researcher.py::fallback recent published",
-    "services/learning_path.py::_condense_catalog primary",
-    "services/learning_path.py::_condense_catalog fallback",
-    "services/learning_path.py::cross-course planner read",
-    "cli.py::published listing",
 }
 
 
