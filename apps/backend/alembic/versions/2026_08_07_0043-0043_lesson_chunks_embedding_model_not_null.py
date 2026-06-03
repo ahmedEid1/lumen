@@ -22,8 +22,15 @@ Down: drop the NOT NULL constraints (re-allow NULL).
 Phase: D (release-gated). Apply via an explicit ``alembic upgrade 0043`` step in
 the deploy runbook with ``ALLOW_PHASE_MIGRATION=1``, never a blind make migrate.
 
+Chain position: this Phase-D NOT-NULL tighten is the LAST revision in the chain
+(0033 -> 0041 -> 0042 -> 0044 -> 0043, head) so it sits AFTER the Phase-A
+``courses.quarantined`` column (0044) the visibility SQL depends on. A
+``migrate.safe``-only deploy therefore lands every additive revision (incl.
+0044) and stops cleanly at this gated boundary instead of running quarantine-
+aware code against a missing column (Codex P1 / Gate-C).
+
 Revision ID: 0043
-Revises: 0042
+Revises: 0044
 Create Date: 2026-08-07
 """
 
@@ -36,8 +43,10 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0043"
-# INTEGRATION: re-point at merge. Chain is 0033 -> 0041 -> 0042 -> 0043 -> 0044.
-down_revision: str | Sequence[str] | None = "0042"
+# INTEGRATION: re-point at merge. Chain is 0033 -> 0041 -> 0042 -> 0044 -> 0043.
+# This Phase-D boundary moved to the END of the chain so it follows the Phase-A
+# quarantine column (0044); see the module docstring (Codex P1 / Gate-C).
+down_revision: str | Sequence[str] | None = "0044"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

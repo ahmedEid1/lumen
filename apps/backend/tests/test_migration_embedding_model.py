@@ -25,12 +25,16 @@ def _load(stem: str):
     return mod
 
 
-def test_chain_links_0033_to_0044():
+def test_chain_links_0033_through_0043():
+    # Post-reorder chain (Codex P1 / Gate-C): the Phase-A quarantine column
+    # (0044) precedes the Phase-D NOT-NULL boundary (0043) so a `migrate.safe`
+    # deploy lands the quarantine column the visibility SQL references.
+    # 0033 -> 0041 -> 0042 -> 0044 -> 0043.
     m41, m42, m43, m44 = _load("0041"), _load("0042"), _load("0043"), _load("0044")
     assert m41.revision == "0041" and m41.down_revision in {"0033"}
     assert m42.revision == "0042" and m42.down_revision == "0041"
-    assert m43.revision == "0043" and m43.down_revision == "0042"
-    assert m44.revision == "0044" and m44.down_revision in {"0043", "0033"}
+    assert m44.revision == "0044" and m44.down_revision == "0042"
+    assert m43.revision == "0043" and m43.down_revision == "0044"
 
 
 def test_phase_annotations():

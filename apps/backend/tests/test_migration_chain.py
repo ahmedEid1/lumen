@@ -80,3 +80,22 @@ def test_0030_is_in_chain(script_dir):
     by_rev = {s.revision: s for s in script_dir.walk_revisions()}
     assert "0030" in by_rev
     assert by_rev["0030"].down_revision == "0029"
+
+
+def test_quarantine_phase_a_precedes_notnull_phase_d_boundary(script_dir):
+    """Codex P1 / Gate-C: the Phase-A quarantine column (0044) must come BEFORE
+    the Phase-D NOT-NULL boundary (0043) so a ``migrate.safe``-only deploy lands
+    the column the visibility SQL references instead of stopping at the gated
+    0043 with quarantine code running against a missing column. Pinned linear
+    order: 0041 -> 0042 -> 0044 -> 0043 -> 0045 (head)."""
+    by_rev = {s.revision: s for s in script_dir.walk_revisions()}
+    for rev in ("0041", "0042", "0043", "0044", "0045"):
+        assert rev in by_rev, f"{rev} missing from chain"
+    assert by_rev["0042"].down_revision == "0041"
+    assert by_rev["0044"].down_revision == "0042"  # Phase-A quarantine before...
+    assert by_rev["0043"].down_revision == "0044"  # ...the Phase-D NOT-NULL boundary
+    assert by_rev["0045"].down_revision == "0043"  # 0045 is the head
+    # The boundary is still 0043 (Phase D); it just moved to the chain's end.
+    assert by_rev["0043"].module.PHASE == "D"
+    assert by_rev["0044"].module.PHASE == "A"
+    assert by_rev["0045"].module.PHASE == "A"

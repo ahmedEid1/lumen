@@ -39,11 +39,13 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0044"
-# INTEGRATION: re-point at merge. Chains after this stream's embedding-model
-# migrations (0033 -> 0041 -> 0042 -> 0043 -> 0044). If 0041-0043 have not yet
-# landed when 0044 is applied in isolation, temporarily set down_revision="0033"
-# and re-point to "0043" at integration; run test_migration_chain (S7.10).
-down_revision: str | Sequence[str] | None = "0043"
+# INTEGRATION: re-point at merge. Chain is 0033 -> 0041 -> 0042 -> 0044 -> 0043.
+# Phase A (quarantined column, instant constant default) is sequenced BEFORE the
+# Phase D (0043 NOT-NULL) boundary so a `migrate.safe`-only deploy applies the
+# column the visibility SQL references — were 0044 chained AFTER 0043, the safe
+# upgrade would stop at the gated 0043 and run quarantine-aware code against a
+# missing column (Codex P1 / Gate-C). Run test_migration_chain (S7.10).
+down_revision: str | Sequence[str] | None = "0042"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

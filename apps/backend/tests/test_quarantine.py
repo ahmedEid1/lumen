@@ -47,7 +47,10 @@ def _load(stem: str):
 def test_migration_0044_identity_and_phase():
     m = _load("0044")
     assert m.revision == "0044"
-    assert m.down_revision in {"0043", "0033"}
+    # Codex P1 / Gate-C: the Phase-A quarantine column is sequenced BEFORE the
+    # Phase-D 0043 NOT-NULL boundary (chain 0042 -> 0044 -> 0043) so a
+    # `migrate.safe` deploy lands it without crossing the gated boundary.
+    assert m.down_revision == "0042"
     assert getattr(m, "PHASE", None) == "A"
 
 

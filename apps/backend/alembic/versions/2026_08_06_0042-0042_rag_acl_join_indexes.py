@@ -32,7 +32,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "0042"
-# INTEGRATION: re-point at merge. Chain is 0033 -> 0041 -> 0042 -> 0043 -> 0044.
+# INTEGRATION: re-point at merge. Chain is 0033 -> 0041 -> 0042 -> 0044 -> 0043.
 down_revision: str | Sequence[str] | None = "0041"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
