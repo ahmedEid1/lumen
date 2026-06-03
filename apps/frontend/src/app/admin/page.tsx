@@ -46,7 +46,10 @@ export default function AdminHome() {
       api<{
         users: number;
         active_users: number;
-        instructors: number;
+        // S1.11: the `instructors` stat is replaced by `admins` + `authors`
+        // (the two-role model). Must match PlatformStatsOut (S1.8, same PR).
+        admins: number;
+        authors: number;
         courses_total: number;
         courses_published: number;
         courses_draft: number;
@@ -86,10 +89,11 @@ export default function AdminHome() {
           <h2 className="mb-5 font-display text-lg leading-tight tracking-tight">
             {t("admin.stats.title")}
           </h2>
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
             <StatTile label={t("admin.stat.users")} value={stats.data.users} />
             <StatTile label={t("admin.stat.active")} value={stats.data.active_users} />
-            <StatTile label={t("admin.stat.instructors")} value={stats.data.instructors} />
+            <StatTile label={t("admin.stat.admins")} value={stats.data.admins} />
+            <StatTile label={t("admin.stat.authors")} value={stats.data.authors} />
             <StatTile label={t("admin.stat.courses")} value={stats.data.courses_total} />
             <StatTile label={t("admin.stat.published")} value={stats.data.courses_published} />
             <StatTile label={t("admin.stat.drafts")} value={stats.data.courses_draft} />

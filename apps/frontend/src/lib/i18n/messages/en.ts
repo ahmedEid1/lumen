@@ -386,6 +386,9 @@ export const en = {
   "adminUsers.role.student": "student",
   "adminUsers.role.instructor": "instructor",
   "adminUsers.role.admin": "admin",
+  // S1.11 (two-role collapse): the canonical non-admin role label. The legacy
+  // student/instructor labels stay for display tolerance of un-collapsed rows.
+  "adminUsers.role.user": "user",
   "adminUsers.status.active": "active",
   "adminUsers.status.disabled": "disabled",
   "adminUsers.disable": "Disable",
@@ -441,6 +444,9 @@ export const en = {
   "admin.stat.users": "Users",
   "admin.stat.active": "Active",
   "admin.stat.instructors": "Instructors",
+  // S1.11 (two-role collapse): `instructors` is superseded by admins+authors.
+  "admin.stat.admins": "Admins",
+  "admin.stat.authors": "Authors",
   "admin.stat.courses": "Courses",
   "admin.stat.published": "Published",
   "admin.stat.drafts": "Drafts",

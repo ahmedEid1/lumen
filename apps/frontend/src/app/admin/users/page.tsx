@@ -19,6 +19,7 @@ import { api } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
+import type { Role } from "@/lib/api/types";
 
 /**
  * Admin users — Workbench repaint.
@@ -34,7 +35,9 @@ type AdminUser = {
   id: string;
   email: string;
   full_name: string;
-  role: "student" | "instructor" | "admin";
+  // S1.11: the two-role model. Reads may still surface a legacy value during
+  // the Phase-A window, but the role <Select> only ever assigns user/admin.
+  role: Role;
   is_active: boolean;
   created_at: string;
   last_login_at: string | null;
@@ -155,8 +158,10 @@ export default function AdminUsers() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="student">{t("adminUsers.role.student")}</SelectItem>
-                    <SelectItem value="instructor">{t("adminUsers.role.instructor")}</SelectItem>
+                    {/* S1.11: only the two assignable roles. A row still
+                        carrying a legacy value renders blank until reassigned;
+                        the backend rejects writing legacy roles (422). */}
+                    <SelectItem value="user">{t("adminUsers.role.user")}</SelectItem>
                     <SelectItem value="admin">{t("adminUsers.role.admin")}</SelectItem>
                   </SelectContent>
                 </Select>

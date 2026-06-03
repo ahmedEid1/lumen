@@ -138,9 +138,9 @@ export function CommandPalette() {
         { id: "nav.mastery", label: t("nav.mastery"), href: "/dashboard/mastery", icon: GraduationCap },
         { id: "nav.profile", label: t("nav.profile"), href: "/profile", icon: User },
       );
-      if (user.role === "instructor" || user.role === "admin") {
-        items.push({ id: "nav.studio", label: t("nav.studio"), href: "/studio", icon: Settings2 });
-      }
+      // S1.11: Studio is available to any authenticated user (authoring is
+      // ungated from the instructor role).
+      items.push({ id: "nav.studio", label: t("nav.studio"), href: "/studio", icon: Settings2 });
       if (user.role === "admin") {
         items.push({ id: "nav.admin", label: t("nav.admin"), href: "/admin", icon: Settings2 });
       }
