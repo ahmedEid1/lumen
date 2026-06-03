@@ -46,6 +46,17 @@ revision: str = "0043"
 # INTEGRATION: re-point at merge. Chain is 0033 -> 0041 -> 0042 -> 0044 -> 0043.
 # This Phase-D boundary moved to the END of the chain so it follows the Phase-A
 # quarantine column (0044); see the module docstring (Codex P1 / Gate-C).
+# Compatibility note (Codex confirm-round adjudication, 2026-06-04): re-parenting
+# an applied revision would normally strand DBs stamped at old-0043-without-0045
+# (0043 == new head -> no pending -> 0045 never applies). RULED INAPPLICABLE
+# here: this chain is branch-only and pre-release — prod runs main (pre-0030,
+# applies the whole chain fresh in this order at W12), CI uses transient DBs,
+# and the single dev DB that ever held the old order has 0045's DDL applied and
+# was re-stamped the same day. If an unknown DB ever IS in that state the
+# failure is loud (POST /share NotNullViolation + the 0045 information_schema
+# test), not silent. Do NOT re-parent applied revisions after W12 ships this
+# chain to prod — from that point the boundary-last invariant must be satisfied
+# by inserting new revisions, never by moving applied ones.
 down_revision: str | Sequence[str] | None = "0045"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
