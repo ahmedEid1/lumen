@@ -131,8 +131,9 @@ async def update_course(
         course.tags = await courses_repo.list_tags_by_ids(db, payload.tag_ids)
     if payload.learning_outcomes is not None:
         course.learning_outcomes = list(payload.learning_outcomes)
-    if payload.status is not None:
-        await _transition_status(db, course, payload.status)
+    # S2.11 / FR-VIS-08: PATCH no longer transitions status. Lifecycle moved to
+    # the explicit publish/unpublish endpoints; ``status`` was dropped from
+    # CourseUpdate (extra="forbid" rejects it).
     # When the title changed we minted a new slug via _unique_slug, but
     # that check is racy — a concurrent rename could have just claimed
     # the same candidate. Flush the slug update inside a savepoint with

@@ -15,6 +15,7 @@ from app.api.deps import DBSession, OptionalUser, RequireInstructor
 from app.api.v1 import _builders
 from app.core.errors import ForbiddenError, NotFoundError, UnauthorizedError
 from app.models.course import Course
+from app.models.user import User
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
 from app.schemas.course import (
@@ -68,6 +69,13 @@ def _course_detail_etag(
         [
             course.id,
             course.updated_at.isoformat() if course.updated_at else "",
+            # S2.12: fold the visibility/moderation/status axes into the ETag so
+            # a share/approve/delist/unpublish forces a cache revalidation even
+            # if updated_at granularity is coarse.
+            str(course.status),
+            str(course.visibility),
+            str(course.moderation_state),
+            "q1" if getattr(course, "quarantined", False) else "q0",
             "1" if is_enrolled else "0",
             f"{pct:.1f}",
             str(done_count),
@@ -97,7 +105,8 @@ async def my_courses(user: RequireInstructor, db: DBSession) -> list[CourseListI
         db, owner_id=user.id, publicly_listed_only=False, page=1, page_size=100
     )
     stats = await courses_repo.stats_for_courses(db, [c.id for c in courses])
-    return [_builders.list_item(c, stats.get(c.id, {})) for c in courses]
+    # Owner-scoped listing — pass the viewer so moderation_state is visible.
+    return [_builders.list_item(c, stats.get(c.id, {}), viewer=user) for c in courses]
 
 
 @router.get("/{key}", response_model=CourseDetail)
@@ -172,6 +181,7 @@ async def get_course(
         is_enrolled=is_enrolled,
         progress_pct=pct,
         completed_lesson_ids=done,
+        viewer=viewer,
     )
 
 
@@ -196,6 +206,7 @@ async def update_course(
         stats,
         is_enrolled=is_enrolled,
         progress_pct=pct,
+        viewer=user,
     )
 
 
@@ -203,6 +214,86 @@ async def update_course(
 async def delete_course(course_id: str, user: RequireInstructor, db: DBSession) -> OkResponse:
     await courses_service.delete_course(db, course_id=course_id, owner=user)
     return OkResponse()
+
+
+# ---------- Lifecycle + share endpoints (S2.11 / ADR-0026) ----------
+#
+# Replace PATCH-as-publish (FR-VIS-08). The owner check + can_publish_public
+# live INSIDE the service (_owned_course), so these are correct regardless of
+# whether S1 has flipped RequireInstructor to any-authenticated-user yet.
+
+
+async def _render_detail(db: DBSession, course_id: str, user: User) -> CourseDetail:
+    course = await courses_repo.get_course(db, course_id, with_modules=True)
+    if course is None:
+        raise NotFoundError("Course not found", code="course.not_found")
+    stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
+    pct = 0.0
+    is_enrolled = False
+    enrollment = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
+    if enrollment:
+        is_enrolled = True
+        pct = await enrollment_service.progress_pct(db, enrollment=enrollment)
+    return _builders.detail(
+        course,
+        list(course.modules),
+        stats,
+        is_enrolled=is_enrolled,
+        progress_pct=pct,
+        viewer=user,
+    )
+
+
+def _require_private_publish_enabled() -> None:
+    """R-S8′ step-4 gate: the sharing axis is OFF until the flag flips."""
+    from app.core.config import get_settings
+
+    if not get_settings().feature_private_publish_enabled:
+        # Existence-hide the sharing surface while disabled (no leak window).
+        raise NotFoundError("Not found", code="course.not_found")
+
+
+@router.post("/{course_id}/publish", response_model=CourseDetail)
+async def publish_course(
+    course_id: str, user: RequireInstructor, db: DBSession
+) -> CourseDetail:
+    await courses_service.publish_course(db, course_id=course_id, owner=user)
+    return await _render_detail(db, course_id, user)
+
+
+@router.post("/{course_id}/unpublish", response_model=CourseDetail)
+async def unpublish_course(
+    course_id: str, user: RequireInstructor, db: DBSession
+) -> CourseDetail:
+    await courses_service.unpublish_course(db, course_id=course_id, owner=user)
+    return await _render_detail(db, course_id, user)
+
+
+@router.post("/{course_id}/share", response_model=CourseDetail)
+async def share_course(
+    course_id: str, user: RequireInstructor, db: DBSession
+) -> CourseDetail:
+    _require_private_publish_enabled()
+    await courses_service.share_course(db, course_id=course_id, owner=user)
+    return await _render_detail(db, course_id, user)
+
+
+@router.post("/{course_id}/unshare", response_model=CourseDetail)
+async def unshare_course(
+    course_id: str, user: RequireInstructor, db: DBSession
+) -> CourseDetail:
+    _require_private_publish_enabled()
+    await courses_service.unshare_course(db, course_id=course_id, owner=user)
+    return await _render_detail(db, course_id, user)
+
+
+@router.post("/{course_id}/resubmit", response_model=CourseDetail)
+async def resubmit_course(
+    course_id: str, user: RequireInstructor, db: DBSession
+) -> CourseDetail:
+    _require_private_publish_enabled()
+    await courses_service.resubmit_course(db, course_id=course_id, owner=user)
+    return await _render_detail(db, course_id, user)
 
 
 # ---------- Modules ----------

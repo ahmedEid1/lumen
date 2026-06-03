@@ -239,7 +239,7 @@ class FeatureUpdate(BaseModel):
 
 @router.get("/courses", response_model=list[CourseListItem])
 async def list_all_courses(
-    _: RequireAdmin,
+    admin: RequireAdmin,
     db: DBSession,
     q: str | None = Query(default=None, max_length=200),
     only_featured: bool = Query(default=False),
@@ -263,7 +263,41 @@ async def list_all_courses(
         stmt = stmt.where(Course.is_featured.is_(True))
     rows = list((await db.execute(stmt)).scalars().unique().all())
     stats = await courses_repo.stats_for_courses(db, [c.id for c in rows])
-    return [_builders.list_item(c, stats.get(c.id, {})) for c in rows]
+    # Pass the admin as viewer so moderation_state is visible on this surface.
+    return [_builders.list_item(c, stats.get(c.id, {}), viewer=admin) for c in rows]
+
+
+@router.get("/courses/moderation-queue", response_model=list[CourseListItem])
+async def moderation_queue(
+    admin: RequireAdmin,
+    db: DBSession,
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[CourseListItem]:
+    """The pending-review moderation queue (S2.11 minimal API; S6 enriches).
+
+    Lists courses with ``moderation_state == pending_review`` so an admin can
+    approve/reject them (the approve/reject ACTIONS are S6's). The
+    ``/admin/moderation`` page renders this queue.
+    """
+    from app.models.course import ModerationState
+
+    stmt = (
+        select(Course)
+        .where(
+            Course.deleted_at.is_(None),
+            Course.moderation_state == ModerationState.pending_review,
+        )
+        .order_by(Course.updated_at.asc())  # oldest-waiting first
+        .limit(limit)
+        .options(
+            selectinload(Course.subject),
+            selectinload(Course.owner),
+            selectinload(Course.tags),
+        )
+    )
+    rows = list((await db.execute(stmt)).scalars().unique().all())
+    stats = await courses_repo.stats_for_courses(db, [c.id for c in rows])
+    return [_builders.list_item(c, stats.get(c.id, {}), viewer=admin) for c in rows]
 
 
 @router.patch("/courses/{course_id}/feature", response_model=CourseListItem)

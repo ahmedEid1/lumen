@@ -32,6 +32,15 @@ export interface TagOut {
 
 export type CourseStatus = "draft" | "published" | "archived";
 export type Difficulty = "beginner" | "intermediate" | "advanced";
+// Hand-written (DR-5: never `make api-client`). Visibility = owner-controlled
+// sharing intent; ModerationState = admin/system authority axis (ADR-0026).
+export type Visibility = "private" | "public";
+export type ModerationState =
+  | "none"
+  | "pending_review"
+  | "approved"
+  | "rejected"
+  | "delisted";
 
 export interface CourseListItem {
   id: string;
@@ -41,6 +50,13 @@ export interface CourseListItem {
   difficulty: Difficulty;
   cover_url: string | null;
   status: CourseStatus;
+  /** Read-only sharing intent (ADR-0026). Always present. */
+  visibility: Visibility;
+  /**
+   * Internal moderation churn — REDACTED to `null` for non-owner/non-admin
+   * viewers (FR-VIS-21). Only the owner/admin sees the real value.
+   */
+  moderation_state: ModerationState | null;
   is_featured: boolean;
   published_at: string | null;
   created_at: string;
@@ -102,6 +118,10 @@ export interface CourseDetail extends CourseListItem {
   modules: ModuleOut[];
   is_enrolled: boolean;
   progress_pct: number;
+  /** Derived: the canonical R-C1′ publicly-listed predicate result. */
+  is_publicly_listed: boolean;
+  /** Owner-only capability hint; `null` for non-owner/non-admin viewers. */
+  can_publish_public: boolean | null;
   learning_outcomes: string[];
 }
 

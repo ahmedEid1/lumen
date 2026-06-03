@@ -241,6 +241,15 @@ class Settings(BaseSettings):
     # /tutor/conversations/{id}/messages path stays canonical.
     feature_tutor_streaming: bool = False
 
+    # ``feature_private_publish_enabled`` (DR-13/DR-22 / S2.11) — gates the
+    # visibility WRITE axis (the /share, /unshare, /resubmit endpoints). The
+    # authorizer + columns ship first (backfilled → behaviour identical); this
+    # flag flips to true only AFTER the authorizer-bearing image is fleet-
+    # confirmed and the grep-guard is green (R-S8′ step 4). While OFF, the
+    # sharing endpoints 404 — so no non-default visibility can be written and
+    # there is no leak window. Env: FEATURE_PRIVATE_PUBLISH_ENABLED.
+    feature_private_publish_enabled: bool = False
+
     # ---------- L33 — Tutor cost caps & concurrency ----------
     # Per-turn estimate the POST handler reserves up-front. The
     # real cost gets reconciled on turn_complete (reconcile_cost

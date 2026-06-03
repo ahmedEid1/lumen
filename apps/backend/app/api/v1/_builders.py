@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.models.course import Course, Module
+from app.models.user import User
 from app.schemas.course import (
     CourseDetail,
     CourseListItem,
@@ -18,11 +19,26 @@ from app.schemas.course import (
     TagOut,
 )
 from app.schemas.user import UserPublic
+from app.services import visibility as visibility_service
 
 
-def list_item(course: Course, stats: dict[str, Any] | None = None) -> CourseListItem:
-    """Build a public-shape ``CourseListItem`` from an ORM Course + stats row."""
+def _viewer_is_owner_or_admin(course: Course, viewer: User | None) -> bool:
+    if viewer is None:
+        return False
+    return viewer.is_admin() or course.owner_id == viewer.id
+
+
+def list_item(
+    course: Course, stats: dict[str, Any] | None = None, *, viewer: User | None = None
+) -> CourseListItem:
+    """Build a ``CourseListItem`` from an ORM Course + stats row.
+
+    ``visibility`` is always exposed; ``moderation_state`` is REDACTED to
+    ``None`` for non-owner/non-admin viewers (FR-VIS-21 — a listed course shows
+    nothing internal).
+    """
     s = stats or {}
+    privileged = _viewer_is_owner_or_admin(course, viewer)
     return CourseListItem(
         id=course.id,
         title=course.title,
@@ -31,6 +47,8 @@ def list_item(course: Course, stats: dict[str, Any] | None = None) -> CourseList
         difficulty=course.difficulty,
         cover_url=course.cover_url,
         status=course.status,
+        visibility=course.visibility,
+        moderation_state=course.moderation_state if privileged else None,
         is_featured=course.is_featured,
         published_at=course.published_at,
         created_at=course.created_at,
@@ -58,8 +76,9 @@ def detail(
     is_enrolled: bool = False,
     progress_pct: float = 0.0,
     completed_lesson_ids: set[str] | None = None,
+    viewer: User | None = None,
 ) -> CourseDetail:
-    base = list_item(course, stats)
+    base = list_item(course, stats, viewer=viewer)
     done = completed_lesson_ids or set()
     return CourseDetail(
         **base.model_dump(),
@@ -79,5 +98,12 @@ def detail(
         ],
         is_enrolled=is_enrolled,
         progress_pct=progress_pct,
+        is_publicly_listed=visibility_service.is_publicly_listed(course),
+        # Owner-only capability hint (FR-VIS-21): None for non-owner viewers.
+        can_publish_public=(
+            visibility_service.can_publish_public(viewer)
+            if (viewer is not None and course.owner_id == viewer.id)
+            else None
+        ),
         learning_outcomes=list(course.learning_outcomes or []),
     )
