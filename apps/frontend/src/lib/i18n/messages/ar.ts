@@ -1072,4 +1072,31 @@ export const ar: Record<MessageKey, string> = {
   "blog.empty.title": "لا توجد منشورات بعد.",
   "blog.empty.body":
     "ستتبع المنشورات الأولى دراسة الحالة — قرارات تصميم وكيل التعلم، ومنهجية التقييم، وحسابات التكلفة والكمون.",
+
+  // BYOK — استخدم مفتاحك الخاص (S5 / ADR-0027)
+  "byok.title": "النموذج الخاص بك",
+  "byok.subtitle":
+    "استخدم مزوّد الذكاء الاصطناعي ومفتاحك الخاص بدلاً من نموذج المنصّة المجاني.",
+  "byok.provider": "المزوّد",
+  "byok.model": "النموذج",
+  "byok.apiKey": "مفتاح الـ API",
+  "byok.apiKey.writeOnly": "يُخزَّن مشفّرًا. لن يُعرض مرة أخرى.",
+  "byok.allowFallback": "العودة إلى نموذج المنصّة المجاني إذا فشل مفتاحي",
+  "byok.validate": "تحقّق",
+  "byok.status.valid": "صالح",
+  "byok.status.invalid": "مفتاح غير صالح",
+  "byok.status.unvalidated": "لم يتم التحقّق",
+  "byok.status.needsAttention": "يحتاج إلى مراجعة",
+  "byok.enabled": "مُفعّل",
+  "byok.active": "استخدمه لطلباتي",
+  "byok.delete": "إزالة المفتاح",
+  "byok.save": "حفظ المفتاح",
+  "byok.empty": "لا يوجد مفتاح نموذج بعد. أضِف واحدًا لاستخدام مزوّدك الخاص.",
+  "byok.savedToast": "تم حفظ مفتاح النموذج.",
+  "byok.deletedToast": "تمت إزالة مفتاح النموذج.",
+  "byok.error.modelUnavailable":
+    "لم يعد هذا النموذج متاحًا؛ يتم استخدام نموذج المنصّة.",
+  "byok.error.providerError": "رفض مزوّدك الطلب. تحقّق من مفتاحك.",
+  "byok.error.rateLimited": "محاولات تحقّق كثيرة جدًا. حاول لاحقًا.",
+  "byok.quota.exceeded": "لقد بلغت حدّ الطلبات حاليًا.",
 };

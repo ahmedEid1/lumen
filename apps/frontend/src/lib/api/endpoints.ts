@@ -4,6 +4,9 @@ import type {
   CourseListItem,
   EnrollmentOut,
   LessonOut,
+  LLMCredentialPublic,
+  LLMCredentialValidateResult,
+  LLMProviderRegistry,
   ModuleOut,
   Page,
   ReviewOut,
@@ -167,6 +170,50 @@ export const Me = {
         token,
       }),
   },
+};
+
+// ---------- BYOK (S5) ----------
+
+/** Read-only allowlisted provider+model registry (no base_url/keys). */
+export const LLMProviders = {
+  list: (token?: string) => api<LLMProviderRegistry>("/api/v1/llm-providers", { token }),
+};
+
+/** Per-user BYOK credential CRUD + validate. The api_key is write-only;
+ * reads are always masked (LLMCredentialPublic carries last4 + status). */
+export const LLMCredentials = {
+  list: (token?: string) =>
+    api<LLMCredentialPublic[]>("/api/v1/me/llm-credentials", { token }),
+  upsert: (
+    provider: string,
+    body: { model: string; api_key: string; allow_platform_fallback?: boolean },
+    token?: string,
+  ) =>
+    api<LLMCredentialPublic>(`/api/v1/me/llm-credentials/${provider}`, {
+      method: "PUT",
+      body,
+      token,
+    }),
+  patch: (
+    provider: string,
+    body: { enabled?: boolean; is_active?: boolean; allow_platform_fallback?: boolean },
+    token?: string,
+  ) =>
+    api<LLMCredentialPublic>(`/api/v1/me/llm-credentials/${provider}`, {
+      method: "PATCH",
+      body,
+      token,
+    }),
+  remove: (provider: string, token?: string) =>
+    api<{ ok: true }>(`/api/v1/me/llm-credentials/${provider}`, {
+      method: "DELETE",
+      token,
+    }),
+  validate: (provider: string, token?: string) =>
+    api<LLMCredentialValidateResult>(`/api/v1/me/llm-credentials/${provider}/validate`, {
+      method: "POST",
+      token,
+    }),
 };
 
 // ---------- Mastery dashboard (Phase E7) ----------
