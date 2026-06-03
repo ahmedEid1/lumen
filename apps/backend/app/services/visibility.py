@@ -134,7 +134,29 @@ async def can_view_course(db: AsyncSession, course: Course, viewer: User | None)
     from app.repositories import courses as courses_repo
 
     enrollment = await courses_repo.get_enrollment(db, user_id=viewer.id, course_id=course.id)
-    return enrollment is not None
+    if enrollment is None:
+        return False
+    # Grandfather (R-VIS-13): an enrolled learner keeps view after the course
+    # goes private/unpublished — EXCEPT a hard-removed course. csam/illegal are
+    # already handled by the quarantine short-circuit above; ``severe_abuse``
+    # (and any non-quarantine hard-removal) soft-deletes the course and records
+    # the reason, so the enrollment-grandfather branch is suppressed here while
+    # the owner branch above keeps the owner's view/edit (FR-MOD-08 / S6.2).
+    return not (course.deleted_at is not None and await _is_hard_removed(db, course))
+
+
+async def _is_hard_removed(db: AsyncSession, course: Course) -> bool:
+    """True iff the latest moderation event removed the course with a
+    hard-removal reason (``severe_abuse``/csam/illegal). Only consulted for a
+    soft-deleted course, so it costs at most one indexed event read on the cold
+    removed-course path (never on the catalog hot path)."""
+    from app.repositories import moderation as moderation_repo
+    from app.services.moderation_taxonomy import HARD_REMOVAL_REASONS
+
+    event = await moderation_repo.latest_event(db, course.id)
+    if event is None or event.reason_code is None:
+        return False
+    return event.reason_code in {r.value for r in HARD_REMOVAL_REASONS}
 
 
 async def can_learn_in_course(db: AsyncSession, course: Course, viewer: User | None) -> bool:
