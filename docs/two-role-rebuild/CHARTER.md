@@ -301,6 +301,16 @@ its three gates are green:**
   share→public+pending_review (hidden until approved), admin queue shows/drops it (sticky DB state),
   archive→restore with moderation history surviving (R-C2). Dev keeps FEATURE_PRIVATE_PUBLISH_ENABLED=true
   for Wave-2/W11. Codex confirmation round on the fix wave running.
+- **2026-06-04** — **S2 ALL GATES GREEN.** Confirm rounds: round-1 caught the fix workflow re-creating the
+  exact boundary mistake it was fixing (0045 chained behind 0043) — re-pointed 0042→0044→0045→0043 AND the
+  error class is now structurally impossible (test_release_window_phase_a_revisions_precede_first_gated_
+  boundary fails ANY Phase-A rev behind a gated one). Round-2's stranding finding ruled INAPPLICABLE with
+  the adjudication recorded in 0043's docstring (branch-only pre-release chain; no DB can hold the stranded
+  state; hard rule: never re-parent applied revisions after W12). Final: backend 1121 / frontend 403 green.
+  Curve: 117 merge failures → 10 gate findings → 1 confirm catch → 1 inapplicable. **Wave 2 opens
+  SEQUENTIAL in the main tree (head decision: Wave-1's parallel worktrees cost 39- and 117-failure
+  merge-gates; remaining streams share the course/service surfaces): S6 admin/moderation first (workflow
+  wave2-s6-build), then S4 clone, then S3 goal-intake.**
 ---
 
 ## 6a. Verified RBAC inventory (ground truth, 2026-06-03)

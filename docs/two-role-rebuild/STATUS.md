@@ -12,16 +12,16 @@
 | S7-pre foundation | ✅ | ✅ 913b978 | ✅ | ✅ | ✅ |
 | S1 role collapse | ✅ | ✅ 506e1f5+acf390e | ✅ | ✅ | ✅ |
 | S5 BYOK | ✅ | ✅ 89fea7a + fixes →2ca6d33 | ✅ (rounds 4→4→3→1→0) | ✅ | ✅ live-proven |
-| S2 visibility/authorizer | ✅ | ✅ 8860c7e + fixes →9c5cf10 | 🟡 fixed, confirm running | ✅ | ✅ live-proven |
+| S2 visibility/authorizer | ✅ | ✅ 8860c7e + fixes →121bad9 | ✅ (117→10→1→0) | ✅ | ✅ live-proven |
 | S3 goal intake→build | ⬜ Wave 2 (needs S1+S2) | | | | |
 | S4 clone/remix | ⬜ Wave 2 (needs S2) | | | | |
-| S6 admin/moderation | ⬜ Wave 2 | | | | |
+| S6 admin/moderation | 🟡 building (wave2-s6-build, sequential in main tree) | | | | |
 | S7 cross-cutting | ⬜ W10 | | | | |
 
 ## Migration chain (single head required)
 
 `… → 0030 → 0031 (S1, IRREVERSIBLE) → 0032 → 0038 → 0039 → 0040 (S5) → 0033 → 0041 → 0042
-→ 0044 → 0043 (NOT-NULL boundary, Phase D) → 0045 (head)`
+→ 0044 → 0045 → 0043 (NOT-NULL boundary LAST, Phase D, head)`
 
 Confirm-fix reorder: 0044 (Phase-A `courses.quarantined`, referenced by visibility SQL) now
 precedes the deferrable 0043 boundary; 0045 adds the moderation_events timestamp defaults
