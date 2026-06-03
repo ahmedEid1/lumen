@@ -134,7 +134,22 @@ No change to `embedding`, `lesson_id`, uniqueness. The escape-hatch columns (D7)
 
 ### Migrations (numbered, ordered, zero-downtime against LIVE prod + running fleet)
 
-This ADR's migrations must interleave correctly with ADR-0027's visibility columns. **Ordering contract:** the `visibility`/`status`/`moderation_state` columns + backfill ship in ADR-0027's migration **0030** (additive, flag-gated writes; R-S8′ step 1). This ADR's migrations are **0033–0035**, after 0030 so `ix_courses_acl` can reference `visibility`/`moderation_state`. (0031/0032 are reserved for the clone-provenance and account-lifecycle ADRs per their R-G10/FR-CLONE-09 additive migrations.)
+> **Migration numbers superseded (chain reconciliation, PR-13/DR-21).** The
+> local revision numbers in this section (`0030` visibility, `0031/0032`
+> reserved, `0033–0035` for this ADR) predate the consolidated linear chain.
+> **The canonical, single source of truth for migration numbering is the
+> consolidated chain in DESIGN-RESOLUTIONS / IMPLEMENTATION-PLAN §Part 2 (the
+> 0030–0045 rev-list).** Under that chain: `0030` is the account-lifecycle
+> `users.deleted_at` (S7-pre); S1 owns `0031` (role data-collapse) + `0032`
+> (default flip); **this ADR's RAG embedding-model + ACL-index + NOT-NULL
+> migrations are `0041` (nullable add + backfill, Phase A), `0042` (concurrent
+> ACL indexes, Phase A), and `0043` (NOT-NULL tighten, Phase D)** — not the
+> stale `0033/0034/0035` cited below. The migration *intent* and SQL in this
+> section are unchanged; only the revision identifiers are remapped per the
+> consolidated chain. Read the IMPLEMENTATION-PLAN §Part 2 chain before
+> creating any migration here.
+
+This ADR's migrations must interleave correctly with ADR-0027's visibility columns. **Ordering contract:** the `visibility`/`status`/`moderation_state` columns + backfill ship in the visibility migration (additive, flag-gated writes; R-S8′ step 1). This ADR's migrations come *after* it so `ix_courses_acl` can reference `visibility`/`moderation_state`. (See the consolidated chain in DESIGN-RESOLUTIONS / IMPLEMENTATION-PLAN §Part 2 for the authoritative revision numbers; the `0033–0035` numbers used below are stale local labels superseded by `0041/0042/0043`.)
 
 - **Migration 0033 — `lesson_chunks` embedding-model record (additive, backfilled).**
   - `ALTER TABLE lesson_chunks ADD COLUMN embedding_model VARCHAR(128); ADD COLUMN embedding_dim SMALLINT;` (nullable first — **no table rewrite**, instant on PG17 with NULL default).

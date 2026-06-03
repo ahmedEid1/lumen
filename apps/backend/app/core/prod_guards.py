@@ -21,6 +21,7 @@ Conventions:
 
 from __future__ import annotations
 
+import base64
 from typing import Any
 
 # A 32-byte (256-bit) minimum mirrors the HS256 floor PyJWT uses for
@@ -176,18 +177,123 @@ def check_llm_base_url_for_openai(settings: Any, warnings: list[str]) -> None:
         )
 
 
+def _has_real_kek(settings: Any) -> bool:
+    """True iff a real (configured, ≥32-byte, base64) BYOK KEK is present.
+
+    A derived-from-``secret_key`` fallback is NOT a real KEK — that path is
+    represented by an empty ``byok_master_keys`` map (the crypto module
+    derives it lazily and only outside production).
+    """
+    raw_map = getattr(settings, "byok_master_keys", {}) or {}
+    if not raw_map:
+        return False
+    version = int(getattr(settings, "byok_master_key_version", 1))
+    secret = raw_map.get(version)
+    if secret is None:
+        return False
+    raw = secret.get_secret_value() if hasattr(secret, "get_secret_value") else str(secret)
+    if not raw:
+        return False
+    try:
+        # AES-256 KEK must be EXACTLY 32 bytes — this is what
+        # ``secrets_crypto._decode_kek`` (``_KEK_LEN = 32``) enforces. A ``>=``
+        # check would let a 33+ byte key pass the boot guard, then blow up at the
+        # first ``encrypt()``/``decrypt()`` — the guard must prove the KEK is
+        # usable by the load-bearing primitive, not merely "long enough".
+        return len(base64.b64decode(raw, validate=True)) == 32
+    except (ValueError, base64.binascii.Error):  # type: ignore[attr-defined]
+        return False
+
+
+def _byok_secret_rows_exist() -> bool:
+    """Best-effort sync probe: does any encrypted-secret row exist yet?
+
+    Reads ``user_llm_credentials`` (BYOK keys) and ``learning_briefs``
+    (field-encrypted goals, design-spec §9 gap 4) — both encrypt material
+    under the KEK, so either implies a real KEK must be present (R-S3 / DR-7).
+
+    These tables do not exist yet (they land in S5/S3). The probe catches
+    ``ProgrammingError``/undefined-table and any connection failure and
+    returns ``False`` (no rows) so the guard stays defensive and never takes
+    the process down over a missing table or an unreachable DB at boot.
+    """
+    try:
+        from sqlalchemy import create_engine, text
+
+        from app.core.config import get_settings
+
+        engine = create_engine(
+            get_settings().database_url_sync, pool_pre_ping=False, connect_args={}
+        )
+    except Exception:
+        return False
+    import contextlib
+
+    try:
+        with engine.connect() as conn:
+            for table in ("user_llm_credentials", "learning_briefs"):
+                try:
+                    found = conn.execute(
+                        text(f"SELECT 1 FROM {table} LIMIT 1")  # noqa: S608 - fixed allowlist
+                    ).first()
+                    if found is not None:
+                        return True
+                except Exception:
+                    # Undefined table / programming error / transaction abort:
+                    # roll back so the next probe in the loop runs cleanly.
+                    with contextlib.suppress(Exception):
+                        conn.rollback()
+                    continue
+        return False
+    except Exception:
+        return False
+    finally:
+        with contextlib.suppress(Exception):
+            engine.dispose()
+
+
+def assert_byok_kek_present(settings: Any, problems: list[str]) -> None:
+    """Append a hard problem when a real BYOK KEK is required but absent.
+
+    DR-7 / R-S3. The KEK is required when EITHER:
+
+    * the deployment is production (a prod box must always carry a real KEK
+      so the BYOK path is bootable), OR
+    * any encrypted-secret row already exists (``user_llm_credentials`` or
+      ``learning_briefs``) — encrypted material can only be decrypted with
+      the KEK that wrapped it, so a missing/derived KEK would silently
+      strand it. This second condition fires in **any** env (dev included).
+
+    A derived-from-``secret_key`` KEK does NOT satisfy the requirement.
+    """
+    if _has_real_kek(settings):
+        return
+    if _is_production(settings) or _byok_secret_rows_exist():
+        problems.append(
+            "BYOK master key (KEK) is missing or derived: set "
+            'BYOK_MASTER_KEYS={"1":"<base64 32-byte key>"} + '
+            "BYOK_MASTER_KEY_VERSION=1. A real KEK is required in production "
+            "and whenever any encrypted credential/brief row already exists "
+            "(the derived dev fallback cannot decrypt stored secrets)."
+        )
+
+
 def collect_problems(settings: Any) -> tuple[list[str], list[str]]:
     """Run every guard and return ``(hard_problems, soft_warnings)``.
 
-    Outside of production this returns two empty lists — these checks
-    only apply when the operator has flipped ``ENV=production`` because
-    dev / test / staging legitimately run against loopback hosts, the
-    noop LLM provider, and short fixture secrets.
+    Outside of production this returns two empty lists for the prod-only
+    checks — those apply only when the operator has flipped ``ENV=production``
+    because dev / test / staging legitimately run against loopback hosts, the
+    noop LLM provider, and short fixture secrets. The BYOK KEK guard,
+    however, runs in **every** env (it self-gates on prod-or-secret-rows).
     """
-    if not _is_production(settings):
-        return [], []
     problems: list[str] = []
     warnings: list[str] = []
+    # The KEK guard runs regardless of env (it fires on existing secret rows
+    # even in dev, R-S3).
+    assert_byok_kek_present(settings, problems)
+    if not _is_production(settings):
+        return problems, warnings
     check_llm_provider(settings, problems)
     check_embedding_provider(settings, problems)
     check_secret_strength(settings, problems)

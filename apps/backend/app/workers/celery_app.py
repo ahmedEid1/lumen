@@ -6,10 +6,14 @@ from datetime import timedelta
 
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import worker_process_init
 
 from app.core.config import get_settings
+from app.core.logging import configure_logging, get_logger, install_value_redaction
+from app.core.prod_guards import assert_byok_kek_present
 
 _s = get_settings()
+_log = get_logger(__name__)
 
 celery = Celery(
     "lumen",
@@ -90,3 +94,34 @@ celery.conf.beat_schedule = {
         "schedule": timedelta(minutes=5),
     },
 }
+
+
+def _on_worker_process_init() -> None:
+    """Worker boot guard (S7-pre.6 / DR-7, R-S3).
+
+    Runs in every forked worker process. It (1) installs the value-level
+    redaction filter so worker structlog/exception sinks scrub secrets the
+    same way the API does (R-S1′f / R-U3), and (2) runs the BYOK KEK boot
+    guard so the worker — which is part of the KEK trust boundary, since the
+    streaming tutor decrypts there — refuses to boot in production, or
+    whenever an encrypted credential/brief row exists, without a real KEK.
+
+    Raising here aborts the worker process boot (correct: a worker that
+    cannot decrypt stored secrets must not silently run).
+    """
+    # Gate-B robustness fix: configure structlog EXPLICITLY before installing
+    # the redaction processor. Without this, install_value_redaction() relies
+    # on structlog's *default* processor list happening to end in a renderer —
+    # true today, but a silent-breakage trap if worker logging ever diverges.
+    configure_logging()
+    install_value_redaction()
+    problems: list[str] = []
+    assert_byok_kek_present(get_settings(), problems)
+    if problems:
+        _log.error("worker_boot_guard_failed", problems=problems)
+        raise RuntimeError("Celery worker boot guard refused to start: " + "; ".join(problems))
+
+
+@worker_process_init.connect
+def _worker_process_init_handler(**_kwargs) -> None:  # pragma: no cover - signal shim
+    _on_worker_process_init()

@@ -48,12 +48,24 @@ The plain-string `user_id` on `llm_calls`/`agent_traces`/`retrieval_audits` (sen
 **Self-serve `DELETE /me` = anonymize-in-place. We never call `session.delete(user)` for a self-serve deletion. The `users` row persists forever as an anonymized tombstone; all FK graphs stay intact; PII is irreversibly scrubbed.**
 
 ### D1 — Fix the ORM cascade (the bug)
-Change `User.courses_owned` cascade from `"all, delete-orphan"` → `"save-update"` (`user.py:58`). Rationale: courses are user-visible content with their own soft-delete (`course.py:129`) and a deliberate `RESTRICT` FK (`course.py:103`); they must **never** be orphan-deleted by a parent-collection mutation. `save-update` keeps relationship convenience (assigning a course to `user.courses_owned` persists `owner_id`) without authorizing deletion. `RESTRICT` stands as a DB-level backstop: any future code path that tries to physically delete a course-owning user gets an `IntegrityError` rather than silent data loss. Symmetrically review `User.enrollments` and `User.reviews`:
-- `User.enrollments` (`user.py:60-62`, cascade `all, delete-orphan`) → **change to `save-update`**. Enrollments are the user's learning record (certs, progress); orphan-deleting them on any collection edit is wrong, and anonymize-in-place keeps them.
-- `User.reviews` (`user.py:63-65`, cascade `all, delete-orphan`) → **change to `save-update`**. Reviews are soft-deleted content (`Review.deleted_at`, `course.py:265`); the deletion service soft-deletes them explicitly.
-- `User.refresh_tokens` (`user.py:51-53`, cascade `all, delete-orphan`) → **keep as-is**. Refresh tokens are ephemeral hard-delete data (CLAUDE.md soft-delete policy); orphan-delete is correct here, and the FK is `CASCADE` (`user.py:78`).
 
-All four are now internally consistent with their FK ondelete policies.
+> **Scope narrowed by DR-6-R2 (supersedes this D1 over-correction).** The
+> implemented change is **exactly one** relationship: `User.courses_owned`
+> `"all, delete-orphan"` → `"save-update"`. `User.enrollments` and
+> `User.reviews` stay `all, delete-orphan` — they are internally consistent
+> with their `CASCADE` FKs (`course.py:209/257`) and never fire under
+> anonymize-in-place (we never `session.delete(user)`), so re-cascading them
+> buys nothing and risks behavior drift. `User.refresh_tokens` is unchanged.
+> See DESIGN-RESOLUTIONS DR-6/DR-6-R2 + PLAN-RESOLUTIONS PR-15/PR-24 and the
+> introspection test `test_account_cascade_invariant.py` (asserts ONLY
+> `courses_owned` lost `delete-orphan`).
+
+Change `User.courses_owned` cascade from `"all, delete-orphan"` → `"save-update"` (`user.py:58`). Rationale: courses are user-visible content with their own soft-delete (`course.py:129`) and a deliberate `RESTRICT` FK (`course.py:103`); they must **never** be orphan-deleted by a parent-collection mutation. `save-update` keeps relationship convenience (assigning a course to `user.courses_owned` persists `owner_id`) without authorizing deletion. `RESTRICT` stands as a DB-level backstop: any future code path that tries to physically delete a course-owning user gets an `IntegrityError` rather than silent data loss. The Round-1 plan to *also* re-cascade `User.enrollments` and `User.reviews` is **superseded by DR-6-R2** (see the admonition above) — leave them as `all, delete-orphan`:
+- `User.enrollments` (`user.py`, cascade `all, delete-orphan`) → **unchanged** (consistent with its CASCADE FK; never fires under anonymize-in-place).
+- `User.reviews` (`user.py`, cascade `all, delete-orphan`) → **unchanged** (the deletion service soft-deletes reviews explicitly; the ORM cascade never runs).
+- `User.refresh_tokens` (`user.py`, cascade `all, delete-orphan`) → **keep as-is**. Refresh tokens are ephemeral hard-delete data (CLAUDE.md soft-delete policy); orphan-delete is correct here, and the FK is `CASCADE` (`user.py:78`).
+
+Each relationship is internally consistent with its FK ondelete policy; only the `courses_owned`↔`RESTRICT` contradiction is corrected (DR-6-R2).
 
 ### D2 — `delete_me` becomes a service function with the full R-M3′ choreography
 Extract the logic from the route into `app/services/account.py::delete_account(db, *, user, password, ip, user_agent)`, run inside the request's single transaction, in this order (so a failure rolls everything back, no orphan/partial tombstone):

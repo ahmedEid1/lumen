@@ -55,6 +55,33 @@ class Settings(BaseSettings):
     refresh_token_ttl_seconds: int = 60 * 60 * 24 * 14
     password_reset_ttl_seconds: int = 1800
 
+    # ---------- BYOK envelope-encryption KEK (S7-pre / ADR-0027 §2) ----------
+    # Versioned server master keys (KEK) that wrap each credential's
+    # per-secret DEK. The map is ``{version:int -> base64(32-byte key)}``
+    # and ``byok_master_key_version`` selects the *active* version used to
+    # wrap new secrets; older versions are retained so already-stored
+    # blobs (which carry their wrapping version in the header) keep
+    # decrypting through a rotation (FR-BYOK-10/11/12, R-S2/R-S3).
+    #
+    # Accept either real JSON (``BYOK_MASTER_KEYS={"1":"<b64>"}``) or the
+    # pydantic-settings default-empty case. When the map is empty AND
+    # ``ENV != production`` the crypto module falls back to a clearly
+    # dev-only KEK derived from ``secret_key`` (mirrors badges_keys.py).
+    # In production an empty/derived KEK is a hard refusal — see
+    # ``app.core.secrets_crypto`` + the boot guard in ``prod_guards.py``.
+    byok_master_keys: dict[int, SecretStr] = Field(default_factory=dict)
+    byok_master_key_version: int = 1
+
+    # ---------- Capability flags (S7-pre / ADR-0025 §D2, R-CAP) ----------
+    # ``ingest_url_enabled`` gates the URL-import capability. It stays
+    # CLOSED (admin-only AND this flag) until the SSRF-hardening ADR lands
+    # (R-M12, FR-SEC-02, charter decision 7) — the collapse to two roles
+    # does NOT auto-open it. ``mcp_authoring_enabled`` replaces the old
+    # is_instructor MCP gate: authoring is available to every active user
+    # by default (FR-RBAC-08, FR-ADMIN-06).
+    ingest_url_enabled: bool = False
+    mcp_authoring_enabled: bool = True
+
     # ---------- DB ----------
     database_url: str = "postgresql+asyncpg://lumen:lumen@db:5432/lumen"
     database_url_sync: str = "postgresql+psycopg://lumen:lumen@db:5432/lumen"

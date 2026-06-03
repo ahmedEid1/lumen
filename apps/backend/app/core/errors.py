@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.logging import get_logger
+from app.core.logging import get_logger, scrub_secrets
 
 log = get_logger(__name__)
 
@@ -122,11 +122,15 @@ class BudgetExceededError(AppError):
 def _payload(
     code: str, message: str, *, details: dict[str, Any] | None, request_id: str | None
 ) -> dict[str, Any]:
+    # S7-pre.5 (R-U3): defense-in-depth value-level scrub of the outbound
+    # error envelope so a leaked secret can never escape via a 4xx/5xx body.
+    # The structural guarantee is that secrets live only inside SecretStr
+    # providers; this catches a stray value in ``message``/``details``.
     return {
         "error": {
             "code": code,
-            "message": message,
-            "details": details or {},
+            "message": scrub_secrets(message),
+            "details": scrub_secrets(details or {}),
             "request_id": request_id,
         }
     }

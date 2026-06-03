@@ -11,8 +11,43 @@ import jwt
 from passlib.context import CryptContext
 
 from app.core.config import get_settings
+from app.models.user import Role
 
 _pwd = CryptContext(schemes=["argon2"], deprecated="auto")
+
+# The lowest-privilege non-admin role. S7-pre runs before the S1 enum
+# collapse, so ``Role.user`` may not exist yet; fall back to ``student``.
+# Once S1 widens the enum, ``normalize_role`` automatically resolves
+# legacy/unknown strings to ``user`` with no code change here.
+_NON_ADMIN_ROLE: Role = getattr(Role, "user", None) or Role.student
+
+
+def normalize_role(raw: object) -> Role:
+    """Map any legacy/unknown role string → ``Role`` for *display only*.
+
+    ADR-0025 §D6 / FR-MIG-04. Authorization NEVER trusts this — the deps
+    path re-reads the live ``User.role`` from the DB per request
+    (``deps.py``). This helper exists so a straggler ``student``/
+    ``instructor`` claim or ORM string renders as a known role in the UI
+    without crashing serialization, and so no legacy/unknown value can ever
+    normalize to ``admin``.
+
+    * ``"admin"`` (case/space-insensitive) → ``Role.admin``
+    * anything else (incl. ``None``, ``""``, ``"student"``, ``"instructor"``,
+      garbage) → the lowest-privilege non-admin role
+    """
+    if isinstance(raw, Role):
+        return Role.admin if raw == Role.admin else _coerce_non_admin(raw)
+    text = str(raw).strip().lower() if raw is not None else ""
+    if text == "admin":
+        return Role.admin
+    return _NON_ADMIN_ROLE
+
+
+def _coerce_non_admin(role: Role) -> Role:
+    """A known non-admin ``Role`` keeps its identity if it is still a valid
+    enum member; otherwise collapses to the canonical non-admin role."""
+    return role if role in Role.__members__.values() else _NON_ADMIN_ROLE
 
 
 def hash_password(plain: str) -> str:
