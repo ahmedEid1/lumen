@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.core.ids import new_id
 from app.core.logging import get_logger
-from app.models.course import Course, CourseStatus, Enrollment, Lesson, LessonProgress
+from app.models.course import Course, Enrollment, Lesson, LessonProgress
 from app.models.notification import NotificationKind
 from app.models.quiz_attempt import QuizAttempt
 from app.models.user import User
@@ -18,6 +18,7 @@ from app.repositories import courses as courses_repo
 from app.repositories import notifications as notifications_repo
 from app.services import badges as badges_service
 from app.services import fsrs as fsrs_service
+from app.services import visibility as visibility_service
 
 log = get_logger(__name__)
 
@@ -88,8 +89,12 @@ async def _maybe_issue_certificate(
 
 
 async def enroll(db: AsyncSession, *, user: User, course: Course) -> Enrollment:
-    if course.status != CourseStatus.published:  # noqa: published-check — PENDING S2.x migration
-        raise ForbiddenError("Course is not available", code="enrollment.not_available")
+    # Enrollment gate routes through the central authorizer (S2.6 / ADR-0026
+    # §3): a publicly-listed course OR the owner self-preview. A
+    # published-PRIVATE course is not enrollable by a stranger.
+    can, reason = await visibility_service.can_enroll(db, course, user)
+    if not can:
+        raise ForbiddenError("Course is not available", code=reason or "enrollment.not_available")
     existing = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
     if existing:
         return existing

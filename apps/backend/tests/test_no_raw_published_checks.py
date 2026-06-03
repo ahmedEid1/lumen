@@ -106,8 +106,8 @@ READERS_PENDING_MIGRATION: set[str] = {
     # the free-preview gate now calls visibility.is_publicly_listed.
     # S2.5 migrated — list_subjects + search_courses route through
     # _publicly_listed_sql(); the param is publicly_listed_only; MCP search too.
-    "api/v1/tutor_streaming.py::slug->id published gate",
-    "services/enrollment.py::enroll status gate",
+    # S2.6 migrated — enrollment.enroll -> can_enroll; tutor_streaming slug
+    # lookup -> can_view_course (owner self-learn); cli -> publicly_listed_sql.
     "api/v1/admin.py::reindex fan-out published selection",
     "api/v1/admin.py::platform-stats courses_published count",
     "services/authoring_subagents/researcher.py::primary catalog read",

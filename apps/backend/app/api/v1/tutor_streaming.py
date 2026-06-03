@@ -134,25 +134,19 @@ async def post_turn(
     # L32 — resolve course_slug to course_id BEFORE the reservation
     # (Codex L33-rescue P1). If we reserved first and then 404'd on
     # an unknown slug, the reservation would leak until its 24h TTL.
-    # Restrict to PUBLISHED courses for the demo path (Codex L32 P1):
-    # the streaming surface shouldn't expose draft/archived lessons
-    # to logged-in non-owners.
+    # S2.6 / ADR-0026 §3 + FR-LEARN-01: gate on the central authorizer
+    # (can_view_course) instead of raw status==published, so an OWNER can
+    # tutor their own published-private course (self-learn) while a non-owner
+    # still cannot reach a non-listed course (existence-hide 404).
     course_id: str | None = None
     if body.course_slug:
-        from sqlalchemy import select
+        from app.repositories import courses as courses_repo
+        from app.services import visibility as visibility_service
 
-        from app.models.course import Course, CourseStatus
-
-        result = await db.execute(
-            select(Course.id).where(
-                Course.slug == body.course_slug,
-                Course.deleted_at.is_(None),
-                Course.status == CourseStatus.published,  # noqa: published-check — PENDING S2.x migration
-            )
-        )
-        course_id = result.scalar_one_or_none()
-        if course_id is None:
+        course = await courses_repo.get_course_by_slug(db, body.course_slug)
+        if course is None or not await visibility_service.can_view_course(db, course, user):
             raise NotFoundError("course not found")
+        course_id = course.id
 
     # L33 — cost-cap + concurrency reservation. The order matters:
     # check_concurrency first (cheap, no Lua write happens until ok),

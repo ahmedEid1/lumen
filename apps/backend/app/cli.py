@@ -345,10 +345,13 @@ def ingest_embeddings(
 
 async def _ingest_embeddings(only_slug: str | None) -> None:
     from app.services.embeddings_ingest import ingest_course
+    from app.services.visibility import publicly_listed_sql
 
     Session = get_sessionmaker()
     async with Session() as db:
-        stmt = select(Course).where(Course.status == CourseStatus.published)  # noqa: published-check — PENDING S2.x migration
+        # Enumerate only publicly-listed courses (S2.6 / ADR-0026 §3) through
+        # the central authorizer rather than the raw status proxy.
+        stmt = select(Course).where(publicly_listed_sql())
         if only_slug:
             stmt = stmt.where(Course.slug == only_slug)
         courses = (await db.execute(stmt)).scalars().all()
