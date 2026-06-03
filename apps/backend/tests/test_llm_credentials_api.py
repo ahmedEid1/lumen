@@ -211,6 +211,94 @@ async def test_validate_rate_limited(client, make_user, _stub_validation) -> Non
 
 
 @pytest.mark.asyncio
+async def test_auto_validate_respects_caps(
+    client, make_user, _stub_validation, monkeypatch
+) -> None:
+    """F1: create-time auto-validate shares the manual-validate anti-oracle
+    cap. With the cap set to 1, the FIRST create probes (1 validation); after
+    DELETE + a SECOND create the budget is exhausted, so the probe is SKIPPED
+    — the credential is still stored, but stays ``unvalidated`` (ADR-0027
+    §4-§5: storage is not the oracle, the probe is)."""
+    # Count probes by wrapping the fixture's fake provider's chat_with_usage.
+    probes = {"count": 0}
+    orig_build = svc.build_provider_from_spec
+
+    def _counting_build(spec, *, api_key, model):
+        provider = orig_build(spec, api_key=api_key, model=model)
+        inner = provider.chat_with_usage
+
+        async def _wrapped(messages, temperature=0.0):
+            probes["count"] += 1
+            return await inner(messages, temperature=temperature)
+
+        provider.chat_with_usage = _wrapped
+        return provider
+
+    monkeypatch.setattr(svc, "build_provider_from_spec", _counting_build)
+    # Drop the per-window cap to 1 so a single create exhausts the budget.
+    monkeypatch.setattr(svc, "_VALIDATE_MAX_PER_WINDOW", 1)
+
+    h = await _auth(client, make_user)
+
+    # Create A: caps are clear (0 < 1) → auto-validate runs → 1 probe.
+    a = await client.put(
+        "/api/v1/me/llm-credentials/openai",
+        json={"model": "gpt-4o-mini", "api_key": "sk-aaaaaaaaaaaaaaaaaaaa"},
+        headers=h,
+    )
+    assert a.status_code == 200, a.text
+    assert a.json()["last_validation_status"] == "valid"
+    assert probes["count"] == 1
+
+    # Remove A; the audit trail (which powers the cap) still holds the
+    # validation event, so the budget remains exhausted.
+    d = await client.delete("/api/v1/me/llm-credentials/openai", headers=h)
+    assert d.status_code == 200
+
+    # Create B: caps now exhausted (1 >= 1) → probe SKIPPED, credential
+    # STILL stored but status stays unvalidated. No additional probe fired.
+    b = await client.put(
+        "/api/v1/me/llm-credentials/openai",
+        json={"model": "gpt-4o-mini", "api_key": "sk-bbbbbbbbbbbbbbbbbbbb"},
+        headers=h,
+    )
+    assert b.status_code == 200, b.text
+    assert b.json()["last_validation_status"] == "unvalidated"
+    assert probes["count"] == 1  # no second probe
+
+    # The credential is genuinely stored (the skip is probe-only, not store).
+    lst = (await client.get("/api/v1/me/llm-credentials", headers=h)).json()
+    assert len(lst) == 1
+    assert lst[0]["last_validation_status"] == "unvalidated"
+    assert lst[0]["last4"] == "bbbb"
+
+
+@pytest.mark.asyncio
+async def test_manual_validate_still_capped_after_creates(
+    client, make_user, _stub_validation, monkeypatch
+) -> None:
+    """F1 sanity: manual POST /validate still trips the shared cap once the
+    window budget is exhausted — exact envelope code byok.validate_rate_limited
+    (raised by ByokValidateRateLimitedError in llm_credentials.validate)."""
+    # Cap of 1: the create-time auto-validate consumes the whole budget.
+    monkeypatch.setattr(svc, "_VALIDATE_MAX_PER_WINDOW", 1)
+
+    h = await _auth(client, make_user)
+    created = await client.put(
+        "/api/v1/me/llm-credentials/openai",
+        json={"model": "gpt-4o-mini", "api_key": "sk-aaaaaaaaaaaaaaaaaaaa"},
+        headers=h,
+    )
+    # Auto-validate ran (cap was clear at create) → 1 validation recorded.
+    assert created.json()["last_validation_status"] == "valid"
+
+    # Any subsequent manual validate is over budget → 429 rate-limited.
+    r = await client.post("/api/v1/me/llm-credentials/openai/validate", headers=h)
+    assert r.status_code == 429, r.text
+    assert r.json()["error"]["code"] == "byok.validate_rate_limited"
+
+
+@pytest.mark.asyncio
 async def test_suspended_user_forbidden(client, make_user, db_session, _stub_validation) -> None:
     import uuid
 

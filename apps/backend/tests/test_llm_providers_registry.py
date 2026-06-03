@@ -11,6 +11,7 @@ import dataclasses
 
 import pytest
 
+from app.core.config import get_settings
 from app.models.user import Role
 from app.services.llm_providers import PROVIDER_REGISTRY, ProviderSpec, is_allowed_model
 
@@ -62,13 +63,25 @@ def test_spec_defaults() -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture
+def _byok_on(monkeypatch):
+    # The registry only populates when the flag is on (S5.16 / F6 — the read
+    # surface is inert while BYOK ships dark). Enable it for the shape tests.
+    monkeypatch.setenv("FEATURE_BYOK_ENABLED", "true")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 @pytest.mark.asyncio
-async def test_llm_providers_endpoint_shape(client, auth_headers) -> None:
+async def test_llm_providers_endpoint_shape(client, auth_headers, _byok_on) -> None:
     headers = await auth_headers(role=Role.student)
     resp = await client.get("/api/v1/llm-providers", headers=headers)
     assert resp.status_code == 200
     body = resp.json()
     assert "providers" in body
+    # F6: the flag mirrors into the body so the frontend tab gates on it.
+    assert body["byok_enabled"] is True
     by_key = {p["provider"]: p for p in body["providers"]}
     assert "groq" in by_key
     groq = by_key["groq"]
@@ -80,6 +93,18 @@ async def test_llm_providers_endpoint_shape(client, auth_headers) -> None:
         assert "base_url" not in prov
         assert "api_key" not in prov
         assert "key" not in prov
+
+
+@pytest.mark.asyncio
+async def test_flag_on_providers_registry_exposes_flag(client, auth_headers, _byok_on) -> None:
+    """F6: with FEATURE_BYOK_ENABLED on the registry is non-empty and the
+    body advertises ``byok_enabled: true`` (the frontend tab gates on it)."""
+    headers = await auth_headers(role=Role.student)
+    resp = await client.get("/api/v1/llm-providers", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["byok_enabled"] is True
+    assert body["providers"], "registry must be non-empty when the flag is on"
 
 
 @pytest.mark.asyncio

@@ -77,3 +77,79 @@ async def test_flag_off_resolution_is_platform(db_session, make_user, _byok_off)
     assert ctx.credential_id is None
     _, mode = await byok.build_provider(db_session, ctx)
     assert mode == "platform"
+
+
+# ---------------------------------------------------------------------------
+# F6 — flag-off read surfaces are inert (providers registry + credentials list)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_flag_off_providers_registry_inert(client, make_user, _byok_off) -> None:
+    """F6: with the flag off, the authenticated provider registry reads empty
+    and advertises ``byok_enabled: false`` — the whole read surface is inert
+    so the frontend tab can gate itself (Gate-B: "ALL of S5 inert")."""
+    h = await _auth(client, make_user)
+    r = await client.get("/api/v1/llm-providers", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json() == {"providers": [], "byok_enabled": False}
+
+
+@pytest.mark.asyncio
+async def test_flag_off_credentials_list_inert(client, make_user, db_session, monkeypatch) -> None:
+    """F6: stored credential rows survive a flag-off deploy window, but the
+    list surface reads empty while the flag is off (consistent with the 403
+    write path + the empty provider registry). The DB row is untouched."""
+    from sqlalchemy import func, select
+
+    from app.models.user_llm_credential import UserLLMCredential
+
+    # The make_user fixture writes through this same ``db_session`` and
+    # commits; the API request runs in its own session but sees the committed
+    # rows, so a row inserted + committed here is visible to the list endpoint.
+    user = await make_user()
+
+    # Seed an active credential the way a flag-on session would have: encrypt
+    # under the (dev-derived, ENV=test) KEK and commit so the API session sees
+    # it. ``encrypt`` doesn't gate on the flag — only resolution / the surfaces
+    # do — so we don't need to flip the env to store the row.
+    secrets_crypto.reset_for_tests()
+    blob = secrets_crypto.encrypt(b"sk-seeded-flag-off-0000")
+    db_session.add(
+        UserLLMCredential(
+            user_id=user.id,
+            provider="openai",
+            model="gpt-4o-mini",
+            enc_blob=blob,
+            key_version=1,
+            key_fingerprint=secrets_crypto.key_fingerprint("sk-seeded-flag-off-0000"),
+            last4="0000",
+            is_active=True,
+        )
+    )
+    await db_session.commit()
+
+    # Flag explicitly OFF for the read.
+    monkeypatch.setenv("FEATURE_BYOK_ENABLED", "false")
+    get_settings.cache_clear()
+    try:
+        h = await _auth(client, make_user)
+        r = await client.get("/api/v1/me/llm-credentials", headers=h)
+        assert r.status_code == 200, r.text
+        # Inert surface: empty list even though a live row exists in the DB.
+        assert r.json() == []
+
+        # The row is genuinely still there (the inertness is read-only, not a
+        # delete): one live credential for the seeded user.
+        count = await db_session.scalar(
+            select(func.count())
+            .select_from(UserLLMCredential)
+            .where(
+                UserLLMCredential.user_id == user.id,
+                UserLLMCredential.deleted_at.is_(None),
+            )
+        )
+        assert count == 1
+    finally:
+        get_settings.cache_clear()
+        secrets_crypto.reset_for_tests()
