@@ -1,0 +1,265 @@
+# Two-Role Rebuild — Project Charter
+
+**Status:** ACTIVE · **Started:** 2026-06-03 · **Orchestrator:** Claude (head) · **Mode:** ultracode / autonomous waterfall
+
+This is the single source of truth for the "two-role rebuild" initiative. Every workflow reads
+this file first. The orchestrator (Claude) updates the Status Ledger after each gate.
+
+---
+
+## 1. Vision (from the goal directive)
+
+Reshape Lumen from a three-role LMS (`student | instructor | admin`) into a **two-role,
+learner-owned platform**:
+
+- **Two roles only:** `admin` and `user`.
+- **Every `user` can both author and learn.** A user uses the AI to:
+  1. **Define** what they want to learn (guided goal elicitation),
+  2. **Build** a course for themselves from that goal,
+  3. **Learn** from it with the AI tutor aiding the journey.
+- **Publish & share:** a user can publish their course to a **public shared catalog**.
+- **Clone & remix:** any user can **clone** a public course into their own copy, learn from it,
+  and **edit it to their needs** (deep copy with provenance).
+- **Bring your own model:** users can set their **own API keys + model/provider config** to use
+  a model of their choice instead of the platform's free model (Groq Llama 3.3 70B).
+- **Admin** manages users, moderates the public catalog, and owns platform config/observability.
+
+Full autonomy granted to add / edit / remove app code AND to complete the requirements & use
+cases. No human-hours estimation; correctness and completeness over speed.
+
+---
+
+## 2. As-Is (verified 2026-06-03)
+
+| Capability | Today | Verdict |
+|---|---|---|
+| Roles | `Role(StrEnum)` = student/instructor/admin (`models/user.py:19`); `is_instructor_or_admin()`; ~30 backend + ~20 frontend refs | **Collapse → user/admin** |
+| Authoring | AI authoring orchestrator + subagents; brief→outline→lessons→quizzes; instructor-gated; nothing auto-persists | **Reuse; ungate to all users** |
+| "Define what to learn" | Authoring takes a brief; no guided goal-elicitation front-end | **Net-new (goal intake)** |
+| Tutor / learning journey | Course-scoped RAG tutor + subagents, mastery, FSRS reviews, traces | **Reuse** |
+| Catalog | `catalog.py` lists `published` courses; `CourseStatus` = draft/published; `owner_id` on Course | **Reuse + add visibility** |
+| Private vs public | No `visibility` field; "published" == in catalog | **Net-new (visibility)** |
+| Clone / fork | None. No `clone`/`duplicate` service. No `forked_from` provenance | **Net-new** |
+| Per-user API keys / model | None. Provider chosen globally via `Settings.llm_provider`, resolved per-call in `services/llm.py` | **Net-new (BYOK, encrypted, per-user resolution)** |
+| Admin surface | `/admin/*`: users, evals, llm_calls, mcp_clients, observability, rate-limit | **Reuse + catalog moderation** |
+
+Stack unchanged: FastAPI + async SQLAlchemy 2 + Postgres 17 (pgvector/tsvector) + Redis + Celery
++ MinIO; Next.js 15 + React 19 + TS + Tailwind 4 + TanStack Query. Live in prod on AWS.
+
+---
+
+## 3. Product Decisions (v2 — revised after Gate A Codex challenge, 2026-06-03)
+
+Gate A verdict: the v1 "blunt role collapse" + "BYOK with user-set api_base" were **unsound**.
+All four load-bearing Codex claims were verified against source (`can_view_course` published==public
+`courses.py:424`; JWT carries `role` `security.py:53`; `content_ingest` httpx fetch with no SSRF
+guard; cost guard sums dollars only so BYOK $0 calls bypass it). Decisions below are the revised,
+hardened plan. Each is still subject to Gate B (Claude reviewer) on the written requirements.
+
+1. **Role = `user | admin`, but authorization is CAPABILITY-based, not role-blunt.** Migrate
+   `student`+`instructor` → `user`; keep `admin`. Do **not** globally swap `RequireInstructor` →
+   "any authenticated user." Introduce explicit capability guards in the service layer:
+   `can_author`, `can_publish_public`, `can_ingest_url`, `can_view_course_analytics`,
+   `can_use_mcp_authoring`, `can_clone`. Users get author/clone/publish-private by default; the
+   **dangerous** capabilities (URL ingest, public publish, MCP authoring) carry their own guards +
+   quotas. → **ADR: role-vs-capability** before S1.
+2. **Goal intake (define) — with privacy contract.** Fuzzy goal → AI clarifies (level, time, prior
+   knowledge, outcomes) → immutable structured **learning brief** → feeds authoring orchestrator.
+   Specify: retention, redaction, whether goal text enters prompts/RAG, admin visibility (default:
+   not human-readable to admins beyond aggregate), brief is server-owned provenance.
+3. **Ownership & visibility — one central authorizer, no `status==published` checks.** Course gains
+   `visibility` (`private | public`). AI-built courses **private by default**. `CourseStatus`
+   (draft/published) = lifecycle; visibility = sharing axis. **Forbid** direct `status == published`
+   reads; route every catalog query, lesson preview, tutor retrieval, enrollment, review, search,
+   sitemap, cache-key/ETag path through a single `can_view_course`/`is_publicly_listed` authorizer.
+4. **Clone = sanitized public-export projection (not blind deep copy) + immutable provenance.**
+   Clone builds a clean projection of a **published-public** course (live, non-deleted lessons only;
+   modules with no live lessons dropped), materializes a NEW private draft owned by the cloner.
+   **Never copy:** private/signed file URLs, hidden draft data, soft-deleted lessons, instructor
+   traces, reviews, enrollments, progress, or embeddings. Embeddings are **not** copied — built
+   lazily on (re)publish/first-tutor. Provenance is server-written + immutable:
+   `origin_course_id`, `origin_owner_id`, `cloned_at` (+ optional `origin_version_id`), displayed as
+   "Based on …" separately from the editable title/description (no attribution spoofing). Clone from
+   a stable published snapshot to avoid mid-edit races.
+5. **BYOK — allowlisted providers (NO user api_base), envelope-encrypted, non-dollar quotas.**
+   Users pick from an **allowlisted provider registry with fixed base URLs** (OpenAI / Anthropic /
+   Groq / Mistral …) + model + API key. **No user-controlled `api_base`** (SSRF/exfil); custom base
+   is admin-only/vetted. Keys: **envelope encryption** (per-credential data key wrapped by a
+   server master key with a `key_version` for rotation), **write-only** to clients (masked on read),
+   **validated** via a probe whose errors are **normalized/redacted** (no vendor headers/IDs).
+   Decrypt **only** inside the dispatch path; never in provider `repr`, logs, traces, `llm_calls`
+   rows, Celery payloads, exceptions, or admin views — proven by tests. Quotas are **independent of
+   dollar cost** (requests/tokens/jobs per window + concurrency caps + retry caps + provider
+   timeouts), since BYOK $0-priced calls bypass the existing 24h-dollar guard.
+6. **Admin scope.** User management (role grant/revoke, suspend), **public-catalog moderation as a
+   state machine** (`private → pending_review → public | rejected | delisted`) with report flow +
+   lightweight automated safety checks + immutable moderation audit, platform config, existing
+   observability/evals.
+7. **Content-ingest hardening (prereq for ungating).** Before S1/S3 expose ingest to all users:
+   URL allow/deny + **private-IP/loopback/link-local blocking** + DNS-pinning, size/time caps, MIME
+   validation, per-user quotas. SSRF tests required.
+8. **Phased zero-downtime migration.** (a) Deploy code that ACCEPTS `student|instructor|user|admin`
+   (incl. JWT `role` claim validation) → (b) backfill `student|instructor → user` → (c) update admin
+   counts + frontend role unions → (d) only after live access tokens drain (15-min TTL), remove old
+   values. Define product policy for existing data: former students gain authoring immediately;
+   existing instructor courses/enrollments/certs/discussions/reviews/attribution preserved; existing
+   private drafts stay editable.
+9. **Audit + prompt-injection defense.** Audit events for publish/unpublish/clone/BYOK
+   create-update-delete-validate/moderation/role-change. Cloned/user course content is untrusted
+   input to tutor/authoring prompts: no tool/network actions from model output, prompt-logging
+   controls, and tests using malicious cloned content (ties to ADR-0024 off-default adversarial rail).
+10. **Account/course deletion semantics.** Define what happens to public clones' attribution when an
+    origin author or course is deleted (keep "based on (deleted)" vs delist).
+
+(Decisions 7–10 were surfaced by Gate A and are now first-class, not "parked.")
+
+---
+
+## 4. Decomposition (work-streams)
+
+The build (W4+) decomposes into independently-testable streams:
+
+- **S1 — Role collapse & RBAC** (backend enum+migration+deps; frontend role checks; seeds/tests).
+- **S2 — Ownership & visibility** (Course.visibility; catalog filters; publish/unpublish flow).
+- **S3 — Goal intake → build** (goal-elicitation flow → authoring; "create a course to learn" UX).
+- **S4 — Clone / remix** (deep-copy service + provenance + endpoints + catalog "Clone" UX).
+- **S5 — BYOK & model config** (encrypted key store; settings UI; per-user provider resolution).
+- **S6 — Admin** (user mgmt updates + catalog moderation).
+- **S7 — Cross-cutting** (i18n, a11y, docs/ADRs/CHANGELOG, eval regression, OpenAPI/TS client).
+
+Dependencies: S1 precedes most; S2 precedes S4; S5 is largely independent; S3 depends on S1+S2.
+
+---
+
+## 5. Waterfall + Gates
+
+Stages run as **workflows**; the orchestrator reviews every result. **No stage advances until
+its three gates are green:**
+
+- **Gate A — Codex challenge:** Codex CLI (`codex`) as a second brain attacks the artifact
+  (thinking/design/plan/code/review). Findings triaged and resolved.
+- **Gate B — Claude reviewer:** a gating review subagent checks the stage artifact; act on
+  findings until clean.
+- **Gate C — Live evidence:** for build stages, the orchestrator drives the app **as a user in a
+  real browser** (local, then prod after deploy) in addition to unit/e2e/a11y. Running-the-app
+  evidence is required, not optional.
+
+| # | Stage | Output | Gates | Status |
+|---|---|---|---|---|
+| W0 | Charter & decomposition | this file | self | ✅ done |
+| W1 | Requirements & use cases | requirements spec | A+B | ✅ done — **GATE GREEN** |
+| W2 | Design (arch/data/API/RBAC/BYOK/UX) | design spec + 6 ADRs | A+B | ✅ done — **GATE GREEN** |
+| W3 | Implementation plan | ordered task plan | A+B | ✅ done — **GATE GREEN** |
+| W4 | Build S1 role collapse | code+tests | A+B+C | ⏳ active (Wave 0 foundation first) |
+| W5 | Build S2 visibility | code+tests | A+B+C | ⬜ |
+| W6 | Build S3 goal intake→build | code+tests | A+B+C | ⬜ |
+| W7 | Build S4 clone/remix | code+tests | A+B+C | ⬜ |
+| W8 | Build S5 BYOK | code+tests | A+B+C | ⬜ |
+| W9 | Build S6 admin | code+tests | A+B+C | ⬜ |
+| W10 | Cross-cutting S7 | docs/i18n/a11y/eval | A+B+C | ⬜ |
+| W11 | System test (local, full user journeys) | test report | C | ⬜ |
+| W12 | Deploy + prod live test | deploy + prod evidence | C | ⬜ |
+| W13 | Maintenance: docs/ADR/CHANGELOG/eval/CLAUDE.md | docs | A+B | ⬜ |
+
+---
+
+## 6. Status Ledger (orchestrator updates after each gate)
+
+- **2026-06-03** — W0 charter written. As-is verified against source. Launched W1.
+- **2026-06-03** — Gate A (Codex) on charter: verdict "not sound as written." 4 load-bearing claims
+  verified in source. Decisions revised v1→v2: role-collapse → **capability-based** authorization;
+  BYOK → **allowlisted providers (no user api_base)** + envelope encryption + non-dollar quotas;
+  clone → **sanitized export projection** + immutable provenance; visibility → **central authorizer**;
+  added decisions 7–10 (ingest SSRF hardening, phased zero-downtime migration, audit + prompt-injection,
+  deletion semantics). ADR-role-vs-capability queued.
+- **2026-06-03** — W1 requirements workflow done (18 agents, ~1.86M tok). Produced 151KB spec
+  (`docs/superpowers/specs/2026-06-03-two-role-rebuild-requirements.md`), 15 conflicts resolved.
+  In-workflow completeness critic → **needs-work** (40 findings: 6 contradictions, 14 missing, 8
+  untestable, 12 security). Head authored `REQUIREMENTS-RESOLUTIONS.md` closing all 40.
+- **2026-06-03** — Requirements re-gate (round-2): Gate A (Codex) + Gate B (independent Claude reviewer)
+  BOTH **not-sound-to-proceed**, converging on the same blockers — R-S1 (worker BYOK locus) factually
+  wrong vs code; R-S8 atomic-release impossible with a running fleet; R-C1 made a weak classifier a
+  publish-to-public gate; + verified ORM-vs-DB delete contradiction (`user.py:58` cascade vs
+  `course.py:103` RESTRICT) and missing per-user capability storage. Head verified worker LLM paths
+  (streaming tutor + learning-path in workers; authoring in-request) and authored **Round-2 Amendments**
+  (R-S1′/S8′/C1′, R-M3′ anonymize-in-place + ORM cascade fix, R-CAP suspension-only) + 6 mandatory W2
+  design ADRs. Round-3 confirmation re-gate launched.
+- **2026-06-03** — **W1 Requirements GATE GREEN.** Round-3 Gate B (Claude reviewer) → "ready-for-design"
+  (items B+F closed by R-S1″, no new contradiction; 2 cosmetic citation fixes applied). Codex round-3
+  hung twice (environmental flakiness, not a requirements signal) — substituted the working Claude
+  reviewer for the final verdict; Codex re-engages as challenger at the Design gate on fresh material.
+  Requirements canon = spec + REQUIREMENTS-RESOLUTIONS.md (R1+R2+R3 amendments authoritative). Launching
+  W2 Design: 6 ADRs → system-design synthesis → design critic, then Gate A (Codex) + Gate B.
+- **2026-06-03** — W2 Design workflow: FIRST run STALLED (nested output schema wedged agents in a ~50-min
+  retry loop at concurrency cap 2 on a 4-core box) — caught via transcript health-check, killed, relaunched
+  with markdown (free-text) ADR/synthesis outputs + schema only on the critic. v2 run completed (8 agents,
+  ~833K tok, ~22 min): 6 ADRs (0025–0030, written to docs/adr/) + 42KB design spec
+  (docs/superpowers/specs/2026-06-03-two-role-rebuild-design.md). In-workflow design critic → needs-work
+  (~22 findings); head authored DESIGN-RESOLUTIONS.md (DR-0..DR-20, all claims source-verified).
+- **2026-06-03** — W2 design re-gate: Gate B (Claude reviewer) → needs-work, caught 3 real errors in
+  DESIGN-RESOLUTIONS itself (DR-3 leak-site list factually wrong — `tutor_streaming.py:150` DOES gate on
+  status; DR-18 quarantined column had no migration/write-path/index + 2 truth sources; DR-6 contradicted
+  ADR-0030 on cascade scope). Head verified the full 13-site `status==published` reader inventory, wrote
+  Round-2 corrections (DR-3-R2/DR-18-R2/DR-6-R2/DR-21/DR-22). Codex Gate A: hung on stdin-read in background
+  mode (root cause of earlier hangs = no `< /dev/null`); re-running with the fix. Lesson saved to memory.
+  Status table memory-note: see [[watch-background-tasks-for-stalls]].
+- **2026-06-03** — **W2 Design GATE GREEN.** Both gates cleared on the Round-2-corrected design: Gate A
+  (Codex, after the `< /dev/null` stdin fix) → "proceed-to-plan" (buildable, single-host migration-safe, all
+  security closed); Gate B (Claude reviewer) → "ready-for-plan" (3 blockers confirmed closed against source).
+  Two trivia fixed for doc accuracy: reader inventory is 14 sites (added `courses.py:313` string-form
+  `str(course.status)=="published"` → grep-guard must match both forms); DR-18-R2 severe_abuse vs csam/illegal
+  scope clarified. Design canon = 6 ADRs (docs/adr/0025-0030) + design spec + DESIGN-RESOLUTIONS.md (R1+R2
+  authoritative). Launching W3: per-work-stream (S1-S7) implementation plans → master plan synthesis →
+  plan critic, then Gate A + Gate B.
+- **2026-06-03** — W3 plan workflow done (9 agents, ~955K tok, ~28 min): 7 stream plans + 52KB master plan
+  (IMPLEMENTATION-PLAN.md). In-workflow plan critic → needs-work (25 findings); head wrote PLAN-RESOLUTIONS
+  (PR-1..PR-21). Plan re-gate DIVERGED: Codex (stdin-fixed) → proceed-to-build; Gate B (Claude) → needs-work,
+  caught the real load-bearing gaps Codex missed — the tutor per-course RAG-ACL (`find_relevant_chunks`
+  enforce_acl + inline-index) was UNTASKED, S5.3-5.5 headers collide on migration numbers, S6.0 contradicts
+  DR-6-R2 on cascade scope, and several PRs "floated" without concrete task homes. Sided with the specific
+  verified finding (Gate B); wrote Round-2 (PR-22..PR-25) adding the RAG-ACL task + fixing the collisions +
+  giving every floating PR a numbered task home. Confirming Round-2 with Gate B.
+- **2026-06-03** — **W3 Impl Plan GATE GREEN.** Both gates: Codex → proceed-to-build; Gate B → ready-to-build
+  (3 blockers + floating-PRs closed; PR-22 RAG-ACL verified vs code; task-IDs disambiguated `-b`). Plan canon =
+  IMPLEMENTATION-PLAN.md + PLAN-RESOLUTIONS.md (R1+R2 authoritative).
+- **2026-06-03** — **BUILD SAFETY DECISION:** all W4+ build work happens on branch **`two-role-rebuild`**, NOT
+  `main`. Rationale: per [[aws-deployment-state]]/[[deploy-approval-reflex]], CI-green on `main` ⇒ AUTO-DEPLOY
+  to live prod — committing a half-built rebuild to main would deploy a broken app. Build + local live-test on
+  the branch throughout; merge to main only at W12 (deploy), then live prod test. Prod stays safe during build.
+
+---
+
+## 6a. Verified RBAC inventory (ground truth, 2026-06-03)
+
+Captured by the orchestrator to fact-check workflow as-is maps and drive the S1 build.
+
+**Backend gates:**
+- `app/api/deps.py:66-76` — `require_role(*roles)` (admin always passes via `is_admin()`); aliases
+  `RequireInstructor = require_role(instructor, admin)`, `RequireAdmin = require_role(admin)`.
+- `RequireInstructor` used in **26 sites** across `api/v1/{courses,ai_authoring,content_ingest}.py`
+  → these become "any authenticated user" (all users author) EXCEPT where ownership is the real gate.
+- `app/services/courses.py:69` — `if not owner.is_instructor_or_admin()` authoring gate → drop (all users author).
+- `app/models/user.py:36,67-71` — `role` default `student`; `is_instructor_or_admin()`, `is_admin()`.
+- `app/api/v1/admin.py:199,411` — role grant/revoke + instructor/admin counts.
+- `app/mcp/principal.py:96-97`, `mcp/server.py:110`, `mcp/tools.py:571-577` — `is_instructor` principal gate.
+- `app/services/auth.py:58` (signup default), `repositories/users.py:26`, `cli.py:150-152`,
+  `seeds/demo.py:544,552`, `evals/run_baseline.py:159` — seed/default role assignments.
+
+**Frontend gates:**
+- Author-gate-out-students (flip to allow all users): `studio/page.tsx:58,70,74`,
+  `studio/new/page.tsx:45`, `studio/draft/[courseId]/page.tsx:51,57,62,77`,
+  `studio/draft/[courseId]/replay/page.tsx:49,57,62,77`, `dashboard/page.tsx:91`,
+  `components/shared/command-palette.tsx:141`.
+- Admin-only (keep): all `app/admin/*` pages (`user.role !== "admin"` redirects).
+- Owner/admin (keep): `learn/[slug]/page.tsx:104,167`, `courses/[slug]/discussions/[id]/page.tsx:141,256`.
+- Type to update: `admin/users/page.tsx:37` role union `"student"|"instructor"|"admin"` → `"user"|"admin"`.
+
+## 7. Operating rules (self-imposed)
+
+- Local-first: `make test.api` / `make test.web` / eslint / tsc / `make up` / Playwright + a11y
+  before push; push when a stream is green. CI gates prod; CI green ⇒ auto-deploy.
+- One topic per commit, Conventional Commits, CHANGELOG for user-visible changes, ADR for
+  architectural seams (role model, BYOK, clone, visibility all warrant ADRs).
+- OpenAPI is the contract: regenerate the TS client when endpoints change.
+- Never expose or log decrypted BYOK keys. Tests must prove this.
+- Update this ledger + `docs/two-role-rebuild/STATUS.md` as work lands.
