@@ -161,6 +161,19 @@ class Settings(BaseSettings):
     embedding_openai_api_key: SecretStr | None = None
     embedding_openai_api_base: str | None = None
 
+    # ---------- RAG retrieval ACL + index freshness (ADR-0029 / PR-22) ----------
+    # Cross-course HNSW ``ef_search`` (D5.2 / PR-4): on the cross-catalog path
+    # the ACL clause can discard most private candidates before reaching
+    # ``top_k`` (the "filtered-out recall" problem), so we widen the search
+    # frontier there. Per-course retrieval keeps the pgvector default.
+    rag_hnsw_ef_search_catalog: int = 100
+    # Inline-index fallback bound (R-U2′ / D8): when a viewable course has live
+    # lessons but zero chunks, the tutor triggers inline top-N indexing within
+    # this staleness window so it never permanently refuses (FR-EMBED-02).
+    index_max_staleness_s: int = 60
+    index_inline_top_n: int = 5
+    index_inline_timeout_s: int = 8
+
     # ---------- LLM (Phase E1 RAG tutor + E2 authoring assistant) ----------
     # Provider selector for ``app.services.llm`` — drives both the
     # RAG tutor (Phase E1) and the AI-assisted authoring service

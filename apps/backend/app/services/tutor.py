@@ -273,7 +273,9 @@ async def ask(
     # Empty-retrieval cost guard — kept here (not deferred into the
     # orchestrator) so a question against an unembedded course doesn't
     # burn a planner round-trip before refusing.
-    chunks = await find_relevant_chunks(db, course_id=course.id, query=user_message, top_k=top_k)
+    chunks = await find_relevant_chunks(
+        db, course_id=course.id, query=user_message, top_k=top_k, viewer=user_id
+    )
     if not chunks:
         log.info(
             "tutor_refusal_no_retrieval",
@@ -390,7 +392,7 @@ async def ask_with_trace(
         )
 
     chunks = await find_relevant_chunks(
-        db, course_id=course.id, query=user_message, top_k=DEFAULT_TOP_K
+        db, course_id=course.id, query=user_message, top_k=DEFAULT_TOP_K, viewer=user_id
     )
     if not chunks:
         log.info(

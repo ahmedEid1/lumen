@@ -87,6 +87,7 @@ async def run(
         course_id=course.id,
         query=query,
         top_k=top_k,
+        viewer=user_id,
         audit=True,
         audit_user_id=user_id,
         audit_feature=feature,
