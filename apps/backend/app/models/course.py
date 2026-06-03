@@ -37,6 +37,34 @@ class CourseStatus(StrEnum):
     archived = "archived"
 
 
+class Visibility(StrEnum):
+    """Sharing intent — owner-controlled, orthogonal to ``status`` (ADR-0026 §1).
+
+    Default ``private``. A course is only ever publicly discoverable when
+    ``visibility==public`` AND ``status==published`` AND
+    ``moderation_state==approved`` (see ``app.services.visibility``). The
+    ``unlisted`` value is deferred (FR-VIS-20).
+    """
+
+    private = "private"
+    public = "public"
+
+
+class ModerationState(StrEnum):
+    """Admin/system authority axis — net-new, default ``none`` (ADR-0026 §1).
+
+    Never a value of ``status`` or ``visibility``. **Sticky**: never reset to
+    ``none`` on unpublish/archive (R-C2). ``none`` is NOT listable (R-C1′);
+    only ``approved`` lists.
+    """
+
+    none = "none"
+    pending_review = "pending_review"
+    approved = "approved"
+    rejected = "rejected"
+    delisted = "delisted"
+
+
 class Difficulty(StrEnum):
     beginner = "beginner"
     intermediate = "intermediate"
@@ -97,6 +125,20 @@ class Course(IdMixin, TimestampMixin, Base):
             "search_vector",
             postgresql_using="gin",
         ),
+        # The consolidated catalog/ACL index (ADR-0026 §3, design-spec §2.5
+        # consolidates ADR-0029's ix_courses_acl into this one by appending
+        # owner_id). Partial on live rows so soft-deleted courses never sit in
+        # the listing hot path. Migration 0033 builds it CONCURRENTLY; 0044
+        # rebuilds it with ``quarantined = false`` in the partial WHERE.
+        Index(
+            "ix_courses_listed",
+            "visibility",
+            "moderation_state",
+            "status",
+            "subject_id",
+            "owner_id",
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
     )
 
     owner_id: Mapped[str] = mapped_column(
@@ -123,6 +165,23 @@ class Course(IdMixin, TimestampMixin, Base):
     )
     status: Mapped[CourseStatus] = mapped_column(
         String(20), nullable=False, default=CourseStatus.draft, index=True
+    )
+    # Sharing intent + admin authority (ADR-0026 §1) — same no-TypeDecorator
+    # String(20) pattern as ``status``, so reads return a plain str. Default
+    # private/none keeps the catalog behaviour identical post-backfill (every
+    # live-published course is backfilled to public+approved by migration 0033).
+    visibility: Mapped[Visibility] = mapped_column(
+        String(20),
+        nullable=False,
+        server_default=Visibility.private.value,
+        default=Visibility.private,
+    )
+    moderation_state: Mapped[ModerationState] = mapped_column(
+        String(20),
+        nullable=False,
+        server_default=ModerationState.none.value,
+        default=ModerationState.none,
+        index=True,
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
