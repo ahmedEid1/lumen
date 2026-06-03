@@ -20,6 +20,7 @@ from app.repositories import audit as audit_repo
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
 from app.schemas.course import CourseListItem, SubjectOut, TagOut
+from app.services import visibility as visibility_service
 
 router = APIRouter()
 
@@ -372,7 +373,10 @@ async def reindex_search(admin: RequireAdmin, db: DBSession) -> OkResponse:
     res = await db.execute(
         select(Course.id).where(
             Course.deleted_at.is_(None),
-            Course.status == CourseStatus.published,  # noqa: published-check — PENDING S2.x migration
+            # Reindex fan-out is a LIFECYCLE selection, not an access read: it
+            # must cover ALL published courses (incl. published-private) so an
+            # owner's private-course RAG stays fresh. Allowlisted (DR-3-R2).
+            Course.status == CourseStatus.published,  # noqa: published-check — lifecycle stat
         )
     )
     for (course_id,) in res.all():
@@ -393,7 +397,11 @@ class PlatformStatsOut(BaseModel):
     active_users: int
     instructors: int
     courses_total: int
+    # Lifecycle count: courses whose ``status == published`` (incl.
+    # published-private). NOT a discoverability measure — see ``courses_listed``.
     courses_published: int
+    # Publicly-listed count (S2.8): public AND published AND approved AND live.
+    courses_listed: int
     courses_draft: int
     enrollments: int
 
@@ -413,7 +421,14 @@ async def platform_stats(_: RequireAdmin, db: DBSession) -> PlatformStatsOut:
         courses_total=await _scalar_count(db, select(func.count(Course.id)).where(live)),
         courses_published=await _scalar_count(
             db,
-            select(func.count(Course.id)).where(live, Course.status == CourseStatus.published),  # noqa: published-check — PENDING S2.x migration
+            # Lifecycle count, NOT an access read — allowlisted (DR-3-R2: the
+            # grep-guard is the source of truth; a lifecycle stat is not a
+            # discoverability read). The publicly-listed measure is below.
+            select(func.count(Course.id)).where(live, Course.status == CourseStatus.published),  # noqa: published-check — lifecycle stat
+        ),
+        courses_listed=await _scalar_count(
+            db,
+            select(func.count(Course.id)).where(visibility_service.publicly_listed_sql()),
         ),
         courses_draft=await _scalar_count(
             db,

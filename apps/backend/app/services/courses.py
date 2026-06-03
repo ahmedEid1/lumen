@@ -414,7 +414,14 @@ async def _owned_lesson(db: AsyncSession, lesson_id: str, owner: User) -> Lesson
 
 
 def _can_edit_course(user: User, course: Course) -> bool:
-    return user.is_admin() or course.owner_id == user.id
+    """Owner-only mutation gate (FR-MOD-05 / S2.8).
+
+    Narrowed from the old ``is_admin() OR owner`` rule: admins may VIEW any
+    course but must act on non-owned courses through the moderation endpoints
+    (S6), never through owner-shaped PATCH/DELETE. ``test_admin_cannot_edit_others_course``
+    pins this; S6.5 owns the richer admin-moderation surface.
+    """
+    return course.owner_id == user.id
 
 
 async def slug_or_id(db: AsyncSession, key: str, *, with_modules: bool = False) -> Course:

@@ -101,24 +101,23 @@ _ALL_MARKERS = (
 # struck from this set.
 # ---------------------------------------------------------------------------
 
-READERS_PENDING_MIGRATION: set[str] = {
-    # S2.4 migrated — can_view_course re-exports visibility.can_view_course;
-    # the free-preview gate now calls visibility.is_publicly_listed.
-    # S2.5 migrated — list_subjects + search_courses route through
-    # _publicly_listed_sql(); the param is publicly_listed_only; MCP search too.
-    # S2.6 migrated — enrollment.enroll -> can_enroll; tutor_streaming slug
-    # lookup -> can_view_course (owner self-learn); cli -> publicly_listed_sql.
-    # S2.7 migrated — learning_path (_condense_catalog primary + fallback,
-    # _first_lesson_for_slug) + researcher (primary + fallback) route through
-    # retrieval_acl_clause(requesting_user_id).
-    #
-    # Remaining: the two admin.py LIFECYCLE counts (a published-count stat + the
-    # reindex fan-out) are NOT access reads — S2.8 re-classifies them with the
-    # 'lifecycle stat' marker (DR-3-R2: the grep-guard is the source of truth, a
-    # lifecycle count is not a discoverability read).
-    "api/v1/admin.py::reindex fan-out published selection",
-    "api/v1/admin.py::platform-stats courses_published count",
-}
+READERS_PENDING_MIGRATION: set[str] = set()
+# All 14 reader sites have adopted the central authorizer:
+#   S2.4 — can_view_course re-exports visibility.can_view_course; the
+#          free-preview gate calls visibility.is_publicly_listed.
+#   S2.5 — list_subjects + search_courses route through _publicly_listed_sql()
+#          (param renamed publicly_listed_only); MCP search too.
+#   S2.6 — enrollment.enroll -> can_enroll; tutor_streaming slug lookup ->
+#          can_view_course (owner self-learn); cli -> publicly_listed_sql.
+#   S2.7 — learning_path (_condense_catalog primary + fallback,
+#          _first_lesson_for_slug) + researcher (primary + fallback) route
+#          through retrieval_acl_clause(requesting_user_id).
+#   S2.8 — the two admin.py sites (platform-stats courses_published + the
+#          reindex fan-out) are genuine LIFECYCLE counts/triggers, not access
+#          reads, so they are allowlisted with the 'lifecycle stat' marker
+#          (DR-3-R2: the grep-guard is the source of truth; a lifecycle count is
+#          not a discoverability read). A new courses_listed stat measures the
+#          publicly-listed count via publicly_listed_sql().
 
 
 # ---------------------------------------------------------------------------
