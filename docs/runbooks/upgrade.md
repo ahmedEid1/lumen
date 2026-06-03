@@ -77,8 +77,51 @@ external search service to bring back up.
 ## When the database schema changes
 
 Alembic migrations run automatically on `make migrate` (dev) or
-the prod compose stack's API healthcheck loop. To run them by
-hand against a deployed stack:
+the prod compose stack's API healthcheck loop.
+
+`make migrate` is now **phase-aware** (PR-11 / S7pre.9). It never runs a
+blind `alembic upgrade head` — instead it applies only *additive* (phase A)
+revisions and **stops at the first release-gated revision** (an IRREVERSIBLE
+data-collapse, a metadata-default flip, or a NOT-NULL tighten). When a phase
+boundary blocks progress the command exits non-zero and prints the exact
+`make migrate.phase` step to run next.
+
+### Phased revisions (DR-12 / two-role rebuild)
+
+Every revision `>= 0030` declares a rollout `PHASE`:
+
+| Phase | Meaning | Example | How it's applied |
+|-------|---------|---------|------------------|
+| **A** | additive, zero-downtime, safe any deploy | 0030 `users.deleted_at` | `make migrate` / `migrate.safe` (automatic) |
+| **B** | IRREVERSIBLE data-collapse, release-gated | 0031 `role_collapse_backfill` | `make migrate.phase ALLOW_PHASE_MIGRATION=1` (explicit) |
+| **C** | metadata default flip, narrowed-enum release | 0032 `role_default_user` | `make migrate.phase ALLOW_PHASE_MIGRATION=1` (explicit) |
+| **D** | NOT-NULL tighten, evidence-gated | 0043 `lesson_chunks_model_not_null` | `make migrate.phase ALLOW_PHASE_MIGRATION=1` (explicit) |
+
+The two-role role-collapse runbook step-order:
+
+1. **Phase A** (additive, automatic): `make migrate.safe` (or `make migrate`).
+   Brings the DB up to the latest additive rev (e.g. 0030); the fleet now
+   tolerates the wider role set.
+2. **Phase B** (IRREVERSIBLE 0031): once the fleet is fully on the Phase-A
+   image, run `make migrate.phase ALLOW_PHASE_MIGRATION=1` to apply the
+   `student|instructor → user` data-collapse. **0031 has a no-op downgrade
+   (R-C4); rollback is image-rollback, never `alembic downgrade` past 0031.**
+3. **Phase C** (0032): with the narrowed-enum + normalization release, run
+   `make migrate.phase ALLOW_PHASE_MIGRATION=1` again to flip the column
+   `server_default` to `'user'`.
+
+Run **one phase per release** per the deploy runbook; never batch B+C+D.
+
+```bash
+# additive only (default):
+make migrate                 # == make migrate.safe
+
+# the one explicit phased step for this release:
+make migrate.phase ALLOW_PHASE_MIGRATION=1
+```
+
+To run them by hand against a deployed stack (bypassing the guard — only when
+you have read the phase table above and accept the consequences):
 
 ```bash
 docker compose exec api alembic upgrade head

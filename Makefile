@@ -45,8 +45,23 @@ urls: ## Print useful local URLs.
 
 # ----- db -----
 .PHONY: migrate
-migrate: ## Apply database migrations.
-	$(COMPOSE) exec api alembic upgrade head
+migrate: migrate.safe ## Apply additive (phase-A) migrations safely (alias for migrate.safe).
+
+.PHONY: migrate.safe
+migrate.safe: ## Apply only additive (phase-A) migrations; refuses to cross a phase boundary.
+	# PR-11 / S7pre.9 — never a blind `alembic upgrade head`. The guard
+	# walks pending revisions and applies up to (but not across) the first
+	# release-gated rev (IRREVERSIBLE 0031 / metadata flip 0032 / NOT-NULL
+	# tighten 0043). A blocked phase boundary exits non-zero with the exact
+	# `make migrate.phase` instruction.
+	$(COMPOSE) exec api python -m app.db.migration_phase_guard safe
+
+.PHONY: migrate.phase
+migrate.phase: ## Apply phase-gated migrations to head. Requires ALLOW_PHASE_MIGRATION=1.
+	# Explicit, operator-acknowledged step for a phased release (DR-12).
+	# Run ONE phase at a time per the deploy runbook, e.g. Phase B then C.
+	$(COMPOSE) exec -e ALLOW_PHASE_MIGRATION=$(ALLOW_PHASE_MIGRATION) api \
+		python -m app.db.migration_phase_guard phase
 
 .PHONY: revision
 revision: ## Autogenerate a migration. Usage: make revision m="add foo"
@@ -69,7 +84,10 @@ reset: ## Drop volumes and rebuild. Destroys local data!
 	$(COMPOSE) down -v
 	$(COMPOSE) up --build -d
 	@sleep 5
-	@$(MAKE) --no-print-directory migrate
+	# Fresh local DB: cross every phase intentionally (the data-collapse is a
+	# no-op on an empty `users` table). ALLOW_PHASE_MIGRATION=1 makes the
+	# destructive-rebuild intent explicit.
+	@$(MAKE) --no-print-directory migrate.phase ALLOW_PHASE_MIGRATION=1
 	@$(MAKE) --no-print-directory seed
 
 # ----- quality -----
