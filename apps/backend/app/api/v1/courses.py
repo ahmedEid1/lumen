@@ -254,43 +254,47 @@ def _require_private_publish_enabled() -> None:
 
 
 @router.post("/{course_id}/publish", response_model=CourseDetail)
-async def publish_course(
-    course_id: str, user: RequireAuthor, db: DBSession
-) -> CourseDetail:
+async def publish_course(course_id: str, user: RequireAuthor, db: DBSession) -> CourseDetail:
     await courses_service.publish_course(db, course_id=course_id, owner=user)
     return await _render_detail(db, course_id, user)
 
 
 @router.post("/{course_id}/unpublish", response_model=CourseDetail)
-async def unpublish_course(
-    course_id: str, user: RequireAuthor, db: DBSession
-) -> CourseDetail:
+async def unpublish_course(course_id: str, user: RequireAuthor, db: DBSession) -> CourseDetail:
     await courses_service.unpublish_course(db, course_id=course_id, owner=user)
     return await _render_detail(db, course_id, user)
 
 
+@router.post("/{course_id}/archive", response_model=CourseDetail)
+async def archive_course(course_id: str, user: RequireAuthor, db: DBSession) -> CourseDetail:
+    # Lifecycle, not sharing — NO feature flag (archive force-privates +
+    # unfeatures regardless of the sharing-axis rollout state, ADR-0026 §4).
+    await courses_service.archive_course(db, course_id=course_id, owner=user)
+    return await _render_detail(db, course_id, user)
+
+
+@router.post("/{course_id}/restore", response_model=CourseDetail)
+async def restore_course(course_id: str, user: RequireAuthor, db: DBSession) -> CourseDetail:
+    await courses_service.restore_course(db, course_id=course_id, owner=user)
+    return await _render_detail(db, course_id, user)
+
+
 @router.post("/{course_id}/share", response_model=CourseDetail)
-async def share_course(
-    course_id: str, user: RequireAuthor, db: DBSession
-) -> CourseDetail:
+async def share_course(course_id: str, user: RequireAuthor, db: DBSession) -> CourseDetail:
     _require_private_publish_enabled()
     await courses_service.share_course(db, course_id=course_id, owner=user)
     return await _render_detail(db, course_id, user)
 
 
 @router.post("/{course_id}/unshare", response_model=CourseDetail)
-async def unshare_course(
-    course_id: str, user: RequireAuthor, db: DBSession
-) -> CourseDetail:
+async def unshare_course(course_id: str, user: RequireAuthor, db: DBSession) -> CourseDetail:
     _require_private_publish_enabled()
     await courses_service.unshare_course(db, course_id=course_id, owner=user)
     return await _render_detail(db, course_id, user)
 
 
 @router.post("/{course_id}/resubmit", response_model=CourseDetail)
-async def resubmit_course(
-    course_id: str, user: RequireAuthor, db: DBSession
-) -> CourseDetail:
+async def resubmit_course(course_id: str, user: RequireAuthor, db: DBSession) -> CourseDetail:
     _require_private_publish_enabled()
     await courses_service.resubmit_course(db, course_id=course_id, owner=user)
     return await _render_detail(db, course_id, user)

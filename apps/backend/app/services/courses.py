@@ -313,6 +313,50 @@ async def unpublish_course(db: AsyncSession, *, course_id: str, owner: User) -> 
     return course
 
 
+async def archive_course(db: AsyncSession, *, course_id: str, owner: User) -> Course:
+    """Owner archives a course (*→archived). Atomic force-private + unfeature;
+    moderation_state stays sticky. Audits ``course.archive``.
+
+    ``archive`` is lifecycle, not sharing — no feature flag. ``_transition_status``
+    applies the same force-private + unfeature side-effect it does on unpublish
+    (the ``target in (draft, archived)`` branch, ADR-0026 §4), so an archived
+    course can never remain public/featured. moderation_state is left untouched
+    (sticky, R-C2) so re-approval history survives an archive→draft→share cycle.
+    """
+    course = await _owned_course(db, course_id, owner)
+    was_featured = course.is_featured
+    await _transition_status(db, course, CourseStatus.archived)
+    await audit_repo.record(
+        db, actor_id=owner.id, action="course.archive", target_type="course", target_id=course.id
+    )
+    if was_featured:
+        await audit_repo.record(
+            db,
+            actor_id=owner.id,
+            action="course.unfeatured",
+            target_type="course",
+            target_id=course.id,
+        )
+    await _bump_catalog_cache_version()
+    return course
+
+
+async def restore_course(db: AsyncSession, *, course_id: str, owner: User) -> Course:
+    """Owner restores an archived course back to draft (archived→draft).
+
+    The only legal transition out of ``archived`` (ADR-0026 §4 / the state
+    machine). Visibility/featured were already forced private/off on archive and
+    stay that way; moderation_state stays sticky. Audits ``course.restore``.
+    """
+    course = await _owned_course(db, course_id, owner)
+    await _transition_status(db, course, CourseStatus.draft)
+    await audit_repo.record(
+        db, actor_id=owner.id, action="course.restore", target_type="course", target_id=course.id
+    )
+    await _bump_catalog_cache_version()
+    return course
+
+
 def _reshare_target_state(events: list[ModerationEvent]) -> ModerationState:
     """R-M9: re-share returns to ``approved`` iff there is a prior approval with
     NO later reject/delist; otherwise ``pending_review``. ``events`` newest-first.
