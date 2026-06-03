@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from slugify import slugify
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import DBSession, RequireAdmin
+from app.api.deps import DBSession, RequireAdmin, client_ip, user_agent
 from app.api.v1 import _builders
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.models.audit import AuditEvent
@@ -18,9 +18,12 @@ from app.models.course import Course, CourseStatus, Enrollment, Subject, Tag
 from app.models.user import Role, User
 from app.repositories import audit as audit_repo
 from app.repositories import courses as courses_repo
+from app.repositories import moderation as moderation_repo
 from app.schemas.common import OkResponse
 from app.schemas.course import CourseListItem, SubjectOut, TagOut
+from app.services import moderation as moderation_service
 from app.services import visibility as visibility_service
+from app.services.moderation_taxonomy import ReasonCode
 
 router = APIRouter()
 
@@ -346,6 +349,14 @@ async def set_course_featured(
     course = await courses_repo.get_course(db, course_id)
     if not course:
         raise NotFoundError("Course not found", code="course.not_found")
+    # FR-MOD (ADR-0026 §"Service changes"): you can only feature a publicly-
+    # listed course. Featuring a private/pending/delisted/quarantined course
+    # would surface it on the homepage without it being discoverable — a leak.
+    # De-featuring (is_featured=False) is always allowed (it only removes).
+    if payload.is_featured and not visibility_service.is_publicly_listed(course):
+        raise ConflictError(
+            "Only a publicly-listed course can be featured", code="course.not_listed"
+        )
     if course.is_featured != payload.is_featured:
         course.is_featured = payload.is_featured
         await audit_repo.record(
@@ -358,6 +369,207 @@ async def set_course_featured(
         )
     stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
     return _builders.list_item(course, stats)
+
+
+# ---------- Moderation actions (S6.4 / ADR-0026 §4) ----------
+
+
+class ModerationActionRequest(BaseModel):
+    """Body for the admin moderation action endpoints. ``reason``/``note`` are
+    optional for approve/relist, required-by-semantics for remove (the service
+    enforces remove's reason)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: ReasonCode | None = None
+    note: str | None = Field(default=None, max_length=5000)
+
+
+async def _moderated_detail(db: DBSession, admin: User, course: Course) -> CourseListItem:
+    """Render a post-transition course (already loaded with relations by the
+    service's ``_load_course``) as an admin-viewer list item. Built from the
+    returned instance so it works even when the course was just soft-deleted
+    (``remove``) — a fresh ``get_course`` would filter it out."""
+    stats = (await courses_repo.stats_for_courses(db, [course.id])).get(course.id, {})
+    return _builders.list_item(course, stats, viewer=admin)
+
+
+@router.post("/courses/{course_id}/approve", response_model=CourseListItem)
+async def approve_course(
+    course_id: str,
+    payload: ModerationActionRequest,
+    admin: RequireAdmin,
+    db: DBSession,
+    request: Request,
+) -> CourseListItem:
+    course = await moderation_service.approve_course(
+        db,
+        course_id=course_id,
+        actor=admin,
+        note=payload.note,
+        ip=client_ip(request),
+        user_agent=user_agent(request),
+    )
+    return await _moderated_detail(db, admin, course)
+
+
+@router.post("/courses/{course_id}/reject", response_model=CourseListItem)
+async def reject_course(
+    course_id: str,
+    payload: ModerationActionRequest,
+    admin: RequireAdmin,
+    db: DBSession,
+    request: Request,
+) -> CourseListItem:
+    course = await moderation_service.reject_course(
+        db,
+        course_id=course_id,
+        actor=admin,
+        reason=payload.reason,
+        note=payload.note,
+        ip=client_ip(request),
+        user_agent=user_agent(request),
+    )
+    return await _moderated_detail(db, admin, course)
+
+
+@router.post("/courses/{course_id}/delist", response_model=CourseListItem)
+async def delist_course(
+    course_id: str,
+    payload: ModerationActionRequest,
+    admin: RequireAdmin,
+    db: DBSession,
+    request: Request,
+) -> CourseListItem:
+    course = await moderation_service.delist_course(
+        db,
+        course_id=course_id,
+        actor=admin,
+        reason=payload.reason,
+        note=payload.note,
+        ip=client_ip(request),
+        user_agent=user_agent(request),
+    )
+    return await _moderated_detail(db, admin, course)
+
+
+@router.post("/courses/{course_id}/relist", response_model=CourseListItem)
+async def relist_course(
+    course_id: str,
+    payload: ModerationActionRequest,
+    admin: RequireAdmin,
+    db: DBSession,
+    request: Request,
+) -> CourseListItem:
+    course = await moderation_service.relist_course(
+        db,
+        course_id=course_id,
+        actor=admin,
+        note=payload.note,
+        ip=client_ip(request),
+        user_agent=user_agent(request),
+    )
+    return await _moderated_detail(db, admin, course)
+
+
+@router.post("/courses/{course_id}/remove", response_model=CourseListItem)
+async def remove_course(
+    course_id: str,
+    payload: ModerationActionRequest,
+    admin: RequireAdmin,
+    db: DBSession,
+    request: Request,
+) -> CourseListItem:
+    if payload.reason is None:
+        raise ValidationAppError(
+            "A reason is required to remove a course", code="report.reason_required"
+        )
+    course = await moderation_service.remove_course(
+        db,
+        course_id=course_id,
+        actor=admin,
+        reason=payload.reason,
+        note=payload.note,
+        ip=client_ip(request),
+        user_agent=user_agent(request),
+    )
+    return await _moderated_detail(db, admin, course)
+
+
+# ---------- Reports (S6.4) ----------
+
+
+class ReportOut(BaseModel):
+    """Admin report DTO. Carries reporter PII (FR-MOD-12 admin-only); the note
+    is the already-sanitized inert text (FR-MOD-13)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    course_id: str
+    reporter_id: str
+    reason: str
+    note: str | None
+    status: str
+    created_at: datetime
+    resolved_at: datetime | None
+    resolved_by: str | None
+
+
+class ReportResolveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action: str = Field(pattern="^(dismiss|delist|remove)$")
+    reason: ReasonCode | None = None
+    note: str | None = Field(default=None, max_length=5000)
+
+
+@router.get("/reports", response_model=list[ReportOut])
+async def list_reports(
+    _: RequireAdmin,
+    db: DBSession,
+    status_filter: str | None = Query(default=None, alias="status", max_length=16),
+    reason: str | None = Query(default=None, max_length=40),
+    course_id: str | None = Query(default=None, max_length=21),
+    cursor: str | None = Query(
+        default=None,
+        max_length=21,
+        description="Cursor: the id of the last report from the previous page.",
+    ),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[ReportOut]:
+    rows = await moderation_repo.list_reports(
+        db,
+        status=status_filter,
+        reason=reason,
+        course_id=course_id,
+        cursor=cursor,
+        limit=limit,
+    )
+    return [ReportOut.model_validate(r) for r in rows]
+
+
+@router.post("/reports/{report_id}/resolve", response_model=ReportOut)
+async def resolve_report(
+    report_id: str,
+    payload: ReportResolveRequest,
+    admin: RequireAdmin,
+    db: DBSession,
+    request: Request,
+) -> ReportOut:
+    """Resolve a report, performing the linked moderation action atomically in
+    one transaction with a single linked audit trail (FR-MOD-12)."""
+    report = await moderation_service.resolve_report(
+        db,
+        report_id=report_id,
+        actor=admin,
+        action=payload.action,
+        reason=payload.reason,
+        note=payload.note,
+        ip=client_ip(request),
+        user_agent=user_agent(request),
+    )
+    return ReportOut.model_validate(report)
 
 
 # ---------- Audit log ----------

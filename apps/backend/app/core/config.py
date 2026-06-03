@@ -296,6 +296,11 @@ class Settings(BaseSettings):
     report_per_course_window_max: int = 5
     # The rolling window (hours) the per-course cap counts over.
     report_per_course_window_hours: int = 24
+    # R-S11 accumulation threshold: when this many OPEN reports accumulate on a
+    # course, an APPROVED course is requeued to pending_review for admin
+    # confirmation (NEVER auto-delisted); a never-approved (none/pending) course
+    # may auto-requeue to pending_review. The admin confirms the actual action.
+    report_requeue_threshold: int = 3
 
     # ---------- L33 — Tutor cost caps & concurrency ----------
     # Per-turn estimate the POST handler reserves up-front. The

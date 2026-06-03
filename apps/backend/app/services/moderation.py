@@ -423,4 +423,116 @@ async def report_course(
         user_agent=user_agent,
         data={"reason": reason.value},
     )
+
+    # R-S11 accumulation: when enough OPEN reports pile up, requeue the course to
+    # pending_review for admin confirmation. An APPROVED course is NEVER auto-
+    # delisted (a weak signal must not pull a vetted course); a never-approved
+    # course (none/pending) may auto-requeue. The admin makes the real call.
+    await _maybe_requeue_on_accumulation(db, course=course)
+    return report
+
+
+async def _maybe_requeue_on_accumulation(db: AsyncSession, *, course: Course) -> None:
+    """R-S11: requeue an over-reported course to pending_review (never delist).
+
+    Approved courses requeue (so the admin re-confirms) but stay public/visible
+    until the admin acts; rejected/delisted courses are left alone (already out
+    of the queue). The advisory accumulation only ever moves a course TO
+    pending_review — it never pulls visibility.
+    """
+    if course.moderation_state not in (ModerationState.approved, ModerationState.none):
+        return
+    threshold = get_settings().report_requeue_threshold
+    open_count = await moderation_repo.count_open_reports(db, course_id=course.id)
+    if open_count < threshold:
+        return
+    from_state = str(course.moderation_state)
+    course.moderation_state = ModerationState.pending_review
+    await moderation_repo.record_event(
+        db,
+        course_id=course.id,
+        actor_id=None,  # system/auto signal
+        from_state=from_state,
+        to_state=str(ModerationState.pending_review),
+        reason_code=None,
+        note=None,
+        classifier_signal={"auto_requeue": True, "open_reports": open_count},
+    )
+    await courses_service._bump_catalog_cache_version()
+
+
+async def resolve_report(
+    db: AsyncSession,
+    *,
+    report_id: str,
+    actor: User,
+    action: str,
+    reason: ReasonCode | None = None,
+    note: str | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+) -> CourseReport:
+    """Resolve an open report, performing the linked moderation action atomically.
+
+    ``action`` ∈ {``dismiss``, ``delist``, ``remove``}. ``dismiss`` closes the
+    report with no course change; ``delist`` / ``remove`` delegate to the S6.2
+    transitions (which each write their own ModerationEvent + admin.course.*
+    audit). The report is marked ``actioned``/``dismissed`` with
+    ``resolved_by``/``resolved_at`` and gets ONE linked
+    ``admin.course.report_resolved`` audit — the whole thing runs in the
+    endpoint's single transaction (FR-MOD-12).
+    """
+    report = await moderation_repo.get_report(db, report_id)
+    if report is None:
+        raise NotFoundError("Report not found", code="report.not_found")
+
+    from app.models.moderation import ReportStatus
+
+    if action == "dismiss":
+        report.status = ReportStatus.dismissed.value
+    elif action == "delist":
+        await delist_course(
+            db,
+            course_id=report.course_id,
+            actor=actor,
+            reason=reason,
+            note=note,
+            ip=ip,
+            user_agent=user_agent,
+        )
+        report.status = ReportStatus.actioned.value
+    elif action == "remove":
+        if reason is None:
+            raise ValidationAppError(
+                "A reason is required to remove a course", code="report.reason_required"
+            )
+        await remove_course(
+            db,
+            course_id=report.course_id,
+            actor=actor,
+            reason=reason,
+            note=note,
+            ip=ip,
+            user_agent=user_agent,
+        )
+        report.status = ReportStatus.actioned.value
+    else:
+        raise ValidationAppError(f"Unknown resolve action {action!r}", code="report.invalid_action")
+
+    report.resolved_by = actor.id
+    report.resolved_at = datetime.now(UTC)
+    await db.flush()
+
+    # ONE linked audit for the resolution itself (the moderation action wrote its
+    # own admin.course.* audit above) — single trail (FR-MOD-12).
+    await audit_repo.record(
+        db,
+        actor_id=actor.id,
+        action="admin.course.report_resolved",
+        target_type="course_report",
+        target_id=report.id,
+        ip_address=ip,
+        user_agent=user_agent,
+        data={"action": action, "course_id": report.course_id},
+    )
     return report

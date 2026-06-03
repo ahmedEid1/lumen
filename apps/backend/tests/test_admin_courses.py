@@ -67,6 +67,16 @@ async def test_admin_toggles_featured_and_writes_audit(
     course_id = create.json()["id"]
     assert create.json()["is_featured"] is False
 
+    # S6.4: only a publicly-listed course can be featured — bring it to
+    # public+published+approved so the listing guard is satisfied.
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
+
+    course = await db_session.get(Course, course_id)
+    course.status = CourseStatus.published
+    course.visibility = Visibility.public
+    course.moderation_state = ModerationState.approved
+    await db_session.commit()
+
     feat = await client.patch(
         f"/api/v1/admin/courses/{course_id}/feature",
         json={"is_featured": True},

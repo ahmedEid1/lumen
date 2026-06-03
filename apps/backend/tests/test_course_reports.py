@@ -227,11 +227,23 @@ async def test_report_coalesces_open(
 
 @pytest.mark.asyncio
 async def test_report_rate_limited_per_course(
-    client: AsyncClient, auth_headers, make_user, db_session: AsyncSession
+    client: AsyncClient,
+    auth_headers,
+    make_user,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     """More than report_per_course_window_max distinct reports on a single
-    course in the window → 429 course.report_rate_limited (brigading cap)."""
+    course in the window → 429 course.report_rate_limited (brigading cap).
+
+    The R-S11 requeue (which would pull an approved course to pending_review and
+    make it un-reportable) is raised above the per-course cap here so the cap is
+    the binding control — the requeue interaction is covered in
+    test_admin_moderation::test_auto_action_never_delists_approved.
+    """
     from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "report_requeue_threshold", 1000)
 
     owner = await make_user()
     subject = await _make_subject(db_session)
