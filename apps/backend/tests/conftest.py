@@ -277,6 +277,57 @@ async def seed_lesson(client: AsyncClient):
 
 
 @pytest_asyncio.fixture
+async def publish_course(client: AsyncClient):
+    """Publish a course via the S2 lifecycle endpoint (POST /publish).
+
+    S2 / ADR-0026 (FR-VIS-08) removed ``status`` from ``CourseUpdate`` —
+    ``PATCH {status: "published"}`` is now a 422. Lifecycle moved to
+    ``POST /courses/{id}/publish``. Publishing keeps a course PRIVATE
+    (published-private self-learn); it does NOT list it publicly. Most legacy
+    tests published via PATCH; call this instead. Returns the publish response.
+    """
+
+    async def _publish(course_id: str, headers: dict):
+        r = await client.post(f"/api/v1/courses/{course_id}/publish", headers=headers)
+        assert r.status_code == 200, r.text
+        return r
+
+    return _publish
+
+
+@pytest_asyncio.fixture
+async def publish_and_list_course(client: AsyncClient, db_session: AsyncSession):
+    """Publish a course AND make it publicly listed (catalog/enroll/search tests).
+
+    S2 / ADR-0026: a course is publicly listed only when
+    ``visibility == public AND status == published AND moderation_state ==
+    approved AND deleted_at IS NULL`` (the ``is_publicly_listed`` predicate).
+    Publishing alone leaves it private. The owner-facing /share endpoint sets
+    ``pending_review``; the admin /approve action belongs to S6 (not yet built),
+    so tests set ``public + approved`` directly via the DB session — the same
+    pattern S2's own tests use. Use this for any test that needs the course to
+    be enrollable, searchable, or visible in the catalog.
+    """
+
+    async def _publish_and_list(course_id: str, headers: dict):
+        from sqlalchemy import update
+
+        from app.models.course import Course, ModerationState, Visibility
+
+        r = await client.post(f"/api/v1/courses/{course_id}/publish", headers=headers)
+        assert r.status_code == 200, r.text
+        await db_session.execute(
+            update(Course)
+            .where(Course.id == course_id)
+            .values(visibility=Visibility.public, moderation_state=ModerationState.approved)
+        )
+        await db_session.commit()
+        return r
+
+    return _publish_and_list
+
+
+@pytest_asyncio.fixture
 async def auth_headers(client: AsyncClient, make_user):
     async def _login(*, role: Role = Role.user) -> dict[str, str]:
         email = f"login-{uuid.uuid4().hex[:8]}@lumen.test"
