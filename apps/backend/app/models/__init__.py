@@ -25,7 +25,7 @@ from app.models.learning_path import LearningPath, LearningPathStep
 from app.models.lesson_chunk import EMBEDDING_DIM, LessonChunk
 from app.models.llm_call import LLMCall
 from app.models.mcp_client import MCPClient
-from app.models.moderation import ModerationEvent
+from app.models.moderation import CourseReport, ModerationEvent, ReportStatus
 from app.models.notification import Notification, NotificationKind
 from app.models.quiz_attempt import QuizAttempt
 from app.models.retrieval_audit import RetrievalAudit
@@ -74,6 +74,7 @@ __all__ = [
     "AuditEvent",
     "Course",
     "CourseDraftTrace",
+    "CourseReport",
     "CourseStatus",
     "Difficulty",
     "Discussion",
@@ -94,6 +95,7 @@ __all__ = [
     "NotificationKind",
     "QuizAttempt",
     "RefreshToken",
+    "ReportStatus",
     "RetrievalAudit",
     "Review",
     "ReviewCard",

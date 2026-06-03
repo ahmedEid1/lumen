@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.models.course import CourseStatus, Difficulty, LessonType, ModerationState, Visibility
 from app.schemas.user import UserPublic
+from app.services.moderation_taxonomy import ReasonCode
 
 # ----- Subjects / Tags -----
 
@@ -219,6 +220,19 @@ class CourseUpdate(BaseModel):
     @classmethod
     def _learning_outcomes(cls, v: list[str] | None) -> list[str] | None:
         return _validate_learning_outcomes(v)
+
+
+class ReportRequest(BaseModel):
+    """User-filed course report body (S6.3 / FR-MOD-11).
+
+    ``note`` is free text that is run through ``sanitize_note`` (S6.1) before
+    persist — inert and length-capped — so the admin queue can echo it safely.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: ReasonCode
+    note: str | None = Field(default=None, max_length=5000)
 
 
 class CourseListItem(BaseModel):

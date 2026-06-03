@@ -27,10 +27,17 @@ a removed course while keeping the owner's view/edit (FR-MOD-08).
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.config import get_settings
+from app.core.errors import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    RateLimitedError,
+    ValidationAppError,
+)
 from app.models.course import Course, ModerationState, Visibility
 from app.repositories import audit as audit_repo
 from app.repositories import courses as courses_repo
@@ -46,6 +53,7 @@ from app.services.moderation_taxonomy import (
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from app.models.moderation import CourseReport
     from app.models.user import User
 
 
@@ -309,3 +317,110 @@ async def remove_course(
     )
     await courses_service._bump_catalog_cache_version()
     return course
+
+
+# ---------------------------------------------------------------------------
+# User-filed reports (S6.3 / DR-20)
+# ---------------------------------------------------------------------------
+
+
+def _reporter_is_eligible(reporter: User) -> bool:
+    """DR-20 reporter eligibility: email-verified AND account-age ≥ threshold.
+
+    The anti-brigading control — a throwaway account can't mass-report. Layered
+    on top of the per-user ≤10/h ``@limiter`` cap and the per-course window cap.
+    """
+    if getattr(reporter, "email_verified_at", None) is None:
+        return False
+    created_at = getattr(reporter, "created_at", None)
+    if created_at is None:
+        return False
+    threshold = timedelta(days=get_settings().report_min_account_age_days)
+    return datetime.now(UTC) - created_at >= threshold
+
+
+async def report_course(
+    db: AsyncSession,
+    *,
+    course: Course,
+    reporter: User,
+    reason: ReasonCode,
+    note: str | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+) -> CourseReport:
+    """File (or coalesce) a user report against a publicly-listed course.
+
+    Preconditions enforced (in order, so the existence-hide 404 wins):
+
+    * the course must be **publicly listed** — else ``NotFoundError`` (existence-
+      hide, FR-MOD-11; reportability routes through ``is_publicly_listed``, never
+      a raw status check);
+    * the reporter must not be the owner — else ``ValidationAppError
+      (report.own_course)``;
+    * the reporter must be DR-20-eligible (verified + aged) — else
+      ``ForbiddenError(report.ineligible)``;
+    * the per-course rolling-window cap must not be exceeded — else
+      ``RateLimitedError(course.report_rate_limited)``.
+
+    On success: coalesces onto the reporter's existing OPEN report (updating its
+    reason/note) or inserts a new open row, runs ``note`` through
+    ``sanitize_note`` (FR-MOD-13), and writes a ``course.report`` audit
+    (actor=reporter, ip/ua).
+    """
+    if not visibility_service.is_publicly_listed(course):
+        # Existence-hide: a non-listed course is indistinguishable from a
+        # missing one to a non-owner (FR-MOD-11 / R-U1).
+        raise NotFoundError("Course not found", code="course.not_found")
+    if course.owner_id == reporter.id:
+        raise ValidationAppError("You cannot report your own course", code="report.own_course")
+    if not _reporter_is_eligible(reporter):
+        raise ForbiddenError(
+            "Your account is not yet eligible to file reports",
+            code="report.ineligible",
+        )
+
+    settings = get_settings()
+    clean_note = sanitize_note(note)
+
+    existing = await moderation_repo.get_open_report(
+        db, course_id=course.id, reporter_id=reporter.id
+    )
+    if existing is not None:
+        # Coalesce: update the reporter's open report rather than insert a
+        # duplicate (partial-unique backstop). This does NOT count against the
+        # per-course window — it is the same report being amended.
+        existing.reason = reason.value
+        existing.note = clean_note
+        await db.flush()
+        report = existing
+    else:
+        # Per-course brigading cap (DR-20) — only NEW reports count.
+        window_start = datetime.now(UTC) - timedelta(hours=settings.report_per_course_window_hours)
+        recent = await moderation_repo.count_reports_in_window(
+            db, course_id=course.id, since=window_start
+        )
+        if recent >= settings.report_per_course_window_max:
+            raise RateLimitedError(
+                "This course has received too many reports recently",
+                code="course.report_rate_limited",
+            )
+        report = await moderation_repo.create_report(
+            db,
+            course_id=course.id,
+            reporter_id=reporter.id,
+            reason=reason.value,
+            note=clean_note,
+        )
+
+    await audit_repo.record(
+        db,
+        actor_id=reporter.id,
+        action="course.report",
+        target_type="course",
+        target_id=course.id,
+        ip_address=ip,
+        user_agent=user_agent,
+        data={"reason": reason.value},
+    )
+    return report

@@ -11,9 +11,10 @@ from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, ConfigDict
 from starlette.responses import Response as StarletteResponse
 
-from app.api.deps import DBSession, OptionalUser, RequireAuthor
+from app.api.deps import CurrentUser, DBSession, OptionalUser, RequireAuthor, client_ip, user_agent
 from app.api.v1 import _builders
 from app.core.errors import ForbiddenError, NotFoundError, UnauthorizedError
+from app.core.ratelimit import limiter
 from app.models.course import Course
 from app.models.user import User
 from app.repositories import courses as courses_repo
@@ -30,10 +31,12 @@ from app.schemas.course import (
     ModuleOut,
     ModuleUpdate,
     OrderUpdateRequest,
+    ReportRequest,
 )
 from app.services import analytics as analytics_service
 from app.services import courses as courses_service
 from app.services import enrollment as enrollment_service
+from app.services import moderation as moderation_service
 from app.services import visibility as visibility_service
 
 router = APIRouter()
@@ -298,6 +301,42 @@ async def resubmit_course(course_id: str, user: RequireAuthor, db: DBSession) ->
     _require_private_publish_enabled()
     await courses_service.resubmit_course(db, course_id=course_id, owner=user)
     return await _render_detail(db, course_id, user)
+
+
+@router.post("/{course_id}/report", response_model=OkResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/hour")
+async def report_course(
+    course_id: str,
+    payload: ReportRequest,
+    user: CurrentUser,
+    db: DBSession,
+    request: Request,
+    response: Response,
+) -> OkResponse:
+    """File a report against a publicly-listed course (FR-MOD-11 / S6.3).
+
+    Any authenticated user may report (not just authors). The ≤10/h per-user
+    cap is the ``@limiter`` decorator; DR-20 reporter eligibility (verified +
+    aged) and the per-course brigading cap live in the service. A non-listed /
+    own / nonexistent course returns 404/422 with no row written (existence-hide
+    FR-MOD-11). ``request``/``response`` are required by slowapi's
+    ``@limiter.limit`` (Request for keying, Response for the rate-limit headers).
+    """
+    course = await courses_repo.get_course(db, course_id)
+    if not course:
+        # Existence-hide: indistinguishable from a non-listed course (the
+        # service raises the same 404 for a loaded-but-not-listed course).
+        raise NotFoundError("Course not found", code="course.not_found")
+    await moderation_service.report_course(
+        db,
+        course=course,
+        reporter=user,
+        reason=payload.reason,
+        note=payload.note,
+        ip=client_ip(request),
+        user_agent=user_agent(request),
+    )
+    return OkResponse()
 
 
 # ---------- Modules ----------

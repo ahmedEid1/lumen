@@ -43,9 +43,11 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0043"
-# INTEGRATION: re-point at merge. Chain is 0033 -> 0041 -> 0042 -> 0044 -> 0043.
-# This Phase-D boundary moved to the END of the chain so it follows the Phase-A
-# quarantine column (0044); see the module docstring (Codex P1 / Gate-C).
+# INTEGRATION: re-point at merge. Chain is 0042 -> 0044 -> 0045 -> 0046 -> 0043.
+# This Phase-D boundary stays LAST so it follows every Phase-A revision in the
+# release window (the quarantine column 0044, the share-500 fix 0045, and the
+# S6.3 course_reports table 0046); see the module docstring (Codex P1 / Gate-C
+# + HOUSE RULES: new Phase-A revs insert BEFORE the boundary, never move it).
 # Compatibility note (Codex confirm-round adjudication, 2026-06-04): re-parenting
 # an applied revision would normally strand DBs stamped at old-0043-without-0045
 # (0043 == new head -> no pending -> 0045 never applies). RULED INAPPLICABLE
@@ -57,7 +59,7 @@ revision: str = "0043"
 # test), not silent. Do NOT re-parent applied revisions after W12 ships this
 # chain to prod — from that point the boundary-last invariant must be satisfied
 # by inserting new revisions, never by moving applied ones.
-down_revision: str | Sequence[str] | None = "0045"
+down_revision: str | Sequence[str] | None = "0046"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

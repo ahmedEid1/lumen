@@ -284,6 +284,19 @@ class Settings(BaseSettings):
     # there is no leak window. Env: FEATURE_PRIVATE_PUBLISH_ENABLED.
     feature_private_publish_enabled: bool = False
 
+    # ---------- S6.3 — Course-report brigading controls (DR-20) ----------
+    # Reporter eligibility: an account must be at least this many days old
+    # (AND email-verified) to file a course report. Layered on top of the
+    # per-user ≤10/h @limiter cap, this is the anti-brigading control — a
+    # throwaway account can't be spun up to mass-report a course.
+    report_min_account_age_days: int = 3
+    # Per-course brigading cap: at most this many reports may be filed against a
+    # single course within the rolling window before further reports are 429'd
+    # (course.report_rate_limited). Distinct from the per-user @limiter cap.
+    report_per_course_window_max: int = 5
+    # The rolling window (hours) the per-course cap counts over.
+    report_per_course_window_hours: int = 24
+
     # ---------- L33 — Tutor cost caps & concurrency ----------
     # Per-turn estimate the POST handler reserves up-front. The
     # real cost gets reconciled on turn_complete (reconcile_cost

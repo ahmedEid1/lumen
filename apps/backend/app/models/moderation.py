@@ -16,9 +16,11 @@ single-source-of-truth in SQL.
 
 from __future__ import annotations
 
+from datetime import datetime
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import ForeignKey, Index, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,6 +29,19 @@ from app.db.base import Base, IdMixin, TimestampMixin
 if TYPE_CHECKING:
     from app.models.course import Course
     from app.models.user import User
+
+
+class ReportStatus(StrEnum):
+    """Lifecycle of a user-filed course report (S6.3 / DR-20).
+
+    ``open`` → admin hasn't acted; ``actioned`` → resolved with a moderation
+    action (delist/remove); ``dismissed`` → resolved as no-action. Only ``open``
+    rows participate in the partial-unique coalescing index.
+    """
+
+    open = "open"
+    actioned = "actioned"
+    dismissed = "dismissed"
 
 
 class ModerationEvent(IdMixin, TimestampMixin, Base):
@@ -54,3 +69,50 @@ class ModerationEvent(IdMixin, TimestampMixin, Base):
 
     course: Mapped[Course] = relationship()
     actor: Mapped[User | None] = relationship()
+
+
+class CourseReport(IdMixin, TimestampMixin, Base):
+    """A user-filed report against a publicly-listed course (S6.3 / FR-MOD-11).
+
+    Reportability routes through ``visibility.is_publicly_listed`` (never a raw
+    ``status==published`` check). Eligibility is gated by DR-20 (email-verified
+    AND account-age ≥ threshold) at the service layer.
+
+    Coalescing: the partial-unique index ``uq_course_reports_open`` over
+    ``(course_id, reporter_id) WHERE status='open'`` means one reporter can hold
+    at most one OPEN report per course — a second report updates the existing
+    open row instead of inserting a duplicate. Resolving the report (actioned /
+    dismissed) frees the slot, so the same reporter could file again later.
+    """
+
+    __tablename__ = "course_reports"
+    __table_args__ = (
+        Index(
+            "uq_course_reports_open",
+            "course_id",
+            "reporter_id",
+            unique=True,
+            postgresql_where=text("status = 'open'"),
+        ),
+        Index("ix_course_reports_status_created", "status", "created_at"),
+    )
+
+    course_id: Mapped[str] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    )
+    reporter_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    reason: Mapped[str] = mapped_column(String(40), nullable=False)
+    # Length-capped, inert text (sanitize_note before persist — FR-MOD-13).
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default=ReportStatus.open.value)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # SET NULL so a resolved-by admin who later deletes their account doesn't
+    # erase the report (audit-style durability, like ModerationEvent.actor_id).
+    resolved_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    course: Mapped[Course] = relationship()
+    reporter: Mapped[User] = relationship(foreign_keys=[reporter_id])
