@@ -64,11 +64,11 @@ _KEY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),  # AWS access key id
 )
 
-# Sinks that do not exist yet (their tables/rows are introduced in S5). The
-# enumerated-sink contract names them explicitly so S5.10 extends — rather
-# than re-discovers — the coverage set. See test_byok_sink_redaction.py and
-# the IMPLEMENTATION-PLAN S5.10 note.
-DEFERRED_REDACTION_SINKS: tuple[str, ...] = (
+# The full enumerated-sink contract (R-U3 / FR-BYOK-24). At S7-pre these
+# tables/rows did not exist yet; S5.10 now drives a sentinel BYOK key through
+# every one and asserts absence (see test_byok_sink_completion.py). The set
+# below is the *covered* contract.
+REDACTION_SINKS_COVERED: tuple[str, ...] = (
     "llm_calls",
     "agent_traces",
     "retrieval_audits",
@@ -76,7 +76,15 @@ DEFERRED_REDACTION_SINKS: tuple[str, ...] = (
     "celery_task_payloads",
     "me_export",
     "openapi_schema",
+    "structlog",
+    "exception_traceback",
+    "error_envelope",
+    "admin_views",
 )
+
+# No sinks remain deferred: S5.10 covers the full set above. Retained (empty)
+# so any importer of the S7-pre name keeps resolving.
+DEFERRED_REDACTION_SINKS: tuple[str, ...] = ()
 
 
 def _scrub_str(text: str, extra: tuple[str, ...]) -> str:
