@@ -471,3 +471,33 @@ async def list_reviews_for_course(
         .limit(limit)
     )
     return list(res.scalars().all())
+
+
+async def latest_moderation_event(db: AsyncSession, course_id: str) -> "ModerationEvent | None":
+    """Most recent moderation event for a course (R-M9 re-approval / quarantine reason).
+
+    Used by the share path to decide whether a re-share returns to ``approved``
+    (a prior approval with no later reject/delist) or ``pending_review``, and by
+    the (S6) admin paths to read the latest ``reason_code``.
+    """
+    from app.models.moderation import ModerationEvent
+
+    res = await db.execute(
+        select(ModerationEvent)
+        .where(ModerationEvent.course_id == course_id)
+        .order_by(ModerationEvent.created_at.desc())
+        .limit(1)
+    )
+    return res.scalar_one_or_none()
+
+
+async def moderation_events_for_course(db: AsyncSession, course_id: str) -> "list[ModerationEvent]":
+    """All moderation events for a course, newest first (R-M9 history scan)."""
+    from app.models.moderation import ModerationEvent
+
+    res = await db.execute(
+        select(ModerationEvent)
+        .where(ModerationEvent.course_id == course_id)
+        .order_by(ModerationEvent.created_at.desc())
+    )
+    return list(res.scalars().all())
