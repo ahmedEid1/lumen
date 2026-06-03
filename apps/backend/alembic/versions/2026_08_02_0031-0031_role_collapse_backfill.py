@@ -31,11 +31,14 @@ Create Date: 2026-08-02
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 
 from alembic import op
+
+log = logging.getLogger("alembic.runtime.migration")
 
 revision: str = "0031"
 down_revision: str | Sequence[str] | None = "0030"
@@ -55,7 +58,7 @@ def upgrade() -> None:
     # so the operator can confirm how many legacy rows collapsed.
     res = op.get_bind().execute(sa.text(_BACKFILL_SQL))
     # ``rowcount`` is reliable for an UPDATE on psycopg/asyncpg-sync.
-    print(f"[0031] role_collapse_backfill: collapsed {res.rowcount} legacy role rows → 'user'")
+    log.info("0031 role_collapse_backfill: collapsed %s legacy role rows -> 'user'", res.rowcount)
 
 
 def downgrade() -> None:
