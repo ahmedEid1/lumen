@@ -23,7 +23,7 @@ async def create(
     email: str,
     password_hash: str,
     full_name: str,
-    role: Role = Role.student,
+    role: Role = Role.user,  # S1.8: default to the canonical `user` role
 ) -> User:
     user = User(email=email, password_hash=password_hash, full_name=full_name, role=role)
     db.add(user)

@@ -534,14 +534,15 @@ async def run() -> None:
             tag, _ = await _get_or_create(db, Tag, lookup={"slug": slug}, defaults={"name": name})
             tags[slug] = tag
 
-        # Reuse the base-seed instructor if it exists, otherwise create
-        # a demo-specific one so the seed is self-contained.
+        # Reuse the base-seed author if it exists, otherwise create a
+        # demo-specific one so the seed is self-contained. S1.8: seeded as
+        # the canonical `user` role (every user can author + learn).
         instructor = await _ensure_user(
             db,
             email="teacher@lumen.test",
             full_name="Tareq Hassan",
             password="Teach!2026",
-            role=Role.instructor,
+            role=Role.user,
         )
 
         demo_student = await _ensure_user(
@@ -549,7 +550,7 @@ async def run() -> None:
             email="demo@lumen.test",
             full_name="Demo Learner",
             password="Demo!2026",
-            role=Role.student,
+            role=Role.user,
         )
 
         intro_python = await _build_course(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Query, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from slugify import slugify
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import selectinload
@@ -168,8 +168,27 @@ class UserAdminOut(BaseModel):
     last_login_at: datetime | None = None
 
 
+#: The only roles an admin may *write* once the collapse lands (FR-RBAC-06,
+#: FR-ADMIN-07). Legacy ``student``/``instructor`` are read-tolerant (the wide
+#: enum still loads them) but write-forbidden.
+SETTABLE_ROLES: frozenset[Role] = frozenset({Role.user, Role.admin})
+
+
 class UserRoleUpdate(BaseModel):
     role: Role
+
+    @field_validator("role")
+    @classmethod
+    def _settable_only(cls, v: Role) -> Role:
+        # S1.8: reject a write to a legacy/unknown role. Reads stay tolerant
+        # (the row may still carry `student`/`instructor` until 0031), but an
+        # admin can only *assign* {user, admin}.
+        if v not in SETTABLE_ROLES:
+            raise ValueError(
+                f"role must be one of {sorted(r.value for r in SETTABLE_ROLES)} "
+                f"(legacy roles are not settable)"
+            )
+        return v
 
 
 class UserActiveUpdate(BaseModel):
@@ -196,6 +215,10 @@ async def set_user_role(
     user_id: str, payload: UserRoleUpdate, admin: RequireAdmin, db: DBSession
 ) -> UserAdminOut:
     user = await _load_user_or_404(db, user_id)
+    # Defence-in-depth (the field_validator already rejects at parse): never
+    # *write* a legacy/unknown role even if the schema constraint is relaxed.
+    if payload.role not in SETTABLE_ROLES:
+        raise ValidationAppError("Role must be 'user' or 'admin'", code="user.invalid_role")
     if user.id == admin.id and payload.role != Role.admin:
         raise ValidationAppError("Cannot demote yourself", code="user.self_demote")
     user.role = payload.role
@@ -391,7 +414,13 @@ async def reindex_search(admin: RequireAdmin, db: DBSession) -> OkResponse:
 class PlatformStatsOut(BaseModel):
     users: int
     active_users: int
-    instructors: int
+    # S1.8 / FR-ADMIN-05: with the role collapse there is no "instructor" stat.
+    # `admins` = users with the admin role; `authors` = distinct owners of at
+    # least one live (non-deleted) course (the closest meaningful "creators"
+    # signal in the two-role model). The `instructors` field is removed; the
+    # admin dashboard reads `admins`/`authors` (S1.11, same PR — DR-5).
+    admins: int
+    authors: int
     courses_total: int
     courses_published: int
     courses_draft: int
@@ -406,9 +435,13 @@ async def platform_stats(_: RequireAdmin, db: DBSession) -> PlatformStatsOut:
         active_users=await _scalar_count(
             db, select(func.count(User.id)).where(User.is_active.is_(True))
         ),
-        instructors=await _scalar_count(
+        admins=await _scalar_count(
             db,
-            select(func.count(User.id)).where(User.role.in_([Role.instructor, Role.admin])),
+            select(func.count(User.id)).where(User.role == Role.admin),
+        ),
+        authors=await _scalar_count(
+            db,
+            select(func.count(func.distinct(Course.owner_id))).where(live),
         ),
         courses_total=await _scalar_count(db, select(func.count(Course.id)).where(live)),
         courses_published=await _scalar_count(

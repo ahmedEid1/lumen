@@ -155,13 +155,17 @@ async def _resolve_eval_user_id() -> str:
             user_id = row.scalar_one_or_none()
             if user_id:
                 return user_id
-        # Last resort — any student.
-        row = await db.execute(select(User.id).where(User.role == Role.student).limit(1))
+        # Last resort — any active non-admin user (S1.8: the eval learner is a
+        # plain `user`, no longer a hard `student`).
+        row = await db.execute(
+            select(User.id).where(User.role != Role.admin, User.is_active.is_(True)).limit(1)
+        )
         user_id = row.scalar_one_or_none()
         if user_id:
             return user_id
         raise RuntimeError(
-            "No eval user found — run `demo-seed` first so student@lumen.test exists."
+            "No eval user found — run `demo-seed` first so a learner account "
+            "(e.g. student@lumen.test, role=user) exists."
         )
 
 
