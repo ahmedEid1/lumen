@@ -23,6 +23,7 @@ from app.api.v1 import (
     health,
     learner_traces,
     learning_path,
+    llm_credentials,
     llm_providers,
     mastery,
     notifications,
@@ -114,3 +115,7 @@ api_router.include_router(demo_questions.router, tags=["demo-questions"])
 # no extra prefix → /api/v1/llm-providers. Authenticated; exposes no
 # base_url/keys.
 api_router.include_router(llm_providers.router, tags=["llm-providers"])
+# S5 (BYOK) — per-user credential CRUD + validate under /api/v1/me/llm-credentials.
+# Write-only key, masked reads, anti-oracle validate caps. Module paths
+# already carry /me, so no extra prefix here.
+api_router.include_router(llm_credentials.router, tags=["llm-credentials"])
