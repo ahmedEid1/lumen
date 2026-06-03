@@ -138,6 +138,17 @@ def _line_is_allowlisted(line: str) -> bool:
     return any(marker in line for marker in _ALL_MARKERS)
 
 
+# Double-backtick prose spans (the codebase's docstring convention, e.g.
+# ``CourseStatus.published``) are *references*, not code reads. Strip them
+# before pattern-matching so a docstring/comment that *names* the predicate
+# doesn't need a marker — only real code does.
+_RE_BACKTICK_SPAN = re.compile(r"``[^`]*``")
+
+
+def _strip_prose(line: str) -> str:
+    return _RE_BACKTICK_SPAN.sub("", line)
+
+
 def _scan() -> list[tuple[str, int, str]]:
     """Return ``(relpath, lineno, line)`` for every flagged, NON-allowlisted line."""
     offenders: list[tuple[str, int, str]] = []
@@ -145,7 +156,8 @@ def _scan() -> list[tuple[str, int, str]]:
         rel = str(path.relative_to(_APP_ROOT.parent))
         text = path.read_text(encoding="utf-8")
         for lineno, line in enumerate(text.splitlines(), start=1):
-            if any(p.search(line) for p in _PATTERNS):
+            scannable = _strip_prose(line)
+            if any(p.search(scannable) for p in _PATTERNS):
                 if _line_is_allowlisted(line):
                     continue
                 offenders.append((rel, lineno, line.strip()))
