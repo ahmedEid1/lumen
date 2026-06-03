@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ForbiddenError, NotFoundError
-from app.models.course import Course
+from app.models.course import Course, Visibility
 from app.models.discussion import Discussion, DiscussionReply
 from app.models.notification import NotificationKind
 from app.models.user import User
@@ -50,6 +50,15 @@ async def create_discussion(
     db: AsyncSession, *, course_id: str, user: User, payload: DiscussionCreate
 ) -> Discussion:
     course = await _course_for_write(db, course_id, user)
+    # S2.9b (PR-25 / R-M1): discussion CREATE is disabled on a private course —
+    # distinct from the read authorizer. Existing discussions on a now-private
+    # course still serve owner + enrolled (the read paths via can_view_course),
+    # but no NEW thread may be started while the course is private.
+    if str(course.visibility) == Visibility.private.value:
+        raise ForbiddenError(
+            "Discussions are disabled while this course is private",
+            code="discussion.course_private",
+        )
     d = Discussion(
         course_id=course.id,
         author_id=user.id,
