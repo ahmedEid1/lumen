@@ -320,7 +320,7 @@ async def list_courses(
     courses, _total = await courses_repo.search_courses(
         db,
         q=(filter or None),
-        only_published=True,
+        publicly_listed_only=True,
         page=1,
         page_size=limit,
     )

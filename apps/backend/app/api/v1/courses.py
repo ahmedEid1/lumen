@@ -94,7 +94,7 @@ async def create_course(
 @router.get("/mine", response_model=list[CourseListItem])
 async def my_courses(user: RequireInstructor, db: DBSession) -> list[CourseListItem]:
     courses, _ = await courses_repo.search_courses(
-        db, owner_id=user.id, only_published=False, page=1, page_size=100
+        db, owner_id=user.id, publicly_listed_only=False, page=1, page_size=100
     )
     stats = await courses_repo.stats_for_courses(db, [c.id for c in courses])
     return [_builders.list_item(c, stats.get(c.id, {})) for c in courses]

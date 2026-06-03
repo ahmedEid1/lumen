@@ -102,10 +102,10 @@ _ALL_MARKERS = (
 # ---------------------------------------------------------------------------
 
 READERS_PENDING_MIGRATION: set[str] = {
-    "repositories/courses.py::list_subjects subject-tile count",
-    "repositories/courses.py::search_courses only_published",
     # S2.4 migrated — can_view_course re-exports visibility.can_view_course;
     # the free-preview gate now calls visibility.is_publicly_listed.
+    # S2.5 migrated — list_subjects + search_courses route through
+    # _publicly_listed_sql(); the param is publicly_listed_only; MCP search too.
     "api/v1/tutor_streaming.py::slug->id published gate",
     "services/enrollment.py::enroll status gate",
     "api/v1/admin.py::reindex fan-out published selection",
