@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ColumnElement, Select, and_, case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,9 @@ from app.models.course import (
     Subject,
     Tag,
 )
+
+if TYPE_CHECKING:
+    from app.models.moderation import ModerationEvent
 
 
 def _publicly_listed_sql() -> ColumnElement[bool]:
@@ -473,7 +477,7 @@ async def list_reviews_for_course(
     return list(res.scalars().all())
 
 
-async def latest_moderation_event(db: AsyncSession, course_id: str) -> "ModerationEvent | None":
+async def latest_moderation_event(db: AsyncSession, course_id: str) -> ModerationEvent | None:
     """Most recent moderation event for a course (R-M9 re-approval / quarantine reason).
 
     Used by the share path to decide whether a re-share returns to ``approved``
@@ -491,7 +495,7 @@ async def latest_moderation_event(db: AsyncSession, course_id: str) -> "Moderati
     return res.scalar_one_or_none()
 
 
-async def moderation_events_for_course(db: AsyncSession, course_id: str) -> "list[ModerationEvent]":
+async def moderation_events_for_course(db: AsyncSession, course_id: str) -> list[ModerationEvent]:
     """All moderation events for a course, newest first (R-M9 history scan)."""
     from app.models.moderation import ModerationEvent
 
