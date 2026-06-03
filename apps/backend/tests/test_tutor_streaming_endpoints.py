@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.models.tutor_turn_job import TURN_STATUS_PENDING, TutorTurnJob
+from app.models.tutor_turn_job import TURN_STATUS_ABORTED, TURN_STATUS_PENDING, TutorTurnJob
 from app.models.user import Role
 
 
@@ -630,3 +630,95 @@ async def test_cancel_pending_platform_turn_releases_both(
     # Platform turn held cost → both release AND reconcile fire.
     _stub_cost_scripts["release_concurrency"].assert_called_once()
     reconcile_mock.assert_called_once()
+
+
+async def test_cancel_claimed_byok_turn_does_not_release_slot(
+    client: AsyncClient,
+    make_user,
+    db_session: AsyncSession,
+    monkeypatch,
+    _byok_on,
+    _stub_cost_scripts,
+) -> None:
+    """Confirm-round-2 race (Codex): a worker claiming the turn between the
+    cancel handler's ORM read and the terminal transition must NOT lead to
+    a double slot release. The unclaimed verdict now comes from the atomic
+    pending→aborted UPDATE (``abort_pending``): once the row is claimed
+    (status=running), the API cancel marks it aborted but leaves the
+    concurrency slot to the worker's ``finally`` — releasing here too
+    would double-decrement the Redis counter and bypass the cap."""
+    from unittest.mock import AsyncMock
+
+    s = get_settings()
+    monkeypatch.setattr(s, "feature_tutor_streaming", True)
+
+    user, headers = await _login_headers(client, make_user, role=Role.student)
+    await _store_active_credential(db_session, user.id)
+
+    r = await client.post(
+        "/api/v1/tutor/turns",
+        json={"content": "claim then cancel"},
+        headers=headers,
+    )
+    assert r.status_code == 201, r.text
+    turn_id = r.json()["id"]
+
+    # Simulate the worker winning the race: claim pending → running.
+    from app.services.tutor_turn_service import claim_pending_turn
+
+    claimed = await claim_pending_turn(db_session, turn_id)
+    assert claimed is not None
+    await db_session.commit()
+
+    reconcile_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr("app.core.cost_scripts.reconcile_cost", reconcile_mock)
+    _stub_cost_scripts["release_concurrency"].reset_mock()
+
+    r = await client.delete(f"/api/v1/tutor/turns/{turn_id}", headers=headers)
+    assert r.status_code == 204, r.text
+
+    # Claimed + zero-reserved: neither cost reconcile nor slot release —
+    # the worker's finally owns the slot.
+    _stub_cost_scripts["release_concurrency"].assert_not_called()
+    reconcile_mock.assert_not_called()
+
+    # The abort ran in the app's session via raw SQL — expire this
+    # session's identity map so the re-read sees the committed row.
+    db_session.expire_all()
+    row = await db_session.execute(select(TutorTurnJob).where(TutorTurnJob.id == turn_id))
+    turn = row.scalar_one_or_none()
+    assert turn is not None and turn.status == TURN_STATUS_ABORTED
+
+
+async def test_abort_pending_is_atomic_unclaimed_verdict(
+    db_session: AsyncSession, make_user
+) -> None:
+    """``abort_pending`` semantics: True exactly once, only from pending."""
+    from decimal import Decimal
+
+    from app.services.tutor_turn_service import abort_pending, create_turn
+
+    user = await make_user()
+    turn = await create_turn(
+        db_session,
+        user_id=user.id,
+        conversation_id=None,
+        reserved_cost_usd=Decimal(0),
+        reservation_ip_key="t",
+        enqueue_task=False,
+    )
+    turn_id = turn.id  # capture before expire_all (async lazy-load trap)
+    await db_session.commit()
+
+    assert await abort_pending(db_session, turn_id=turn_id, error_code="x") is True
+    # Second attempt: already terminal → False (idempotent, no re-release).
+    assert await abort_pending(db_session, turn_id=turn_id, error_code="x") is False
+    await db_session.commit()
+
+    # abort_pending updates via raw SQL — expire the identity map so the
+    # ORM re-read reflects the committed transition.
+    db_session.expire_all()
+    row = await db_session.execute(select(TutorTurnJob).where(TutorTurnJob.id == turn_id))
+    refreshed = row.scalar_one()
+    assert refreshed.status == TURN_STATUS_ABORTED
+    assert refreshed.reserved_cost_usd == Decimal(0)

@@ -48,15 +48,12 @@ from app.core.errors import (
 )
 from app.core.ratelimit import limiter
 from app.models.llm_call import BILLING_BYOK
-from app.models.tutor_turn_job import (
-    TERMINAL_TURN_STATUSES,
-    TURN_STATUS_ABORTED,
-    TURN_STATUS_PENDING,
-)
+from app.models.tutor_turn_job import TERMINAL_TURN_STATUSES, TURN_STATUS_ABORTED
 from app.services import byok as byok_service
 from app.services.llm_call_log import quota_limits, user_request_count
 from app.services.redis_streams import check_trim, consume_stream
 from app.services.tutor_turn_service import (
+    abort_pending,
     count_active_turns_in_window,
     create_turn,
     get_turn_for_user,
@@ -369,19 +366,24 @@ async def cancel_turn(turn_id: str, user: CurrentUser, db: DBSession) -> None:
         reserved_microcents = int(turn.reserved_cost_usd * USD_TO_MICROCENTS)
         reservation_ip_key = turn.reservation_ip_key
         user_id_for_release = turn.user_id
-        # Captured BEFORE mark_terminal mutates the row: a still-PENDING
-        # turn was never claimed, so no worker finally will ever release
-        # its concurrency slot — the API must (confirm-round fix: BYOK
-        # turns reserve zero cost, so the reserved>0 release condition
-        # alone leaked their slot until the Redis TTL).
-        was_unclaimed = turn.status == TURN_STATUS_PENDING
 
-        await mark_terminal(
-            db,
-            turn_id=turn_id,
-            status=TURN_STATUS_ABORTED,
-            error_code="tutor.cancelled_by_user",
+        # Confirm-round-2 fix (Codex): "was it unclaimed?" must be decided
+        # by the atomic pending→aborted UPDATE itself, not a pre-update
+        # ORM read — a worker claiming between the read and the terminal
+        # transition made BOTH this path and the worker's finally release
+        # the slot (double-decrement → concurrency-cap bypass). When
+        # abort_pending reports False the row was already claimed (or
+        # terminal): the worker owns the slot, we only mark it aborted.
+        was_unclaimed = await abort_pending(
+            db, turn_id=turn_id, error_code="tutor.cancelled_by_user"
         )
+        if not was_unclaimed:
+            await mark_terminal(
+                db,
+                turn_id=turn_id,
+                status=TURN_STATUS_ABORTED,
+                error_code="tutor.cancelled_by_user",
+            )
         await db.commit()
 
         # Release semantics: cost reconciles only when this turn actually

@@ -190,6 +190,35 @@ async def mark_terminal(
     return (result.rowcount or 0) > 0
 
 
+async def abort_pending(db: AsyncSession, *, turn_id: str, error_code: str) -> bool:
+    """Atomic pending→aborted transition (confirm-round-2 fix).
+
+    Returns ``True`` iff THIS statement moved the row out of ``pending`` —
+    the caller then owns the concurrency-slot release, because no worker
+    ever claimed the turn (``claim_pending_turn`` requires
+    ``status='pending'``) and none ever will. ``False`` means the row was
+    already claimed or terminal: for a claimed turn the worker's
+    ``finally`` owns the slot, and releasing from the API as well would
+    double-decrement the Redis counter (the cap-bypass race Codex caught
+    in the prior shape, which read the ORM status before mark_terminal).
+    """
+    result = await db.execute(
+        text(
+            """
+            UPDATE tutor_turn_jobs
+            SET status = 'aborted',
+                error_code = :error_code,
+                reserved_cost_usd = 0,
+                updated_at = NOW()
+            WHERE id = :id
+              AND status = 'pending'
+            """
+        ),
+        {"id": turn_id, "error_code": error_code},
+    )
+    return (result.rowcount or 0) > 0
+
+
 async def set_reserved_cost(db: AsyncSession, *, turn_id: str, reserved_cost_usd) -> bool:
     """Record a reservation taken AFTER enqueue (confirm-round fix).
 
