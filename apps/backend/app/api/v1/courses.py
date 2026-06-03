@@ -255,7 +255,7 @@ def _require_private_publish_enabled() -> None:
 
 @router.post("/{course_id}/publish", response_model=CourseDetail)
 async def publish_course(
-    course_id: str, user: RequireInstructor, db: DBSession
+    course_id: str, user: RequireAuthor, db: DBSession
 ) -> CourseDetail:
     await courses_service.publish_course(db, course_id=course_id, owner=user)
     return await _render_detail(db, course_id, user)
@@ -263,7 +263,7 @@ async def publish_course(
 
 @router.post("/{course_id}/unpublish", response_model=CourseDetail)
 async def unpublish_course(
-    course_id: str, user: RequireInstructor, db: DBSession
+    course_id: str, user: RequireAuthor, db: DBSession
 ) -> CourseDetail:
     await courses_service.unpublish_course(db, course_id=course_id, owner=user)
     return await _render_detail(db, course_id, user)
@@ -271,7 +271,7 @@ async def unpublish_course(
 
 @router.post("/{course_id}/share", response_model=CourseDetail)
 async def share_course(
-    course_id: str, user: RequireInstructor, db: DBSession
+    course_id: str, user: RequireAuthor, db: DBSession
 ) -> CourseDetail:
     _require_private_publish_enabled()
     await courses_service.share_course(db, course_id=course_id, owner=user)
@@ -280,7 +280,7 @@ async def share_course(
 
 @router.post("/{course_id}/unshare", response_model=CourseDetail)
 async def unshare_course(
-    course_id: str, user: RequireInstructor, db: DBSession
+    course_id: str, user: RequireAuthor, db: DBSession
 ) -> CourseDetail:
     _require_private_publish_enabled()
     await courses_service.unshare_course(db, course_id=course_id, owner=user)
@@ -289,7 +289,7 @@ async def unshare_course(
 
 @router.post("/{course_id}/resubmit", response_model=CourseDetail)
 async def resubmit_course(
-    course_id: str, user: RequireInstructor, db: DBSession
+    course_id: str, user: RequireAuthor, db: DBSession
 ) -> CourseDetail:
     _require_private_publish_enabled()
     await courses_service.resubmit_course(db, course_id=course_id, owner=user)
