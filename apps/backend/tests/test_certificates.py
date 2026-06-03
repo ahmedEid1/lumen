@@ -20,7 +20,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def test_certificate_blocked_until_completion(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
@@ -44,9 +44,7 @@ async def test_certificate_blocked_until_completion(
             headers=teacher,
         )
     ).json()
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
-    )
+    await publish_and_list_course(course_id, teacher)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 
     # Not earned yet

@@ -35,8 +35,10 @@ from app.models.course import (
     Difficulty,
     Lesson,
     LessonType,
+    ModerationState,
     Module,
     Subject,
+    Visibility,
 )
 from app.models.user import Role
 from app.services import llm as llm_service
@@ -86,6 +88,12 @@ async def _seed_course(
         overview="overview",
         difficulty=Difficulty.beginner,
         status=CourseStatus.published,
+        # S2 / ADR-0029: the retriever sub-agent ANDs the retrieval ACL keyed
+        # on the requesting ``user_id`` (a random non-owner here). Only a
+        # publicly listed course — public + published + moderation-approved —
+        # surfaces its chunks to a non-owner.
+        visibility=Visibility.public,
+        moderation_state=ModerationState.approved,
     )
     db.add(course)
     await db.flush()

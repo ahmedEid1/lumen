@@ -26,11 +26,16 @@ async def test_stats_requires_admin(client: AsyncClient, auth_headers) -> None:
 
 
 async def test_platform_stats_reports_admins_and_authors(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
 ) -> None:
     # S1.8 / FR-ADMIN-05: the `instructors` stat is replaced by `admins`
     # (admin-role users) + `authors` (distinct owners of a live course).
     admin = await auth_headers(role=Role.admin)
+    # The author here is deliberately a plain `user` (not an instructor) to
+    # prove `authors` counts distinct owners of a *live* course, not a role.
     author = await auth_headers(role=Role.user)
     learner = await auth_headers(role=Role.user)
     subject = await _make_subject(db_session)
@@ -42,19 +47,27 @@ async def test_platform_stats_reports_admins_and_authors(
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, author)
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=author)
-    # S2: publishing keeps a course PRIVATE (published-private self-learn). To
-    # make it publicly listed (and so enrollable + counted in courses_listed)
-    # set the share+approval state directly (the /share + admin /approve
-    # endpoints land in S2.11 / S6).
+    # S2 / ADR-0026: the publish lifecycle (POST /publish) is gated to
+    # instructor/admin, and publishing keeps a course PRIVATE anyway
+    # (published-private self-learn). This test's author is a plain `user`,
+    # so we set the full publicly-listed state directly on the row — the
+    # `is_publicly_listed` predicate is `status==published AND
+    # visibility==public AND moderation_state==approved`. This drives both
+    # `courses_published` (lifecycle count, incl. private) and
+    # `courses_listed` (publicly-visible count, S2.8). The /share +
+    # admin /approve endpoints that would do this over HTTP land in S2.11 / S6.
     from sqlalchemy import update
 
-    from app.models.course import Course, ModerationState, Visibility
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
 
     await db_session.execute(
         update(Course)
         .where(Course.id == course_id)
-        .values(visibility=Visibility.public, moderation_state=ModerationState.approved)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
     await db_session.commit()
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=learner)

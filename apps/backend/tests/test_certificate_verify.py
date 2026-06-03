@@ -20,7 +20,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _earn_certificate(
-    client: AsyncClient, teacher: dict, student: dict, subject_id: str
+    client: AsyncClient, teacher: dict, student: dict, subject_id: str, publish_and_list_course
 ) -> tuple[str, str]:
     create = await client.post(
         "/api/v1/courses",
@@ -40,9 +40,7 @@ async def _earn_certificate(
             headers=teacher,
         )
     ).json()
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
-    )
+    await publish_and_list_course(course_id, teacher)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     progress = await client.post(
         f"/api/v1/me/progress/lessons/{lesson['id']}", json={"completed": True}, headers=student
@@ -52,12 +50,14 @@ async def _earn_certificate(
 
 
 async def test_verify_returns_public_certificate_fields(
-    client: AsyncClient, auth_headers, db_session
+    client: AsyncClient, auth_headers, db_session, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, cert_id = await _earn_certificate(client, teacher, student, subject.id)
+    course_id, cert_id = await _earn_certificate(
+        client, teacher, student, subject.id, publish_and_list_course
+    )
 
     r = await client.get(f"/api/v1/certificates/verify/{cert_id}")
     assert r.status_code == 200
@@ -77,11 +77,15 @@ async def test_verify_unknown_id_404(client: AsyncClient) -> None:
     assert r.json()["error"]["code"] == "cert.not_found"
 
 
-async def test_verify_is_anonymous_friendly(client: AsyncClient, auth_headers, db_session) -> None:
+async def test_verify_is_anonymous_friendly(
+    client: AsyncClient, auth_headers, db_session, publish_and_list_course
+) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    _, cert_id = await _earn_certificate(client, teacher, student, subject.id)
+    _, cert_id = await _earn_certificate(
+        client, teacher, student, subject.id, publish_and_list_course
+    )
 
     # No auth headers passed — must work
     r = await client.get(f"/api/v1/certificates/verify/{cert_id}")

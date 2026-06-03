@@ -19,7 +19,9 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _full_course(client: AsyncClient, headers: dict, subject_id: str) -> tuple[str, str]:
+async def _full_course(
+    client: AsyncClient, headers: dict, subject_id: str, publish_and_list_course
+) -> tuple[str, str]:
     create = await client.post(
         "/api/v1/courses",
         json={"title": "Cohort", "subject_id": subject_id, "overview": "x"},
@@ -38,19 +40,17 @@ async def _full_course(client: AsyncClient, headers: dict, subject_id: str) -> t
             headers=headers,
         )
     ).json()
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers
-    )
+    await publish_and_list_course(course_id, headers)
     return course_id, lesson["id"]
 
 
 async def test_cohort_requires_owner_or_admin(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     teacher_a = await auth_headers(role=Role.instructor)
     teacher_b = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    course_id, _ = await _full_course(client, teacher_a, subject.id)
+    course_id, _ = await _full_course(client, teacher_a, subject.id, publish_and_list_course)
 
     r = await client.get(f"/api/v1/courses/{course_id}/students", headers=teacher_b)
     assert r.status_code == 403
@@ -58,13 +58,13 @@ async def test_cohort_requires_owner_or_admin(
 
 
 async def test_cohort_lists_students_with_progress(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student_a = await auth_headers(role=Role.student)
     student_b = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, lesson_id = await _full_course(client, teacher, subject.id)
+    course_id, lesson_id = await _full_course(client, teacher, subject.id, publish_and_list_course)
 
     # student_a finishes, student_b enrols but does nothing
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student_a)

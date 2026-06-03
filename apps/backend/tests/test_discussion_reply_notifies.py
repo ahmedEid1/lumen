@@ -30,7 +30,17 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _published(client: AsyncClient, teacher: dict, subject_id: str, seed_lesson) -> str:
+async def _published(
+    client: AsyncClient, teacher: dict, subject_id: str, seed_lesson, publish_and_list_course
+) -> str:
+    """Create + seed + publish + publicly list a course.
+
+    S2 / ADR-0026 removed ``status`` from ``CourseUpdate`` (PATCH {status} 422s);
+    lifecycle is now ``POST /publish`` and publishing alone keeps the course
+    PRIVATE. Discussions need the course publicly listed so students can enroll
+    and the create gate (private-course block) is satisfied, so we use
+    ``publish_and_list_course`` (publish + visibility=public + moderation=approved).
+    """
     create = await client.post(
         "/api/v1/courses",
         json={"title": "DN", "subject_id": subject_id, "overview": "x"},
@@ -38,22 +48,22 @@ async def _published(client: AsyncClient, teacher: dict, subject_id: str, seed_l
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=teacher,
-    )
+    await publish_and_list_course(course_id, teacher)
     return course_id
 
 
 async def test_reply_notifies_thread_author(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     asker = await auth_headers(role=Role.student)
     helper = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _published(client, teacher, subject.id, seed_lesson)
+    course_id = await _published(client, teacher, subject.id, seed_lesson, publish_and_list_course)
     for h in (asker, helper):
         await client.post(f"/api/v1/me/enrollments/{course_id}", headers=h)
 
@@ -86,12 +96,16 @@ async def test_reply_notifies_thread_author(
 
 
 async def test_self_reply_does_not_notify(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _published(client, teacher, subject.id, seed_lesson)
+    course_id = await _published(client, teacher, subject.id, seed_lesson, publish_and_list_course)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 
     thread = (
@@ -113,7 +127,12 @@ async def test_self_reply_does_not_notify(
 
 
 async def test_no_notification_when_thread_author_was_deleted(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, make_user, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    make_user,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     """Thread.author_id is FK ondelete=SET NULL. After the asker
     deletes their account, the thread persists with author_id=NULL —
@@ -121,7 +140,7 @@ async def test_no_notification_when_thread_author_was_deleted(
     teacher = await auth_headers(role=Role.instructor)
     helper = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _published(client, teacher, subject.id, seed_lesson)
+    course_id = await _published(client, teacher, subject.id, seed_lesson, publish_and_list_course)
 
     # Asker creates the thread, then their account is hard-deleted
     # via the user FK SET NULL path. We simulate by directly

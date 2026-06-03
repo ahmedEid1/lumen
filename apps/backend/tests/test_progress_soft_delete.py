@@ -27,7 +27,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _publish_with_two_lessons(
-    client: AsyncClient, headers: dict, subject_id: str
+    client: AsyncClient, headers: dict, subject_id: str, publish_and_list_course
 ) -> tuple[str, str, str]:
     create = await client.post(
         "/api/v1/courses",
@@ -54,19 +54,22 @@ async def _publish_with_two_lessons(
             headers=headers,
         )
     ).json()
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers
-    )
+    # S2 / ADR-0026: PATCH {status} is gone (FR-VIS-08); publish via the
+    # lifecycle endpoint and publicly list it so the student can enroll
+    # (``can_enroll`` requires ``is_publicly_listed`` OR ownership).
+    await publish_and_list_course(course_id, headers)
     return course_id, l1["id"], l2["id"]
 
 
 async def test_progress_does_not_exceed_100_after_lesson_soft_delete(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, l1, l2 = await _publish_with_two_lessons(client, teacher, subject.id)
+    course_id, l1, l2 = await _publish_with_two_lessons(
+        client, teacher, subject.id, publish_and_list_course
+    )
 
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     # Complete both lessons
@@ -96,12 +99,14 @@ async def test_progress_does_not_exceed_100_after_lesson_soft_delete(
 
 
 async def test_cohort_progress_stays_under_100_after_lesson_soft_delete(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, l1, l2 = await _publish_with_two_lessons(client, teacher, subject.id)
+    course_id, l1, l2 = await _publish_with_two_lessons(
+        client, teacher, subject.id, publish_and_list_course
+    )
 
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     await client.post(
@@ -118,12 +123,14 @@ async def test_cohort_progress_stays_under_100_after_lesson_soft_delete(
 
 
 async def test_per_course_analytics_avg_progress_stays_under_100(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, l1, l2 = await _publish_with_two_lessons(client, teacher, subject.id)
+    course_id, l1, l2 = await _publish_with_two_lessons(
+        client, teacher, subject.id, publish_and_list_course
+    )
 
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     await client.post(

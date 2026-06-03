@@ -30,8 +30,26 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _publish(
-    client: AsyncClient, headers: dict, subject_id: str, title: str, overview: str, seed_lesson
+    client: AsyncClient,
+    headers: dict,
+    subject_id: str,
+    title: str,
+    overview: str,
+    seed_lesson,
+    db: AsyncSession,
 ) -> str:
+    """Create + seed + publish AND publicly list (S2 / ADR-0026).
+
+    ``PATCH {status: "published"}`` is now a 422 (lifecycle moved to
+    ``POST /courses/{id}/publish``), and publishing keeps a course private.
+    Search/catalog only surface ``is_publicly_listed`` courses, so drive all
+    three axes to the publicly-listed state via the DB session — mirroring
+    S2's own ``_mk_course`` helper.
+    """
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
+
     create = await client.post(
         "/api/v1/courses",
         json={"title": title, "subject_id": subject_id, "overview": overview},
@@ -39,9 +57,16 @@ async def _publish(
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, headers)
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers
+    await db.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
+    await db.commit()
     return course_id
 
 
@@ -51,9 +76,17 @@ async def test_search_finds_by_title(
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
     await _publish(
-        client, teacher, subject.id, "Async Python deep dive", "Coroutines.", seed_lesson
+        client,
+        teacher,
+        subject.id,
+        "Async Python deep dive",
+        "Coroutines.",
+        seed_lesson,
+        db_session,
     )
-    await _publish(client, teacher, subject.id, "JavaScript essentials", "Closures.", seed_lesson)
+    await _publish(
+        client, teacher, subject.id, "JavaScript essentials", "Closures.", seed_lesson, db_session
+    )
 
     r = await client.get("/api/v1/courses?q=Python")
     assert r.status_code == 200
@@ -69,7 +102,9 @@ async def test_search_filters_difficulty(
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    await _publish(client, teacher, subject.id, "Easy course", "intro stuff", seed_lesson)
+    await _publish(
+        client, teacher, subject.id, "Easy course", "intro stuff", seed_lesson, db_session
+    )
     # No way to set difficulty on create yet via patch; default is beginner.
 
     r = await client.get("/api/v1/courses?q=Easy&difficulty=beginner")

@@ -36,8 +36,10 @@ from app.models.course import (
     Difficulty,
     Lesson,
     LessonType,
+    ModerationState,
     Module,
     Subject,
+    Visibility,
 )
 from app.models.learning_path import (
     PATH_STATUS_ACTIVE,
@@ -132,6 +134,13 @@ async def _seed_published_course(
         overview=overview,
         difficulty=Difficulty.beginner,
         status=CourseStatus.published,
+        # S2 / ADR-0026: a course is only publicly listed (catalog,
+        # condense, retrieval ACL) when it is public + published +
+        # moderation-approved. ``_condense_catalog`` and the retrieval
+        # ACL now route through ``is_publicly_listed``; seed the two
+        # net-new axes so these helpers see the course.
+        visibility=Visibility.public,
+        moderation_state=ModerationState.approved,
     )
     db.add(course)
     await db.flush()
@@ -376,8 +385,11 @@ async def test_build_path_drops_unresolved_slug(
 
     original = learning_path_service._condense_catalog
 
-    async def _augmented(db, goal, *, top_k=20, embedding_provider=None):
-        real = await original(db, goal, top_k=top_k)
+    async def _augmented(db, goal, *, top_k=20, embedding_provider=None, requesting_user_id=None):
+        # S2 / ADR-0029: ``_condense_catalog`` now takes ``requesting_user_id``
+        # so the retrieval ACL can include the caller's own live courses.
+        # Mirror the real signature and forward it through.
+        real = await original(db, goal, top_k=top_k, requesting_user_id=requesting_user_id)
         return [
             *real,
             CourseDigest(

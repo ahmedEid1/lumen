@@ -9,6 +9,12 @@ author hadn't finished.
 
 The same rule applies after the fact: soft-deleting the last lesson
 and then publishing again from draft must fail.
+
+S2 / ADR-0026 (FR-VIS-08) moved the publish action off ``PATCH {status}``
+(now a 422 — ``CourseUpdate`` is ``extra=forbid``) onto the lifecycle
+endpoint ``POST /courses/{id}/publish``. The no-lessons guard lives in
+``_transition_status`` and still fires on that path; these tests pin that
+the guard survived the lifecycle move, returning ``course.no_lessons``.
 """
 
 from __future__ import annotations
@@ -42,9 +48,8 @@ async def test_publish_rejected_when_no_lessons(
     )
     course_id = create.json()["id"]
 
-    r = await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
+    r = await client.post(
+        f"/api/v1/courses/{course_id}/publish",
         headers=teacher,
     )
     assert r.status_code == 422, r.text
@@ -76,9 +81,8 @@ async def test_publish_rejected_with_modules_but_no_lessons(
     )
     assert m.status_code == 201
 
-    r = await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
+    r = await client.post(
+        f"/api/v1/courses/{course_id}/publish",
         headers=teacher,
     )
     assert r.status_code == 422
@@ -98,9 +102,8 @@ async def test_publish_succeeds_with_a_lesson(
     course_id = create.json()["id"]
     await seed_lesson(course_id, teacher)
 
-    r = await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
+    r = await client.post(
+        f"/api/v1/courses/{course_id}/publish",
         headers=teacher,
     )
     assert r.status_code == 200, r.text
@@ -119,19 +122,16 @@ async def test_republish_blocked_if_all_lessons_soft_deleted(
     )
     course_id = create.json()["id"]
     lesson_id = await seed_lesson(course_id, teacher)
-    pub = await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
-    )
+    pub = await client.post(f"/api/v1/courses/{course_id}/publish", headers=teacher)
     assert pub.status_code == 200
 
-    # Move back to draft, then soft-delete the only lesson.
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "draft"}, headers=teacher)
+    # Move back to draft (lifecycle /unpublish), then soft-delete the only lesson.
+    unpub = await client.post(f"/api/v1/courses/{course_id}/unpublish", headers=teacher)
+    assert unpub.status_code == 200
     drop = await client.delete(f"/api/v1/courses/lessons/{lesson_id}", headers=teacher)
     assert drop.status_code == 200
 
     # Now publishing again must be rejected.
-    r = await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
-    )
+    r = await client.post(f"/api/v1/courses/{course_id}/publish", headers=teacher)
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "course.no_lessons"

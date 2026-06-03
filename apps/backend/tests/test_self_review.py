@@ -31,8 +31,16 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _publish_owned_course(
-    client: AsyncClient, headers: dict, subject_id: str, seed_lesson
+    client: AsyncClient, headers: dict, subject_id: str, seed_lesson, publish_and_list_course
 ) -> str:
+    """Create + seed + publish + publicly list a course.
+
+    S2 / ADR-0026 removed ``status`` from ``CourseUpdate`` (PATCH {status} 422s);
+    lifecycle is now ``POST /publish`` and publishing alone keeps the course
+    PRIVATE. Reviews require enrollment, and enrollment requires the course to be
+    publicly listed, so we use ``publish_and_list_course`` (publish +
+    visibility=public + moderation=approved).
+    """
     create = await client.post(
         "/api/v1/courses",
         json={"title": "Owned", "subject_id": subject_id, "overview": "x"},
@@ -40,20 +48,22 @@ async def _publish_owned_course(
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, headers)
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=headers,
-    )
+    await publish_and_list_course(course_id, headers)
     return course_id
 
 
 async def test_owner_cannot_review_own_course_even_after_enrolling(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    course_id = await _publish_owned_course(client, teacher, subject.id, seed_lesson)
+    course_id = await _publish_owned_course(
+        client, teacher, subject.id, seed_lesson, publish_and_list_course
+    )
 
     # The instructor can still enroll in their own course (allowed so they
     # can experience it as a learner does).
@@ -71,12 +81,18 @@ async def test_owner_cannot_review_own_course_even_after_enrolling(
 
 
 async def test_avg_rating_not_inflated_by_owner_attempts(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _publish_owned_course(client, teacher, subject.id, seed_lesson)
+    course_id = await _publish_owned_course(
+        client, teacher, subject.id, seed_lesson, publish_and_list_course
+    )
 
     # Student leaves a 3-star review (the only legitimate one).
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
@@ -102,13 +118,19 @@ async def test_avg_rating_not_inflated_by_owner_attempts(
 
 
 async def test_other_instructor_can_still_review_when_enrolled(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     # Sanity: the guard targets *self*-ownership only, not the role itself.
     owner = await auth_headers(role=Role.instructor)
     other_teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    course_id = await _publish_owned_course(client, owner, subject.id, seed_lesson)
+    course_id = await _publish_owned_course(
+        client, owner, subject.id, seed_lesson, publish_and_list_course
+    )
 
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=other_teacher)
     r = await client.put(

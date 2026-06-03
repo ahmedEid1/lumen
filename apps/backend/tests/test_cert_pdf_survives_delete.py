@@ -35,7 +35,11 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def test_pdf_still_downloads_after_course_soft_delete(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
@@ -48,9 +52,7 @@ async def test_pdf_still_downloads_after_course_soft_delete(
     )
     course_id = create.json()["id"]
     lesson_id = await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
-    )
+    await publish_and_list_course(course_id, teacher)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     mark = await client.post(
         f"/api/v1/me/progress/lessons/{lesson_id}",

@@ -33,8 +33,10 @@ from app.models.course import (
     Enrollment,
     Lesson,
     LessonType,
+    ModerationState,
     Module,
     Subject,
+    Visibility,
 )
 from app.models.review_card import ReviewCard, ReviewCardState
 from app.models.user import Role, User
@@ -82,11 +84,20 @@ async def _seed_published_course(
     lessons: list[tuple[str, str]] | None = None,
     title_suffix: str | None = None,
 ) -> Course:
-    """Persist a Subject + Course + Module + N text lessons, all published.
+    """Persist a Subject + Course + Module + N text lessons, publicly listed.
 
     ``lessons`` is a list of ``(title, body)`` tuples; defaults to one
     placeholder lesson so the publish-time minimum-content guard
     passes without callers needing to know about it.
+
+    S2 / ADR-0026: ``status==published`` alone keeps a course PRIVATE
+    (published-private self-learn). For the course to appear in
+    ``list_courses`` / the public catalog it must satisfy the
+    ``is_publicly_listed`` predicate — ``visibility==public`` AND
+    ``status==published`` AND ``moderation_state==approved``. We seed
+    those directly here (the /share + admin /approve endpoints live on
+    the HTTP path) so the MCP catalog tools see the course, mirroring
+    how S2's own service-level tests seed visibility.
     """
     suffix = title_suffix or uuid.uuid4().hex[:6]
     subject = Subject(title=f"Subj {suffix}", slug=f"subj-{suffix}")
@@ -101,6 +112,8 @@ async def _seed_published_course(
         overview="MCP test course overview",
         difficulty=Difficulty.beginner,
         status=CourseStatus.published,
+        visibility=Visibility.public,
+        moderation_state=ModerationState.approved,
         published_at=datetime.now(UTC),
     )
     db.add(course)

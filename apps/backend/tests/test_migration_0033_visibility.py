@@ -14,10 +14,12 @@ Two layers:
   defaults so a bare INSERT omitting them succeeds (old-fleet tolerance).
 
 The conftest builds the test DB from ``Base.metadata.create_all`` (columns
-already NOT NULL with defaults), so the DB-backed layer drives the *backfill
-SQL* directly against rows seeded with explicit ``visibility=NULL`` (the
-pre-backfill state) and asserts the end state — exercising the exact UPDATE +
-synthetic-event statements the migration runs.
+already NOT NULL with defaults), so to reproduce the *pre-backfill* state the
+DB-backed layer first relaxes the NOT NULL on the two columns (mirroring the
+migration's own ``add_column(..., nullable=True)`` phase), seeds rows with
+explicit ``visibility=NULL``, drives the *backfill SQL* directly, asserts the
+end state, then re-tightens the constraint — exercising the exact ``WHERE
+visibility IS NULL`` UPDATE + synthetic-event statements the migration runs.
 """
 
 from __future__ import annotations
@@ -59,9 +61,12 @@ def src0033() -> str:
 
 def test_revision_identity_and_chain(mig0033):
     assert mig0033.revision == "0033"
-    # Temporarily chained off 0030 in this worktree; re-pointed at 0032 at
-    # integration (the loud INTEGRATION comment marks the spot).
-    assert mig0033.down_revision in {"0030", "0032"}
+    # The worktree temporarily chained this off 0030/0032; at the S2 merge it
+    # was re-pointed at 0040 (the loud INTEGRATION comment marks the spot) so
+    # the consolidated linear chain stays single-headed after S1 (0031/0032) and
+    # S5 (0038-0040) landed first. Accept any of the worktree-or-integrated
+    # down_revisions so the structural check survives the integration re-point.
+    assert mig0033.down_revision in {"0030", "0032", "0040"}
 
 
 def test_has_upgrade_and_downgrade(mig0033):
@@ -191,10 +196,47 @@ async def _seed_subject_and_owner(db: AsyncSession) -> tuple[str, str]:
     return owner.id, subject.id
 
 
+async def _allow_null_visibility(db: AsyncSession) -> None:
+    """Drop the NOT NULL on visibility/moderation_state for the transient schema.
+
+    The DB-backed layer wants to reproduce the *pre-backfill* state where these
+    columns are NULL — exactly what the migration's additive ``add_column(...,
+    nullable=True)`` phase leaves before ``_backfill_visibility`` runs. The
+    conftest builds the test schema from ``Base.metadata.create_all``, where the
+    columns are born NOT NULL with server defaults, so a bare ``NULL`` insert
+    would 23502 before the backfill SQL even gets a chance to run. Relaxing the
+    constraint here mirrors the migration's own ordering (add nullable ->
+    backfill -> SET NOT NULL) so the test can drive the real ``WHERE visibility
+    IS NULL`` UPDATE statements faithfully.
+    """
+    await db.execute(text("ALTER TABLE courses ALTER COLUMN visibility DROP NOT NULL"))
+    await db.execute(text("ALTER TABLE courses ALTER COLUMN moderation_state DROP NOT NULL"))
+    await db.commit()
+
+
+async def _restore_not_null_visibility(db: AsyncSession) -> None:
+    """Re-tighten the columns to NOT NULL after a backfill test.
+
+    The conftest engine is session-scoped and only TRUNCATEs rows between tests
+    (the schema is built once via ``create_all``), so a bare DROP NOT NULL would
+    leak to later tests in the same session that rely on the column being NOT
+    NULL. Pair every ``_allow_null_visibility`` with this restore (in a
+    ``finally``) so the schema change is local to the test that needs it.
+    """
+    await db.execute(text("ALTER TABLE courses ALTER COLUMN visibility SET NOT NULL"))
+    await db.execute(text("ALTER TABLE courses ALTER COLUMN moderation_state SET NOT NULL"))
+    await db.commit()
+
+
 async def _insert_course_with_null_visibility(
     db: AsyncSession, *, owner_id: str, subject_id: str, status: str, deleted: bool
 ) -> str:
-    """Insert a course in the *pre-backfill* state: visibility/moderation NULL."""
+    """Insert a course in the *pre-backfill* state: visibility/moderation NULL.
+
+    Call ``_allow_null_visibility`` first — the conftest schema is NOT NULL, so
+    the explicit-NULL insert below needs the relaxed constraint (see that
+    helper's docstring).
+    """
     from app.core.ids import new_id
 
     cid = new_id()
@@ -207,7 +249,7 @@ async def _insert_course_with_null_visibility(
                  deleted_at, created_at, updated_at)
             VALUES
                 (:id, :owner, :subject, :title, :slug, '', '[]'::jsonb, 'beginner',
-                 :status, NULL, NULL, false, :deleted_at, now(), now())
+                 :status, NULL, NULL, false, NULL, now(), now())
             """
         ),
         {
@@ -217,10 +259,13 @@ async def _insert_course_with_null_visibility(
             "title": f"Course {cid[:6]}",
             "slug": f"c-{cid[:8]}",
             "status": status,
-            "deleted_at": "now()" if deleted else None,
         },
     )
     if deleted:
+        # Soft-delete in a follow-up UPDATE: ``now()`` is SQL, not a value we can
+        # bind into the INSERT (a string bind param can't carry a timestamp
+        # expression — that was a latent helper bug the NOT NULL violation
+        # previously masked).
         await db.execute(text("UPDATE courses SET deleted_at = now() WHERE id = :id"), {"id": cid})
     await db.commit()
     return cid
@@ -229,110 +274,123 @@ async def _insert_course_with_null_visibility(
 @pytest.mark.asyncio
 async def test_backfill_published_to_public_approved(db_session: AsyncSession):
     """Live-published -> (public, approved) + exactly one synthetic event."""
-    owner_id, subject_id = await _seed_subject_and_owner(db_session)
-    cid = await _insert_course_with_null_visibility(
-        db_session, owner_id=owner_id, subject_id=subject_id, status="published", deleted=False
-    )
-
-    # Drive the migration's backfill SQL directly (same statements as
-    # _backfill_visibility, run inside the test session).
-    await db_session.execute(
-        text(
-            "UPDATE courses SET visibility='public', moderation_state='approved' "
-            "WHERE visibility IS NULL AND status='published' AND deleted_at IS NULL"
+    await _allow_null_visibility(db_session)
+    try:
+        owner_id, subject_id = await _seed_subject_and_owner(db_session)
+        cid = await _insert_course_with_null_visibility(
+            db_session, owner_id=owner_id, subject_id=subject_id, status="published", deleted=False
         )
-    )
-    await db_session.execute(
-        text(
-            """
-            INSERT INTO moderation_events
-                (id, course_id, actor_id, from_state, to_state, created_at, updated_at)
-            SELECT substr(md5(random()::text || clock_timestamp()::text), 1, 21),
-                   c.id, NULL, 'none', 'approved', now(), now()
-            FROM courses c WHERE c.id = :id
-            """
-        ),
-        {"id": cid},
-    )
-    await db_session.commit()
 
-    row = (
-        await db_session.execute(
-            text("SELECT visibility, moderation_state FROM courses WHERE id=:id"), {"id": cid}
-        )
-    ).one()
-    assert row[0] == "public"
-    assert row[1] == "approved"
-    n = (
+        # Drive the migration's backfill SQL directly (same statements as
+        # _backfill_visibility, run inside the test session).
         await db_session.execute(
             text(
-                "SELECT count(*) FROM moderation_events WHERE course_id=:id AND to_state='approved'"
+                "UPDATE courses SET visibility='public', moderation_state='approved' "
+                "WHERE visibility IS NULL AND status='published' AND deleted_at IS NULL"
+            )
+        )
+        await db_session.execute(
+            text(
+                """
+                INSERT INTO moderation_events
+                    (id, course_id, actor_id, from_state, to_state, created_at, updated_at)
+                SELECT substr(md5(random()::text || clock_timestamp()::text), 1, 21),
+                       c.id, NULL, 'none', 'approved', now(), now()
+                FROM courses c WHERE c.id = :id
+                """
             ),
             {"id": cid},
         )
-    ).scalar_one()
-    assert n == 1
+        await db_session.commit()
+
+        row = (
+            await db_session.execute(
+                text("SELECT visibility, moderation_state FROM courses WHERE id=:id"), {"id": cid}
+            )
+        ).one()
+        assert row[0] == "public"
+        assert row[1] == "approved"
+        n = (
+            await db_session.execute(
+                text(
+                    "SELECT count(*) FROM moderation_events "
+                    "WHERE course_id=:id AND to_state='approved'"
+                ),
+                {"id": cid},
+            )
+        ).scalar_one()
+        assert n == 1
+    finally:
+        await _restore_not_null_visibility(db_session)
 
 
 @pytest.mark.asyncio
 async def test_backfill_draft_to_private_none_no_event(db_session: AsyncSession):
-    owner_id, subject_id = await _seed_subject_and_owner(db_session)
-    cid = await _insert_course_with_null_visibility(
-        db_session, owner_id=owner_id, subject_id=subject_id, status="draft", deleted=False
-    )
-    await db_session.execute(
-        text(
-            "UPDATE courses SET visibility='private', moderation_state='none' "
-            "WHERE visibility IS NULL"
+    await _allow_null_visibility(db_session)
+    try:
+        owner_id, subject_id = await _seed_subject_and_owner(db_session)
+        cid = await _insert_course_with_null_visibility(
+            db_session, owner_id=owner_id, subject_id=subject_id, status="draft", deleted=False
         )
-    )
-    await db_session.commit()
+        await db_session.execute(
+            text(
+                "UPDATE courses SET visibility='private', moderation_state='none' "
+                "WHERE visibility IS NULL"
+            )
+        )
+        await db_session.commit()
 
-    row = (
-        await db_session.execute(
-            text("SELECT visibility, moderation_state FROM courses WHERE id=:id"), {"id": cid}
-        )
-    ).one()
-    assert row[0] == "private"
-    assert row[1] == "none"
-    n = (
-        await db_session.execute(
-            text("SELECT count(*) FROM moderation_events WHERE course_id=:id"), {"id": cid}
-        )
-    ).scalar_one()
-    assert n == 0
+        row = (
+            await db_session.execute(
+                text("SELECT visibility, moderation_state FROM courses WHERE id=:id"), {"id": cid}
+            )
+        ).one()
+        assert row[0] == "private"
+        assert row[1] == "none"
+        n = (
+            await db_session.execute(
+                text("SELECT count(*) FROM moderation_events WHERE course_id=:id"), {"id": cid}
+            )
+        ).scalar_one()
+        assert n == 0
+    finally:
+        await _restore_not_null_visibility(db_session)
 
 
 @pytest.mark.asyncio
 async def test_backfill_softdeleted_published_to_private(db_session: AsyncSession):
     """A soft-deleted published course is NOT live-published -> private/none."""
-    owner_id, subject_id = await _seed_subject_and_owner(db_session)
-    cid = await _insert_course_with_null_visibility(
-        db_session, owner_id=owner_id, subject_id=subject_id, status="published", deleted=True
-    )
-    # Approved branch only touches deleted_at IS NULL rows; the else-branch
-    # picks this up.
-    await db_session.execute(
-        text(
-            "UPDATE courses SET visibility='public', moderation_state='approved' "
-            "WHERE visibility IS NULL AND status='published' AND deleted_at IS NULL"
+    await _allow_null_visibility(db_session)
+    try:
+        owner_id, subject_id = await _seed_subject_and_owner(db_session)
+        cid = await _insert_course_with_null_visibility(
+            db_session, owner_id=owner_id, subject_id=subject_id, status="published", deleted=True
         )
-    )
-    await db_session.execute(
-        text(
-            "UPDATE courses SET visibility='private', moderation_state='none' "
-            "WHERE visibility IS NULL"
-        )
-    )
-    await db_session.commit()
-
-    row = (
+        # Approved branch only touches deleted_at IS NULL rows; the else-branch
+        # picks this up.
         await db_session.execute(
-            text("SELECT visibility, moderation_state FROM courses WHERE id=:id"), {"id": cid}
+            text(
+                "UPDATE courses SET visibility='public', moderation_state='approved' "
+                "WHERE visibility IS NULL AND status='published' AND deleted_at IS NULL"
+            )
         )
-    ).one()
-    assert row[0] == "private"
-    assert row[1] == "none"
+        await db_session.execute(
+            text(
+                "UPDATE courses SET visibility='private', moderation_state='none' "
+                "WHERE visibility IS NULL"
+            )
+        )
+        await db_session.commit()
+
+        row = (
+            await db_session.execute(
+                text("SELECT visibility, moderation_state FROM courses WHERE id=:id"), {"id": cid}
+            )
+        ).one()
+        assert row[0] == "private"
+        assert row[1] == "none"
+    finally:
+        await _restore_not_null_visibility(db_session)
 
 
 @pytest.mark.asyncio

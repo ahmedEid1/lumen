@@ -58,9 +58,25 @@ async def test_preview_lesson_accessible_anonymously(
             headers=teacher,
         )
     ).json()
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    # S2.4: a free-preview lesson is only anonymously readable when its course
+    # is PUBLICLY LISTED (public + published + approved), not merely published.
+    # ``PATCH {status}`` is now a 422 and publishing alone keeps a course
+    # private, so drive all three axes via the DB session — mirroring S2's
+    # ``_mk_course`` helper.
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
+
+    await db_session.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
+    await db_session.commit()
 
     # clear the httpx cookie jar so "anonymous" requests
     # below aren't auto-authed by the teacher login cookie sticky

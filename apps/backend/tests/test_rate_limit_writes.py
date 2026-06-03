@@ -39,7 +39,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _published_course_with_lesson(
-    client: AsyncClient, teacher: dict, subject_id: str
+    client: AsyncClient, teacher: dict, subject_id: str, publish_and_list_course
 ) -> tuple[str, str]:
     create = await client.post(
         "/api/v1/courses",
@@ -80,21 +80,19 @@ async def _published_course_with_lesson(
             headers=teacher,
         )
     ).json()
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=teacher,
-    )
+    await publish_and_list_course(course_id, teacher)
     return course_id, lesson["id"]
 
 
 async def test_quiz_submit_rate_limited(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, lesson_id = await _published_course_with_lesson(client, teacher, subject.id)
+    course_id, lesson_id = await _published_course_with_lesson(
+        client, teacher, subject.id, publish_and_list_course
+    )
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 
     # 20/minute — burst 22 to drain the bucket.
@@ -111,7 +109,11 @@ async def test_quiz_submit_rate_limited(
 
 
 async def test_discussion_reply_rate_limited(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     """Discussion-reply spam is the post-A8 stand-in for the old
     per-course chat flood: cheap DB write + notification fanout,
@@ -127,11 +129,7 @@ async def test_discussion_reply_rate_limited(
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=teacher,
-    )
+    await publish_and_list_course(course_id, teacher)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     # Open the thread under the teacher so the student's per-user
     # reply bucket is the only one we're draining. The discussion-
@@ -159,14 +157,16 @@ async def test_discussion_reply_rate_limited(
 
 
 async def test_quiz_limit_isolated_per_test(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     """The autouse limiter-reset fixture must clear the bucket between
     tests; otherwise rate-limit regressions become flaky."""
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, lesson_id = await _published_course_with_lesson(client, teacher, subject.id)
+    course_id, lesson_id = await _published_course_with_lesson(
+        client, teacher, subject.id, publish_and_list_course
+    )
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     r = await client.post(
         f"/api/v1/me/progress/lessons/{lesson_id}/quiz",

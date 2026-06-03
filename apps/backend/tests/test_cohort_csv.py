@@ -27,7 +27,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _published_with_lesson(
-    client: AsyncClient, teacher: dict, subject_id: str, seed_lesson
+    client: AsyncClient, teacher: dict, subject_id: str, seed_lesson, publish_and_list_course
 ) -> tuple[str, str]:
     create = await client.post(
         "/api/v1/courses",
@@ -36,22 +36,24 @@ async def _published_with_lesson(
     )
     course_id = create.json()["id"]
     lesson_id = await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=teacher,
-    )
+    await publish_and_list_course(course_id, teacher)
     return course_id, lesson_id
 
 
 async def test_csv_emits_header_row_and_one_row_per_student(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student_a = await auth_headers(role=Role.student)
     student_b = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, lesson_id = await _published_with_lesson(client, teacher, subject.id, seed_lesson)
+    course_id, lesson_id = await _published_with_lesson(
+        client, teacher, subject.id, seed_lesson, publish_and_list_course
+    )
 
     # student_a completes; student_b enrols only
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student_a)
@@ -93,12 +95,18 @@ async def test_csv_emits_header_row_and_one_row_per_student(
 
 
 async def test_csv_requires_owner_or_admin(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     other_teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    course_id, _ = await _published_with_lesson(client, teacher, subject.id, seed_lesson)
+    course_id, _ = await _published_with_lesson(
+        client, teacher, subject.id, seed_lesson, publish_and_list_course
+    )
 
     r = await client.get(f"/api/v1/courses/{course_id}/students.csv", headers=other_teacher)
     assert r.status_code == 403
@@ -106,12 +114,19 @@ async def test_csv_requires_owner_or_admin(
 
 
 async def test_csv_handles_special_chars_in_names(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, make_user, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    make_user,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     """Names with commas / quotes / newlines must be CSV-quoted properly."""
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    course_id, _ = await _published_with_lesson(client, teacher, subject.id, seed_lesson)
+    course_id, _ = await _published_with_lesson(
+        client, teacher, subject.id, seed_lesson, publish_and_list_course
+    )
 
     weird = await make_user(
         email=f"weird-{uuid.uuid4().hex[:6]}@lumen.test",

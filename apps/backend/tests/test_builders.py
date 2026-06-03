@@ -9,7 +9,16 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.api.v1 import _builders
-from app.models.course import Course, CourseStatus, Difficulty, Module, Subject, Tag
+from app.models.course import (
+    Course,
+    CourseStatus,
+    Difficulty,
+    ModerationState,
+    Module,
+    Subject,
+    Tag,
+    Visibility,
+)
 from app.models.user import Role, User
 
 
@@ -40,7 +49,19 @@ def _subject() -> Subject:
     )
 
 
-def _course(*, with_tags: bool = True, status: CourseStatus = CourseStatus.published) -> Course:
+def _course(
+    *,
+    with_tags: bool = True,
+    status: CourseStatus = CourseStatus.published,
+    visibility: Visibility = Visibility.public,
+    moderation_state: ModerationState = ModerationState.approved,
+) -> Course:
+    # S2 / ADR-0026: ``CourseListItem`` / ``CourseDetail`` now serialize the
+    # ``visibility`` + ``moderation_state`` axes, and the builder's
+    # ``is_publicly_listed`` hint reads them off the row. This factory builds an
+    # in-memory (uncommitted) ORM object, so the model's server defaults never
+    # fire — we must set the axes explicitly. The default is the publicly-listed
+    # shape (public + approved + published) these builder tests assume.
     owner = _user()
     subject = _subject()
     course = Course(
@@ -53,6 +74,8 @@ def _course(*, with_tags: bool = True, status: CourseStatus = CourseStatus.publi
         cover_url=None,
         difficulty=Difficulty.beginner,
         status=status,
+        visibility=visibility,
+        moderation_state=moderation_state,
         is_featured=True,
         published_at=datetime(2026, 5, 1, tzinfo=UTC),
         created_at=datetime(2026, 5, 1, tzinfo=UTC),

@@ -29,8 +29,20 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _publish(
-    client: AsyncClient, headers: dict, subject_id: str, title: str, seed_lesson
+    client: AsyncClient, headers: dict, subject_id: str, title: str, seed_lesson, db: AsyncSession
 ) -> None:
+    """Create + seed + publish AND publicly list (S2 / ADR-0026).
+
+    ``PATCH {status: "published"}`` is now a 422 (lifecycle moved to
+    ``POST /courses/{id}/publish``), and publishing keeps a course private.
+    Catalog reads only surface ``is_publicly_listed`` courses, so drive all
+    three axes to the publicly-listed state via the DB session — mirroring
+    S2's own ``_mk_course`` helper.
+    """
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
+
     create = await client.post(
         "/api/v1/courses",
         json={"title": title, "subject_id": subject_id, "overview": "x"},
@@ -38,16 +50,23 @@ async def _publish(
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, headers)
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers
+    await db.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
+    await db.commit()
 
 
 async def _seed(client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    await _publish(client, teacher, subject.id, "Alpha", seed_lesson)
-    await _publish(client, teacher, subject.id, "Bravo", seed_lesson)
+    await _publish(client, teacher, subject.id, "Alpha", seed_lesson, db_session)
+    await _publish(client, teacher, subject.id, "Bravo", seed_lesson, db_session)
 
 
 async def test_unknown_sort_does_not_crash(

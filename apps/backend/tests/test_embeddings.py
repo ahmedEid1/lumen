@@ -16,7 +16,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.models.course import Course, CourseStatus, Difficulty, Lesson, LessonType, Module, Subject
+from app.models.course import (
+    Course,
+    CourseStatus,
+    Difficulty,
+    Lesson,
+    LessonType,
+    ModerationState,
+    Module,
+    Subject,
+    Visibility,
+)
 from app.models.lesson_chunk import EMBEDDING_DIM, LessonChunk
 from app.models.user import Role, User
 from app.services.embeddings import (
@@ -213,7 +223,14 @@ async def _seed_course_with_lessons(
         slug=f"test-course-{id(bodies)}",
         overview="overview",
         difficulty=Difficulty.beginner,
-        status=CourseStatus.draft,
+        # S2 / ADR-0029: ``find_relevant_chunks`` (exercised by the retrieval
+        # tests below) now ANDs the retrieval ACL. With no ``viewer`` passed
+        # (→ None → publicly listed only) the course must be public +
+        # published + moderation-approved for its chunks to be returned. The
+        # ingest tests sharing this helper don't go through the ACL.
+        status=CourseStatus.published,
+        visibility=Visibility.public,
+        moderation_state=ModerationState.approved,
     )
     module = Module(id="mod_x", course_id=course.id, title="Module 1", order=0)
     db.add_all([owner, subject, course, module])

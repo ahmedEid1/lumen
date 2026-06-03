@@ -26,8 +26,10 @@ from app.models.course import (
     Difficulty,
     Lesson,
     LessonType,
+    ModerationState,
     Module,
     Subject,
+    Visibility,
 )
 from app.models.learning_path import (
     PATH_STATUS_ACTIVE,
@@ -92,6 +94,10 @@ async def _seed_catalog(db: AsyncSession, *, owner_id: str, n: int = 3) -> list[
             overview=f"o {i}",
             difficulty=Difficulty.beginner,
             status=CourseStatus.published,
+            # S2 / ADR-0026: the catalog/condense + retrieval ACL only see
+            # courses that are public + published + moderation-approved.
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
         )
         db.add(course)
         await db.flush()

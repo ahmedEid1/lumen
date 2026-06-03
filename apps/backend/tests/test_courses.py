@@ -122,7 +122,11 @@ async def test_instructor_creates_course_with_unique_slug(
 
 
 async def test_publish_and_list_in_catalog(
-    client: AsyncClient, auth_headers, seed_lesson, db_session: AsyncSession
+    client: AsyncClient,
+    auth_headers,
+    seed_lesson,
+    db_session: AsyncSession,
+    publish_and_list_course,
 ) -> None:
     subject = await _make_subject(db_session)
     headers = await _instructor_login(client, auth_headers)
@@ -139,11 +143,11 @@ async def test_publish_and_list_in_catalog(
     # instead of the no-lessons rejection.
     await seed_lesson(course_id, headers)
 
-    pub = await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=headers,
-    )
+    # S2 / ADR-0026: publish (POST /publish) keeps the course PRIVATE. A course
+    # only appears in the public catalog once it is publicly LISTED — public +
+    # approved + published. ``publish_and_list_course`` does the lifecycle
+    # publish then sets visibility/moderation so the catalog assertion holds.
+    pub = await publish_and_list_course(course_id, headers)
     assert pub.status_code == 200, pub.text
     assert pub.json()["status"] == "published"
     assert pub.json()["published_at"] is not None
@@ -201,7 +205,7 @@ async def test_modules_lessons_and_reorder(
 
 
 async def test_enrollment_and_progress(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     subject = await _make_subject(db_session)
     teacher = await auth_headers(role=Role.instructor)
@@ -228,9 +232,9 @@ async def test_enrollment_and_progress(
         )
     ).json()
 
-    pub = await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
-    )
+    # S2 / ADR-0026: a student can only enroll in a publicly-listed course
+    # (``can_enroll`` -> ``is_publicly_listed`` OR owner). Publish + list it.
+    pub = await publish_and_list_course(course_id, teacher)
     assert pub.status_code == 200
 
     # Enroll
@@ -251,7 +255,11 @@ async def test_enrollment_and_progress(
 
 
 async def test_review_requires_enrollment(
-    client: AsyncClient, auth_headers, seed_lesson, db_session: AsyncSession
+    client: AsyncClient,
+    auth_headers,
+    seed_lesson,
+    db_session: AsyncSession,
+    publish_and_list_course,
 ) -> None:
     subject = await _make_subject(db_session)
     teacher = await auth_headers(role=Role.instructor)
@@ -263,11 +271,10 @@ async def test_review_requires_enrollment(
         headers=teacher,
     )
     course_id = create.json()["id"]
-    # The publish-guard requires at least one lesson.
+    # The publish-guard requires at least one lesson; publish + list so the
+    # student can reach the (enrollment-gated) review endpoint at all.
     await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
-    )
+    await publish_and_list_course(course_id, teacher)
 
     r_fail = await client.put(
         f"/api/v1/courses/{course_id}/reviews",

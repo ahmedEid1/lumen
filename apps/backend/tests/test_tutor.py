@@ -21,7 +21,7 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -31,8 +31,10 @@ from app.models.course import (
     Difficulty,
     Lesson,
     LessonType,
+    ModerationState,
     Module,
     Subject,
+    Visibility,
 )
 from app.models.tutor_conversation import (
     TutorMessage,
@@ -89,6 +91,13 @@ async def _seed_course(
         overview="overview",
         difficulty=Difficulty.beginner,
         status=CourseStatus.published,
+        # S2 / ADR-0029: tutor RAG retrieval now ANDs the retrieval ACL.
+        # With ``user_id=None`` (the default ``ask`` caller in these tests)
+        # the ACL collapses to ``is_publicly_listed`` — so the course must
+        # be public + published + moderation-approved for retrieval to see
+        # its chunks.
+        visibility=Visibility.public,
+        moderation_state=ModerationState.approved,
     )
     db.add(course)
     await db.flush()
@@ -371,11 +380,24 @@ async def _course_via_api(
         )
         assert r.status_code == 201, r.text
 
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=teacher_headers,
+    # S2 / ADR-0026: lifecycle moved off ``PATCH {status}`` (now a 422) to
+    # ``POST /publish``. Publishing alone keeps a course PRIVATE, and the
+    # tutor retrieval ACL (ADR-0029) only surfaces a course to a *learner*
+    # (a non-owner) once it is publicly listed:
+    # ``visibility==public AND status==published AND moderation_state==approved``.
+    # We flip all three directly via the DB session (the same pattern the
+    # service-level seeds use) so this helper doesn't depend on the lifecycle
+    # endpoint, and so a learner's tutor retrieval finds the course's chunks.
+    await db.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
+    await db.commit()
     # Ingest chunks so the tutor has retrieval material.
     await ingest_course(db, course_id)
     return course_id

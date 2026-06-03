@@ -20,8 +20,15 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _two_lesson_course(
-    client: AsyncClient, teacher: dict, subject_id: str
+    client: AsyncClient, teacher: dict, subject_id: str, db: AsyncSession
 ) -> tuple[str, str, str]:
+    """Create a publicly-listed two-lesson course; return (course_id, a, b).
+
+    S2 / ADR-0026: ``PATCH {status: "published"}`` is now a 422; enrollment and
+    anonymous course-detail both require ``is_publicly_listed`` (public +
+    published + approved). Drive all three axes via the DB session — mirroring
+    S2's ``_mk_course`` helper.
+    """
     create = await client.post(
         "/api/v1/courses",
         json={"title": "Two", "subject_id": subject_id, "overview": "x"},
@@ -47,9 +54,20 @@ async def _two_lesson_course(
             headers=teacher,
         )
     ).json()
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
+
+    await db.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
+    await db.commit()
     return course_id, a["id"], b["id"]
 
 
@@ -67,7 +85,7 @@ async def test_completed_flag_reflects_per_viewer_progress(
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, a, b = await _two_lesson_course(client, teacher, subject.id)
+    course_id, a, b = await _two_lesson_course(client, teacher, subject.id, db_session)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 
     before = await client.get(f"/api/v1/courses/{course_id}", headers=student)
@@ -89,7 +107,7 @@ async def test_completed_flag_is_per_viewer(
     student_a = await auth_headers(role=Role.student)
     student_b = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, a, _b = await _two_lesson_course(client, teacher, subject.id)
+    course_id, a, _b = await _two_lesson_course(client, teacher, subject.id, db_session)
 
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student_a)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student_b)
@@ -109,7 +127,7 @@ async def test_completed_flag_false_for_anon_and_non_enrolled(
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, a, _ = await _two_lesson_course(client, teacher, subject.id)
+    course_id, a, _ = await _two_lesson_course(client, teacher, subject.id, db_session)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     await client.post(f"/api/v1/me/progress/lessons/{a}", json={"completed": True}, headers=student)
 

@@ -190,6 +190,51 @@ def _reset_rate_limiter():
     yield
 
 
+@pytest.fixture(autouse=True, scope="module")
+def _reset_redis_cost_buckets():
+    """Clear the Lua-managed Redis cost/concurrency accumulators per module.
+
+    The in-memory limiter reset above never touched the
+    ``cost:ip:*``/``cost:user:*``/``concurrent:*`` keys (24h TTL), so
+    serial multi-file runs (``-n 0``) accumulated per-IP tutor spend until
+    POST /tutor/turns started 429ing on ``tutor.ip_cap`` (S2 merge-gate
+    finding; ``--dist=loadfile`` masked it through per-worker isolation).
+    Module-scoped: a single file's own budget arithmetic is unchanged.
+
+    Skipped under xdist: workers share the dev Redis, so one worker's
+    module-setup deleting ``cost:*`` raced another worker's in-flight
+    TTL assertions (test_cost_scripts) — and loadfile worker isolation
+    already bounds the accumulation this fixture exists to clear.
+    """
+    import os
+
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        yield
+        return
+
+    import contextlib
+
+    import redis as redis_sync
+
+    from app.core.config import get_settings
+
+    # Redis-down: suppressed — the tests that need it will fail loudly on
+    # their own; this fixture is best-effort hygiene.
+    with contextlib.suppress(Exception):
+        r = redis_sync.Redis.from_url(get_settings().redis_url)
+        for pattern in (
+            "cost:ip:*",
+            "cost:user:*",
+            "cost:global*",
+            "concurrent:user:*",
+            "llm:concurrency:*",
+        ):
+            for key in r.scan_iter(pattern, count=500):
+                r.delete(key)
+        r.close()
+    yield
+
+
 @pytest_asyncio.fixture
 async def client(app) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)

@@ -20,7 +20,11 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def test_enroll_creates_welcome_notification_and_can_mark_read(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
@@ -32,9 +36,7 @@ async def test_enroll_creates_welcome_notification_and_can_mark_read(
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
-    )
+    await publish_and_list_course(course_id, teacher)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 
     notes = await client.get("/api/v1/me/notifications", headers=student)

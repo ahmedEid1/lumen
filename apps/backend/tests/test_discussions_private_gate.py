@@ -73,12 +73,13 @@ async def test_create_discussion_blocked_on_private_course(
         moderation_state=ModerationState.none,
     )
     # Even the owner cannot start a new discussion while private.
+    # (title >= 3 chars; "Q" alone 422s on schema validation before the gate.)
     r = await client.post(
         f"/api/v1/courses/{cid}/discussions",
-        json={"title": "Q", "body": "body"},
+        json={"title": "Question", "body": "body"},
         headers=teacher,
     )
-    assert r.status_code == 403
+    assert r.status_code == 403, r.text
     assert r.json()["error"]["code"] == "discussion.course_private"
 
 
@@ -98,7 +99,7 @@ async def test_create_discussion_allowed_on_listed_course(
     )
     r = await client.post(
         f"/api/v1/courses/{cid}/discussions",
-        json={"title": "Q", "body": "body"},
+        json={"title": "Question", "body": "body"},
         headers=teacher,
     )
     assert r.status_code in (200, 201), r.text
