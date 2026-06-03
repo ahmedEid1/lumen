@@ -339,4 +339,64 @@ async def _run_validation(
     return status, message
 
 
-__all__ = ["delete", "patch", "upsert", "validate"]
+async def rotate_master_key(db: AsyncSession, *, batch_size: int = 200) -> tuple[int, int]:
+    """Re-wrap every credential's DEK under the active KEK version (FR-BYOK-12).
+
+    R-S2 operational procedure. Uses ``secrets_crypto.rotate_secret`` which
+    re-wraps the ``enc_data_key`` ONLY — the inner ``enc_key`` (the encrypted
+    plaintext) is preserved byte-for-byte, so the plaintext key is never
+    touched or surfaced. Updates ``key_version`` to the active version. Emits
+    a single ``byok.master_key_rotated`` audit event (counts only). Returns
+    ``(rotated, skipped)``.
+
+    Precondition (R-S2): the target version KEK must be present in
+    ``byok_master_keys`` (all versions deployed fleet-wide before rotation)
+    and old versions retained until rotation completes — this is enforced by
+    ``secrets_crypto`` raising if a version is missing, and documented in the
+    runbook.
+    """
+    active_version = get_settings().byok_master_key_version
+    rotated = 0
+    skipped = 0
+    offset = 0
+    while True:
+        rows = (
+            (
+                await db.execute(
+                    select(UserLLMCredential)
+                    .order_by(UserLLMCredential.id)
+                    .offset(offset)
+                    .limit(batch_size)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not rows:
+            break
+        for cred in rows:
+            if cred.key_version == active_version:
+                skipped += 1
+                continue
+            # rotate_secret re-wraps enc_data_key under the active KEK; the
+            # inner enc_key (encrypted plaintext) is untouched.
+            cred.enc_blob = secrets_crypto.rotate_secret(cred.enc_blob)
+            cred.key_version = active_version
+            rotated += 1
+        await db.flush()
+        await db.commit()
+        offset += batch_size
+
+    await audit_repo.record(
+        db,
+        actor_id=None,
+        action="byok.master_key_rotated",
+        target_type="user_llm_credential",
+        target_id=None,
+        data={"rotated": rotated, "skipped": skipped, "to_version": active_version},
+    )
+    await db.commit()
+    return rotated, skipped
+
+
+__all__ = ["delete", "patch", "rotate_master_key", "upsert", "validate"]
