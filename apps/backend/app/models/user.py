@@ -17,8 +17,15 @@ if TYPE_CHECKING:
 
 
 class Role(StrEnum):
+    # Two-role collapse (ADR-0025 §D1). Phase A widens the set to tolerate
+    # both the legacy ``student``/``instructor`` rows (until 0031 backfills
+    # them to ``user``) and the new canonical ``user``. ``student`` and
+    # ``instructor`` are removed in the evidence-gated Phase-D cut (S1.13);
+    # keep them here so legacy rows load and stale request bodies don't crash
+    # deserialization during the transition window (R-C5).
     student = "student"
     instructor = "instructor"
+    user = "user"
     admin = "admin"
 
 
