@@ -67,7 +67,9 @@ from app.models.agent_trace import TRACE_STATUS_ERROR, TRACE_STATUS_OK
 from app.models.course import Course
 from app.models.llm_call import SYSTEM_USER_ID
 from app.services import agent_tracer
+from app.services import byok as byok_service
 from app.services import llm as llm_service
+from app.services.byok import PLATFORM_CONTEXT, LLMContext
 from app.services.llm_call_log import call_logged
 from app.services.tutor_subagents import (
     CodeRunResult,
@@ -501,6 +503,8 @@ async def _dispatch_tool(
     step_index: int,
     parent_trace_id: str | None,
     parent_call_id: str | None,
+    provider: llm_service.LLMProvider | None = None,
+    billing_mode: str = "platform",
 ) -> BaseModel:
     """Run one sub-agent and return its Pydantic result.
 
@@ -508,6 +512,10 @@ async def _dispatch_tool(
     (if any) — the quiz_generator + concept_explainer use it as
     context for their LLM calls. We pass it through rather than
     re-running the retriever inside them.
+
+    S5.12: the LLM sub-agents (quiz_generator / concept_explainer) inherit
+    the parent orchestrator's BYOK ``provider`` + ``billing_mode`` so a
+    user-initiated tutor turn stays on the user's key end-to-end.
     """
     name = tool_call.tool_name
     args = tool_call.args or {}
@@ -570,6 +578,8 @@ async def _dispatch_tool(
             step_index=step_index,
             parent_trace_id=parent_trace_id,
             parent_call_id=parent_call_id,
+            provider=provider,
+            billing_mode=billing_mode,
         )
 
     if name == "concept_explainer":
@@ -583,6 +593,8 @@ async def _dispatch_tool(
             step_index=step_index,
             parent_trace_id=parent_trace_id,
             parent_call_id=parent_call_id,
+            provider=provider,
+            billing_mode=billing_mode,
         )
 
     # Unreachable given the Literal — but defensive belt-and-braces.
@@ -619,6 +631,7 @@ async def orchestrate(
     question: str,
     conversation_history: list[dict[str, Any]] | None = None,
     feature: str = FEATURE,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> OrchestratorResult:
     """Run the planner → tools → re-plan → synthesiser loop.
 
@@ -651,7 +664,11 @@ async def orchestrate(
         )
 
     # ---------- 1. Planner ----------
-    provider = llm_service.get_provider()
+    # S5.12/DR-8: resolve the provider from the initiation context. BYOK
+    # for a user-initiated foreground turn; platform for the default ctx
+    # (background/system). The decrypt happens once, here, inside
+    # byok.build_provider — the single decrypt site.
+    provider, billing_mode = await byok_service.build_provider(db, ctx)
     planner_user_prompt = _build_planner_user_prompt(
         question=question, history=conversation_history
     )
@@ -672,6 +689,7 @@ async def orchestrate(
         messages=planner_messages,
         user_id=metered_user_id,
         feature=feature,
+        billing_mode=billing_mode,
     )
     if plan is None:
         # Planner unrecoverable — fall back to single-tool retriever.
@@ -736,6 +754,8 @@ async def orchestrate(
                 step_index=rounds_used,
                 parent_trace_id=tool_step_id,
                 parent_call_id=planner_call_id,
+                provider=provider,
+                billing_mode=billing_mode,
             )
         except Exception as exc:
             kind = type(exc).__name__
@@ -791,6 +811,7 @@ async def orchestrate(
             question=question,
             sub_agent_results=sub_agent_results,
             parent_trace_id=plan_trace_id,
+            billing_mode=billing_mode,
         )
         if replan_extra is not None and rounds_used < MAX_TOOL_CALL_ROUNDS:
             rounds_used += 1
@@ -822,6 +843,8 @@ async def orchestrate(
                     step_index=rounds_used,
                     parent_trace_id=tool_step_id,
                     parent_call_id=replan_call_id,
+                    provider=provider,
+                    billing_mode=billing_mode,
                 )
                 sub_agent_results.append(result)
                 summary_text, details = _summarise_result(replan_extra.tool_name, result)
@@ -866,6 +889,7 @@ async def orchestrate(
         history=conversation_history,
         sub_agent_results=sub_agent_results,
         plan_hint=plan.final_answer_hint,
+        billing_mode=billing_mode,
     )
 
     # Validate citations against the retriever's lesson ids.
@@ -941,6 +965,7 @@ async def _call_planner(
     messages: list[llm_service.ChatMessage],
     user_id: str,
     feature: str,
+    billing_mode: str = "platform",
 ) -> tuple[Plan | None, str | None]:
     """One planner call with structured-output validation.
 
@@ -959,6 +984,7 @@ async def _call_planner(
             feature=feature_slug,
             session=db,
             temperature=0.2,
+            billing_mode=billing_mode,
         )
     except Exception as exc:
         kind = type(exc).__name__
@@ -1017,6 +1043,7 @@ async def _maybe_replan(
     question: str,
     sub_agent_results: list[BaseModel],
     parent_trace_id: str | None,
+    billing_mode: str = "platform",
 ) -> tuple[ToolCall | None, str | None]:
     """Ask the model whether one more tool call would help.
 
@@ -1049,6 +1076,7 @@ async def _maybe_replan(
             feature=feature_slug,
             session=db,
             temperature=0.2,
+            billing_mode=billing_mode,
         )
     except Exception as exc:
         kind = type(exc).__name__
@@ -1127,6 +1155,7 @@ async def _call_synthesiser(
     history: list[dict[str, Any]] | None,
     sub_agent_results: list[BaseModel],
     plan_hint: str | None,
+    billing_mode: str = "platform",
 ) -> tuple[str, str | None, bool]:
     """Compose the final answer. Returns ``(answer_text, call_id, refused)``.
 
@@ -1173,6 +1202,7 @@ async def _call_synthesiser(
             feature=feature_slug,
             session=db,
             temperature=0.2,
+            billing_mode=billing_mode,
         )
     except Exception as exc:
         kind = type(exc).__name__

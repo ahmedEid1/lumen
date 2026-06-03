@@ -142,3 +142,42 @@ export interface TokenResponse {
   expires_in: number;
   user: UserOut;
 }
+
+// ---------- BYOK (S5) — hand-written per DR-5; do NOT `make api-client` ----------
+
+/** One allowlisted provider as returned by GET /api/v1/llm-providers.
+ * No base_url, no key material — those are server-internal (DR-17). */
+export interface LLMProvider {
+  provider: string;
+  display_name: string;
+  models: string[];
+}
+
+export interface LLMProviderRegistry {
+  providers: LLMProvider[];
+}
+
+export type LLMValidationStatus =
+  | "unvalidated"
+  | "valid"
+  | "invalid"
+  | "error"
+  | "needs_attention";
+
+/** Masked credential read shape. NEVER carries the key / enc_* fields. */
+export interface LLMCredentialPublic {
+  provider: string;
+  model: string;
+  last4: string;
+  enabled: boolean;
+  is_active: boolean;
+  allow_platform_fallback: boolean;
+  last_validated_at: string | null;
+  last_validation_status: LLMValidationStatus;
+  created_at: string;
+}
+
+export interface LLMCredentialValidateResult {
+  status: LLMValidationStatus;
+  message: string;
+}

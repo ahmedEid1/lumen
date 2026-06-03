@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.db import base as db_base
 from app.models.learning_path import PATH_STATUS_ACTIVE, LearningPath
+from app.services import byok as byok_service
 from app.services import learning_path as learning_path_service
 from app.workers.celery_app import celery
 
@@ -67,7 +68,12 @@ async def _replan_one(db: AsyncSession, *, user_id: str) -> bool:
     everyone else.
     """
     try:
-        path = await learning_path_service.replan_for_user(db, user_id=user_id)
+        # S5.12/R-S1'': the monthly beat is background → PLATFORM always,
+        # never the user's BYOK key. Explicit for clarity (it is also the
+        # default).
+        path = await learning_path_service.replan_for_user(
+            db, user_id=user_id, ctx=byok_service.PLATFORM_CONTEXT
+        )
         if path is None:
             log.info("replan_skipped_no_active", user_id=user_id)
             return False

@@ -39,6 +39,7 @@ from app.models.course import Course
 from app.repositories import courses as courses_repo
 from app.schemas.course import QuizQuestion
 from app.services import ai_authoring, authoring_orchestrator
+from app.services import byok as byok_service
 
 router = APIRouter()
 
@@ -179,11 +180,13 @@ async def generate_outline(
     returned structure in the studio preview pane before posting it
     back to ``/ai/commit-outline``.
     """
+    ctx = await byok_service.resolve_context(db, user_id=user.id)
     return await ai_authoring.generate_outline(
         brief=payload.brief,
         target_modules=payload.target_modules,
         session=db,
         user_id=user.id,
+        ctx=ctx,
     )
 
 
@@ -203,11 +206,13 @@ async def generate_lesson_body(
     the block editor with the returned doc; the instructor saves the
     lesson explicitly via ``PATCH /lessons/{id}`` from the editor.
     """
+    ctx = await byok_service.resolve_context(db, user_id=user.id)
     doc = await ai_authoring.generate_lesson_body(
         lesson_title=payload.lesson_title,
         course_context=payload.course_context,
         session=db,
         user_id=user.id,
+        ctx=ctx,
     )
     return LessonBodyResponse(blocks=doc)
 
@@ -228,12 +233,14 @@ async def generate_quiz(
     question form with the returned items; the instructor saves the
     lesson explicitly via ``PATCH /lessons/{id}`` from the editor.
     """
+    ctx = await byok_service.resolve_context(db, user_id=user.id)
     questions = await ai_authoring.generate_quiz(
         lesson_title=payload.lesson_title,
         course_context=payload.course_context,
         n=payload.n,
         session=db,
         user_id=user.id,
+        ctx=ctx,
     )
     return QuizResponse(questions=questions)
 
@@ -325,11 +332,13 @@ async def draft_course(
     so 5/minute is already extremely generous; we don't add a
     separate tighter limit.
     """
+    ctx = await byok_service.resolve_context(db, user_id=user.id)
     result = await authoring_orchestrator.draft_course(
         db,
         user=user,
         brief=payload.brief,
         subject_slug=payload.subject_slug,
+        ctx=ctx,
     )
     return DraftCourseResponse(
         course_id=result.course_id,

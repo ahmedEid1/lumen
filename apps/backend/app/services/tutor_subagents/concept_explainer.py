@@ -105,9 +105,17 @@ async def run(
     step_index: int = 0,
     parent_trace_id: str | None = None,
     parent_call_id: str | None = None,
+    provider: llm_service.LLMProvider | None = None,
+    billing_mode: str = "platform",
 ) -> ConceptExplainResult:
-    """Re-explain ``concept``, optionally leaning on ``context``."""
-    provider = llm_service.get_provider()
+    """Re-explain ``concept``, optionally leaning on ``context``.
+
+    S5.12: inherits the parent orchestrator's BYOK ``provider`` +
+    ``billing_mode`` when passed; falls back to the platform provider
+    otherwise (so the standalone/platform path is unchanged).
+    """
+    if provider is None:
+        provider = llm_service.get_provider()
     user_prompt = (
         f"CONCEPT TO RE-EXPLAIN:\n{concept.strip() or '(no concept supplied)'}\n\n"
         f"CONTEXT (lesson excerpts to lean on, optional):\n"
@@ -127,6 +135,7 @@ async def run(
             feature=FEATURE,
             session=db,
             temperature=0.5,
+            billing_mode=billing_mode,
         )
     except Exception as exc:
         kind = type(exc).__name__

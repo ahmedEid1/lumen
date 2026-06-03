@@ -119,6 +119,89 @@ class BudgetExceededError(AppError):
     code = "llm.budget_exceeded"
 
 
+# ---------------------------------------------------------------------------
+# S5 (BYOK) error codes — ADR-0027 §"Error codes". All map to the standard
+# {error:{code,message,details,request_id}} envelope; ``details`` is scrubbed
+# by the value-redaction filter (S5.10) as defense-in-depth.
+# ---------------------------------------------------------------------------
+
+
+class QuotaExceededError(AppError):
+    """S5.8 — the pre-dispatch DB COUNT request/job quota is exhausted.
+
+    Independent of dollars: a $0 BYOK call still counts (DR-16). A sentinel
+    ``llm_calls`` row (``status="quota_exceeded"``) is persisted and the
+    provider is never invoked. 429 so the client backs off; the tripped
+    dimension is in ``details``. A quota-exhausted BYOK user is BLOCKED,
+    not routed to the free platform model (ADR-0027 §4 item 6).
+    """
+
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "llm.quota_exceeded"
+
+
+class ByokBaseUrlForbiddenError(ValidationAppError):
+    """Any URL-ish field on a credential payload (FR-BYOK-14). 422."""
+
+    code = "byok.base_url_forbidden"
+
+
+class ByokModelNotAllowedError(ValidationAppError):
+    """Stored/requested model is not in the provider's curated allowlist. 422."""
+
+    code = "byok.model_not_allowed"
+
+
+class ByokProviderNotAllowedError(ValidationAppError):
+    """Provider is not in the allowlisted registry. 422."""
+
+    code = "byok.provider_not_allowed"
+
+
+class ByokCredentialNotFoundError(NotFoundError):
+    """No live credential for the (user, provider). 404."""
+
+    code = "byok.credential_not_found"
+
+
+class ByokValidateRateLimitedError(RateLimitedError):
+    """Validate anti-oracle cap tripped (R-S4). 429."""
+
+    code = "byok.validate_rate_limited"
+
+
+class ByokMustStoreBeforeValidateError(AppError):
+    """Cannot validate a key that was never stored (anti-oracle, R-S4). 412."""
+
+    status_code = status.HTTP_412_PRECONDITION_FAILED
+    code = "byok.must_store_before_validate"
+
+
+class ByokCapabilityRevokedError(ForbiddenError):
+    """can_use_byok denied (suspended user / flag off). 403."""
+
+    code = "byok.capability_revoked"
+
+
+class ByokModelUnavailableError(AppError):
+    """Stored model drifted out of the allowlist (R-M11'). Surfaced as a
+    one-time notice when falling back to platform; carries the notice code.
+    """
+
+    status_code = status.HTTP_409_CONFLICT
+    code = "byok.model_unavailable"
+
+
+class ByokProviderError(AppError):
+    """BYOK dispatch failed and no platform fallback is permitted
+    (``allow_platform_fallback=False``). Errors are REDACTED — no vendor
+    headers/request-ids/raw bodies/key echo (ADR-0027 §4 item 3).
+    """
+
+    status_code = status.HTTP_502_BAD_GATEWAY
+    code = "tutor.byok_provider_error"
+
+
 def _payload(
     code: str, message: str, *, details: dict[str, Any] | None, request_id: str | None
 ) -> dict[str, Any]:

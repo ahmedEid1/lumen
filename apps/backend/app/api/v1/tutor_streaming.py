@@ -47,6 +47,7 @@ from app.core.errors import (
 )
 from app.core.ratelimit import limiter
 from app.models.tutor_turn_job import TERMINAL_TURN_STATUSES, TURN_STATUS_ABORTED
+from app.services import byok as byok_service
 from app.services.redis_streams import check_trim, consume_stream
 from app.services.tutor_turn_service import (
     create_turn,
@@ -225,6 +226,11 @@ async def post_turn(
         # across reconcile + sweep paths.
         reserved_usd = Decimal(settings.tutor_estimate_microcents) / Decimal(USD_TO_MICROCENTS)
 
+        # S5.12/R-S1'': resolve the foreground BYOK context at enqueue time
+        # and persist its credential_id on the turn (never the key). The
+        # worker re-resolves + decrypts from this id inside its trust
+        # boundary.
+        byok_ctx = await byok_service.resolve_context(db, user_id=user.id)
         turn = await create_turn(
             db,
             user_id=user.id,
@@ -234,6 +240,7 @@ async def post_turn(
             prompt_template_hash=None,
             user_message=body.content,
             course_id=course_id,
+            credential_id=byok_ctx.credential_id,
         )
         # Commit so the after_commit listener fires the Celery enqueue.
         # Once committed, the row + sweep beat own the reservation —

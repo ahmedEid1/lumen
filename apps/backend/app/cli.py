@@ -497,6 +497,36 @@ async def _mcp_token(*, owner_email: str, name: str, scopes: str) -> None:
         console.print("\n[yellow]Save the client_secret now — it will not be shown again.[/yellow]")
 
 
+@cli.command(name="rotate-byok-master-key")
+def rotate_byok_master_key() -> None:
+    """Re-wrap every BYOK credential's DEK under the active KEK version.
+
+    S5.14 / FR-BYOK-12 / R-S2. Envelope rotation: only the wrapped DEK
+    (``enc_data_key``) is re-wrapped under the new active KEK; the encrypted
+    plaintext (``enc_key``) is preserved byte-for-byte — the plaintext key is
+    never touched, logged, or surfaced. Emits ``byok.master_key_rotated``
+    (counts only).
+
+    Precondition (R-S2): deploy the NEW KEK version to EVERY API + worker
+    process FIRST and bump ``BYOK_MASTER_KEY_VERSION``, keeping the OLD
+    version present in ``BYOK_MASTER_KEYS`` until this command finishes — a
+    credential resolved under the old version mid-rotation must still decrypt.
+    See docs/runbooks/byok-key-rotation.md.
+    """
+    from app.services.llm_credentials import rotate_master_key
+
+    async def _run() -> None:
+        async with get_sessionmaker()() as db:
+            rotated, skipped = await rotate_master_key(db)
+            console.print(
+                f"[green]BYOK master-key rotation complete.[/green] "
+                f"rotated={rotated} skipped(already-current)={skipped} "
+                f"to_version={get_settings().byok_master_key_version}"
+            )
+
+    asyncio.run(_run())
+
+
 @cli.command()
 def info() -> None:
     """Print configuration summary."""

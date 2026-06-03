@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **BYOK — bring your own model key (Stream S5, ADR-0027).** Users can now
+  configure their own LLM provider + key instead of the free platform model,
+  under `/profile/model`. An **allowlisted provider registry** (OpenAI,
+  Anthropic, Groq, Mistral) with **server-owned fixed base URLs** closes the
+  SSRF surface by construction — there is no user-supplied base-url field
+  anywhere. Keys are **envelope-encrypted** (AES-256-GCM, versioned KEK) and
+  stored write-only; reads are masked (last-4 + status only) and the key is
+  excluded from `/me/export`, admin views, and the OpenAPI schema. Every
+  user-initiated feature (tutor, streaming tutor, AI authoring, learning-path
+  build/replan) dispatches on the user's key when configured; background jobs
+  stay on the platform key. **Non-dollar request quotas** (a pre-dispatch DB
+  count, independent of cost) close the `$0`-BYOK bypass. A `validate`
+  endpoint probes the key with anti-oracle caps and redacted errors; admin
+  cost rollups exclude BYOK rows from platform-$ and surface BYOK adoption.
+  Shipped behind `feature_byok_enabled` (**default off**) until the master
+  key (KEK) is confirmed on every API + worker process; rotate via
+  `python -m app.cli rotate-byok-master-key` (see
+  `docs/runbooks/byok-key-rotation.md`).
+
 ### Fixed (QA loop iters 8–23 — live-walk fixes)
 
 - **Tutor cost-reservation leak:** closing the tutor mid-turn now aborts

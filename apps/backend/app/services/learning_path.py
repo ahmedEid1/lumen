@@ -83,9 +83,11 @@ from app.models.learning_path import (
 )
 from app.models.lesson_chunk import LessonChunk
 from app.services import agent_tracer
+from app.services import byok as byok_service
 from app.services import fsrs as fsrs_service
 from app.services import llm as llm_service
 from app.services import mastery as mastery_service
+from app.services.byok import PLATFORM_CONTEXT, LLMContext
 from app.services.embeddings import EmbeddingProvider
 from app.services.embeddings import get_provider as get_embedding_provider
 from app.services.llm_call_log import call_logged
@@ -272,6 +274,7 @@ async def build_path(
     *,
     user_id: str,
     goal: str,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> LearningPath:
     """Run the agent, persist the result. Archives any prior active path.
 
@@ -347,6 +350,7 @@ async def build_path(
         system=_SYSTEM_PROMPT,
         user=user_prompt,
         candidate_slugs={c.slug for c in catalog},
+        ctx=ctx,
     )
     await agent_tracer.record_step(
         db,
@@ -420,20 +424,26 @@ async def build_path(
     return await _load_path_with_steps(db, path.id)
 
 
-async def replan_for_user(db: AsyncSession, *, user_id: str) -> LearningPath | None:
+async def replan_for_user(
+    db: AsyncSession, *, user_id: str, ctx: LLMContext = PLATFORM_CONTEXT
+) -> LearningPath | None:
     """Re-run the build for a user's active path, archives the old one.
 
     Returns ``None`` if the user has no active path (the monthly
     beat job filters by ``replanned_at`` before calling this, but
     the function is robust to being called against any user).
+
+    S5.12/R-S1'': the locus is decided by the *caller*. The API
+    ``/me/learning-path/replan`` handler passes a foreground (BYOK) ctx; the
+    monthly beat passes the default ``PLATFORM_CONTEXT``. Same function.
     """
     current = await get_active_path(db, user_id=user_id)
     if current is None:
         return None
     goal = current.goal
     # ``build_path`` archives the old path internally, so we just
-    # call it again with the same goal.
-    return await build_path(db, user_id=user_id, goal=goal)
+    # call it again with the same goal — carrying the caller's ctx.
+    return await build_path(db, user_id=user_id, goal=goal, ctx=ctx)
 
 
 async def mark_step_complete(
@@ -747,14 +757,18 @@ async def _chat_with_retry(
     system: str,
     user: str,
     candidate_slugs: set[str],
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> tuple[_Plan, str]:
     """One LLM call, validate, retry once on failure.
 
     Each turn lands a metered ``llm_calls`` row via ``call_logged``
     and one ``agent_traces`` row via ``record_step``. Two failures
     raise the clean ``learning_path.llm_invalid_output`` error.
+
+    S5.12/DR-8: BYOK for a foreground build/replan (the API handler passes
+    a foreground ctx); platform for the monthly beat (PLATFORM_CONTEXT).
     """
-    provider = llm_service.get_provider()
+    provider, billing_mode = await byok_service.build_provider(db, ctx)
     messages = [
         llm_service.ChatMessage(role="system", content=system),
         llm_service.ChatMessage(role="user", content=user),
@@ -776,6 +790,7 @@ async def _chat_with_retry(
         feature=FEATURE,
         session=db,
         temperature=0.2,
+        billing_mode=billing_mode,
     )
     raw = response.text
     plan, err = _try_parse(raw, candidate_slugs=candidate_slugs)
@@ -814,6 +829,7 @@ async def _chat_with_retry(
         feature=FEATURE,
         session=db,
         temperature=0.2,
+        billing_mode=billing_mode,
     )
     raw2 = response2.text
     plan, err2 = _try_parse(raw2, candidate_slugs=candidate_slugs)

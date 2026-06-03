@@ -1074,6 +1074,31 @@ export const en = {
   "blog.subline": "Architecture decisions, prompt-iteration journals, and the failures that shaped what shipped.",
   "blog.empty.title": "No posts yet.",
   "blog.empty.body": "The first entries will trail the case study — design choices behind the agent tutor, the eval methodology, and the cost-latency math.",
+
+  // BYOK — bring-your-own-key model config (S5 / ADR-0027 §Frontend)
+  "byok.title": "Your model",
+  "byok.subtitle": "Use your own AI provider and key instead of the free platform model.",
+  "byok.provider": "Provider",
+  "byok.model": "Model",
+  "byok.apiKey": "API key",
+  "byok.apiKey.writeOnly": "Stored encrypted. Never shown again.",
+  "byok.allowFallback": "Fall back to the free platform model if my key fails",
+  "byok.validate": "Validate",
+  "byok.status.valid": "Valid",
+  "byok.status.invalid": "Invalid key",
+  "byok.status.unvalidated": "Not validated",
+  "byok.status.needsAttention": "Needs attention",
+  "byok.enabled": "Enabled",
+  "byok.active": "Use for my requests",
+  "byok.delete": "Remove key",
+  "byok.save": "Save key",
+  "byok.empty": "No model key yet. Add one to use your own provider.",
+  "byok.savedToast": "Model key saved.",
+  "byok.deletedToast": "Model key removed.",
+  "byok.error.modelUnavailable": "That model is no longer available; using the platform model.",
+  "byok.error.providerError": "Your provider rejected the request. Check your key.",
+  "byok.error.rateLimited": "Too many validation attempts. Try again later.",
+  "byok.quota.exceeded": "You've reached your request limit for now.",
 } as const;
 
 export type MessageKey = keyof typeof en;

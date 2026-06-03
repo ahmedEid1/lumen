@@ -43,6 +43,14 @@ from app.models.tutor_turn_job import (
     TutorTurnJob,
 )
 from app.models.user import RefreshToken, Role, User
+from app.models.user_llm_credential import (
+    VALIDATION_ERROR,
+    VALIDATION_INVALID,
+    VALIDATION_NEEDS_ATTENTION,
+    VALIDATION_UNVALIDATED,
+    VALIDATION_VALID,
+    UserLLMCredential,
+)
 
 __all__ = [
     "EMBEDDING_DIM",
@@ -53,6 +61,11 @@ __all__ = [
     "TURN_STATUS_PENDING",
     "TURN_STATUS_RUNNING",
     "TURN_STATUS_STREAMING",
+    "VALIDATION_ERROR",
+    "VALIDATION_INVALID",
+    "VALIDATION_NEEDS_ATTENTION",
+    "VALIDATION_UNVALIDATED",
+    "VALIDATION_VALID",
     "AgentTrace",
     "Asset",
     "AuditEvent",
@@ -88,5 +101,6 @@ __all__ = [
     "TutorMessageRole",
     "TutorTurnJob",
     "User",
+    "UserLLMCredential",
     "course_tags",
 ]

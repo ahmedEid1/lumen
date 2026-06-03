@@ -15,4 +15,7 @@ export const qk = {
   demoQuestions: (courseSlug?: string) =>
     ["demo-questions", courseSlug ?? "all"] as const,
   evalPublic: ["eval-public"] as const,
+  // S5 (BYOK)
+  llmProviders: ["llm-providers"] as const,
+  llmCredentials: ["me", "llm-credentials"] as const,
 };

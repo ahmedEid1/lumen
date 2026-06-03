@@ -202,6 +202,40 @@ class Settings(BaseSettings):
     # billing meter. Bump in ``.env`` for power users / production.
     llm_user_budget_24h_usd: Decimal = Decimal("1.00")
 
+    # ---------- BYOK (S5 / ADR-0027) ----------
+    # Master gate. Ships OFF: the data model + code can deploy inert and be
+    # enabled only after the KEK is confirmed present on every API + worker
+    # process fleet-wide (R-S2/R-S3, boot guard in prod_guards). Mirrors the
+    # feature_tutor_streaming env-backed pattern. When OFF: credential
+    # write/resolve paths are inert and resolution is always platform.
+    feature_byok_enabled: bool = False
+
+    # Allow storing/validating a real BYOK key under a *derived* (dev-only)
+    # KEK. Dev/test escape hatch — never set true in production (a derived
+    # KEK there is a hard boot refusal anyway).
+    byok_allow_derived_kek: bool = False
+
+    # ---------- Non-dollar request/job quotas (DR-11/16, R-M7'/R-G1) ----------
+    # Pre-dispatch DB COUNT(*) of llm_calls per user per window, independent
+    # of dollars — this is what closes the $0-BYOK bypass (a free-priced BYOK
+    # model still counts). Over-limit → status="quota_exceeded" row + a
+    # RateLimitError, provider NOT invoked. Defaults are runaway-loop
+    # trip-wires, generous for normal use.
+    llm_user_request_quota_24h: int = 500
+    llm_user_request_quota_1h: int = 120
+    # BYOK users get higher request ceilings (they pay their own provider),
+    # but keep the same concurrency/retry/timeout caps. The resolver picks
+    # the window limits by billing_mode.
+    byok_requests_24h: int = 2000
+    byok_tokens_24h: int = 5_000_000  # post-dispatch dimension; informational here
+    platform_requests_24h: int = 500
+    # Redis concurrency lease (best-effort; Redis-down → fail-open, the DB
+    # COUNT is the hard guard). TTL = provider timeout + buffer so a crashed
+    # process's slot auto-expires.
+    llm_max_concurrent: int = 4
+    llm_max_retries: int = 2
+    llm_provider_timeout_s: int = 60
+
     # ---------- Content ingest (Phase E3) ----------
     # Optional Notion integration token. When unset, the Notion
     # extractor refuses with a clean 422 ("set NOTION_TOKEN") rather

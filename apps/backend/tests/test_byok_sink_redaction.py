@@ -127,10 +127,14 @@ def test_install_value_redaction_idempotent():
 
 
 def test_deferred_sinks_documented():
-    """S5.10 owns the sinks that don't exist yet (llm_calls / agent_traces
-    rows). This S7-pre test documents that the contract is enumerated and
-    the deferred sinks are explicitly named, not silently skipped."""
-    assert set(app_logging.DEFERRED_REDACTION_SINKS) >= {
+    """S5.10 has now caught up: every previously-deferred sink is covered by
+    the enumerated-sink completion test (test_byok_sink_completion.py), so the
+    deferred set is empty and the covered set names the full contract."""
+    assert app_logging.DEFERRED_REDACTION_SINKS == ()
+    assert set(app_logging.REDACTION_SINKS_COVERED) >= {
         "llm_calls",
         "agent_traces",
+        "celery_task_payloads",
+        "me_export",
+        "openapi_schema",
     }

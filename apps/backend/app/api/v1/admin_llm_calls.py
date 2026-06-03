@@ -62,6 +62,7 @@ class LLMCallOut(BaseModel):
     latency_ms: int
     status: str
     error_kind: str | None
+    billing_mode: str
     created_at: datetime
 
     @classmethod
@@ -78,6 +79,7 @@ class LLMCallOut(BaseModel):
             latency_ms=row.latency_ms,
             status=row.status,
             error_kind=row.error_kind,
+            billing_mode=row.billing_mode,
             created_at=row.created_at,
         )
 
@@ -94,11 +96,26 @@ class DayBucket(BaseModel):
     cost_usd: Decimal
 
 
+class BillingBucket(BaseModel):
+    """S5.13 — adoption + non-dollar usage by billing_mode (FR-BYOK-28).
+
+    ``cost_usd`` is the platform dollar cost for the group; for ``byok`` rows
+    it is $0 (the user pays their provider directly), so the BYOK bucket
+    surfaces request *count* as the meaningful consumption signal.
+    """
+
+    billing_mode: str
+    calls: int
+    cost_usd: Decimal
+
+
 class SummaryOut(BaseModel):
     total_calls: int
+    # Platform dollar cost ONLY — excludes billing_mode='byok' rows (S5.13).
     total_cost_usd: Decimal
     by_feature: list[FeatureBucket]
     by_day: list[DayBucket]
+    by_billing_mode: list[BillingBucket]
 
 
 # ---------- Endpoints ----------
@@ -165,9 +182,13 @@ async def llm_calls_summary(
     """
     since = func.now() - func.make_interval(0, 0, 0, days)
 
+    # S5.13: total_calls counts every row, but total_cost_usd is the PLATFORM
+    # dollar cost only — BYOK rows ($0 to us; the user pays their provider)
+    # are excluded from the sum via a FILTER so the admin dollar number stays
+    # correct (FR-BYOK-27).
     total_stmt = select(
         func.count(LLMCall.id),
-        func.coalesce(func.sum(LLMCall.cost_usd), 0),
+        func.coalesce(func.sum(LLMCall.cost_usd).filter(LLMCall.billing_mode != "byok"), 0),
     ).where(LLMCall.created_at >= since)
     total_row = (await db.execute(total_stmt)).one()
     total_calls = int(total_row[0])
@@ -218,11 +239,33 @@ async def llm_calls_summary(
         for r in by_day_rows
     ]
 
+    # S5.13 — adoption + non-dollar usage grouped by billing_mode.
+    by_mode_stmt = (
+        select(
+            LLMCall.billing_mode,
+            func.count(LLMCall.id),
+            func.coalesce(func.sum(LLMCall.cost_usd), 0),
+        )
+        .where(LLMCall.created_at >= since)
+        .group_by(LLMCall.billing_mode)
+        .order_by(LLMCall.billing_mode)
+    )
+    by_mode_rows = (await db.execute(by_mode_stmt)).all()
+    by_billing_mode = [
+        BillingBucket(
+            billing_mode=str(r[0]),
+            calls=int(r[1]),
+            cost_usd=Decimal(str(r[2])),
+        )
+        for r in by_mode_rows
+    ]
+
     return SummaryOut(
         total_calls=total_calls,
         total_cost_usd=total_cost,
         by_feature=by_feature,
         by_day=by_day,
+        by_billing_mode=by_billing_mode,
     )
 
 

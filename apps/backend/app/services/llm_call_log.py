@@ -48,18 +48,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 
 from app.core.config import get_settings
-from app.core.errors import BudgetExceededError
+from app.core.errors import BudgetExceededError, QuotaExceededError
 from app.core.logging import get_logger
 from app.models.llm_call import (
+    BILLING_BYOK,
+    BILLING_PLATFORM,
     STATUS_BUDGET_EXCEEDED,
     STATUS_ERROR,
     STATUS_OK,
+    STATUS_QUOTA_EXCEEDED,
     SYSTEM_USER_ID,
     LLMCall,
 )
 from app.services.llm_pricing import compute_cost_usd
 
 if TYPE_CHECKING:
+    from app.services.byok import LLMContext
     from app.services.llm import ChatMessage, ChatResponse, LLMProvider
 
 log = get_logger(__name__)
@@ -101,6 +105,100 @@ async def _user_cost_last_24h(session: AsyncSession, user_id: str):
     return result.scalar_one()
 
 
+# S5.8 windows for the non-dollar request quota (DR-11/16). 24h matches the
+# dollar window; 1h is the burst window.
+_QUOTA_WINDOW_24H_SECONDS = 24 * 60 * 60
+_QUOTA_WINDOW_1H_SECONDS = 60 * 60
+
+
+async def _user_request_count(session: AsyncSession, user_id: str, window_seconds: int) -> int:
+    """COUNT(*) of llm_calls for ``user_id`` in the last ``window_seconds``.
+
+    Independent of dollars — a $0 BYOK call is still a row, so it still
+    counts (the core DR-16 assertion that closes the $0 bypass). Index-
+    covered by ``ix_llm_calls_user_created``.
+    """
+    stmt = select(func.count(LLMCall.id)).where(
+        LLMCall.user_id == user_id,
+        LLMCall.created_at > func.now() - func.make_interval(0, 0, 0, 0, 0, 0, window_seconds),
+    )
+    return int((await session.execute(stmt)).scalar_one() or 0)
+
+
+def _quota_limits(billing_mode: str) -> tuple[int, int]:
+    """Return ``(limit_24h, limit_1h)`` for the billing mode (R-G1)."""
+    s = get_settings()
+    if billing_mode == BILLING_BYOK:
+        # BYOK users get a higher 24h request ceiling (they pay their own
+        # provider); the 1h burst window is shared.
+        return int(s.byok_requests_24h), int(s.llm_user_request_quota_1h)
+    return int(s.llm_user_request_quota_24h), int(s.llm_user_request_quota_1h)
+
+
+async def _check_request_quota(
+    session: AsyncSession, *, user_id: str, billing_mode: str
+) -> tuple[str, int, int] | None:
+    """Return ``(dimension, used, limit)`` if over a quota, else ``None``.
+
+    Checks the 24h ceiling then the 1h burst window. The provider is NOT
+    invoked when this returns a tripped dimension.
+    """
+    limit_24h, limit_1h = _quota_limits(billing_mode)
+    used_24h = await _user_request_count(session, user_id, _QUOTA_WINDOW_24H_SECONDS)
+    if used_24h >= limit_24h:
+        return ("requests_24h", used_24h, limit_24h)
+    used_1h = await _user_request_count(session, user_id, _QUOTA_WINDOW_1H_SECONDS)
+    if used_1h >= limit_1h:
+        return ("requests_1h", used_1h, limit_1h)
+    return None
+
+
+async def _try_acquire_concurrency(user_id: str) -> tuple[object | None, str | None]:
+    """Best-effort Redis concurrency lease. Fail-open on Redis-down (R-M7').
+
+    Returns ``(redis_client, user_key)`` when a slot was acquired so the
+    caller can release it; ``(None, None)`` when Redis is unreachable (the
+    call proceeds — the DB COUNT is the hard guard) OR when leasing is
+    skipped. Over-concurrency raises ``QuotaExceededError`` directly.
+    """
+    s = get_settings()
+    try:
+        import redis.asyncio as redis
+
+        from app.core.cost_scripts import check_concurrency
+
+        client = redis.Redis.from_url(s.redis_url, decode_responses=False)
+        user_key = f"llm:concurrency:{user_id}"
+        ok, current = await check_concurrency(
+            client,
+            user_key=user_key,
+            max_concurrent=int(s.llm_max_concurrent),
+            ttl_seconds=int(s.llm_provider_timeout_s) + 30,
+        )
+    except Exception:
+        # Redis-down → fail-open. The DB COUNT backstop still applies.
+        log.warning("llm_concurrency_lease_unavailable", user_id=user_id)
+        return None, None
+    if not ok:
+        # Over the concurrency cap. Release nothing (we never acquired).
+        raise QuotaExceededError(
+            "Too many concurrent requests. Please wait a moment.",
+            details={"dimension": "concurrency", "current": current},
+        )
+    return client, user_key
+
+
+async def _release_concurrency_quiet(client: object | None, user_key: str | None) -> None:
+    if client is None or user_key is None:
+        return
+    try:
+        from app.core.cost_scripts import release_concurrency
+
+        await release_concurrency(client, user_key=user_key)  # type: ignore[arg-type]
+    except Exception:
+        log.warning("llm_concurrency_release_failed", user_key=user_key)
+
+
 async def _persist_row(
     session: AsyncSession,
     *,
@@ -114,6 +212,7 @@ async def _persist_row(
     latency_ms: int,
     status: str,
     error_kind: str | None,
+    billing_mode: str = BILLING_PLATFORM,
 ) -> None:
     """Write one ``llm_calls`` row, isolated from the caller's transaction.
 
@@ -140,6 +239,7 @@ async def _persist_row(
                 latency_ms=latency_ms,
                 status=status,
                 error_kind=error_kind,
+                billing_mode=billing_mode,
             )
             session.add(row)
             # Explicit flush inside the savepoint so a constraint
@@ -202,29 +302,78 @@ async def call_logged(
     feature: str,
     session: AsyncSession,
     temperature: float = 0.2,
+    ctx: LLMContext | None = None,
+    billing_mode: str | None = None,
 ) -> ChatResponse:
     """Invoke ``provider`` and record a metered row.
 
     Parameters mirror :meth:`LLMProvider.chat_with_usage` plus the
     persistence-side bits the meter needs.
 
+    ``ctx``/``billing_mode`` (S5.8): when the caller built the provider via
+    ``byok.build_provider`` it passes the returned billing_mode; the persisted
+    row + the request-quota window are chosen accordingly. Defaults to
+    platform so existing call sites are unchanged.
+
     Returns the provider's :class:`ChatResponse`. Raises whatever the
-    provider raises on failure (after persisting an error row), and
-    raises :class:`BudgetExceededError` (after persisting a sentinel
-    row) when the caller is already over their 24h cap.
+    provider raises on failure (after persisting an error row),
+    :class:`BudgetExceededError` (platform dollar cap), or
+    :class:`QuotaExceededError` (the non-dollar request/concurrency guard —
+    DR-11/16; a sentinel ``quota_exceeded`` row is persisted and the provider
+    is NOT invoked).
     """
     settings = get_settings()
+    mode = billing_mode or (ctx.mode if ctx is not None else BILLING_PLATFORM)
+    if mode not in (BILLING_PLATFORM, BILLING_BYOK):
+        mode = BILLING_PLATFORM
+
     if not settings.llm_cost_tracking_enabled:
         # Pass-through path. We still want to call ``chat_with_usage``
         # so downstream code receives the same shape; we just skip
         # the meter writes and the budget guard.
         return await provider.chat_with_usage(messages, temperature=temperature)
 
-    # ---------- Budget guard ----------
-    # We don't apply the guard to ``__system__`` calls; the eval
-    # suite and ingest pipelines are operator-controlled and have
-    # their own knobs.
+    # We don't apply the per-user guards to ``__system__`` calls; the eval
+    # suite and ingest pipelines are operator-controlled (match the dollar
+    # guard carve-out below).
     if user_id != SYSTEM_USER_ID:
+        # ---------- Pre-dispatch DB COUNT request quota (DR-11/16) ----------
+        # The hard backstop, independent of dollars: a $0 BYOK call still
+        # counts (it is still a row). Trips BEFORE the provider is invoked.
+        tripped = await _check_request_quota(session, user_id=user_id, billing_mode=mode)
+        if tripped is not None:
+            dimension, used, limit = tripped
+            await _persist_row(
+                session,
+                user_id=user_id,
+                feature=feature,
+                provider=getattr(provider, "name", "unknown"),
+                model=getattr(provider, "_model", "unknown"),
+                prompt_tokens=0,
+                completion_tokens=0,
+                cost_usd=0,
+                latency_ms=0,
+                status=STATUS_QUOTA_EXCEEDED,
+                error_kind=None,
+                billing_mode=mode,
+            )
+            log.warning(
+                "llm_quota_exceeded",
+                user_id=user_id,
+                feature=feature,
+                dimension=dimension,
+                used=used,
+                limit=limit,
+                billing_mode=mode,
+            )
+            raise QuotaExceededError(
+                "You've reached your request limit for now.",
+                details={"dimension": dimension, "used": used, "limit": limit},
+            )
+
+        # ---------- Platform dollar guard (unchanged for platform users) ----------
+        # Run for both modes; BYOK rows cost $0 so this never trips them, but
+        # keeping it unconditional avoids a behavioral fork.
         current_spend = await _user_cost_last_24h(session, user_id)
         if current_spend is not None and current_spend > settings.llm_user_budget_24h_usd:
             await _persist_row(
@@ -241,6 +390,7 @@ async def call_logged(
                 latency_ms=0,
                 status=STATUS_BUDGET_EXCEEDED,
                 error_kind=None,
+                billing_mode=mode,
             )
             log.warning(
                 "llm_budget_exceeded",
@@ -258,33 +408,43 @@ async def call_logged(
                 },
             )
 
+    # ---------- Concurrency lease (best-effort, fail-open) ----------
+    lease_client: object | None = None
+    lease_key: str | None = None
+    if user_id != SYSTEM_USER_ID:
+        lease_client, lease_key = await _try_acquire_concurrency(user_id)
+
     # ---------- Provider call (timed) ----------
     started = time.perf_counter()
     try:
-        response = await _invoke_provider(provider, messages, temperature)
-    except Exception as exc:
-        latency_ms = int((time.perf_counter() - started) * 1000)
-        await _persist_row(
-            session,
-            user_id=user_id,
-            feature=feature,
-            provider=getattr(provider, "name", "unknown"),
-            model=getattr(provider, "_model", "unknown"),
-            prompt_tokens=0,
-            completion_tokens=0,
-            cost_usd=0,
-            latency_ms=latency_ms,
-            status=STATUS_ERROR,
-            error_kind=type(exc).__name__,
-        )
-        log.warning(
-            "llm_call_failed",
-            user_id=user_id,
-            feature=feature,
-            error_kind=type(exc).__name__,
-            latency_ms=latency_ms,
-        )
-        raise
+        try:
+            response = await _invoke_provider(provider, messages, temperature)
+        except Exception as exc:
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            await _persist_row(
+                session,
+                user_id=user_id,
+                feature=feature,
+                provider=getattr(provider, "name", "unknown"),
+                model=getattr(provider, "_model", "unknown"),
+                prompt_tokens=0,
+                completion_tokens=0,
+                cost_usd=0,
+                latency_ms=latency_ms,
+                status=STATUS_ERROR,
+                error_kind=type(exc).__name__,
+                billing_mode=mode,
+            )
+            log.warning(
+                "llm_call_failed",
+                user_id=user_id,
+                feature=feature,
+                error_kind=type(exc).__name__,
+                latency_ms=latency_ms,
+            )
+            raise
+    finally:
+        await _release_concurrency_quiet(lease_client, lease_key)
 
     latency_ms = int((time.perf_counter() - started) * 1000)
     cost = compute_cost_usd(response.model, response.prompt_tokens, response.completion_tokens)
@@ -300,6 +460,7 @@ async def call_logged(
         latency_ms=latency_ms,
         status=STATUS_OK,
         error_kind=None,
+        billing_mode=mode,
     )
     return response
 
