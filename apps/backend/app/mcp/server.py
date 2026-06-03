@@ -107,10 +107,16 @@ def _enforce_auth(spec: ToolSpec, principal: Principal) -> None:
     elif spec.auth == "user":
         pass  # any authenticated principal is fine
     elif spec.auth == "instructor":
-        if not principal.is_instructor:
+        # S1.6 / ADR-0025 §D5: the write gate is now the capability
+        # `can_author`, not the instructor role. `create_course_draft` moved
+        # to the `user` posture (see TOOL_SPECS); this branch survives only
+        # for legacy tolerance during the collapse window and resolves a
+        # stale `instructor` principal (whose live User row is still active)
+        # via `can_author`. Removed in the Phase-D cut (S1.13).
+        if not principal.can_author:
             raise ForbiddenError(
-                "MCP tool requires instructor role",
-                code="mcp.role.instructor_required",
+                "MCP tool requires author capability",
+                code="mcp.writes.author_required",
                 details={"tool": spec.name},
             )
     elif spec.auth == "admin":
