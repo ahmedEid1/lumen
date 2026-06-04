@@ -391,7 +391,14 @@ async def clone_course(
     service. ``request``/``response`` are required by slowapi's ``@limiter.limit``.
     """
     _require_clone_enabled()
-    new_course = await courses_service.clone_course(
+    # ``clone_course`` returns ``(course, replayed)`` and itself registers the
+    # lazy asset-rehoming enqueue on the request session's ``after_commit`` hook
+    # ONLY for a fresh materialization (S4 gate Codex-C1 / Gate-B B1 — the
+    # ADR-0019 gotcha: enqueuing inline here would fire BEFORE get_db()'s commit
+    # and race the worker against an uncommitted row; an Idempotency-Key replay
+    # must not re-fire it either, or the worker re-homes already-owned assets →
+    # duplicate Asset rows + S3 objects).
+    new_course, _replayed = await courses_service.clone_course(
         db,
         caller=user,
         source_key=key,
@@ -400,9 +407,6 @@ async def clone_course(
         source_updated_at=source_updated_at,
         idempotency_key=idempotency_key,
     )
-    # Lazy asset re-homing rides the post-commit Celery enqueue (S4.9); the DB
-    # tree is the durable unit and has already committed via the request session.
-    courses_service.enqueue_clone_assets(new_course.id)
     refreshed, stats = await _load_course_with_stats(db, new_course.id)
     origin = await courses_service.resolve_origin(db, refreshed)
     response.headers["Location"] = f"/api/v1/courses/{new_course.id}"

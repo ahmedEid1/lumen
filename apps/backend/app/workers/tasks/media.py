@@ -99,7 +99,13 @@ async def _copy_clone_assets_async(new_course_id: str, *, db=None) -> dict:
 
     course = await db.get(Course, new_course_id)
     if course is None:
-        return {"copied": 0, "failed": 0, "cancelled": False}
+        # With the after-commit enqueue (S4 gate Codex-C1) this should be rare —
+        # the enqueue fires only AFTER the clone tree commits. A missing row now
+        # means the clone was deleted/rolled-back between commit and task pickup;
+        # silent SUCCESS would lie to the orphan/asset-sweep semantics, so log at
+        # error level and return a non-success marker the task log can flag.
+        log.error("copy_clone_assets_course_missing", course_id=new_course_id)
+        return {"copied": 0, "failed": 0, "cancelled": False, "missing": True}
     owner_id = course.owner_id
 
     # ---- Cover (cover/{owner}/...) ----
@@ -323,3 +329,34 @@ def sweep_orphan_clone_assets() -> int:
 def sweep_unclaimed_assets() -> None:
     log.info("media_sweep_unclaimed_assets")
     # TODO(v1.1): list MinIO objects, drop ones older than 24h not referenced in assets.
+
+
+# ---------------------------------------------------------------------------
+# Idempotency-key TTL sweep (S4 gate Codex-C2 / Gate-B B3)
+# ---------------------------------------------------------------------------
+
+
+async def _sweep_expired_idempotency_keys_async(*, db=None) -> int:
+    """Delete idempotency rows past their ``expires_at`` (TTL replay window).
+
+    Mirrors the orphan-asset sweep shape: ``db`` is injectable for tests; in
+    production it opens a per-task NullPool worker session. Returns the count
+    reclaimed."""
+    if db is None:
+        async with db_base.worker_session_scope() as Session, Session() as session:
+            reclaimed = await _sweep_expired_idempotency_keys_async(db=session)
+            await session.commit()
+            return reclaimed
+
+    from app.services import idempotency as idempotency_service
+
+    return await idempotency_service.sweep_expired(db)
+
+
+@celery.task(name="app.workers.tasks.media.sweep_expired_idempotency_keys")
+def sweep_expired_idempotency_keys() -> int:
+    """Periodic expired-idempotency-key reclamation (S4 gate)."""
+    log.info("sweep_expired_idempotency_keys_start")
+    reclaimed = asyncio.run(_sweep_expired_idempotency_keys_async())
+    log.info("sweep_expired_idempotency_keys_done", reclaimed=reclaimed)
+    return reclaimed

@@ -326,3 +326,60 @@ async def test_sweep_orphan_clone_assets(db_session, fake_s3):
     )
     assert orphan_key not in remaining
     assert referenced_key in remaining
+
+
+async def test_copy_clone_assets_missing_course_logs_error_non_success(db_session):
+    """S4 gate Codex-C1: a missing clone row no longer returns silent SUCCESS —
+    it logs at error level and returns a non-success ``missing`` marker so the
+    sweep/asset semantics stay honest."""
+    from structlog.testing import capture_logs
+
+    with capture_logs() as logs:
+        summary = await media._copy_clone_assets_async("does-not-exist", db=db_session)
+    assert summary == {"copied": 0, "failed": 0, "cancelled": False, "missing": True}
+    missing = [
+        e for e in logs if e.get("event") == "copy_clone_assets_course_missing"
+    ]
+    assert len(missing) == 1
+    assert missing[0]["log_level"] == "error"
+    assert missing[0]["course_id"] == "does-not-exist"
+
+
+# ---------------------------------------------------------------------------
+# S4 gate Codex-C2 / Gate-B B3 — idempotency-key TTL sweep
+# ---------------------------------------------------------------------------
+
+
+async def test_sweep_expired_idempotency_keys(db_session):
+    """Expired idempotency rows are swept; non-expired rows are kept."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.idempotency import IdempotencyKey
+
+    owner = await _user(db_session)
+    now = datetime.now(UTC)
+    expired = IdempotencyKey(
+        user_id=owner.id,
+        idempotency_key="old",
+        endpoint="course.clone",
+        response_target_id="c1",
+        expires_at=now - timedelta(hours=1),
+    )
+    fresh = IdempotencyKey(
+        user_id=owner.id,
+        idempotency_key="new",
+        endpoint="course.clone",
+        response_target_id="c2",
+        expires_at=now + timedelta(hours=23),
+    )
+    db_session.add_all([expired, fresh])
+    await db_session.commit()
+
+    reclaimed = await media._sweep_expired_idempotency_keys_async(db=db_session)
+    await db_session.commit()
+    assert reclaimed == 1
+    remaining = (
+        (await db_session.execute(select(IdempotencyKey.idempotency_key))).scalars().all()
+    )
+    assert "old" not in remaining
+    assert "new" in remaining

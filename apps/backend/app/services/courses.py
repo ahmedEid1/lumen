@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.errors import (
     CloneCourseLimitError,
+    CloneInProgressError,
     CloneRateLimitedError,
     CloneSourceChangedError,
     CloneSourceNotClonableError,
@@ -800,8 +801,14 @@ async def clone_course(
     user_agent: str | None = None,
     source_updated_at: datetime | None = None,
     idempotency_key: str | None = None,
-) -> Course:
+) -> tuple[Course, bool]:
     """Clone a publicly-listed course into a fresh private draft (ADR-0028 §2).
+
+    Returns ``(course, replayed)``. ``replayed`` is ``True`` only when an
+    ``Idempotency-Key`` retry short-circuited to the prior committed clone — the
+    caller uses it to skip re-enqueuing the asset-rehoming task (re-firing it
+    re-homes already-owned assets → duplicate Asset rows + S3 objects, the
+    amplification ADR-0028's open-risks section calls out; S4 gate Codex-C1).
 
     The orchestrator: resolve + authorize (``is_publicly_listed`` with the
     403-vs-404 existence-hide split), idempotency replay, optional
@@ -839,17 +846,35 @@ async def clone_course(
     if not visibility_service.can_clone(source, caller) or not caller.is_active:
         raise ForbiddenError("You cannot clone this course", code="clone.source_not_clonable")
 
-    # ---- Idempotency replay (FR-CLONE-20). A same-key retry returns the prior
-    # committed clone; we do NOT re-enqueue the asset task (the tree is the
-    # durable unit — ADR-0028 §"Open risks"). ----
+    # ---- Idempotency reserve-then-materialize (FR-CLONE-20; S4 gate Codex-C2 /
+    # Gate-B B3). Insert the key row FIRST inside a savepoint so a concurrent
+    # same-key double-submit resolves deterministically instead of throwing an
+    # unhandled IntegrityError on the loser:
+    #   * REPLAY    → the winner already committed its clone → return it (the
+    #                 asset task is NOT re-enqueued — ``replayed=True``).
+    #   * IN_FLIGHT → the winner reserved but hasn't committed → 409
+    #                 ``clone.in_progress`` (honest, no torn state).
+    #   * RESERVED  → we own it → materialize below, then ``finalize`` stamps the
+    #                 reserved row with the committed clone id. ----
+    reserved_key_id: str | None = None
     if idempotency_key:
-        prior_id = await idempotency_service.lookup(
+        reservation = await idempotency_service.reserve(
             db, user_id=caller.id, key=idempotency_key, endpoint=_CLONE_ENDPOINT
         )
-        if prior_id:
-            prior = await courses_repo.get_course(db, prior_id, with_modules=True)
+        if reservation.outcome is idempotency_service.ReserveOutcome.REPLAY:
+            prior = await courses_repo.get_course(
+                db, reservation.response_target_id, with_modules=True
+            )
             if prior is not None:
-                return prior
+                return prior, True
+            # Prior result row vanished (hard delete) — fall through to a fresh
+            # materialization rather than 500; the reserved key is reusable.
+        elif reservation.outcome is idempotency_service.ReserveOutcome.IN_FLIGHT:
+            raise CloneInProgressError(
+                "A clone with this key is already being created — retry shortly."
+            )
+        else:
+            reserved_key_id = reservation.key_id
 
     # ---- Optional precondition (FR-CLONE-14, best-effort — Course.updated_at
     # only bumps on a course-row write; snapshot atomicity is the real guard). ----
@@ -985,33 +1010,47 @@ async def clone_course(
             data={"origin_course_id": source.id, "clone_course_id": new_course.id},
         )
 
-    # ---- Record the idempotency key pointing at the committed clone. ----
-    if idempotency_key:
-        await idempotency_service.record(
-            db,
-            user_id=caller.id,
-            key=idempotency_key,
-            endpoint=_CLONE_ENDPOINT,
-            response_target_id=new_course.id,
+    # ---- Stamp the reserved idempotency row with the committed clone id. ----
+    if reserved_key_id is not None:
+        await idempotency_service.finalize(
+            db, key_id=reserved_key_id, response_target_id=new_course.id
         )
 
-    return new_course
+    # ---- Asset re-homing rides an after-commit hook (S4 gate Codex-C1 /
+    # Gate-B B1, the project's own ADR-0019 gotcha). Enqueuing inline here would
+    # fire the task BEFORE get_db()'s post-handler commit — a fast worker would
+    # ``db.get(Course, ...)`` and see no row. Register the enqueue on the sync
+    # session's ``after_commit`` (once=True, mirroring tutor_turn_service) so it
+    # only fires for THIS fresh materialization and only after the row is durable.
+    _wire_clone_assets_enqueue_after_commit(db, course_id=new_course.id)
+
+    return new_course, False
 
 
-def enqueue_clone_assets(course_id: str) -> None:
-    """Best-effort post-commit enqueue of the lazy asset re-homing task (S4.9).
+def _wire_clone_assets_enqueue_after_commit(db: AsyncSession, *, course_id: str) -> None:
+    """Register a one-shot ``after_commit`` hook that enqueues the lazy asset
+    re-homing task only after the clone tree is durably committed.
 
-    Mirrors the defensive :func:`_schedule_embedding_index` shape (CLAUDE.md:
-    Celery is best-effort in dev) — a down broker logs a warning and the clone
-    still succeeds; the orphan sweeper + on-demand re-home reconcile later. The
-    DB tree is the durable unit, so this fires AFTER the request commits.
+    Mirrors ``tutor_turn_service._wire_enqueue_after_commit``: the listener is
+    attached to the underlying sync session (where SQLAlchemy event hooks live)
+    with ``once=True`` so a flushed-then-rolled-back clone never enqueues (no
+    orphan task against an absent course). Broker-failure tolerant — a down
+    broker logs a warning and the clone still succeeds; the orphan sweeper +
+    on-demand re-home reconcile later (the DB tree is the durable unit).
     """
-    try:
-        from app.workers.tasks.media import copy_clone_assets
+    from sqlalchemy import event
 
-        copy_clone_assets.delay(course_id)
-    except Exception:  # pragma: no cover — broker may be down
-        log.warning("clone_assets_enqueue_failed", course_id=course_id)
+    sync_session = db.sync_session
+
+    def _safe_enqueue(*_a, **_kw):
+        try:
+            from app.workers.tasks.media import copy_clone_assets
+
+            copy_clone_assets.delay(course_id)
+        except Exception:  # pragma: no cover — broker may be down
+            log.warning("clone_assets_enqueue_failed", course_id=course_id)
+
+    event.listen(sync_session, "after_commit", _safe_enqueue, once=True)
 
 
 async def resolve_origin(db: AsyncSession, course: Course):

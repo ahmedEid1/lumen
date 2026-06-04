@@ -15,6 +15,7 @@ cache); the disabled-flag test asserts the 404 with it off.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import func, select
@@ -402,7 +403,15 @@ async def test_self_clone_allowed(client, db_session, clone_on):
     assert notes == []
 
 
-async def test_clone_idempotency_key_returns_same_course(client, db_session, clone_on):
+async def test_clone_idempotency_key_returns_same_course(client, db_session, clone_on, monkeypatch):
+    # Spy on the lazy-asset enqueue. The fresh clone must enqueue exactly once;
+    # the replay must NOT re-enqueue (re-firing re-homes already-owned assets →
+    # duplicate Asset rows + S3 objects — S4 gate Codex-C1).
+    from app.workers.tasks import media
+
+    enqueued: list[str] = []
+    monkeypatch.setattr(media.copy_clone_assets, "delay", lambda cid: enqueued.append(cid))
+
     owner = await _user(db_session)
     source = await _source_course(db_session, owner)
     cloner = await _user(db_session)
@@ -421,6 +430,165 @@ async def test_clone_idempotency_key_returns_same_course(client, db_session, clo
         )
     ).scalar_one()
     assert count == 1
+    # Fresh enqueued once; replay did NOT re-enqueue (after-commit, once-per-fresh).
+    assert enqueued == [r1.json()["id"]]
+
+
+async def test_clone_fresh_enqueues_assets_once_after_commit(
+    client, db_session, clone_on, monkeypatch
+):
+    """A fresh clone enqueues copy_clone_assets exactly once for the new course id
+    (S4 gate Codex-C1 / Gate-B B1, ADR-0019). The enqueue is registered on the
+    request session's ``after_commit`` hook (see _wire_clone_assets_enqueue_
+    after_commit) so it fires only after the clone tree is durable — the worker
+    never races an uncommitted row."""
+    from app.workers.tasks import media
+
+    enqueued: list[str] = []
+    monkeypatch.setattr(media.copy_clone_assets, "delay", lambda cid: enqueued.append(cid))
+
+    owner = await _user(db_session)
+    source = await _source_course(db_session, owner)
+    cloner = await _user(db_session)
+    await db_session.commit()
+
+    headers = await _login(client, cloner)
+    r = await client.post(f"/api/v1/courses/{source.slug}/clone", headers=headers)
+    assert r.status_code == 201, r.text
+    assert enqueued == [r.json()["id"]]
+
+
+async def test_clone_assets_enqueue_registered_as_after_commit_listener(
+    db_session, clone_on, monkeypatch
+):
+    """Structural proof the enqueue is wired to ``after_commit`` (not fired
+    inline): immediately after ``clone_course`` returns — before the caller
+    commits — the asset task has NOT been enqueued; it only fires on commit
+    (Codex-C1 / Gate-B B1, the ADR-0019 ordering gotcha)."""
+    from app.services import courses as courses_service
+    from app.workers.tasks import media
+
+    enqueued: list[str] = []
+    monkeypatch.setattr(media.copy_clone_assets, "delay", lambda cid: enqueued.append(cid))
+
+    owner = await _user(db_session)
+    source = await _source_course(db_session, owner)
+    cloner = await _user(db_session)
+    await db_session.commit()
+
+    new_course, replayed = await courses_service.clone_course(
+        db_session, caller=cloner, source_key=source.slug
+    )
+    assert replayed is False
+    # Pre-commit: the listener is armed but has NOT fired.
+    assert enqueued == []
+    await db_session.commit()
+    # Post-commit: it fired exactly once for the new course.
+    assert enqueued == [new_course.id]
+
+
+async def test_clone_in_flight_same_key_returns_409(client, db_session, clone_on):
+    """A same-key submit while the winner's reservation is still in flight (its
+    response_target_id NULL) → 409 clone.in_progress (S4 gate Codex-C2 / B3)."""
+    from datetime import timedelta
+
+    from app.models.idempotency import IdempotencyKey
+    from app.services.courses import _CLONE_ENDPOINT
+
+    owner = await _user(db_session)
+    source = await _source_course(db_session, owner)
+    cloner = await _user(db_session)
+    # Pre-insert an in-flight reservation (target NULL) for this user+key+endpoint.
+    db_session.add(
+        IdempotencyKey(
+            user_id=cloner.id,
+            idempotency_key="race-key",
+            endpoint=_CLONE_ENDPOINT,
+            response_target_id=None,
+            expires_at=datetime.now(UTC) + timedelta(hours=24),
+        )
+    )
+    await db_session.commit()
+
+    headers = await _login(client, cloner)
+    r = await client.post(
+        f"/api/v1/courses/{source.slug}/clone",
+        headers={"Idempotency-Key": "race-key", **headers},
+    )
+    assert r.status_code == 409, r.text
+    assert r.json()["error"]["code"] == "clone.in_progress"
+    # No clone materialized for the loser.
+    count = (
+        await db_session.execute(
+            select(func.count(Course.id)).where(Course.origin_course_id == source.id)
+        )
+    ).scalar_one()
+    assert count == 0
+
+
+async def test_clone_completed_key_replays(client, db_session, clone_on):
+    """A completed reservation (response_target_id set) replays the prior clone
+    instead of re-running the mutation."""
+    owner = await _user(db_session)
+    source = await _source_course(db_session, owner)
+    cloner = await _user(db_session)
+    await db_session.commit()
+
+    headers = await _login(client, cloner)
+    key = {"Idempotency-Key": "done-key", **headers}
+    r1 = await client.post(f"/api/v1/courses/{source.slug}/clone", headers=key)
+    assert r1.status_code == 201, r1.text
+    r2 = await client.post(f"/api/v1/courses/{source.slug}/clone", headers=key)
+    assert r2.status_code == 201
+    assert r1.json()["id"] == r2.json()["id"]
+
+
+async def test_clone_same_key_distinct_endpoints_no_collision(client, db_session, clone_on):
+    """The 3-col unique constraint (user_id, idempotency_key, endpoint) lets the
+    same opaque key be reserved under a different endpoint without colliding —
+    proves migration 0050 took (a 2-col constraint would IntegrityError here)."""
+    from datetime import timedelta
+
+    from app.models.idempotency import IdempotencyKey
+    from app.services.courses import _CLONE_ENDPOINT
+
+    owner = await _user(db_session)
+    source = await _source_course(db_session, owner)
+    cloner = await _user(db_session)
+    # A completed reservation for the SAME key under a DIFFERENT endpoint.
+    db_session.add(
+        IdempotencyKey(
+            user_id=cloner.id,
+            idempotency_key="shared-key",
+            endpoint="other.endpoint",
+            response_target_id="some-other-result",
+            expires_at=datetime.now(UTC) + timedelta(hours=24),
+        )
+    )
+    await db_session.commit()
+
+    headers = await _login(client, cloner)
+    r = await client.post(
+        f"/api/v1/courses/{source.slug}/clone",
+        headers={"Idempotency-Key": "shared-key", **headers},
+    )
+    # Clone proceeds (no collision with the other-endpoint row); a real clone.
+    assert r.status_code == 201, r.text
+    assert r.json()["origin"]["origin_course_id"] == source.id
+    # The clone-endpoint reservation now points at the new course, distinct from
+    # the other-endpoint row that is untouched.
+    rows = (
+        (
+            await db_session.execute(
+                select(IdempotencyKey).where(IdempotencyKey.idempotency_key == "shared-key")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    by_endpoint = {row.endpoint: row.response_target_id for row in rows}
+    assert by_endpoint["other.endpoint"] == "some-other-result"
+    assert by_endpoint[_CLONE_ENDPOINT] == r.json()["id"]
 
 
 async def test_clone_writes_audit_events(client, db_session, clone_on):
