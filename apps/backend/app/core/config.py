@@ -284,6 +284,15 @@ class Settings(BaseSettings):
     # there is no leak window. Env: FEATURE_PRIVATE_PUBLISH_ENABLED.
     feature_private_publish_enabled: bool = False
 
+    # ---------- S6.6 — Legacy /role write policy (FR-ADMIN-02) ----------
+    # During the role-collapse migration window the ``/admin/users/{id}/role``
+    # endpoint NORMALIZES a stale ``student``/``instructor`` write to ``user``
+    # (applied + audited as ``{requested, applied}``) so old clients don't 422
+    # mid-rollout. After Phase D — once every client speaks the two-role model —
+    # flip this ON and a legacy value is rejected with ``user.invalid_role``.
+    # Env: STRICT_LEGACY_ROLE_REJECTION.
+    strict_legacy_role_rejection: bool = False
+
     # ---------- S6.3 — Course-report brigading controls (DR-20) ----------
     # Reporter eligibility: an account must be at least this many days old
     # (AND email-verified) to file a course report. Layered on top of the

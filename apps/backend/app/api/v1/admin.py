@@ -5,13 +5,14 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Query, Request, status
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 from slugify import slugify
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import DBSession, RequireAdmin, client_ip, user_agent
 from app.api.v1 import _builders
+from app.core.config import get_settings
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.models.audit import AuditEvent
 from app.models.course import Course, CourseStatus, Enrollment, Subject, Tag
@@ -21,6 +22,7 @@ from app.repositories import courses as courses_repo
 from app.repositories import moderation as moderation_repo
 from app.schemas.common import OkResponse
 from app.schemas.course import CourseListItem, SubjectOut, TagOut
+from app.services import admin_users as admin_users_service
 from app.services import moderation as moderation_service
 from app.services import visibility as visibility_service
 from app.services.moderation_taxonomy import ReasonCode
@@ -176,23 +178,37 @@ class UserAdminOut(BaseModel):
 #: FR-ADMIN-07). Legacy ``student``/``instructor`` are read-tolerant (the wide
 #: enum still loads them) but write-forbidden.
 SETTABLE_ROLES: frozenset[Role] = frozenset({Role.user, Role.admin})
+#: Legacy roles the ``/role`` endpoint *normalizes* to ``user`` during the
+#: migration window (S6.6 / FR-ADMIN-02): a stale ``instructor``/``student``
+#: write is applied as ``user`` (audited as ``{requested, applied}``) so old
+#: clients don't 422 mid-rollout. After Phase D (or under the strict flag) they
+#: are rejected with ``user.invalid_role``.
+NORMALIZABLE_ROLES: frozenset[Role] = frozenset({Role.student, Role.instructor})
 
 
 class UserRoleUpdate(BaseModel):
+    # S6.6: accept ANY enum value at parse so the legacy ``student``/
+    # ``instructor`` write can be *normalized* (not rejected) during the
+    # migration window. The settable/normalize/422 policy is applied in the
+    # handler, not the validator (FR-ADMIN-02).
     role: Role
 
-    @field_validator("role")
-    @classmethod
-    def _settable_only(cls, v: Role) -> Role:
-        # S1.8: reject a write to a legacy/unknown role. Reads stay tolerant
-        # (the row may still carry `student`/`instructor` until 0031), but an
-        # admin can only *assign* {user, admin}.
-        if v not in SETTABLE_ROLES:
-            raise ValueError(
-                f"role must be one of {sorted(r.value for r in SETTABLE_ROLES)} "
-                f"(legacy roles are not settable)"
-            )
-        return v
+
+class AdminToggleUpdate(BaseModel):
+    """S6.6 — the grant/revoke-admin toggle body (FR-ADMIN-01)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    is_admin: bool
+
+
+class SuspendUpdate(BaseModel):
+    """S6.7 — the suspend body (FR-SUSP-01/03)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: ReasonCode
+    note: str | None = Field(default=None, max_length=5000)
 
 
 class UserActiveUpdate(BaseModel):
@@ -218,40 +234,141 @@ async def list_users(
 async def set_user_role(
     user_id: str, payload: UserRoleUpdate, admin: RequireAdmin, db: DBSession
 ) -> UserAdminOut:
+    """LEGACY role write (FR-ADMIN-02) — superseded by ``/admin`` (S6.6).
+
+    During the migration window a stale ``student``/``instructor`` value is
+    NORMALIZED to ``user`` (applied + audited as ``{requested, applied}``) so
+    old clients don't 422 mid-rollout. After Phase D (``strict_legacy_role_
+    rejection``) a legacy value is rejected with ``user.invalid_role``. The
+    last-admin invariant guards a self/last-admin demote (subsumes the old
+    self-demote guard).
+    """
     user = await _load_user_or_404(db, user_id)
-    # Defence-in-depth (the field_validator already rejects at parse): never
-    # *write* a legacy/unknown role even if the schema constraint is relaxed.
-    if payload.role not in SETTABLE_ROLES:
+    requested = payload.role
+    applied = requested
+
+    if requested in NORMALIZABLE_ROLES:
+        if get_settings().strict_legacy_role_rejection:
+            raise ValidationAppError("Role must be 'user' or 'admin'", code="user.invalid_role")
+        # Migration-window tolerance: normalize legacy → user.
+        applied = Role.user
+    elif requested not in SETTABLE_ROLES:
         raise ValidationAppError("Role must be 'user' or 'admin'", code="user.invalid_role")
-    if user.id == admin.id and payload.role != Role.admin:
-        raise ValidationAppError("Cannot demote yourself", code="user.self_demote")
-    user.role = payload.role
+
+    # Demoting an admin (self or the last other admin) routes through the
+    # authoritative last-admin invariant (subsumes the old self-demote guard).
+    if user.role == Role.admin and applied != Role.admin:
+        await admin_users_service.assert_active_admin_invariant(
+            db, excluding_user_id=user.id, code="user.last_admin"
+        )
+
+    user.role = applied
+    data: dict = {"role": applied.value}
+    if requested != applied:
+        data = {"requested": requested.value, "applied": applied.value}
     await audit_repo.record(
         db,
         actor_id=admin.id,
         action="admin.user.role",
         target_type="user",
         target_id=user.id,
-        data={"role": payload.role.value},
+        data=data,
+    )
+    return UserAdminOut.model_validate(user)
+
+
+@router.patch("/users/{user_id}/admin", response_model=UserAdminOut)
+async def set_user_admin(
+    user_id: str,
+    payload: AdminToggleUpdate,
+    admin: RequireAdmin,
+    db: DBSession,
+    request: Request,
+) -> UserAdminOut:
+    """Grant or revoke the admin role (S6.6 / FR-ADMIN-01).
+
+    Replaces the role ``<Select>`` write path with a ``{is_admin}`` toggle.
+    Revoking is refused with ``422 user.last_admin`` if it would leave zero
+    active admins (FR-ADMIN-03) — including self-revoke and revoking the only
+    other admin.
+    """
+    user = await _load_user_or_404(db, user_id)
+    user = await admin_users_service.set_admin(
+        db,
+        target=user,
+        is_admin=payload.is_admin,
+        actor=admin,
+        ip=client_ip(request),
+        user_agent=user_agent(request),
     )
     return UserAdminOut.model_validate(user)
 
 
 @router.patch("/users/{user_id}/active", response_model=UserAdminOut)
 async def set_user_active(
-    user_id: str, payload: UserActiveUpdate, admin: RequireAdmin, db: DBSession
+    user_id: str, payload: UserActiveUpdate, admin: RequireAdmin, db: DBSession, request: Request
 ) -> UserAdminOut:
+    """DEPRECATED generic active toggle — prefer ``/suspend`` + ``/reinstate``
+    (S6.7). Folded onto the same service so the last-admin invariant and the
+    refresh-token revocation apply uniformly."""
     user = await _load_user_or_404(db, user_id)
-    if user.id == admin.id and not payload.is_active:
-        raise ValidationAppError("Cannot deactivate yourself", code="user.self_deactivate")
-    user.is_active = payload.is_active
-    await audit_repo.record(
+    if payload.is_active:
+        user = await admin_users_service.reinstate(
+            db,
+            target=user,
+            actor=admin,
+            ip=client_ip(request),
+            user_agent=user_agent(request),
+        )
+    else:
+        user = await admin_users_service.suspend(
+            db,
+            target=user,
+            reason=ReasonCode.other,
+            actor=admin,
+            ip=client_ip(request),
+            user_agent=user_agent(request),
+        )
+    return UserAdminOut.model_validate(user)
+
+
+@router.patch("/users/{user_id}/suspend", response_model=UserAdminOut)
+async def suspend_user(
+    user_id: str,
+    payload: SuspendUpdate,
+    admin: RequireAdmin,
+    db: DBSession,
+    request: Request,
+) -> UserAdminOut:
+    """Suspend a user (S6.7 / FR-SUSP-01): ``is_active=False`` + refresh revoke,
+    ``deleted_at`` stays null. Refused with ``422 user.last_admin_active`` on the
+    last active admin."""
+    user = await _load_user_or_404(db, user_id)
+    user = await admin_users_service.suspend(
         db,
-        actor_id=admin.id,
-        action="admin.user.active",
-        target_type="user",
-        target_id=user.id,
-        data={"is_active": payload.is_active},
+        target=user,
+        reason=payload.reason,
+        note=payload.note,
+        actor=admin,
+        ip=client_ip(request),
+        user_agent=user_agent(request),
+    )
+    return UserAdminOut.model_validate(user)
+
+
+@router.patch("/users/{user_id}/reinstate", response_model=UserAdminOut)
+async def reinstate_user(
+    user_id: str, admin: RequireAdmin, db: DBSession, request: Request
+) -> UserAdminOut:
+    """Reinstate a suspended user (S6.7 / FR-SUSP-02). Refused with
+    ``422 user.deleted_irreversible`` on a tombstoned account."""
+    user = await _load_user_or_404(db, user_id)
+    user = await admin_users_service.reinstate(
+        db,
+        target=user,
+        actor=admin,
+        ip=client_ip(request),
+        user_agent=user_agent(request),
     )
     return UserAdminOut.model_validate(user)
 

@@ -58,18 +58,21 @@ async def test_admin_can_demote_admin_to_user(client: AsyncClient, auth_headers,
     assert r.json()["role"] == "user"
 
 
-async def test_set_user_role_rejects_legacy_values(
+async def test_set_user_role_normalizes_legacy_values(
     client: AsyncClient, auth_headers, make_user
 ) -> None:
-    # S1.8 / FR-RBAC-06: legacy `student`/`instructor` are write-forbidden;
-    # `user` is accepted. Read-tolerance is unaffected (the wide enum loads).
+    # S6.6 / FR-ADMIN-02: during the migration window a legacy
+    # `student`/`instructor` write is NORMALIZED to `user` (not rejected) so
+    # old clients don't 422 mid-rollout. The post-Phase-D 422 path is gated by
+    # `strict_legacy_role_rejection` (see test_admin_grant_revoke.py).
     admin = await auth_headers(role=Role.admin)
     target = await make_user(email="legacy-write@lumen.test")
     for legacy in ("student", "instructor"):
         r = await client.patch(
             f"/api/v1/admin/users/{target.id}/role", json={"role": legacy}, headers=admin
         )
-        assert r.status_code == 422, f"{legacy} should be rejected"
+        assert r.status_code == 200, f"{legacy} should normalize to user"
+        assert r.json()["role"] == "user"
     ok = await client.patch(
         f"/api/v1/admin/users/{target.id}/role", json={"role": "user"}, headers=admin
     )
@@ -82,11 +85,11 @@ async def test_admin_cannot_self_demote(client: AsyncClient, auth_headers, db_se
     # Pull the admin's id from /auth/me
     me = await client.get("/api/v1/auth/me", headers=admin)
     aid = me.json()["id"]
-    # Demoting self to `user` (the now-valid non-admin role) trips the
-    # self-demote guard, not the legacy-role validator.
+    # S6.6: self-demote of the last active admin trips the authoritative
+    # last-admin invariant (which subsumes the old self-demote guard).
     r = await client.patch(f"/api/v1/admin/users/{aid}/role", json={"role": "user"}, headers=admin)
     assert r.status_code == 422
-    assert r.json()["error"]["code"] == "user.self_demote"
+    assert r.json()["error"]["code"] == "user.last_admin"
 
 
 async def test_audit_log_lists(client: AsyncClient, auth_headers) -> None:

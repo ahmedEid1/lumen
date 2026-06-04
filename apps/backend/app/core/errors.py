@@ -202,6 +202,62 @@ class ByokProviderError(AppError):
     code = "tutor.byok_provider_error"
 
 
+# ---------------------------------------------------------------------------
+# S6 (admin/account-lifecycle) error codes — ADR-0030 §"Error codes" +
+# FR-ADMIN-03 / FR-SUSP-04. All map to the standard envelope.
+# ---------------------------------------------------------------------------
+
+
+class LastAdminError(ValidationAppError):
+    """FR-ADMIN-03 — the platform must always retain ≥1 active admin.
+
+    422. Returned when revoking the admin role from the last active admin
+    (``user.last_admin``); suspension reuses the same invariant via
+    ``user.last_admin_active``.
+    """
+
+    code = "user.last_admin"
+
+
+class AccountSuspendedError(UnauthorizedError):
+    """ADR-0030 §D3 / FR-SUSP-04 — login/refresh on a *suspended* account
+    (``is_active=False AND deleted_at IS NULL``). Distinct from the generic
+    ``auth.invalid_credentials`` so the frontend can surface a precise message.
+    """
+
+    code = "auth.account_suspended"
+
+
+class AccountDeletedError(UnauthorizedError):
+    """ADR-0030 §D3 — login/refresh on a *tombstoned* account
+    (``deleted_at IS NOT NULL``). Distinct from ``auth.account_suspended``.
+    """
+
+    code = "auth.account_deleted"
+
+
+class AccountDeletedIrreversibleError(ValidationAppError):
+    """ADR-0030 §D3 — admin reinstate refused on a tombstoned account. 422.
+
+    A deleted account can never be reactivated through the suspension surface
+    (legal erasure / restoration is offline-admin only).
+    """
+
+    code = "user.deleted_irreversible"
+
+
+class AccessRevokedError(ForbiddenError):
+    """ADR-0030 §D4 / R-S10 — cooperative-cancellation signal. 403.
+
+    Raised by ``assert_account_active`` at streaming heartbeats and build/clone
+    phase fences when the caller's account flipped to ``is_active=False`` (suspend
+    or delete) mid-flight, so the in-flight job aborts instead of running to
+    completion.
+    """
+
+    code = "account.access_revoked"
+
+
 def _payload(
     code: str, message: str, *, details: dict[str, Any] | None, request_id: str | None
 ) -> dict[str, Any]:
