@@ -50,7 +50,11 @@ def test_chain_links_0033_through_0043():
     m48, m49 = _load("0048"), _load("0049")
     assert m48.revision == "0048" and m48.down_revision == "0047"
     assert m49.revision == "0049" and m49.down_revision == "0048"
-    assert m43.revision == "0043" and m43.down_revision == "0049"
+    # S4 gate fix: 0050 (idempotency endpoint-bearing unique, Phase A)
+    # precedes the boundary too; 0043 re-points to it.
+    m50 = _load("0050")
+    assert m50.revision == "0050" and m50.down_revision == "0049"
+    assert m43.revision == "0043" and m43.down_revision == "0050"
 
 
 def test_phase_annotations():

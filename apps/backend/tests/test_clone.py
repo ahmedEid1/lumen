@@ -701,13 +701,19 @@ class _RaisingModule:
 # ---------------------------------------------------------------------------
 
 
-async def test_clone_disabled_flag(client, db_session):
-    """clone_enabled OFF → 404 clone.disabled (no feature-probe). No override."""
+async def test_clone_disabled_flag(client, db_session, monkeypatch):
+    """clone_enabled OFF → 404 clone.disabled (no feature-probe). No override.
+
+    Force-unset the env (S4 gate-fix hardening): a dev stack running with
+    CLONE_ENABLED=true leaks the flag into the container env, and relying
+    on ambient cleanliness made this test fail locally while passing in
+    CI — the same robustness posture the BYOK flag tests use."""
     owner = await _user(db_session)
     source = await _source_course(db_session, owner)
     cloner = await _user(db_session)
     await db_session.commit()
 
+    monkeypatch.delenv("CLONE_ENABLED", raising=False)
     get_settings.cache_clear()  # type: ignore[attr-defined]
     headers = await _login(client, cloner)
     r = await client.post(f"/api/v1/courses/{source.slug}/clone", headers=headers)

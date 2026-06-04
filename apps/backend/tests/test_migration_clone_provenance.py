@@ -192,7 +192,7 @@ async def test_idempotency_keys_table_present(db_session: AsyncSession):
         await db_session.execute(
             text(
                 "SELECT 1 FROM information_schema.table_constraints "
-                "WHERE table_name='idempotency_keys' AND constraint_name='uq_idem_user_key'"
+                "WHERE table_name='idempotency_keys' AND constraint_name='uq_idem_user_key_endpoint'"
             )
         )
     ).scalar_one_or_none()
