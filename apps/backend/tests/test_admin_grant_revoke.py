@@ -14,11 +14,11 @@ from __future__ import annotations
 import uuid
 
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import AuditEvent
 from app.models.user import Role, User
-from sqlalchemy import select
 
 
 async def _me_id(client: AsyncClient, headers: dict) -> str:
