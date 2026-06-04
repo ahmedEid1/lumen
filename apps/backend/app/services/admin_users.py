@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sqlalchemy import text
+
 from app.core.errors import (
     AccountDeletedIrreversibleError,
     LastAdminError,
@@ -34,6 +36,16 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+#: Fixed advisory-lock key that serializes every admin-count-mutating action
+#: (demote / suspend / self-delete). All three call ``assert_active_admin_invariant``
+#: which takes ``pg_advisory_xact_lock(_ADMIN_INVARIANT_LOCK_KEY)`` BEFORE the
+#: COUNT, so two concurrent operations that would each individually leave ≥1
+#: admin can no longer race past the check and drop the count to zero (F6 TOCTOU).
+#: The lock is transaction-scoped — released automatically at COMMIT/ROLLBACK.
+#: The constant is arbitrary but must be stable across processes (it is the
+#: shared rendezvous point); chosen distinct from any other advisory key in use.
+_ADMIN_INVARIANT_LOCK_KEY = 0x4C554D454E41444D  # "LUMENADM" as a 64-bit int
+
 
 async def assert_active_admin_invariant(
     db: AsyncSession, *, excluding_user_id: str, code: str = "user.last_admin"
@@ -47,7 +59,16 @@ async def assert_active_admin_invariant(
 
     ``code`` lets the suspend path surface ``user.last_admin_active`` while the
     revoke path uses ``user.last_admin`` (both are ``LastAdminError`` / 422).
+
+    F6 (TOCTOU): a transaction-scoped Postgres advisory lock
+    (``pg_advisory_xact_lock``) on a fixed key is taken BEFORE the COUNT, so two
+    concurrent admin-count-mutating operations (demote / suspend / self-delete)
+    serialize through this check instead of both reading "1 admin remains" and
+    each dropping the platform to zero admins. The lock auto-releases at
+    COMMIT/ROLLBACK; it never blocks unrelated work.
     """
+    # Serialize concurrent demote/suspend/delete against the same invariant.
+    await db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _ADMIN_INVARIANT_LOCK_KEY})
     remaining = await users_repo.count_active_admins(db, excluding=excluding_user_id)
     if remaining < 1:
         raise LastAdminError("The platform must always have at least one active admin", code=code)
@@ -109,15 +130,26 @@ async def suspend(
     ``422 user.last_admin_active`` (reuses the S6.6 invariant). The notification
     carries the taxonomy **label**, never the admin's raw free-text note
     (FR-SUSP-04).
+
+    F7 (S6 gate): a tombstoned account (``deleted_at IS NOT NULL``) cannot be
+    suspended — deletion is terminal and irreversible, so re-flipping its
+    ``is_active``/audit/notification state through the suspension surface is
+    refused with ``422 user.deleted_irreversible`` (mirrors ``reinstate``'s
+    shape). This is the guard the inline comment below has long promised.
     """
+    # F7: never let a suspend touch a tombstone (delete_account is the only
+    # writer of deleted_at; a deleted account never re-enters the active surface).
+    if target.deleted_at is not None:
+        raise AccountDeletedIrreversibleError(
+            "A deleted account cannot be suspended", code="user.deleted_irreversible"
+        )
+
     if target.role == Role.admin and target.is_active:
         await assert_active_admin_invariant(
             db, excluding_user_id=target.id, code="user.last_admin_active"
         )
 
     target.is_active = False
-    # Defence-in-depth: never let a suspend masquerade as / overwrite a tombstone.
-    # (delete_account is the only writer of deleted_at.)
     await users_repo.revoke_all_refresh_tokens(db, target.id)
 
     clean_note = sanitize_note(note)

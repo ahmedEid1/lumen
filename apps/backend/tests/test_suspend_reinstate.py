@@ -151,6 +151,38 @@ async def test_reinstate_refused_on_tombstone(
     assert target.is_active is False  # unchanged
 
 
+async def test_suspend_refused_on_tombstone(
+    client: AsyncClient, auth_headers, make_user, db_session: AsyncSession
+) -> None:
+    """F7 (S6 gate): a tombstoned (deleted) account cannot be suspended.
+
+    Deletion is terminal; re-flipping its is_active/audit/notification state
+    through the suspension surface is refused with 422 user.deleted_irreversible
+    (mirrors reinstate's shape). Nothing is mutated."""
+    from datetime import UTC, datetime
+
+    admin = await auth_headers(role=Role.admin)
+    target = await make_user(email=f"susptomb-{uuid.uuid4().hex[:6]}@lumen.test", role=Role.user)
+    target.is_active = False
+    target.deleted_at = datetime.now(UTC)
+    await db_session.commit()
+
+    r = await client.patch(
+        f"/api/v1/admin/users/{target.id}/suspend",
+        json={"reason": "abuse"},
+        headers=admin,
+    )
+    assert r.status_code == 422, r.text
+    assert r.json()["error"]["code"] == "user.deleted_irreversible"
+
+    await db_session.refresh(target)
+    assert target.deleted_at is not None  # still a tombstone, untouched
+
+    # No suspend audit row was written.
+    ev = await _latest_audit(db_session, "admin.user.suspend", target.id)
+    assert ev is None
+
+
 async def test_suspend_last_active_admin_blocked(
     client: AsyncClient, auth_headers, db_session: AsyncSession
 ) -> None:
