@@ -32,7 +32,13 @@ precedes the deferrable 0043 boundary; 0045 adds the moderation_events timestamp
 
 - ~~PR-19 live no-KEK-with-credential boot check~~ — CLOSED at S5 Gate-C (prod+empty-KEK+credential
   rows → boot-guard refusal, live-verified 2026-06-03).
-- Suspended-user 401-vs-403 contract — S7 contract pass.
+- ~~Suspended-user 401-vs-403 contract~~ — CLOSED at S6.7. `authenticate`/`rotate_refresh` now return
+  **401** with distinct codes (`auth.account_suspended` for `is_active=False AND deleted_at IS NULL`;
+  `auth.account_deleted` for the tombstone), replacing the generic `auth.inactive`; the
+  suspended/deleted disclosure happens ONLY after a correct password (no enumeration oracle). The
+  **403** half of the contract is the cooperative-cancel signal `account.access_revoked` raised by
+  `account.assert_account_active` at streaming heartbeats + build/clone fences (S6.8). Tests:
+  `test_auth_suspended_codes.py`, `test_cooperative_cancel.py`.
 - Ingest "Import from URL" button visible to non-admin (API refuses; UI polish) — S2/S6.
 - `feature_byok_enabled` default OFF — flip decision belongs to W12 release planning. Prod flip
   REQUIRES setting `BYOK_MASTER_KEYS={"1":"<b64 32B>"}` in .env.production first (boot guard).
