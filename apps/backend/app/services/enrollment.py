@@ -58,6 +58,12 @@ async def _maybe_issue_certificate(
     private key is in the request path, and a future key rotation
     would also invalidate already-shipped credentials.
     """
+    # R-M8' / FR-CLONE-16: a self-enrollment (clone owner self-learn, ADR-0026
+    # self-preview) never mints a certificate/badge/notification — completing
+    # your own course is not an achievement. The single guard here covers BOTH
+    # call sites (record_quiz_attempt + mark_lesson).
+    if enrollment.is_self:
+        return
     if total and done == total and not enrollment.completed_at:
         enrollment.completed_at = datetime.now(UTC)
         enrollment.certificate_id = f"cert_{new_id()}"
@@ -109,6 +115,32 @@ async def enroll(db: AsyncSession, *, user: User, course: Course) -> Enrollment:
         body="You're all set. Open your dashboard to start learning.",
         data={"course_id": course.id},
     )
+    return enrollment
+
+
+async def enroll_self(db: AsyncSession, *, user: User, course: Course) -> Enrollment:
+    """Owner self-enroll that bypasses the publicly-listed gate (FR-CLONE-16).
+
+    A fresh clone is ``draft`` + ``private``, so its owner cannot self-enroll
+    through :func:`enroll` (which rejects non-publicly-listed courses). The owner
+    branch of ADR-0026's ``can_learn_in_course`` authorizes learning in your own
+    course, so this helper enrolls them directly with ``is_self=True`` — which in
+    turn suppresses certificate/badge minting in :func:`_maybe_issue_certificate`
+    (R-M8'). Idempotent on ``uq_enrollments_user_course``; skips the "Welcome"
+    notification (the owner already knows their own course exists). Shared with S3
+    owner self-learn.
+
+    The caller is responsible for having authorized ``user`` as the course owner
+    (clone_course sets ``course.owner_id = caller.id`` before calling this).
+    """
+    existing = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
+    if existing:
+        # Idempotent: if a prior (e.g. learner) enrollment exists, return it. We
+        # do not silently flip an existing non-self enrollment to self.
+        return existing
+    enrollment = Enrollment(user_id=user.id, course_id=course.id, is_self=True)
+    db.add(enrollment)
+    await db.flush()
     return enrollment
 
 
