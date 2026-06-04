@@ -23,15 +23,16 @@ Phase: D (release-gated). Apply via an explicit ``alembic upgrade 0043`` step in
 the deploy runbook with ``ALLOW_PHASE_MIGRATION=1``, never a blind make migrate.
 
 Chain position: this Phase-D NOT-NULL tighten is the LAST revision in the chain
-(0042 -> 0044 -> 0045 -> 0046 -> 0047 -> 0043, head) so it sits AFTER every
-Phase-A revision in the release window (incl. the ``courses.quarantined`` column
-0044 the visibility SQL depends on, and the F3 ``courses.review_flagged_at``
-column 0047). A ``migrate.safe``-only deploy therefore lands every additive
-revision and stops cleanly at this gated boundary instead of running schema-
-aware code against a missing column (Codex P1 / Gate-C).
+(0042 -> 0044 -> 0045 -> 0046 -> 0047 -> 0048 -> 0049 -> 0043, head) so it sits
+AFTER every Phase-A revision in the release window (incl. the
+``courses.quarantined`` column 0044 the visibility SQL depends on, the F3
+``courses.review_flagged_at`` column 0047, and S4.2's clone provenance 0048 +
+idempotency_keys 0049). A ``migrate.safe``-only deploy therefore lands every
+additive revision and stops cleanly at this gated boundary instead of running
+schema-aware code against a missing column (Codex P1 / Gate-C).
 
 Revision ID: 0043
-Revises: 0047
+Revises: 0049
 Create Date: 2026-08-07
 """
 
@@ -61,7 +62,7 @@ revision: str = "0043"
 # test), not silent. Do NOT re-parent applied revisions after W12 ships this
 # chain to prod — from that point the boundary-last invariant must be satisfied
 # by inserting new revisions, never by moving applied ones.
-down_revision: str | Sequence[str] | None = "0047"
+down_revision: str | Sequence[str] | None = "0049"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -44,7 +44,13 @@ def test_chain_links_0033_through_0043():
     # S6 fix wave: 0047 (review_flagged_at, Phase A) precedes the boundary too.
     m47 = _load("0047")
     assert m47.revision == "0047" and m47.down_revision == "0046"
-    assert m43.revision == "0043" and m43.down_revision == "0047"
+    # S4.2: 0048 (clone_provenance) + 0049 (idempotency_keys), both Phase A,
+    # chain BETWEEN 0047 and the gated boundary; 0043 re-points to 0049 so it
+    # stays the head (HOUSE RULES / test_migration_chain).
+    m48, m49 = _load("0048"), _load("0049")
+    assert m48.revision == "0048" and m48.down_revision == "0047"
+    assert m49.revision == "0049" and m49.down_revision == "0048"
+    assert m43.revision == "0043" and m43.down_revision == "0049"
 
 
 def test_phase_annotations():
