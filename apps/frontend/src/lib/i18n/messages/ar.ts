@@ -907,6 +907,8 @@ export const ar: Record<MessageKey, string> = {
   "common.edit": "تعديل",
   "common.notFound": "غير موجود",
   "common.tryAgain": "حاول مرة أخرى",
+  // ADR-0030 §D5 / DR-19: read-time deleted-user label (parity with en.ts).
+  "common.deletedUser": "مستخدم محذوف",
   "common.language": "اللغة",
 
   // Demo-question chip rail (L22)

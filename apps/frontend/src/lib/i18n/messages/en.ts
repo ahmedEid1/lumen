@@ -903,6 +903,10 @@ export const en = {
   "common.edit": "Edit",
   "common.notFound": "Not found",
   "common.tryAgain": "Try again",
+  // ADR-0030 §D5 / DR-19: single-sourced read-time anonymization label. The
+  // backend emits the KEY string ("common.deletedUser") in any author/owner
+  // name field whose underlying row is tombstoned; the frontend resolves it.
+  "common.deletedUser": "a deleted user",
   "common.language": "Language",
 
   // Demo-question chip rail (L22 — consumes useDemoQuestions library)
