@@ -21,6 +21,7 @@ from app.models.course import (
 )
 from app.models.course_draft_trace import CourseDraftTrace
 from app.models.discussion import Discussion, DiscussionReply
+from app.models.idempotency import IdempotencyKey
 from app.models.learning_path import LearningPath, LearningPathStep
 from app.models.lesson_chunk import EMBEDDING_DIM, LessonChunk
 from app.models.llm_call import LLMCall
@@ -80,6 +81,7 @@ __all__ = [
     "Discussion",
     "DiscussionReply",
     "Enrollment",
+    "IdempotencyKey",
     "LLMCall",
     "LearningPath",
     "LearningPathStep",

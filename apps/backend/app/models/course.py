@@ -150,6 +150,12 @@ class Course(IdMixin, TimestampMixin, Base):
             "review_flagged_at",
             postgresql_where=text("review_flagged_at IS NOT NULL"),
         ),
+        # Clone provenance lookups (ADR-0028 §"Index for clone read + lineage").
+        # ``ix_courses_origin_course_id`` serves FR-CLONE-24 ("who cloned this")
+        # and the S4.8 read-time ``origin_available`` re-resolution; the root
+        # index supports lineage analytics. Built CONCURRENTLY in migration 0048.
+        Index("ix_courses_origin_course_id", "origin_course_id"),
+        Index("ix_courses_root_origin", "root_origin_course_id"),
     )
 
     owner_id: Mapped[str] = mapped_column(
@@ -215,6 +221,27 @@ class Course(IdMixin, TimestampMixin, Base):
     review_flagged_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # ----- Clone provenance (ADR-0028 §"Data model changes") -----
+    # Server-written ONCE at clone time, never client-writable (CourseCreate/
+    # CourseUpdate carry ``extra="forbid"`` — S4.5). All nullable: a from-scratch
+    # course has no origin. FKs are ``ondelete="SET NULL"`` so a hard admin purge
+    # of an origin course/owner nulls the pointer while the snapshot text persists
+    # (lineage survives; ADR-0028 §"Reconciliation note"). In normal self-serve
+    # account deletion (anonymize-in-place, ADR-0030) ``origin_owner_id`` stays
+    # valid pointing at the tombstoned user and the read-time serializer (DR-19)
+    # renders "a deleted user".
+    origin_course_id: Mapped[str | None] = mapped_column(
+        ForeignKey("courses.id", ondelete="SET NULL"), nullable=True
+    )
+    origin_owner_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    root_origin_course_id: Mapped[str | None] = mapped_column(
+        ForeignKey("courses.id", ondelete="SET NULL"), nullable=True
+    )
+    origin_title_snapshot: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    origin_owner_name_snapshot: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    cloned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Postgres GENERATED ALWAYS AS STORED tsvector over title + overview.
     # Read-only at the ORM level; populated and refreshed by the DB on
     # every insert/update. Search queries hit this column via the
@@ -299,6 +326,15 @@ class Enrollment(IdMixin, TimestampMixin, Base):
         ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Owner self-enrollment marker (R-M8' / FR-CLONE-16). True when the course
+    # owner enrolled in their own course (clone auto-enroll or ADR-0026 self-
+    # preview). ``_maybe_issue_certificate`` short-circuits on ``is_self`` so a
+    # self-learner never mints a certificate/badge. server_default keeps the
+    # ADD COLUMN instant (existing rows = false; no historical enrollment was a
+    # self-enroll). See migration 0048.
+    is_self: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false", default=False
+    )
     certificate_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Signed Open Badges 3.0 / W3C VC credential — populated at the
     # same instant ``certificate_id`` is minted, by
