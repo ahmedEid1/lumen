@@ -1200,6 +1200,10 @@ export const en = {
   "adminModeration.relist": "Relist",
   "adminModeration.remove": "Remove",
   "adminModeration.confirmRemove": "Remove this course permanently?",
+  // F3 — queue-reason badges: an already-approved, still-listed course flagged
+  // by report accumulation vs a course awaiting first approval.
+  "adminModeration.reason.pending_review": "Awaiting review",
+  "adminModeration.reason.flagged": "Flagged — still listed",
 
   // S6.11 — moderation actions, reports tab, reason picker (FR-MOD-15).
   "adminModeration.tab.queue": "Review queue",

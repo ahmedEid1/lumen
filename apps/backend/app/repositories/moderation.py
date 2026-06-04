@@ -140,10 +140,18 @@ async def list_reports(
 ):
     """Cursor-paginated report listing (newest first), with optional filters.
 
-    The cursor is the ``id`` of the last row from the previous page; rows are
-    ordered ``(created_at DESC, id DESC)`` so the cursor compares on ``id`` as a
-    stable tiebreaker within the same instant.
+    F5 (S6 gate): rows are genuinely ordered ``(created_at DESC, id DESC)``.
+    The previous implementation ordered (and cursored) on ``id`` alone — but
+    ``id`` is a random nanoid, so "newest first" was actually random order and
+    the cursor walked an arbitrary sequence. The cursor is the ``id`` of the last
+    row from the previous page; we load that anchor row and page strictly past it
+    with a ``(created_at, id)`` row-value comparison (the audit-log cursor
+    reference at ``admin.list_audit`` resolves its anchor by id the same way, but
+    here we add ``id`` as a true tiebreaker so duplicate ``created_at`` instants
+    page deterministically — ``ix_course_reports_status_created (status,
+    created_at)`` serves the status-filtered scan).
     """
+    from sqlalchemy import and_, or_
     from sqlalchemy.orm import selectinload
 
     from app.models.moderation import CourseReport
@@ -159,7 +167,19 @@ async def list_reports(
     if course_id is not None:
         stmt = stmt.where(CourseReport.course_id == course_id)
     if cursor is not None:
-        stmt = stmt.where(CourseReport.id < cursor)
-    stmt = stmt.order_by(CourseReport.id.desc()).limit(limit)
+        anchor = await db.get(CourseReport, cursor)
+        if anchor is not None:
+            # Page strictly past the anchor in (created_at DESC, id DESC) order:
+            # an older instant, OR the same instant with a smaller id tiebreaker.
+            stmt = stmt.where(
+                or_(
+                    CourseReport.created_at < anchor.created_at,
+                    and_(
+                        CourseReport.created_at == anchor.created_at,
+                        CourseReport.id < anchor.id,
+                    ),
+                )
+            )
+    stmt = stmt.order_by(CourseReport.created_at.desc(), CourseReport.id.desc()).limit(limit)
     res = await db.execute(stmt)
     return list(res.scalars().unique().all())

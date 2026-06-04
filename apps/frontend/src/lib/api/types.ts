@@ -249,10 +249,17 @@ export const ALL_REASON_CODES: ReasonCode[] = [
 
 /**
  * One row of the admin moderation queue. The backend renders these as
- * `CourseListItem`s (admin-viewer), so the queue item is structurally a
- * `CourseListItem` — aliased for intent at the call sites.
+ * admin-viewer `CourseListItem`s plus a `queue_reason` honesty marker (F3):
+ * `pending_review` for a course awaiting first approval, or `flagged` for an
+ * already-approved-and-still-listed course that accumulated enough user reports
+ * to need re-review (R-S11). The UI badge reads this so a flagged-but-public
+ * course isn't mislabelled as un-vetted.
  */
-export type ModerationQueueItem = CourseListItem;
+export type ModerationQueueReason = "pending_review" | "flagged";
+
+export type ModerationQueueItem = CourseListItem & {
+  queue_reason: ModerationQueueReason;
+};
 
 /** Admin-viewer course list item (S6.4). Same shape as `CourseListItem`;
  * the admin endpoint surfaces the real `moderation_state`/`visibility`. */

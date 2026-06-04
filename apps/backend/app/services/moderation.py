@@ -127,6 +127,7 @@ async def approve_course(
         )
     from_state = str(course.moderation_state)
     course.moderation_state = ModerationState.approved
+    course.review_flagged_at = None  # F3: an admin decision clears the re-review flag
     await _record(
         db,
         course=course,
@@ -166,6 +167,7 @@ async def reject_course(
     course.moderation_state = ModerationState.rejected
     course.visibility = Visibility.private
     course.is_featured = False
+    course.review_flagged_at = None  # F3: an admin decision clears the re-review flag
     await _record(
         db,
         course=course,
@@ -205,6 +207,7 @@ async def delist_course(
     from_state = str(course.moderation_state)
     course.moderation_state = ModerationState.delisted
     course.is_featured = False
+    course.review_flagged_at = None  # F3: an admin decision clears the re-review flag
     await _record(
         db,
         course=course,
@@ -253,6 +256,7 @@ async def relist_course(
             "Course is not currently listable (owner unshared/unpublished it)",
             code="course.not_listable",
         )
+    course.review_flagged_at = None  # F3: an admin decision clears the re-review flag
     await _record(
         db,
         course=course,
@@ -299,6 +303,7 @@ async def remove_course(
     if course.deleted_at is None:
         course.deleted_at = datetime.now(UTC)
     course.is_featured = False
+    course.review_flagged_at = None  # F3: an admin decision clears the re-review flag
     if reason in QUARANTINE_REASONS:
         course.quarantined = True
     await _record(
@@ -424,39 +429,54 @@ async def report_course(
         data={"reason": reason.value},
     )
 
-    # R-S11 accumulation: when enough OPEN reports pile up, requeue the course to
-    # pending_review for admin confirmation. An APPROVED course is NEVER auto-
-    # delisted (a weak signal must not pull a vetted course); a never-approved
-    # course (none/pending) may auto-requeue. The admin makes the real call.
-    await _maybe_requeue_on_accumulation(db, course=course)
+    # R-S11 accumulation: when enough OPEN reports pile up, FLAG the course for
+    # admin re-review out-of-band. An APPROVED course is NEVER auto-delisted nor
+    # requeued to pending_review (both would pull a vetted course off the public
+    # listing — the exact R-S11 violation this denies); the admin makes the real
+    # call. A never-approved course (none/pending) is flagged the same way so the
+    # admin sees the accumulation, but it isn't listed anyway.
+    await _maybe_flag_for_review_on_accumulation(db, course=course)
     return report
 
 
-async def _maybe_requeue_on_accumulation(db: AsyncSession, *, course: Course) -> None:
-    """R-S11: requeue an over-reported course to pending_review (never delist).
+async def _maybe_flag_for_review_on_accumulation(db: AsyncSession, *, course: Course) -> None:
+    """R-S11 (F3 S6 gate): flag an over-reported course for admin re-review.
 
-    Approved courses requeue (so the admin re-confirms) but stay public/visible
-    until the admin acts; rejected/delisted courses are left alone (already out
-    of the queue). The advisory accumulation only ever moves a course TO
-    pending_review — it never pulls visibility.
+    Stamps ``review_flagged_at = now()`` — it does NOT touch ``moderation_state``.
+    An APPROVED course therefore STAYS approved → STAYS publicly listed
+    (``is_publicly_listed`` keys on ``moderation_state == approved``); the report
+    accumulation is a weak signal that must never auto-unlist a vetted course.
+    The admin moderation queue surfaces the flagged course out-of-band (the
+    ``review_flagged_at IS NOT NULL`` arm) so the admin re-confirms; any admin
+    transition (approve/reject/delist/relist/remove) clears the flag.
+
+    Idempotent: a course already flagged is not re-flagged (no event spam). The
+    advisory auto ``ModerationEvent`` keeps the audit trail — an adviSORY
+    'flagged' event with ``from_state == to_state == moderation_state`` and a
+    distinct ``classifier_signal``/reason marker, so it never corrupts the
+    state-machine event semantics (no real transition occurred).
     """
-    if course.moderation_state not in (ModerationState.approved, ModerationState.none):
+    if course.review_flagged_at is not None:
+        # Already flagged — don't re-stamp or re-emit (idempotent).
         return
     threshold = get_settings().report_requeue_threshold
     open_count = await moderation_repo.count_open_reports(db, course_id=course.id)
     if open_count < threshold:
         return
-    from_state = str(course.moderation_state)
-    course.moderation_state = ModerationState.pending_review
+    state = str(course.moderation_state)
+    course.review_flagged_at = datetime.now(UTC)
+    # Advisory 'flagged' event: NOT a state transition (from==to==current state),
+    # marked auto_flag so the audit trail records the accumulation without the
+    # event-replay/R-M9 logic ever reading it as a real approve/reject/delist.
     await moderation_repo.record_event(
         db,
         course_id=course.id,
         actor_id=None,  # system/auto signal
-        from_state=from_state,
-        to_state=str(ModerationState.pending_review),
-        reason_code=None,
+        from_state=state,
+        to_state=state,
+        reason_code="report_accumulation",
         note=None,
-        classifier_signal={"auto_requeue": True, "open_reports": open_count},
+        classifier_signal={"auto_flag": True, "open_reports": open_count},
     )
     await courses_service._bump_catalog_cache_version()
 
@@ -487,6 +507,13 @@ async def resolve_report(
         raise NotFoundError("Report not found", code="report.not_found")
 
     from app.models.moderation import ReportStatus
+
+    # F4 (S6 gate): only an OPEN report may be resolved. Without this guard a
+    # report already ``dismissed`` (or ``actioned``) could be re-resolved with
+    # ``remove`` and fire a fresh course removal — a destructive replay. Refuse a
+    # non-open report with 409 ``report.already_resolved`` before any action.
+    if report.status != ReportStatus.open.value:
+        raise ConflictError("This report has already been resolved", code="report.already_resolved")
 
     if action == "dismiss":
         report.status = ReportStatus.dismissed.value

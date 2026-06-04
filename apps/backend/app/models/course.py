@@ -141,6 +141,15 @@ class Course(IdMixin, TimestampMixin, Base):
             # predicate index-covered after migration 0044 (DR-18-R2).
             postgresql_where=text("deleted_at IS NULL AND quarantined = false"),
         ),
+        # F3 (S6 gate): the admin moderation queue's "needs re-review" arm reads
+        # ``review_flagged_at IS NOT NULL``. Partial index keeps that scan small —
+        # only the handful of flagged-but-still-listed courses are indexed
+        # (migration 0047).
+        Index(
+            "ix_courses_review_flagged",
+            "review_flagged_at",
+            postgresql_where=text("review_flagged_at IS NOT NULL"),
+        ),
     )
 
     owner_id: Mapped[str] = mapped_column(
@@ -197,6 +206,15 @@ class Course(IdMixin, TimestampMixin, Base):
         Boolean, nullable=False, server_default=text("false"), default=False
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # F3 (S6 gate / R-S11): an APPROVED course that accumulates enough OPEN user
+    # reports is flagged for admin re-review by stamping this timestamp — WITHOUT
+    # touching ``moderation_state`` (which stays ``approved`` so the course stays
+    # publicly listed; a weak signal must never auto-unlist a vetted course). The
+    # admin moderation queue surfaces flagged courses out-of-band; every admin
+    # transition (approve/reject/delist/relist/remove) clears it. Migration 0047.
+    review_flagged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # Postgres GENERATED ALWAYS AS STORED tsvector over title + overview.
     # Read-only at the ORM level; populated and refreshed by the DB on
     # every insert/update. Search queries hit this column via the

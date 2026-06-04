@@ -410,41 +410,65 @@ async def list_all_courses(
     return [_builders.list_item(c, stats.get(c.id, {}), viewer=admin) for c in rows]
 
 
-@router.get("/courses/moderation-queue", response_model=list[CourseListItem])
+class ModerationQueueItem(CourseListItem):
+    """Queue row = the admin course DTO + a ``queue_reason`` honesty marker.
+
+    ``queue_reason`` is ``pending_review`` for a course awaiting first approval,
+    or ``flagged`` for an already-APPROVED-and-still-LISTED course that
+    accumulated enough user reports to need re-review (F3 / R-S11). The UI badge
+    reads this so a flagged-but-public course isn't mislabelled as un-vetted.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    queue_reason: str = "pending_review"
+
+
+@router.get("/courses/moderation-queue", response_model=list[ModerationQueueItem])
 async def moderation_queue(
     admin: RequireAdmin,
     db: DBSession,
     limit: int = Query(default=50, ge=1, le=200),
-) -> list[CourseListItem]:
-    """The pending-review moderation queue (S2.11 minimal API; S6 enriches).
+) -> list[ModerationQueueItem]:
+    """The admin moderation queue (S2.11 minimal API; S6 + F3 enrich).
 
-    Lists courses awaiting review that still carry an **active sharing intent**:
-    ``moderation_state == pending_review`` AND ``visibility == public`` AND
-    ``status == published`` (DR-21: the queue is for courses the owner is
-    actually asking to list publicly). The approve/reject ACTIONS are S6's;
-    the ``/admin/moderation`` page renders this queue.
+    Surfaces two arms, both requiring an **active sharing intent**
+    (``visibility == public`` AND ``status == published``, DR-21):
+
+    * ``pending_review`` — a course awaiting first approval
+      (``moderation_state == pending_review``); the classic queue.
+    * ``flagged`` (F3 / R-S11) — an already-APPROVED course that accumulated
+      enough OPEN user reports to be flagged for re-review
+      (``review_flagged_at IS NOT NULL``). It STAYS publicly listed (a weak
+      signal must never auto-unlist a vetted course); the admin re-confirms it
+      here and any admin transition clears the flag.
 
     ``moderation_state`` itself is **sticky** — unsharing (public→private) or
     unpublishing (published→draft) does NOT reset it to ``none`` (see
     ``courses.unshare_course``/``unpublish_course``). So a course can sit at
-    ``pending_review`` in the DB while being absent from this queue: the
-    sticky state is preserved for the eventual re-share (R-M9 reuses any prior
-    approval), but the admin only sees it here while the sharing intent is
-    live. Re-sharing flips ``visibility`` back to public and the row reappears
-    without a fresh owner action.
+    ``pending_review`` in the DB while being absent from this queue: the sticky
+    state is preserved for the eventual re-share (R-M9 reuses any prior
+    approval), but the admin only sees it here while the sharing intent is live.
+    Re-sharing flips ``visibility`` back to public and the row reappears without
+    a fresh owner action.
     """
+    from sqlalchemy import or_
+
     from app.models.course import CourseStatus, ModerationState, Visibility
 
     stmt = (
         select(Course)
         .where(
             Course.deleted_at.is_(None),
-            Course.moderation_state == ModerationState.pending_review,
             # Active sharing intent only (DR-21): a course unshared/unpublished
-            # back to private/draft keeps its sticky pending_review state but
-            # drops out of the live queue.
+            # back to private/draft drops out of the live queue.
             Course.visibility == Visibility.public,
             Course.status == CourseStatus.published,  # noqa: published-check — lifecycle stat
+            # Two arms: awaiting first review OR flagged-for-re-review (F3).
+            or_(
+                Course.moderation_state == ModerationState.pending_review,
+                Course.review_flagged_at.is_not(None),
+            ),
         )
         .order_by(Course.updated_at.asc())  # oldest-waiting first
         .limit(limit)
@@ -456,7 +480,20 @@ async def moderation_queue(
     )
     rows = list((await db.execute(stmt)).scalars().unique().all())
     stats = await courses_repo.stats_for_courses(db, [c.id for c in rows])
-    return [_builders.list_item(c, stats.get(c.id, {}), viewer=admin) for c in rows]
+    items: list[ModerationQueueItem] = []
+    for c in rows:
+        base = _builders.list_item(c, stats.get(c.id, {}), viewer=admin)
+        # An approved-but-flagged course is 'flagged'; otherwise it's awaiting
+        # first review. (A course can be both pending_review AND flagged only
+        # transiently; pending_review is the more actionable label, so a course
+        # still at pending_review reads 'pending_review'.)
+        reason = (
+            "flagged"
+            if (c.review_flagged_at is not None and c.moderation_state == ModerationState.approved)
+            else "pending_review"
+        )
+        items.append(ModerationQueueItem(**base.model_dump(), queue_reason=reason))
+    return items
 
 
 @router.patch("/courses/{course_id}/feature", response_model=CourseListItem)

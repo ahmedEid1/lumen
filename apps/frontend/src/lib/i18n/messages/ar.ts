@@ -1200,6 +1200,9 @@ export const ar: Record<MessageKey, string> = {
   "adminModeration.relist": "إعادة الإدراج",
   "adminModeration.remove": "حذف",
   "adminModeration.confirmRemove": "هل تريد حذف هذه الدورة نهائيًا؟",
+  // F3 — شارات سبب الإدراج في قائمة المراجعة.
+  "adminModeration.reason.pending_review": "بانتظار المراجعة",
+  "adminModeration.reason.flagged": "موسومة — لا تزال مُدرجة",
 
   // S6.11 — إجراءات الإشراف وتبويب البلاغات ومنتقي السبب
   "adminModeration.tab.queue": "قائمة المراجعة",

@@ -164,6 +164,14 @@ function QueueTab() {
                     {c.moderation_state ? (
                       <Badge variant="outline">{c.moderation_state}</Badge>
                     ) : null}
+                    {/* F3: honest queue-reason badge — a flagged-but-still-listed
+                        course (report accumulation) vs one awaiting first review. */}
+                    <Badge
+                      variant={c.queue_reason === "flagged" ? "destructive" : "secondary"}
+                      data-testid="queue-reason-badge"
+                    >
+                      {t(`adminModeration.reason.${c.queue_reason}` as MessageKey)}
+                    </Badge>
                   </div>
                 </td>
                 <td className="py-3 font-body text-muted-foreground">{c.owner.full_name}</td>

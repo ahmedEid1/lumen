@@ -272,6 +272,86 @@ async def test_resolve_dismiss_no_action(
     assert course.deleted_at is None
 
 
+@pytest.mark.asyncio
+async def test_resolve_dismissed_report_cannot_be_re_resolved(
+    client: AsyncClient, auth_headers, make_user, db_session: AsyncSession
+):
+    """F4 (S6 gate): a DISMISSED report cannot be re-resolved with 'remove'.
+
+    Without the status guard the second resolve fires a fresh course removal —
+    a destructive replay. The re-resolve is refused 409 report.already_resolved
+    and the course is NOT removed."""
+    admin = await auth_headers(role=Role.admin)
+    owner = await make_user()
+    reporter = await _eligible_reporter(make_user, db_session)
+    subject = await _make_subject(db_session)
+    course = await _course(
+        db_session, owner.id, subject.id, moderation_state=ModerationState.approved
+    )
+    report = await _open_report(db_session, course, reporter)
+
+    # First resolve: dismiss (no course change).
+    r1 = await client.post(
+        f"/api/v1/admin/reports/{report.id}/resolve",
+        json={"action": "dismiss"},
+        headers=admin,
+    )
+    assert r1.status_code == 200, r1.text
+
+    # Second resolve attempt with 'remove' → 409, course untouched.
+    r2 = await client.post(
+        f"/api/v1/admin/reports/{report.id}/resolve",
+        json={"action": "remove", "reason": "severe_abuse"},
+        headers=admin,
+    )
+    assert r2.status_code == 409, r2.text
+    assert r2.json()["error"]["code"] == "report.already_resolved"
+
+    await db_session.refresh(report)
+    await db_session.refresh(course)
+    assert str(report.status) == "dismissed"  # unchanged
+    assert course.deleted_at is None  # NOT removed by the replay
+
+
+@pytest.mark.asyncio
+async def test_resolve_actioned_report_cannot_be_re_resolved(
+    client: AsyncClient, auth_headers, make_user, db_session: AsyncSession
+):
+    """F4 (S6 gate): an already-ACTIONED report (resolved via delist) cannot be
+    re-resolved with 'remove' — refused 409 report.already_resolved."""
+    admin = await auth_headers(role=Role.admin)
+    owner = await make_user()
+    reporter = await _eligible_reporter(make_user, db_session)
+    subject = await _make_subject(db_session)
+    course = await _course(
+        db_session, owner.id, subject.id, moderation_state=ModerationState.approved
+    )
+    report = await _open_report(db_session, course, reporter)
+
+    # First resolve: delist → report becomes 'actioned'.
+    r1 = await client.post(
+        f"/api/v1/admin/reports/{report.id}/resolve",
+        json={"action": "delist", "reason": "spam"},
+        headers=admin,
+    )
+    assert r1.status_code == 200, r1.text
+    await db_session.refresh(report)
+    assert str(report.status) == "actioned"
+
+    # Second resolve attempt with 'remove' → 409, course not soft-deleted.
+    r2 = await client.post(
+        f"/api/v1/admin/reports/{report.id}/resolve",
+        json={"action": "remove", "reason": "illegal"},
+        headers=admin,
+    )
+    assert r2.status_code == 409, r2.text
+    assert r2.json()["error"]["code"] == "report.already_resolved"
+
+    await db_session.refresh(course)
+    assert course.deleted_at is None  # the replay 'remove' never fired
+    assert course.quarantined is False
+
+
 # ---------------------------------------------------------------------------
 # R-S11: approved course accumulating reports requeues, never auto-delists
 # ---------------------------------------------------------------------------
@@ -281,15 +361,21 @@ async def test_resolve_dismiss_no_action(
 async def test_auto_action_never_delists_approved(
     client: AsyncClient, auth_headers, make_user, db_session: AsyncSession
 ):
-    """An APPROVED course accumulating reports past the threshold requeues to
-    pending_review for admin confirmation — it is NEVER auto-delisted (R-S11)."""
+    """F3 (S6 gate) / R-S11: an APPROVED course accumulating reports past the
+    threshold is FLAGGED for admin re-review out-of-band — it STAYS approved,
+    STAYS publicly listed, and is NEVER auto-delisted nor auto-requeued to
+    pending_review (which would have unlisted it). The flag surfaces in the
+    moderation queue with queue_reason='flagged'."""
+    from sqlalchemy import select as _select
+
+    from app.core.config import get_settings
+    from app.services import visibility as visibility_service
+
     owner = await make_user()
     subject = await _make_subject(db_session)
     course = await _course(
         db_session, owner.id, subject.id, moderation_state=ModerationState.approved
     )
-
-    from app.core.config import get_settings
 
     threshold = get_settings().report_requeue_threshold
     for _ in range(threshold):
@@ -302,9 +388,33 @@ async def test_auto_action_never_delists_approved(
         assert r.status_code == 201
 
     await db_session.refresh(course)
-    # Requeued for admin confirmation, NOT auto-delisted.
-    assert str(course.moderation_state) == "pending_review"
-    assert str(course.visibility) == "public"  # still public; only the queue flag changed
+    # STAYS approved + public + flagged (NOT requeued, NOT delisted).
+    assert str(course.moderation_state) == "approved"
+    assert str(course.visibility) == "public"
+    assert course.review_flagged_at is not None  # flagged for re-review out-of-band
+
+    # The course STAYS publicly listed — both the pure predicate and the SQL.
+    assert visibility_service.is_publicly_listed(course) is True
+    listed_ids = (
+        (
+            await db_session.execute(
+                _select(Course.id).where(
+                    Course.id == course.id, visibility_service.publicly_listed_sql()
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert course.id in listed_ids, "a flagged course must REMAIN publicly listed (R-S11)"
+
+    # It appears in the admin moderation queue, marked 'flagged' (not pending).
+    admin = await auth_headers(role=Role.admin)
+    q = await client.get("/api/v1/admin/courses/moderation-queue", headers=admin)
+    assert q.status_code == 200, q.text
+    flagged = [row for row in q.json() if row["id"] == course.id]
+    assert flagged, "flagged course must appear in the moderation queue"
+    assert flagged[0]["queue_reason"] == "flagged"
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +457,66 @@ async def test_reports_listing_requires_admin(client: AsyncClient, auth_headers)
     h = await auth_headers(role=Role.user)
     r = await client.get("/api/v1/admin/reports", headers=h)
     assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reports_listing_orders_by_created_at_and_cursor_pages(
+    client: AsyncClient, auth_headers, make_user, db_session: AsyncSession
+):
+    """F5 (S6 gate): reports list newest-first by created_at (not by random
+    nanoid id), and the cursor pages deterministically with a (created_at, id)
+    tiebreaker — page 2 picks up exactly where page 1 left off, no overlap, no
+    gap."""
+    admin = await auth_headers(role=Role.admin)
+    owner = await make_user()
+    subject = await _make_subject(db_session)
+    course = await _course(
+        db_session, owner.id, subject.id, moderation_state=ModerationState.approved
+    )
+
+    # Three reports with FORCED distinct created_at (oldest → newest), filed by
+    # distinct reporters (the open-report coalescing index is per reporter).
+    base = datetime.now(UTC) - timedelta(hours=3)
+    created = []
+    for i in range(3):
+        reporter = await _eligible_reporter(make_user, db_session)
+        rep = CourseReport(
+            course_id=course.id,
+            reporter_id=reporter.id,
+            reason="spam",
+            note=f"r{i}",
+            status=ReportStatus.open,
+        )
+        db_session.add(rep)
+        await db_session.commit()
+        await db_session.refresh(rep)
+        # Force a distinct, strictly increasing created_at.
+        rep.created_at = base + timedelta(minutes=i)
+        await db_session.commit()
+        created.append(rep)
+
+    # Expected newest-first order: r2, r1, r0.
+    expected = [created[2].id, created[1].id, created[0].id]
+
+    # Page 1 (limit 2) — newest two.
+    p1 = await client.get(
+        f"/api/v1/admin/reports?course_id={course.id}&status=open&limit=2", headers=admin
+    )
+    assert p1.status_code == 200, p1.text
+    p1_ids = [x["id"] for x in p1.json()]
+    assert p1_ids == expected[:2], f"page 1 must be newest-first, got {p1_ids}"
+
+    # Page 2 — cursor = last id from page 1; must yield exactly the remaining one.
+    cursor = p1_ids[-1]
+    p2 = await client.get(
+        f"/api/v1/admin/reports?course_id={course.id}&status=open&limit=2&cursor={cursor}",
+        headers=admin,
+    )
+    assert p2.status_code == 200, p2.text
+    p2_ids = [x["id"] for x in p2.json()]
+    assert p2_ids == expected[2:], f"page 2 must continue past the cursor, got {p2_ids}"
+    # No overlap between pages, and together they cover all three in order.
+    assert p1_ids + p2_ids == expected
 
 
 @pytest.mark.asyncio

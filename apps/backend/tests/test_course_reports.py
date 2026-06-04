@@ -236,10 +236,10 @@ async def test_report_rate_limited_per_course(
     """More than report_per_course_window_max distinct reports on a single
     course in the window → 429 course.report_rate_limited (brigading cap).
 
-    The R-S11 requeue (which would pull an approved course to pending_review and
-    make it un-reportable) is raised above the per-course cap here so the cap is
-    the binding control — the requeue interaction is covered in
-    test_admin_moderation::test_auto_action_never_delists_approved.
+    The R-S11 report-accumulation flag (F3: stamps review_flagged_at, leaves the
+    course approved + listed + reportable) is raised above the per-course cap
+    here so the cap is the binding control under test — the flag interaction is
+    covered in test_admin_moderation::test_auto_action_never_delists_approved.
     """
     from app.core.config import get_settings
 

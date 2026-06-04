@@ -89,20 +89,23 @@ def test_quarantine_phase_a_precedes_notnull_phase_d_boundary(script_dir):
     visibility SQL) ahead of the boundary; the confirm round caught 0045 (the
     moderation_events timestamp defaults — the /share 500 fix) re-making the
     same mistake behind it. Pinned linear order:
-    0041 -> 0042 -> 0044 -> 0045 -> 0046 -> 0043 (head, the gated boundary last).
-    S6.3 inserted 0046 (course_reports) BEFORE the boundary per HOUSE RULES."""
+    0041 -> 0042 -> 0044 -> 0045 -> 0046 -> 0047 -> 0043 (head, the gated
+    boundary last). S6.3 inserted 0046 (course_reports) and the F3 gate inserted
+    0047 (review_flagged_at) BEFORE the boundary per HOUSE RULES."""
     by_rev = {s.revision: s for s in script_dir.walk_revisions()}
-    for rev in ("0041", "0042", "0043", "0044", "0045", "0046"):
+    for rev in ("0041", "0042", "0043", "0044", "0045", "0046", "0047"):
         assert rev in by_rev, f"{rev} missing from chain"
     assert by_rev["0042"].down_revision == "0041"
     assert by_rev["0044"].down_revision == "0042"  # Phase-A quarantine, then...
     assert by_rev["0045"].down_revision == "0044"  # ...Phase-A share-500 fix, then...
     assert by_rev["0046"].down_revision == "0045"  # ...Phase-A course_reports, then...
-    assert by_rev["0043"].down_revision == "0046"  # ...the Phase-D boundary LAST (head)
+    assert by_rev["0047"].down_revision == "0046"  # ...Phase-A review_flagged_at, then...
+    assert by_rev["0043"].down_revision == "0047"  # ...the Phase-D boundary LAST (head)
     assert by_rev["0043"].module.PHASE == "D"
     assert by_rev["0044"].module.PHASE == "A"
     assert by_rev["0045"].module.PHASE == "A"
     assert by_rev["0046"].module.PHASE == "A"
+    assert by_rev["0047"].module.PHASE == "A"
 
 
 def test_release_window_phase_a_revisions_precede_first_gated_boundary(script_dir):

@@ -23,14 +23,15 @@ Phase: D (release-gated). Apply via an explicit ``alembic upgrade 0043`` step in
 the deploy runbook with ``ALLOW_PHASE_MIGRATION=1``, never a blind make migrate.
 
 Chain position: this Phase-D NOT-NULL tighten is the LAST revision in the chain
-(0033 -> 0041 -> 0042 -> 0044 -> 0043, head) so it sits AFTER the Phase-A
-``courses.quarantined`` column (0044) the visibility SQL depends on. A
-``migrate.safe``-only deploy therefore lands every additive revision (incl.
-0044) and stops cleanly at this gated boundary instead of running quarantine-
+(0042 -> 0044 -> 0045 -> 0046 -> 0047 -> 0043, head) so it sits AFTER every
+Phase-A revision in the release window (incl. the ``courses.quarantined`` column
+0044 the visibility SQL depends on, and the F3 ``courses.review_flagged_at``
+column 0047). A ``migrate.safe``-only deploy therefore lands every additive
+revision and stops cleanly at this gated boundary instead of running schema-
 aware code against a missing column (Codex P1 / Gate-C).
 
 Revision ID: 0043
-Revises: 0045
+Revises: 0047
 Create Date: 2026-08-07
 """
 
@@ -43,11 +44,12 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0043"
-# INTEGRATION: re-point at merge. Chain is 0042 -> 0044 -> 0045 -> 0046 -> 0043.
-# This Phase-D boundary stays LAST so it follows every Phase-A revision in the
-# release window (the quarantine column 0044, the share-500 fix 0045, and the
-# S6.3 course_reports table 0046); see the module docstring (Codex P1 / Gate-C
-# + HOUSE RULES: new Phase-A revs insert BEFORE the boundary, never move it).
+# INTEGRATION: re-point at merge. Chain is 0042 -> 0044 -> 0045 -> 0046 -> 0047
+# -> 0043. This Phase-D boundary stays LAST so it follows every Phase-A revision
+# in the release window (the quarantine column 0044, the share-500 fix 0045, the
+# S6.3 course_reports table 0046, and the F3 review_flagged_at column 0047); see
+# the module docstring (Codex P1 / Gate-C + HOUSE RULES: new Phase-A revs insert
+# BEFORE the boundary, never move it).
 # Compatibility note (Codex confirm-round adjudication, 2026-06-04): re-parenting
 # an applied revision would normally strand DBs stamped at old-0043-without-0045
 # (0043 == new head -> no pending -> 0045 never applies). RULED INAPPLICABLE
@@ -59,7 +61,7 @@ revision: str = "0043"
 # test), not silent. Do NOT re-parent applied revisions after W12 ships this
 # chain to prod — from that point the boundary-last invariant must be satisfied
 # by inserting new revisions, never by moving applied ones.
-down_revision: str | Sequence[str] | None = "0046"
+down_revision: str | Sequence[str] | None = "0047"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
