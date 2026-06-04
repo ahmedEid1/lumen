@@ -190,6 +190,145 @@ def head(key: str) -> dict[str, object]:
     return client.head_object(Bucket=s.s3_bucket, Key=key)
 
 
+# ---------------------------------------------------------------------------
+# Clone asset re-homing — download → re-validate(bytes) → re-upload (DR-9).
+#
+# DR-9 SUPERSEDES ADR-0028's ``copy_object_validated``: boto3 ``CopyObject``
+# never exposes the copied bytes to re-sniff, and R-S5 mandates re-validating
+# the COPIED BYTES (a source whose stored content_type lies must be caught). So
+# we ``get_object`` the bytes, re-run the upload-time validation surface
+# (ALWAYS_DENIED_TYPES / ALLOWED_PER_KIND / MAX_BYTES_PER_KIND + a magic-byte
+# sniff) on the FETCHED bytes — never trusting the source ``Asset`` row's stored
+# type/size — then ``put_object`` under the cloner's namespace.
+# ---------------------------------------------------------------------------
+
+
+class AssetRevalidationError(Exception):
+    """The fetched bytes fail the per-kind validation surface (R-S5).
+
+    Carries a short ``reason`` so the clone audit can record WHY an object was
+    not re-homed (denied type / disallowed-for-kind / too large). Best-effort:
+    the worker strips the media ref and continues; the task never 500s.
+    """
+
+    def __init__(self, message: str, *, reason: str):
+        super().__init__(message)
+        self.reason = reason
+
+
+#: Bytes sniffed from the head of a fetched object to detect the real type — a
+#: source whose stored ``content_type`` lies (image/png header on a text/html
+#: body) must be caught on the BYTES, not the metadata (R-S5). Small magic-byte
+#: prefixes for the allowlisted media; anything unrecognized falls back to the
+#: object's reported ``ContentType`` (still validated against the allowlist).
+_MAGIC_PREFIXES: tuple[tuple[bytes, str], ...] = (
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+    (b"%PDF-", "application/pdf"),
+    (b"PK\x03\x04", "application/zip"),
+    (b"<!DOCTYPE html", "text/html"),
+    (b"<html", "text/html"),
+    (b"<svg", "image/svg+xml"),
+    (b"<?xml", "application/xml"),
+)
+
+
+def _sniff_content_type(head_bytes: bytes, *, reported: str) -> str:
+    """Best-effort magic-byte sniff; falls back to the reported type.
+
+    WEBP is ``RIFF....WEBP``; check the 4-byte tag at offset 8.
+    """
+    lowered = head_bytes.lstrip()[:32].lower()
+    for prefix, ctype in _MAGIC_PREFIXES:
+        if lowered.startswith(prefix.lower()):
+            return ctype
+    if head_bytes[:4] == b"RIFF" and head_bytes[8:12] == b"WEBP":
+        return "image/webp"
+    return reported
+
+
+def download_revalidate_reupload(
+    *,
+    src_key: str,
+    dst_kind: str,
+    dst_owner_id: str,
+    filename: str | None = None,
+) -> dict[str, object]:
+    """Re-home one in-bucket object into the cloner's namespace (DR-9 / R-S5).
+
+    ``get_object`` the source bytes, magic-byte sniff + re-validate them against
+    the per-kind allowlist (NOT the source ``Asset`` row's stored type), then
+    ``put_object`` to ``{dst_kind}/{dst_owner_id}/{YYYY/MM/DD}/{new_id}/{name}``.
+    Returns ``{key, public_url, content_type, size_bytes}``. Raises
+    :class:`AssetRevalidationError` when the fetched bytes are a denied type /
+    disallowed-for-kind / oversized — the caller records the failure and strips
+    the ref (best-effort, FR-CLONE-13).
+    """
+    if dst_kind not in ALLOWED_PER_KIND:
+        raise AssetRevalidationError(f"Unknown kind {dst_kind}", reason="unknown_kind")
+    s = get_settings()
+    client = _client(s)
+
+    obj = client.get_object(Bucket=s.s3_bucket, Key=src_key)
+    body = obj["Body"].read()
+    size_bytes = len(body)
+    reported = str(obj.get("ContentType") or "application/octet-stream")
+    sniffed = _sniff_content_type(body[:64], reported=reported)
+
+    # The effective type is the WORST of (reported, sniffed): if EITHER says a
+    # denied/disallowed type, refuse — a lying header can't launder bytes.
+    for candidate in (sniffed, reported):
+        if candidate.lower() in ALWAYS_DENIED_TYPES:
+            raise AssetRevalidationError(f"Denied type {candidate}", reason="denied_type")
+    allowed = ALLOWED_PER_KIND[dst_kind]
+    # Validate the SNIFFED type primarily (the bytes); reported is a fallback
+    # only when the sniff is inconclusive (returned the reported type unchanged).
+    effective = sniffed
+    if effective not in allowed:
+        raise AssetRevalidationError(
+            f"Type {effective} not allowed for {dst_kind}", reason="type_not_allowed"
+        )
+    max_bytes = MAX_BYTES_PER_KIND[dst_kind]
+    if size_bytes > max_bytes:
+        raise AssetRevalidationError(
+            f"Object {size_bytes}B exceeds {max_bytes}B", reason="too_large"
+        )
+
+    name = _safe_filename(filename or src_key.rsplit("/", 1)[-1])
+    today = datetime.now(UTC).strftime("%Y/%m/%d")
+    dst_key = f"{dst_kind}/{dst_owner_id}/{today}/{new_id()}/{name}"
+    client.put_object(Bucket=s.s3_bucket, Key=dst_key, Body=body, ContentType=effective)
+    public_url = f"{s.s3_public_base_url.rstrip('/')}/{s.s3_bucket}/{dst_key}"
+    return {
+        "key": dst_key,
+        "public_url": public_url,
+        "content_type": effective,
+        "size_bytes": size_bytes,
+    }
+
+
+def is_bucket_url(url: str | None) -> bool:
+    """True iff ``url`` points at our own public bucket (so it must be re-homed).
+
+    External URLs (a third-party video host) are referenced as-is and never
+    copied (FR-CLONE — "external URLs left as is").
+    """
+    if not url:
+        return False
+    s = get_settings()
+    prefix = f"{s.s3_public_base_url.rstrip('/')}/{s.s3_bucket}/"
+    return url.startswith(prefix)
+
+
+def key_from_bucket_url(url: str) -> str:
+    """Extract the S3 object key from one of our public bucket URLs."""
+    s = get_settings()
+    prefix = f"{s.s3_public_base_url.rstrip('/')}/{s.s3_bucket}/"
+    return url[len(prefix) :]
+
+
 def ensure_bucket() -> None:
     s = get_settings()
     client = _client()
