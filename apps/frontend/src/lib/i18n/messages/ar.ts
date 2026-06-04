@@ -47,6 +47,21 @@ export const ar: Record<MessageKey, string> = {
   "course.progress": "التقدّم",
   "course.signInToEnroll": "سجّل الدخول للتسجيل",
   "course.discussionForum": "منتدى النقاش",
+
+  // Clone / remix (ADR-0028 · S4.11) — translation_status: human
+  "clone.cta": "أنشئ نسختي الخاصة",
+  "clone.inProgress": "جارٍ إنشاء نسختك…",
+  "clone.success": "نسختك جاهزة — يتم فتح المحرر",
+  "clone.basedOn": "مبني على {title} بواسطة {author}",
+  "clone.basedOnUnavailable": "مبني على دورة لم تعد متاحة",
+  "clone.viewSource": "عرض الأصل",
+  "clone.badge": "منسوخة",
+  "clone.signInToClone": "سجّل الدخول لإنشاء نسختك الخاصة",
+  "clone.error.rateLimited": "أنت تنسخ بسرعة كبيرة — حاول مرة أخرى بعد قليل.",
+  "clone.error.courseLimit": "لقد وصلت إلى الحد الأقصى لعدد الدورات.",
+  "clone.error.tooLarge": "هذه الدورة كبيرة جدًا بحيث لا يمكن نسخها.",
+  "clone.error.generic": "تعذّر إنشاء نسختك. يرجى المحاولة مرة أخرى.",
+
   "course.whatYoullLearn": "ماذا ستتعلم",
   "course.lessonsCount": "{count} درس",
   "course.lastUpdated": "آخر تحديث {date}",

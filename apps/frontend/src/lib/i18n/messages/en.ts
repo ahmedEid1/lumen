@@ -40,6 +40,21 @@ export const en = {
   "course.progress": "Progress",
   "course.signInToEnroll": "Sign in to enroll",
   "course.discussionForum": "Discussion forum",
+
+  // Clone / remix (ADR-0028 · S4.11). The "Based on …" attribution is
+  // server-written and read-only — never editable-looking (FR-CLONE-10).
+  "clone.cta": "Make my own copy",
+  "clone.inProgress": "Creating your copy…",
+  "clone.success": "Your copy is ready — opening the editor",
+  "clone.basedOn": "Based on {title} by {author}",
+  "clone.basedOnUnavailable": "Based on a course that is no longer available",
+  "clone.viewSource": "View original",
+  "clone.badge": "Cloned",
+  "clone.signInToClone": "Sign in to make your own copy",
+  "clone.error.rateLimited": "You're cloning too fast — try again shortly.",
+  "clone.error.courseLimit": "You've reached your course limit.",
+  "clone.error.tooLarge": "This course is too large to clone.",
+  "clone.error.generic": "Couldn't create your copy. Please try again.",
   "course.whatYoullLearn": "What you'll learn",
   "course.lessonsCount": "{count} lessons",
   "course.lastUpdated": "last updated {date}",

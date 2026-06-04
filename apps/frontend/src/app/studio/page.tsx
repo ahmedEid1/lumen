@@ -224,6 +224,7 @@ function CourseListView({
                 {t(`course.status.${c.status}` as MessageKey)}
               </Badge>
               <Badge variant="outline">{c.subject.title}</Badge>
+              {c.is_clone && <Badge variant="muted">{t("clone.badge")}</Badge>}
             </div>
           </div>
           <div className="hidden shrink-0 items-center gap-6 font-mono text-xs tabular-nums text-muted-foreground sm:flex">

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { OriginAttribution } from "@/components/course/origin-attribution";
 import type { CourseDetail } from "@/lib/api/types";
 import { useT } from "@/lib/i18n/provider";
 
@@ -74,6 +75,11 @@ export function CourseHeader({ course }: { course: CourseDetail }) {
           </div>
         </div>
       </div>
+
+      {/* Structured, read-only clone provenance (ADR-0028 / FR-CLONE-10).
+          Kept separate from the editable title/overview above so attribution
+          can't be spoofed. Renders nothing for a from-scratch course. */}
+      <OriginAttribution origin={course.origin} className="pt-1" />
     </header>
   );
 }

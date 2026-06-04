@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Clone a course — "Make my own copy" (Stream S4, ADR-0028).** A signed-in
+  active user can clone any publicly-listed course from the catalog card or the
+  course-detail sidebar into a fresh **private draft** they own, then edit it
+  independently. The new draft carries a structured, **server-written and
+  read-only** "Based on … by …" attribution (it is never editable, so it can't
+  be spoofed); if the source is later delisted or its author deleted, the
+  attribution degrades read-time to "no longer available" with no link
+  (the cloned content stays intact). Cloning never copies enrollments, progress,
+  reviews, discussions, agent traces, or embeddings — only the lesson/quiz
+  content is projected across. Cloned courses show a "Cloned" badge in Studio.
+  Anonymous viewers see a sign-in affordance that returns them to the course.
+  Shipped behind `clone_enabled` (**default off**); while off the clone
+  endpoint existence-hides (404) and the CTA's action surfaces a graceful error.
 - **BYOK — bring your own model key (Stream S5, ADR-0027).** Users can now
   configure their own LLM provider + key instead of the free platform model,
   under `/profile/model`. An **allowlisted provider registry** (OpenAI,

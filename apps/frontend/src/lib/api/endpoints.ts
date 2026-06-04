@@ -97,6 +97,16 @@ export const Courses = {
   moderationQueue: (token?: string) =>
     api<CourseListItem[]>("/api/v1/admin/courses/moderation-queue", { token }),
 
+  // S4.11 (ADR-0028 §API) — clone a publicly-listed course into a fresh
+  // private draft. Returns the new CourseListItem (201). Hand-written per DR-5.
+  // While CLONE_ENABLED is off server-side the endpoint existence-hides (404),
+  // surfaced as a toast — the same flag pattern as share/unshare.
+  clone: ({ key, token }: { key: string; token?: string }) =>
+    api<CourseListItem>(`/api/v1/courses/${encodeURIComponent(key)}/clone`, {
+      method: "POST",
+      token,
+    }),
+
   // S6.3 — any authenticated user files a report against a publicly-listed
   // course. `note` is sanitized server-side (FR-MOD-13).
   report: (

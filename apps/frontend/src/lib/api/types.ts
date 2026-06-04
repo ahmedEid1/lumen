@@ -48,6 +48,27 @@ export type ModerationState =
   | "rejected"
   | "delisted";
 
+/**
+ * Structured clone provenance (ADR-0028 §Schemas / FR-CLONE-10). Hand-written
+ * (DR-5). Serialized from the immutable snapshot columns on a cloned course,
+ * kept separate from the editable title/overview so attribution cannot be
+ * spoofed. `origin_owner_name` is the read-time value — the server overrides
+ * the snapshot with the localized deleted-user label when the origin owner is
+ * tombstoned (DR-19). `origin_available` is computed read-time (S4.8): only
+ * when it is `true` does the UI render a link to the source.
+ */
+export interface CourseOrigin {
+  origin_course_id: string | null;
+  /** From the immutable `origin_title_snapshot` column. */
+  origin_title: string | null;
+  /** Snapshot name, or the deleted-user label when the owner is tombstoned. */
+  origin_owner_name: string | null;
+  origin_owner_id: string | null;
+  cloned_at: string | null;
+  /** Server-computed: origin still live + publicly listed. Gates the link. */
+  origin_available: boolean;
+}
+
 export interface CourseListItem {
   id: string;
   title: string;
@@ -72,6 +93,13 @@ export interface CourseListItem {
   modules_count: number;
   enrollments_count: number;
   avg_rating: number | null;
+  /**
+   * Clone provenance (ADR-0028 / FR-CLONE-09/10). `origin` is the structured
+   * "Based on …" attribution — `null` for a from-scratch course. `is_clone`
+   * is the studio "Cloned" badge flag.
+   */
+  origin: CourseOrigin | null;
+  is_clone: boolean;
 }
 
 export type LessonType = "text" | "video" | "image" | "file" | "quiz";

@@ -5,6 +5,12 @@ export const qk = {
   tags: ["catalog", "tags"] as const,
   course: (key: string) => ["course", key] as const,
   reviews: (courseId: string) => ["course", courseId, "reviews"] as const,
+  // S4.11 (ADR-0028) — clone surfaces. `clone` namespaces the in-flight clone
+  // mutation for a source; `courseClones` is the origin-owner "who cloned this"
+  // list (FR-CLONE-24, deferred view). On clone success the mutation invalidates
+  // `myCourses` + `enrollments` (the cloner is auto-enrolled).
+  clone: (key: string) => ["course", key, "clone"] as const,
+  courseClones: (key: string) => ["course", key, "clones"] as const,
   enrollments: ["me", "enrollments"] as const,
   myCourses: ["me", "my-courses"] as const,
   notifications: ["me", "notifications"] as const,
