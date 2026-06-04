@@ -621,3 +621,47 @@ async def test_dismissing_last_open_report_clears_flag(
 
     await db_session.refresh(course)
     assert course.review_flagged_at is None  # signal basis gone -> flag cleared
+
+
+async def test_flag_sticky_below_threshold(
+    client: AsyncClient, auth_headers, make_user, db_session: AsyncSession
+):
+    """ADJUDICATED (Codex confirm round): the re-review flag is sticky until a
+    human acts — dismissing one of several open reports does NOT clear it,
+    even though the open count drops below the accumulation threshold. The
+    admin finishes via re-affirm (one click) or dismiss-to-zero; a
+    live-derived flag would flap under brigade-then-withdraw cycles."""
+    from datetime import UTC, datetime
+
+    from app.models.moderation import CourseReport, ReportStatus
+
+    admin_h = await auth_headers(role=Role.admin)
+    owner = await make_user(role=Role.user)
+    subject = await _make_subject(db_session)
+    course = await _course(
+        db_session, owner.id, subject.id, moderation_state=ModerationState.approved
+    )
+    course.review_flagged_at = datetime.now(UTC)
+    reports = []
+    for _ in range(2):
+        reporter = await make_user(role=Role.user)
+        rep = CourseReport(
+            course_id=course.id,
+            reporter_id=reporter.id,
+            reason="spam",
+            note="sticky probe",
+            status=ReportStatus.open.value,
+        )
+        db_session.add(rep)
+        reports.append(rep)
+    await db_session.commit()
+
+    r = await client.post(
+        f"/api/v1/admin/reports/{reports[0].id}/resolve",
+        headers=admin_h,
+        json={"action": "dismiss"},
+    )
+    assert r.status_code == 200, r.text
+
+    await db_session.refresh(course)
+    assert course.review_flagged_at is not None  # sticky: one open report remains

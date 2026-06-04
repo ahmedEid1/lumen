@@ -549,6 +549,14 @@ async def resolve_report(
         # removes the accumulation signal's basis — clear the re-review
         # flag so the course doesn't sit in the queue forever. delist /
         # remove clear it through their own transitions.
+        #
+        # ADJUDICATED (Codex confirm round): the flag is deliberately STICKY
+        # until a human acts — it does NOT re-derive from the threshold, so
+        # dismissing one of three reports leaves the course flagged. The
+        # dismissing admin IS the requested human look (one re-affirm click
+        # or dismiss-to-zero finishes it), and a live-derived flag would be
+        # flappable by brigade-then-withdraw cycles. Pinned by
+        # test_flag_sticky_below_threshold.
         remaining = await moderation_repo.count_open_reports(db, course_id=report.course_id)
         if remaining == 0:
             course = await _load_course(db, report.course_id)
