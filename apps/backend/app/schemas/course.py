@@ -184,6 +184,12 @@ def _validate_learning_outcomes(items: list[str] | None) -> list[str] | None:
 
 
 class CourseCreate(BaseModel):
+    # ``extra="forbid"`` (S4.5 / ADR-0028 §API): provenance (``origin_*``) and
+    # every other server-owned column is never client-writable, so a stray
+    # ``origin_course_id``/``is_featured`` in the body is a 422, not silently
+    # ignored — no attribution spoofing through extra keys (FR-CLONE-09/10).
+    model_config = ConfigDict(extra="forbid")
+
     title: str = Field(min_length=1, max_length=200)
     subject_id: str
     overview: str = Field(default="", max_length=10_000)
@@ -235,6 +241,67 @@ class ReportRequest(BaseModel):
     note: str | None = Field(default=None, max_length=5000)
 
 
+class CourseOrigin(BaseModel):
+    """Structured clone provenance (ADR-0028 §Schemas / FR-CLONE-10).
+
+    Serialized from the immutable snapshot columns on a cloned course, kept
+    separate from the editable title/overview so attribution cannot be spoofed.
+    ``origin_owner_name`` is the snapshot by default; S4.8 overrides it at read
+    time with the localized deleted-user label when the origin owner is
+    tombstoned (DR-19). ``origin_available`` is computed read-time (S4.8) by
+    re-resolving ``origin_course_id`` through ``is_publicly_listed`` — default
+    ``False`` here so a builder that doesn't pass it suppresses the source link.
+    """
+
+    origin_course_id: str | None = None
+    origin_title: str | None = None  # from origin_title_snapshot
+    origin_owner_name: str | None = None  # from origin_owner_name_snapshot
+    origin_owner_id: str | None = None
+    cloned_at: datetime | None = None
+    origin_available: bool = False  # computed: origin live + publicly listed (S4.8)
+
+
+class CourseClonesItem(BaseModel):
+    """One row of the origin-owner "who cloned this" list (FR-CLONE-24)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    title: str
+    owner_name: str
+    cloned_at: datetime | None = None
+
+
+def build_course_origin(
+    course: Any,
+    *,
+    origin_available: bool = False,
+    origin_owner_name: str | None = None,
+) -> CourseOrigin | None:
+    """Build the ``CourseOrigin`` for a course, or ``None`` if it is not a clone.
+
+    A course is a clone iff ``origin_course_id`` is set. Maps the snapshot
+    columns onto the structured object. ``origin_available`` and an override
+    ``origin_owner_name`` (the read-time deleted-user label) are supplied by the
+    S4.8 read-time resolver; left at their defaults the builder serializes the
+    raw snapshot with no source link.
+    """
+    if getattr(course, "origin_course_id", None) is None:
+        return None
+    return CourseOrigin(
+        origin_course_id=course.origin_course_id,
+        origin_title=course.origin_title_snapshot,
+        origin_owner_name=(
+            origin_owner_name
+            if origin_owner_name is not None
+            else course.origin_owner_name_snapshot
+        ),
+        origin_owner_id=course.origin_owner_id,
+        cloned_at=course.cloned_at,
+        origin_available=origin_available,
+    )
+
+
 class CourseListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -260,6 +327,12 @@ class CourseListItem(BaseModel):
     modules_count: int = 0
     enrollments_count: int = 0
     avg_rating: float | None = None
+    # Clone provenance (ADR-0028 / FR-CLONE-09/10). ``origin`` is the structured
+    # "Based on …" attribution (None for a from-scratch course); ``is_clone`` is
+    # the studio "Cloned" badge flag. Both are populated by the response builder
+    # from the snapshot columns (origin via ``build_course_origin``).
+    origin: CourseOrigin | None = None
+    is_clone: bool = False
 
 
 class CourseDetail(CourseListItem):
