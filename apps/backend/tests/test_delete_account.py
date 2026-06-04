@@ -193,6 +193,158 @@ async def test_delete_account_delists_owned_courses(
     assert len(enr) == 1
 
 
+async def test_delete_account_revokes_mcp_clients(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """F1 (S6 gate): a real MCPClient row owned by the deleting user must have
+    ``revoked_at`` stamped. This exercises the REAL import path (no mocks) — the
+    original ``McpClient`` typo raised ImportError that the per-step guard
+    swallowed, so MCP clients were NEVER revoked on account deletion.
+    """
+    from app.core.security import hash_password as _hash
+    from app.models.mcp_client import MCPClient
+
+    email = f"mcp-{uuid.uuid4().hex[:6]}@lumen.test"
+    password = "Password!1234"
+    token = await _register_and_login(client, email, password)
+    h = {"Authorization": f"Bearer {token}"}
+    me = await client.get("/api/v1/auth/me", headers=h)
+    uid = me.json()["id"]
+
+    # A live (un-revoked) MCP client for this user, plus one already revoked.
+    live = MCPClient(owner_user_id=uid, client_secret_hash=_hash("s"), name="laptop")
+    db_session.add(live)
+    await db_session.commit()
+    live_id = live.id
+
+    r = await client.request("DELETE", "/api/v1/users/me", json={"password": password}, headers=h)
+    assert r.status_code == 200, r.text
+
+    got = await db_session.get(MCPClient, live_id)
+    await db_session.refresh(got)
+    assert got.revoked_at is not None, "the live MCP client must be revoked on deletion"
+
+
+async def test_delete_account_sole_admin_blocked(
+    client: AsyncClient, make_user, db_session: AsyncSession
+) -> None:
+    """F2 (S6 gate): the sole active admin cannot self-delete to zero admins.
+
+    The same FR-ADMIN-03 invariant the grant/revoke + suspend paths enforce is
+    checked at the START of delete_account; a sole admin's self-delete is refused
+    with 422 ``user.last_admin`` and NOTHING is mutated (no partial tombstone).
+    """
+    email = f"soleadmin-{uuid.uuid4().hex[:6]}@lumen.test"
+    password = "Password!1234"
+    admin = await make_user(email=email, password=password, role=Role.admin)
+    login = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert login.status_code == 200, login.text
+    h = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    r = await client.request("DELETE", "/api/v1/users/me", json={"password": password}, headers=h)
+    assert r.status_code == 422, r.text
+    assert r.json()["error"]["code"] == "user.last_admin"
+
+    # Nothing mutated — no partial tombstone.
+    await db_session.refresh(admin)
+    assert admin.is_active is True
+    assert admin.deleted_at is None
+    assert admin.email == email
+
+
+async def test_delete_account_admin_allowed_when_another_admin_exists(
+    client: AsyncClient, make_user, db_session: AsyncSession
+) -> None:
+    """F2: an admin self-delete SUCCEEDS while a second active admin remains."""
+    # A second active admin keeps the invariant satisfied.
+    await make_user(email=f"otheradmin-{uuid.uuid4().hex[:6]}@lumen.test", role=Role.admin)
+
+    email = f"admin2-{uuid.uuid4().hex[:6]}@lumen.test"
+    password = "Password!1234"
+    admin = await make_user(email=email, password=password, role=Role.admin)
+    login = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert login.status_code == 200, login.text
+    h = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    r = await client.request("DELETE", "/api/v1/users/me", json={"password": password}, headers=h)
+    assert r.status_code == 200, r.text
+    await db_session.refresh(admin)
+    assert admin.is_active is False
+    assert admin.deleted_at is not None
+
+
+async def test_admin_invariant_takes_advisory_lock(db_session: AsyncSession) -> None:
+    """F6 (TOCTOU): assert_active_admin_invariant takes a transaction-scoped
+    advisory lock on the fixed key BEFORE the COUNT, so two concurrent
+    demote/suspend/delete operations serialize through the check.
+
+    A true two-session race is impractical under the per-session transactional
+    test DB (both sessions would deadlock on the same outer transaction), so we
+    assert the lock SQL is emitted (the serialization mechanism) and that the
+    lock is actually held by this transaction afterwards (pg_locks).
+    """
+    from sqlalchemy import text
+
+    from app.services import admin_users as admin_users_service
+    from app.services.admin_users import _ADMIN_INVARIANT_LOCK_KEY
+
+    # Exercise the real path with a sole admin so the invariant trips (and the
+    # lock is taken before the COUNT raises).
+    admin = await db_session.execute(
+        text("SELECT count(*) FROM users WHERE role = 'admin' AND is_active = true")
+    )
+    _ = admin.scalar_one()
+
+    # Call against a non-last-admin scenario so it returns cleanly (count >= 1
+    # excluding a non-admin id), then verify the advisory lock is held.
+    from app.models.user import Role, User
+
+    a = User(
+        email=f"lk-{uuid.uuid4().hex[:6]}@lumen.test",
+        password_hash="x",
+        full_name="L",
+        role=Role.admin,
+    )
+    db_session.add(a)
+    await db_session.flush()
+
+    await admin_users_service.assert_active_admin_invariant(
+        db_session, excluding_user_id="nonexistent-id"
+    )
+
+    # pg_advisory_xact_lock holds in pg_locks for the duration of this txn.
+    held = (
+        await db_session.execute(
+            text(
+                "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' "
+                "AND (classid::bigint << 32 | objid::bigint) = :k"
+            ),
+            {"k": _ADMIN_INVARIANT_LOCK_KEY},
+        )
+    ).scalar_one()
+    assert held >= 1, "the advisory lock must be held by this transaction (F6 TOCTOU guard)"
+
+
+def test_account_module_has_no_lazy_model_imports() -> None:
+    """F1 hardening: the choreography steps must NOT lazily import models inside
+    the function body (that is what let the ``McpClient`` typo hide). Every model
+    is imported at module top; assert the module source carries no per-step
+    ``from app.models...`` import, so a typo fails loudly at import time.
+    """
+    import inspect
+
+    from app.services import account as account_module
+
+    src = inspect.getsource(account_module)
+    # The only ``from app.models`` lines may live in the top-level import block;
+    # none may appear indented inside a function body.
+    for line in src.splitlines():
+        if "from app.models" in line:
+            assert not line.startswith((" ", "\t")), (
+                f"lazy in-function model import found (F1 regression): {line!r}"
+            )
+
+
 async def test_delete_account_soft_deletes_authored_reviews(
     client: AsyncClient, db_session: AsyncSession, make_user, seed_lesson
 ) -> None:

@@ -9,9 +9,15 @@ irreversibly scrubbed. Suspension (admin) shares ``is_active`` but is reversible
 The choreography (D2) runs inside the request's single transaction so any
 failure rolls everything back — no half-tombstone. The **core** PII scrub +
 deactivate is un-guarded (must succeed); only the optional sibling-table steps
-are narrowly try-guarded (catch only ``ProgrammingError``/``UndefinedTable``/
-``ImportError``) so a not-yet-landed sibling table never blocks the core scrub
-(open-risk 1).
+are narrowly try-guarded (catch only ``ProgrammingError``/``UndefinedTable``)
+so a not-yet-landed sibling *table* never blocks the core scrub (open-risk 1).
+
+F1 (S6 gate): ``ImportError`` was REMOVED from the guarded set. Its only purpose
+was tolerance for not-yet-built *model modules*; every model this module touches
+exists today and is imported at module top, so a wrong class name now fails
+loudly at import time rather than being silently swallowed at call time (the
+``McpClient``/``MCPClient`` typo that left MCP clients un-revoked on deletion).
+When S3 lands a new model it adds its own guard alongside its own import.
 """
 
 from __future__ import annotations
@@ -19,19 +25,30 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import select, update
 from sqlalchemy.exc import ProgrammingError
 
 from app.core.errors import AccessRevokedError, UnauthorizedError
 from app.core.logging import get_logger
 from app.core.security import hash_password, verify_password
+
+# F1 (S6 gate): EVERY model this module mutates is imported at module top, NOT
+# lazily inside each step. A lazy import that names a class wrong (the original
+# ``McpClient`` typo for ``MCPClient``) raised ImportError at *call* time, which
+# the old per-step guard swallowed — so MCP clients were silently never revoked
+# on account deletion. Module-top imports make any such typo fail loudly at
+# import time (the whole app refuses to boot), not silently at runtime.
+from app.models.course import Course, Review, Visibility
+from app.models.discussion import Discussion, DiscussionReply
+from app.models.mcp_client import MCPClient
+from app.models.user import Role, User
+from app.models.user_llm_credential import UserLLMCredential
 from app.repositories import audit as audit_repo
 from app.repositories import users as users_repo
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-
-    from app.models.user import User
 
 log = get_logger(__name__)
 
@@ -44,8 +61,10 @@ DELETED_OWNER_SNAPSHOT = "\x00deleted_user"
 #: The narrow set of exceptions a sibling-table step may swallow (open-risk 1).
 #: NEVER a blanket ``Exception`` — that could hide a real bug and leave un-
 #: scrubbed PII. ``ProgrammingError`` covers Postgres ``UndefinedTable`` /
-#: ``UndefinedColumn``; ``ImportError`` covers a not-yet-landed model module.
-_OPTIONAL_STEP_ERRORS = (ProgrammingError, ImportError)
+#: ``UndefinedColumn`` (a not-yet-migrated sibling table/column). ``ImportError``
+#: is deliberately NOT here (F1): all models are imported at module top so a
+#: wrong class name fails loudly at boot, not silently at deletion time.
+_OPTIONAL_STEP_ERRORS = (ProgrammingError,)
 
 
 async def assert_account_active(db: AsyncSession, user_id: str) -> None:
@@ -58,8 +77,6 @@ async def assert_account_active(db: AsyncSession, user_id: str) -> None:
     tutor heartbeat and at build/clone phase fences — every future foreground LLM
     feature must adopt it (CHARTER risk / open-risk 3).
     """
-    from app.models.user import User
-
     is_active = (
         await db.execute(select(User.is_active).where(User.id == user_id))
     ).scalar_one_or_none()
@@ -77,17 +94,35 @@ async def delete_account(
 ) -> None:
     """Anonymize-in-place self-serve deletion (ADR-0030 §D2, R-M3').
 
-    The 11-step D2 order — authn → audit-first → scrub PII + ``deleted_at`` →
-    deactivate → purge sessions → [guarded] BYOK purge → MCP revoke → owned-
-    course delist+soft-delete → provenance anonymize → discussion soft-delete →
-    review soft-delete. Steps 6–11 are independently try-guarded against missing
-    sibling tables; the core (steps 1–5) is un-guarded.
+    The D2 order — authn → last-admin invariant → audit-first → scrub PII +
+    ``deleted_at`` → deactivate → purge sessions → [guarded] BYOK purge → MCP
+    revoke → owned-course delist+soft-delete → provenance anonymize → discussion
+    soft-delete → review soft-delete. The optional sibling-table steps are
+    independently try-guarded against missing sibling tables; the core is
+    un-guarded.
+
+    F2 (S6 gate): the sole active admin cannot self-delete to zero admins. The
+    same FR-ADMIN-03 invariant the grant/revoke + suspend paths enforce is
+    checked here for an admin user BEFORE any mutation (after authn, before the
+    first DB write), refusing with the ``user.last_admin`` 422 shape. The
+    advisory lock inside the invariant closes the TOCTOU against a concurrent
+    demote/suspend.
     """
     # ---- Step 1. Authn re-check (the destructive-action confirmation) ----
     if not verify_password(password, user.password_hash):
         raise UnauthorizedError("Password is incorrect", code="auth.invalid_credentials")
 
-    # ---- Step 2. Audit FIRST (before scrub, while the row is identifiable) ----
+    # ---- Step 2. Last-admin invariant (F2): an admin may not self-delete the
+    # platform to zero active admins. Checked before any mutation; the advisory
+    # lock inside serializes against a concurrent demote/suspend (F6 TOCTOU). ----
+    if user.role == Role.admin and user.is_active:
+        from app.services import admin_users as admin_users_service
+
+        await admin_users_service.assert_active_admin_invariant(
+            db, excluding_user_id=user.id, code="user.last_admin"
+        )
+
+    # ---- Step 3. Audit FIRST (before scrub, while the row is identifiable) ----
     await audit_repo.record(
         db,
         actor_id=user.id,
@@ -151,26 +186,20 @@ async def _purge_byok_credentials(db: AsyncSession, user_id: str) -> None:
     rows (no key, plain-string user_id) are kept for cost history.
     """
     try:
-        from sqlalchemy import delete as sa_delete
-
-        from app.models.user_llm_credential import UserLLMCredential
-
         await db.execute(sa_delete(UserLLMCredential).where(UserLLMCredential.user_id == user_id))
-    except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — pre-S5 tolerance
+    except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — missing-table tolerance
         log.warning("delete_account_byok_purge_skipped", error=str(exc), user_id=user_id)
 
 
 async def _revoke_mcp_clients(db: AsyncSession, user_id: str) -> None:
     """Set ``revoked_at`` on the user's MCP clients (kills programmatic access)."""
     try:
-        from app.models.mcp_client import McpClient
-
         await db.execute(
-            update(McpClient)
-            .where(McpClient.owner_user_id == user_id, McpClient.revoked_at.is_(None))
+            update(MCPClient)
+            .where(MCPClient.owner_user_id == user_id, MCPClient.revoked_at.is_(None))
             .values(revoked_at=datetime.now(UTC))
         )
-    except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — model tolerance
+    except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — missing-table tolerance
         log.warning("delete_account_mcp_revoke_skipped", error=str(exc), user_id=user_id)
 
 
@@ -183,8 +212,6 @@ async def _delist_owned_courses(db: AsyncSession, user_id: str) -> None:
     existing clones are unaffected (FR-DEL-01).
     """
     try:
-        from app.models.course import Course, Visibility
-
         await db.execute(
             update(Course)
             .where(Course.owner_id == user_id, Course.deleted_at.is_(None))
@@ -194,8 +221,6 @@ async def _delist_owned_courses(db: AsyncSession, user_id: str) -> None:
         # Fall back to soft-delete only if the visibility column is absent.
         log.warning("delete_account_delist_fallback", error=str(exc), user_id=user_id)
         try:
-            from app.models.course import Course
-
             await db.execute(
                 update(Course)
                 .where(Course.owner_id == user_id, Course.deleted_at.is_(None))
@@ -212,14 +237,12 @@ async def _anonymize_provenance(db: AsyncSession, user_id: str) -> None:
     (DR-19 / S6.10) is the robust guarantee; this one-time scrub is best-effort.
     """
     try:
-        from app.models.course import Course
-
         await db.execute(
             update(Course)
             .where(Course.origin_owner_id == user_id)
             .values(origin_owner_name_snapshot=DELETED_OWNER_SNAPSHOT)
         )
-    except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — pre-S4 tolerance
+    except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — pre-S4 column tolerance
         log.warning("delete_account_provenance_skipped", error=str(exc), user_id=user_id)
     except AttributeError as exc:  # pragma: no cover — column not mapped yet
         log.warning("delete_account_provenance_no_column", error=str(exc), user_id=user_id)
@@ -232,8 +255,6 @@ async def _soft_delete_discussions(db: AsyncSession, user_id: str) -> None:
     body is hidden.
     """
     try:
-        from app.models.discussion import Discussion, DiscussionReply
-
         now = datetime.now(UTC)
         await db.execute(
             update(Discussion)
@@ -245,19 +266,17 @@ async def _soft_delete_discussions(db: AsyncSession, user_id: str) -> None:
             .where(DiscussionReply.author_id == user_id, DiscussionReply.deleted_at.is_(None))
             .values(deleted_at=now)
         )
-    except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — model tolerance
+    except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — missing-table tolerance
         log.warning("delete_account_discussion_skipped", error=str(exc), user_id=user_id)
 
 
 async def _soft_delete_reviews(db: AsyncSession, user_id: str) -> None:
     """Soft-delete the user's reviews (author pointer kept at the tombstone)."""
     try:
-        from app.models.course import Review
-
         await db.execute(
             update(Review)
             .where(Review.author_id == user_id, Review.deleted_at.is_(None))
             .values(deleted_at=datetime.now(UTC))
         )
-    except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — model tolerance
+    except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — missing-table tolerance
         log.warning("delete_account_review_skipped", error=str(exc), user_id=user_id)
