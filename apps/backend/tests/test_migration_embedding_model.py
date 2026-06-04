@@ -41,7 +41,10 @@ def test_chain_links_0033_through_0043():
     m45, m46 = _load("0045"), _load("0046")
     assert m45.revision == "0045" and m45.down_revision == "0044"
     assert m46.revision == "0046" and m46.down_revision == "0045"
-    assert m43.revision == "0043" and m43.down_revision == "0046"
+    # S6 fix wave: 0047 (review_flagged_at, Phase A) precedes the boundary too.
+    m47 = _load("0047")
+    assert m47.revision == "0047" and m47.down_revision == "0046"
+    assert m43.revision == "0043" and m43.down_revision == "0047"
 
 
 def test_phase_annotations():
