@@ -201,6 +201,26 @@ describe("OriginAttribution", () => {
     expect(screen.getByText(en["clone.basedOnUnavailable"])).toBeInTheDocument();
   });
 
+  it("resolves the deleted-user label when the owner is tombstoned but origin is available", () => {
+    // Backend returns the i18n KEY "common.deletedUser" as the owner name when
+    // the origin owner is tombstoned/purged (DR-19). The render site must run it
+    // through t() (Gate-B B2) — never interpolate "by common.deletedUser".
+    render(
+      <OriginAttribution origin={makeOrigin({ origin_owner_name: "common.deletedUser" })} />,
+    );
+    // The link still renders (origin_available stays true) ...
+    expect(screen.getByRole("link", { name: en["clone.viewSource"] })).toBeInTheDocument();
+    // ... and the localized label is shown, not the raw key.
+    expect(
+      screen.getByText(
+        en["clone.basedOn"]
+          .replace("{title}", "FastAPI in 90 Minutes")
+          .replace("{author}", en["common.deletedUser"]),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/common\.deletedUser/)).not.toBeInTheDocument();
+  });
+
   it("renders nothing when there is no origin", () => {
     const { container } = render(<OriginAttribution origin={null} />);
     expect(container).toBeEmptyDOMElement();
