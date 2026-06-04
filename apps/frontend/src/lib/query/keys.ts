@@ -24,4 +24,8 @@ export const qk = {
   catalogRoot: ["catalog"] as const,
   moderationQueue: ["admin", "moderation", "queue"] as const,
   courseModeration: (id: string) => ["course", id, "moderation"] as const,
+  // S6.11 — admin report queue. ``reports`` is the base; filters append.
+  reports: ["admin", "reports"] as const,
+  adminUsers: ["admin", "users"] as const,
+  adminStats: ["admin", "stats"] as const,
 };

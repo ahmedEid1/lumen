@@ -204,3 +204,106 @@ export interface LLMCredentialValidateResult {
   status: LLMValidationStatus;
   message: string;
 }
+
+// ---------- Admin moderation + lifecycle (S6) — hand-written per DR-5 ----------
+
+/**
+ * The unified moderation + suspension reason taxonomy (S6.1
+ * `moderation_taxonomy.ReasonCode`). Kept in lockstep with the backend
+ * `StrEnum` (DR-5: never `make api-client`). The frontend localises each
+ * code for the reason picker.
+ */
+export type ReasonCode =
+  | "spam"
+  | "abuse"
+  | "fraud"
+  | "tos_violation"
+  | "copyright"
+  | "security"
+  | "illegal"
+  | "csam"
+  | "severe_abuse"
+  | "other";
+
+/** Reasons that trigger a full quarantine (DR-18-R2): even the owner and
+ * enrolled learners lose access. Mirrors `QUARANTINE_REASONS`. */
+export const QUARANTINE_REASONS: ReasonCode[] = ["csam", "illegal"];
+
+/** Reasons that hard-remove a course (soft-delete + revoke enrolled access).
+ * Superset of the quarantine set plus `severe_abuse`. */
+export const HARD_REMOVAL_REASONS: ReasonCode[] = ["csam", "illegal", "severe_abuse"];
+
+/** All reason codes in display order — drives the reason picker. */
+export const ALL_REASON_CODES: ReasonCode[] = [
+  "spam",
+  "abuse",
+  "fraud",
+  "tos_violation",
+  "copyright",
+  "security",
+  "illegal",
+  "csam",
+  "severe_abuse",
+  "other",
+];
+
+/**
+ * One row of the admin moderation queue. The backend renders these as
+ * `CourseListItem`s (admin-viewer), so the queue item is structurally a
+ * `CourseListItem` — aliased for intent at the call sites.
+ */
+export type ModerationQueueItem = CourseListItem;
+
+/** Admin-viewer course list item (S6.4). Same shape as `CourseListItem`;
+ * the admin endpoint surfaces the real `moderation_state`/`visibility`. */
+export type CourseAdminOut = CourseListItem;
+
+export type ReportStatus = "open" | "actioned" | "dismissed";
+
+/**
+ * Admin report DTO (S6.4 `admin.ReportOut`). Carries reporter PII
+ * (FR-MOD-12, admin-only); `note` is the already-sanitized inert text
+ * (FR-MOD-13) so it is rendered as plain text, never as markup.
+ */
+export interface ReportOut {
+  id: string;
+  course_id: string;
+  reporter_id: string;
+  reason: string;
+  note: string | null;
+  status: string;
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+}
+
+/** Resolve action for an open report (S6.4 `ReportResolveRequest`). */
+export type ReportResolveAction = "dismiss" | "delist" | "remove";
+
+/**
+ * Platform stats (S6.9 `PlatformStatsOut`). The role-derived `instructors`
+ * count is replaced by `admins` (`role==admin`) + `authors`
+ * (`COUNT(DISTINCT owner_id)` over non-deleted courses).
+ */
+export interface PlatformStats {
+  users: number;
+  active_users: number;
+  admins: number;
+  authors: number;
+  courses_total: number;
+  courses_published: number;
+  courses_listed: number;
+  courses_draft: number;
+  enrollments: number;
+}
+
+/** Admin-managed user row (S6.6/S6.7 `UserAdminOut`). */
+export interface UserAdminOut {
+  id: string;
+  email: string;
+  full_name: string;
+  role: Role;
+  is_active: boolean;
+  created_at: string;
+  last_login_at: string | null;
+}

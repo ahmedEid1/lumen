@@ -1,5 +1,6 @@
 import { api } from "@/lib/api/client";
 import type {
+  CourseAdminOut,
   CourseDetail,
   CourseListItem,
   EnrollmentOut,
@@ -7,12 +8,18 @@ import type {
   LLMCredentialPublic,
   LLMCredentialValidateResult,
   LLMProviderRegistry,
+  ModerationQueueItem,
   ModuleOut,
   Page,
+  PlatformStats,
+  ReasonCode,
+  ReportOut,
+  ReportResolveAction,
   ReviewOut,
   SubjectOut,
   TagOut,
   TokenResponse,
+  UserAdminOut,
   UserOut,
 } from "@/lib/api/types";
 
@@ -90,6 +97,19 @@ export const Courses = {
   moderationQueue: (token?: string) =>
     api<CourseListItem[]>("/api/v1/admin/courses/moderation-queue", { token }),
 
+  // S6.3 — any authenticated user files a report against a publicly-listed
+  // course. `note` is sanitized server-side (FR-MOD-13).
+  report: (
+    id: string,
+    body: { reason: ReasonCode; note?: string | null },
+    token?: string,
+  ) =>
+    api<{ ok: true }>(`/api/v1/courses/${encodeURIComponent(id)}/report`, {
+      method: "POST",
+      body,
+      token,
+    }),
+
   createModule: (courseId: string, input: { title: string; description?: string }, token?: string) =>
     api<ModuleOut>(`/api/v1/courses/${courseId}/modules`, { method: "POST", body: input, token }),
   reorderModules: (courseId: string, order: Record<string, number>, token?: string) =>
@@ -152,6 +172,129 @@ export const Courses = {
         certificate_id: string | null;
       }>
     >(`/api/v1/courses/${courseId}/students`, { token }),
+};
+
+// ---------- Admin moderation + user management (S6) ----------
+
+/** Body for the moderation action endpoints (S6.4 `ModerationActionRequest`). */
+export interface ModerationActionBody {
+  reason?: ReasonCode | null;
+  note?: string | null;
+}
+
+/** The admin-authority moderation + user-lifecycle surface. Every method
+ * here routes through `RequireAdmin` on the backend (FR-ADMIN-08: the UI gate
+ * is defense-in-depth, the backend gate is authoritative). */
+export const Admin = {
+  // -- Moderation queue + report queue
+  moderationQueue: (token?: string) =>
+    api<ModerationQueueItem[]>("/api/v1/admin/courses/moderation-queue", { token }),
+  reports: (
+    params: { status?: string; reason?: string; course_id?: string; cursor?: string } = {},
+    token?: string,
+  ) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+    }
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<ReportOut[]>(`/api/v1/admin/reports${suffix}`, { token });
+  },
+
+  // -- Course moderation transitions (S6.2/S6.4)
+  approveCourse: (id: string, body: ModerationActionBody = {}, token?: string) =>
+    api<CourseAdminOut>(`/api/v1/admin/courses/${id}/approve`, {
+      method: "POST",
+      body,
+      token,
+    }),
+  rejectCourse: (id: string, body: ModerationActionBody = {}, token?: string) =>
+    api<CourseAdminOut>(`/api/v1/admin/courses/${id}/reject`, {
+      method: "POST",
+      body,
+      token,
+    }),
+  delistCourse: (id: string, body: ModerationActionBody = {}, token?: string) =>
+    api<CourseAdminOut>(`/api/v1/admin/courses/${id}/delist`, {
+      method: "POST",
+      body,
+      token,
+    }),
+  relistCourse: (id: string, body: ModerationActionBody = {}, token?: string) =>
+    api<CourseAdminOut>(`/api/v1/admin/courses/${id}/relist`, {
+      method: "POST",
+      body,
+      token,
+    }),
+  // `reason` is required (the backend 422s without it).
+  removeCourse: (
+    id: string,
+    body: { reason: ReasonCode; note?: string | null },
+    token?: string,
+  ) =>
+    api<CourseAdminOut>(`/api/v1/admin/courses/${id}/remove`, {
+      method: "POST",
+      body,
+      token,
+    }),
+
+  // -- Report resolution (S6.4): performs the linked moderation action
+  // atomically in one transaction.
+  resolveReport: (
+    id: string,
+    body: { action: ReportResolveAction; reason?: ReasonCode | null; note?: string | null },
+    token?: string,
+  ) =>
+    api<ReportOut>(`/api/v1/admin/reports/${id}/resolve`, {
+      method: "POST",
+      body,
+      token,
+    }),
+
+  // -- User management (S6.6/S6.7)
+  users: (params: { q?: string; limit?: number } = {}, token?: string) => {
+    const qs = new URLSearchParams();
+    qs.set("limit", String(params.limit ?? 200));
+    if (params.q) qs.set("q", params.q);
+    return api<UserAdminOut[]>(`/api/v1/admin/users?${qs}`, { token });
+  },
+  setAdmin: (id: string, isAdmin: boolean, token?: string) =>
+    api<UserAdminOut>(`/api/v1/admin/users/${id}/admin`, {
+      method: "PATCH",
+      body: { is_admin: isAdmin },
+      token,
+    }),
+  suspendUser: (
+    id: string,
+    body: { reason: ReasonCode; note?: string | null },
+    token?: string,
+  ) =>
+    api<UserAdminOut>(`/api/v1/admin/users/${id}/suspend`, {
+      method: "PATCH",
+      body,
+      token,
+    }),
+  reinstateUser: (id: string, token?: string) =>
+    api<UserAdminOut>(`/api/v1/admin/users/${id}/reinstate`, {
+      method: "PATCH",
+      body: {},
+      token,
+    }),
+
+  // -- Platform stats (S6.9)
+  stats: (token?: string) => api<PlatformStats>("/api/v1/admin/stats", { token }),
+};
+
+// ---------- Users (self-service account) ----------
+export const Users = {
+  // S6.8 — anonymize-in-place account deletion. Requires the current
+  // password; on success the caller clears the query cache + hard-redirects.
+  deleteMe: (password: string, token?: string) =>
+    api<{ ok: true }>("/api/v1/users/me", {
+      method: "DELETE",
+      body: { password },
+      token,
+    }),
 };
 
 // ---------- Enrollments ----------

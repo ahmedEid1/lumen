@@ -58,7 +58,9 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("AdminModerationPage", () => {
   it("renders a pending course as a queue row with inert title + badges", async () => {
-    vi.spyOn(endpoints.Courses, "moderationQueue").mockResolvedValue([PENDING]);
+    // S6.11 — the queue is fetched via the admin endpoint object.
+    vi.spyOn(endpoints.Admin, "moderationQueue").mockResolvedValue([PENDING]);
+    vi.spyOn(endpoints.Admin, "reports").mockResolvedValue([]);
     renderWithClient(<AdminModerationPage />);
     await waitFor(() => {
       expect(screen.getByTestId("moderation-row")).toBeInTheDocument();
@@ -70,7 +72,8 @@ describe("AdminModerationPage", () => {
   });
 
   it("renders the empty-state when the queue is empty", async () => {
-    vi.spyOn(endpoints.Courses, "moderationQueue").mockResolvedValue([]);
+    vi.spyOn(endpoints.Admin, "moderationQueue").mockResolvedValue([]);
+    vi.spyOn(endpoints.Admin, "reports").mockResolvedValue([]);
     renderWithClient(<AdminModerationPage />);
     await waitFor(() => {
       expect(screen.getByTestId("moderation-empty")).toBeInTheDocument();
