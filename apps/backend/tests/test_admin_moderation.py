@@ -537,3 +537,87 @@ async def test_feature_requires_publicly_listed(
     )
     assert r.status_code == 409
     assert r.json()["error"]["code"] == "course.not_listed"
+
+
+async def test_approve_reaffirms_flagged_approved_course(
+    client: AsyncClient, auth_headers, make_user, db_session: AsyncSession
+):
+    """Gate-C addendum (F3 follow-up): an admin reviewing a FLAGGED approved
+    course and finding it fine re-affirms via approve — the flag clears, the
+    state stays approved/listed, and an advisory flag_reaffirmed event is
+    written. Approve on an approved-and-UNflagged course still 422s."""
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select as _select
+
+    from app.models.moderation import ModerationEvent
+
+    admin_h = await auth_headers(role=Role.admin)
+    owner = await make_user(role=Role.user)
+    subject = await _make_subject(db_session)
+    course = await _course(
+        db_session, owner.id, subject.id, moderation_state=ModerationState.approved
+    )
+    course.review_flagged_at = datetime.now(UTC)
+    await db_session.commit()
+
+    r = await client.post(f"/api/v1/admin/courses/{course.id}/approve", headers=admin_h, json={})
+    assert r.status_code == 200, r.text
+
+    await db_session.refresh(course)
+    assert course.review_flagged_at is None
+    assert str(course.moderation_state) == "approved"
+    events = (
+        (
+            await db_session.execute(
+                _select(ModerationEvent).where(ModerationEvent.course_id == course.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert any(e.reason_code is None and e.from_state == e.to_state == "approved" for e in events)
+
+    # Unflagged approved course: approve remains an invalid transition.
+    r = await client.post(f"/api/v1/admin/courses/{course.id}/approve", headers=admin_h, json={})
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "course.invalid_transition"
+
+
+async def test_dismissing_last_open_report_clears_flag(
+    client: AsyncClient, auth_headers, make_user, db_session: AsyncSession
+):
+    """Gate-C addendum (F3 follow-up): dismissing the LAST open report removes
+    the accumulation signal's basis — the re-review flag clears so the course
+    doesn't sit in the moderation queue forever."""
+    from datetime import UTC, datetime
+
+    from app.models.moderation import CourseReport, ReportStatus
+
+    admin_h = await auth_headers(role=Role.admin)
+    owner = await make_user(role=Role.user)
+    reporter = await make_user(role=Role.user)
+    subject = await _make_subject(db_session)
+    course = await _course(
+        db_session, owner.id, subject.id, moderation_state=ModerationState.approved
+    )
+    course.review_flagged_at = datetime.now(UTC)
+    report = CourseReport(
+        course_id=course.id,
+        reporter_id=reporter.id,
+        reason="spam",
+        note="addendum probe",
+        status=ReportStatus.open.value,
+    )
+    db_session.add(report)
+    await db_session.commit()
+
+    r = await client.post(
+        f"/api/v1/admin/reports/{report.id}/resolve",
+        headers=admin_h,
+        json={"action": "dismiss"},
+    )
+    assert r.status_code == 200, r.text
+
+    await db_session.refresh(course)
+    assert course.review_flagged_at is None  # signal basis gone -> flag cleared

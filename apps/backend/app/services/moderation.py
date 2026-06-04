@@ -38,6 +38,7 @@ from app.core.errors import (
     RateLimitedError,
     ValidationAppError,
 )
+from app.core.logging import get_logger
 from app.models.course import Course, ModerationState, Visibility
 from app.repositories import audit as audit_repo
 from app.repositories import courses as courses_repo
@@ -49,6 +50,8 @@ from app.services.moderation_taxonomy import (
     ReasonCode,
     sanitize_note,
 )
+
+log = get_logger(__name__)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -118,8 +121,32 @@ async def approve_course(
 
     Legal source: ``pending_review`` (FR-MOD-01). Bumps the catalog cache and
     enqueues the public RAG reindex (transition-to-listed, FR-VIS-17).
+
+    Gate-C addendum (F3 follow-up): approve is ALSO the re-affirmation
+    action for an ``approved`` course carrying the report-accumulation
+    flag — the admin reviewed the reports and the course is fine. Without
+    this arm the flag was unclearable except destructively (re-approve
+    refused invalid_transition; reject/delist/remove were the only
+    flag-clearing paths). Re-affirmation clears the flag and writes an
+    advisory event with NO state change; approve on an approved-and-
+    UNflagged course remains an invalid transition.
     """
     course = await _load_course(db, course_id)
+    if course.moderation_state == ModerationState.approved and course.review_flagged_at is not None:
+        course.review_flagged_at = None
+        await _record(
+            db,
+            course=course,
+            actor=actor,
+            action="admin.course.flag_reaffirmed",
+            from_state=str(ModerationState.approved),
+            to_state=str(ModerationState.approved),
+            reason=None,
+            note=note,
+            ip=ip,
+            user_agent=user_agent,
+        )
+        return course
     if course.moderation_state != ModerationState.pending_review:
         raise ValidationAppError(
             f"Cannot approve from {course.moderation_state}",
@@ -517,6 +544,22 @@ async def resolve_report(
 
     if action == "dismiss":
         report.status = ReportStatus.dismissed.value
+        await db.flush()
+        # Gate-C addendum (F3 follow-up): dismissing the LAST open report
+        # removes the accumulation signal's basis — clear the re-review
+        # flag so the course doesn't sit in the queue forever. delist /
+        # remove clear it through their own transitions.
+        remaining = await moderation_repo.count_open_reports(db, course_id=report.course_id)
+        if remaining == 0:
+            course = await _load_course(db, report.course_id)
+            if course.review_flagged_at is not None:
+                course.review_flagged_at = None
+                await db.flush()
+                log.info(
+                    "moderation_flag_cleared_on_last_dismiss",
+                    course_id=report.course_id,
+                    report_id=report.id,
+                )
     elif action == "delist":
         await delist_course(
             db,
