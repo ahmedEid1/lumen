@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import desc, func, select
 
 from app.api.deps import CurrentUser, DBSession, client_ip, user_agent
+from app.core.config import get_settings
 from app.core.email_type import Email
 from app.core.errors import NotFoundError, UnauthorizedError, ValidationAppError
 from app.core.security import hash_password, verify_password
@@ -19,6 +20,7 @@ from app.repositories import users as users_repo
 from app.schemas.auth import PASSWORD_MIN, validate_password_strength
 from app.schemas.common import OkResponse
 from app.schemas.user import UserOut, UserUpdate
+from app.services import account as account_service
 from app.services import email_change as email_change_service
 from app.services import password_hibp
 
@@ -193,24 +195,27 @@ async def confirm_email_change(payload: EmailChangeConfirm, db: DBSession) -> Us
 
 @router.delete("/me", response_model=OkResponse)
 async def delete_me(
-    payload: DeleteAccountRequest, user: CurrentUser, db: DBSession, request: Request
+    payload: DeleteAccountRequest,
+    user: CurrentUser,
+    db: DBSession,
+    request: Request,
+    response: Response,
 ) -> OkResponse:
-    if not verify_password(payload.password, user.password_hash):
-        raise UnauthorizedError("Password is incorrect", code="auth.invalid_credentials")
-    await audit_repo.record(
+    """Self-serve account deletion — anonymize-in-place (ADR-0030 §D2).
+
+    The full R-M3' choreography lives in ``account.delete_account`` (so the
+    invariants are single-sourced in the service layer). On success we clear the
+    auth cookies so the browser is signed out immediately, not just on the next
+    request.
+    """
+    await account_service.delete_account(
         db,
-        actor_id=user.id,
-        action="user.deleted",
-        target_type="user",
-        target_id=user.id,
-        ip_address=client_ip(request),
+        user=user,
+        password=payload.password,
+        ip=client_ip(request),
         user_agent=user_agent(request),
     )
-    user.is_active = False
-    user.email = f"deleted-{user.id}@lumen.invalid"
-    user.password_hash = hash_password("!disabled!" + user.id)
-    user.full_name = "Deleted user"
-    user.avatar_url = None
-    user.bio = None
-    await users_repo.revoke_all_refresh_tokens(db, user.id)
+    is_prod = get_settings().is_prod
+    for name in ("__Host-access", "__Host-refresh", "access", "refresh"):
+        response.delete_cookie(name, path="/", secure=is_prod)
     return OkResponse()

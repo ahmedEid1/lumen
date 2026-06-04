@@ -43,6 +43,7 @@ from app.db.base import make_worker_engine
 from app.models.course import Course
 from app.models.llm_call import BILLING_BYOK, BILLING_PLATFORM, STATUS_ERROR, STATUS_OK
 from app.models.tutor_turn_job import TURN_STATUS_COMPLETE, TURN_STATUS_FAILED
+from app.services import account as account_service
 from app.services import byok as byok_service
 from app.services.llm_call_log import record_streamed_turn_row
 from app.services.redis_streams import emit_event, set_stream_ttl
@@ -226,6 +227,14 @@ async def _run_turn_async(turn_id: str) -> None:
             retrieval_latency_ms=retrieval_latency_ms,
             byok_dispatch=byok_dispatch,
         ):
+            # R-S10 cooperative cancellation (ADR-0030 §D4): each event tick is a
+            # heartbeat. Re-check that the streaming user's account is still
+            # active; if they were suspended/deleted mid-stream, assert_account_
+            # active raises account.access_revoked and we stop emitting / close
+            # the stream rather than running the turn to completion.
+            if user_id:
+                async with Session() as hb_db:
+                    await account_service.assert_account_active(hb_db, user_id)
             if ev["event"] == "turn_complete":
                 cost_usd = float(ev["data"].get("cost_usd", 0.0) or 0.0)
                 actual_cost_microcents = int(cost_usd * USD_TO_MICROCENTS)

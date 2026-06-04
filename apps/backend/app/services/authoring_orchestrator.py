@@ -88,6 +88,7 @@ from app.models.course_draft_trace import (
 from app.models.llm_call import SYSTEM_USER_ID
 from app.models.user import User
 from app.repositories import courses as courses_repo
+from app.services import account as account_service
 from app.services import ai_authoring
 from app.services import byok as byok_service
 from app.services import llm as llm_service
@@ -698,6 +699,14 @@ async def draft_course(
     metered_user_id = user_id or SYSTEM_USER_ID
     step_index = 0
 
+    # R-S10 cooperative-cancellation fence (ADR-0030 §D4): if the authoring user
+    # was suspended/deleted before the build started, abort here before burning
+    # any LLM tokens. Fenced again at the lesson-drafter and final-critic phase
+    # boundaries so a mid-build flip aborts the phase (no partial course persists
+    # past the next fence).
+    if user_id:
+        await account_service.assert_account_active(db, user_id)
+
     # ---------- Step 1. Researcher ----------
     started = time.perf_counter()
     # S2.7: thread the authoring user so the researcher's cross-catalog read
@@ -921,6 +930,12 @@ async def draft_course(
     # Back-fill course_id on the trace rows we wrote before the
     # course existed.
     await _backfill_course_id(db, draft_id=draft_id, course_id=course.id)
+
+    # R-S10 fence before the (expensive) per-lesson drafting phase: a user
+    # suspended/deleted during the outline phase aborts here (account.access_
+    # revoked) before the N lesson-body LLM calls fire.
+    if user_id:
+        await account_service.assert_account_active(db, user_id)
 
     # ---------- Step 6. Lesson-drafter (one per lesson) ----------
     # We iterate the freshly-persisted modules so we can populate
