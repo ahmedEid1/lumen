@@ -20,7 +20,16 @@ from app.db.base import Base, IdMixin, TimestampMixin
 
 class IdempotencyKey(IdMixin, TimestampMixin, Base):
     __tablename__ = "idempotency_keys"
-    __table_args__ = (UniqueConstraint("user_id", "idempotency_key", name="uq_idem_user_key"),)
+    # S4 gate (Codex-C2 / Gate-B B3): the unique constraint MUST match the
+    # lookup/reserve key (user_id, idempotency_key, endpoint) — otherwise the
+    # same opaque key reused across two endpoints collides on the narrower
+    # (user_id, idempotency_key) pair and the second endpoint replays the first's
+    # unrelated result. Migration 0050 replaces uq_idem_user_key with this.
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "idempotency_key", "endpoint", name="uq_idem_user_key_endpoint"
+        ),
+    )
 
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     #: The client-supplied opaque key, scoped per user.

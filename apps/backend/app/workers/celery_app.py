@@ -58,6 +58,14 @@ celery.conf.beat_schedule = {
         "task": "app.workers.tasks.media.sweep_unclaimed_assets",
         "schedule": crontab(hour="3", minute="0"),
     },
+    # S4 gate (Codex-C2 / Gate-B B3) — reclaim idempotency-key rows past their
+    # 24h replay TTL. Hourly is plenty: the table only grows with clone
+    # mutations and the delete is index-assisted (ix_idempotency_keys_created_at)
+    # + idempotent against an empty/no-expired state.
+    "sweep-expired-idempotency-keys": {
+        "task": "app.workers.tasks.media.sweep_expired_idempotency_keys",
+        "schedule": crontab(minute="0"),
+    },
     # Phase D4 — bundle yesterday's ``digest_daily`` notifications into
     # one summary email per user. 07:00 UTC is early enough to land in
     # most inboxes before the working day in EU/India and late enough

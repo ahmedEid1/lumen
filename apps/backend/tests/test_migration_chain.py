@@ -89,12 +89,13 @@ def test_quarantine_phase_a_precedes_notnull_phase_d_boundary(script_dir):
     visibility SQL) ahead of the boundary; the confirm round caught 0045 (the
     moderation_events timestamp defaults — the /share 500 fix) re-making the
     same mistake behind it. Pinned linear order:
-    0041 -> 0042 -> 0044 -> 0045 -> 0046 -> 0047 -> 0048 -> 0049 -> 0043 (head,
-    the gated boundary last). S6.3 inserted 0046 (course_reports), the F3 gate
-    inserted 0047 (review_flagged_at), and S4.2 inserted 0048 (clone_provenance)
-    + 0049 (idempotency_keys) BEFORE the boundary per HOUSE RULES."""
+    0041 -> 0042 -> 0044 -> 0045 -> 0046 -> 0047 -> 0048 -> 0049 -> 0050 -> 0043
+    (head, the gated boundary last). S6.3 inserted 0046 (course_reports), the F3
+    gate inserted 0047 (review_flagged_at), S4.2 inserted 0048 (clone_provenance)
+    + 0049 (idempotency_keys), and the S4 gate inserted 0050 (idempotency
+    user_key+endpoint unique) BEFORE the boundary per HOUSE RULES."""
     by_rev = {s.revision: s for s in script_dir.walk_revisions()}
-    for rev in ("0041", "0042", "0043", "0044", "0045", "0046", "0047", "0048", "0049"):
+    for rev in ("0041", "0042", "0043", "0044", "0045", "0046", "0047", "0048", "0049", "0050"):
         assert rev in by_rev, f"{rev} missing from chain"
     assert by_rev["0042"].down_revision == "0041"
     assert by_rev["0044"].down_revision == "0042"  # Phase-A quarantine, then...
@@ -103,7 +104,8 @@ def test_quarantine_phase_a_precedes_notnull_phase_d_boundary(script_dir):
     assert by_rev["0047"].down_revision == "0046"  # ...Phase-A review_flagged_at, then...
     assert by_rev["0048"].down_revision == "0047"  # ...Phase-A clone_provenance, then...
     assert by_rev["0049"].down_revision == "0048"  # ...Phase-A idempotency_keys, then...
-    assert by_rev["0043"].down_revision == "0049"  # ...the Phase-D boundary LAST (head)
+    assert by_rev["0050"].down_revision == "0049"  # ...Phase-A idem key+endpoint, then...
+    assert by_rev["0043"].down_revision == "0050"  # ...the Phase-D boundary LAST (head)
     assert by_rev["0043"].module.PHASE == "D"
     assert by_rev["0044"].module.PHASE == "A"
     assert by_rev["0045"].module.PHASE == "A"
@@ -111,6 +113,7 @@ def test_quarantine_phase_a_precedes_notnull_phase_d_boundary(script_dir):
     assert by_rev["0047"].module.PHASE == "A"
     assert by_rev["0048"].module.PHASE == "A"
     assert by_rev["0049"].module.PHASE == "A"
+    assert by_rev["0050"].module.PHASE == "A"
 
 
 def test_release_window_phase_a_revisions_precede_first_gated_boundary(script_dir):

@@ -222,6 +222,18 @@ class CloneSourceChangedError(ConflictError):
     code = "clone.source_changed"
 
 
+class CloneInProgressError(ConflictError):
+    """A concurrent same-key clone is still in flight (S4 gate Codex-C2 / Gate-B
+    B3). The reserve-then-materialize idempotency path inserts the key row FIRST;
+    a same-key double-submit that loses the unique-constraint race finds the
+    winner's reservation row but with a NULL ``response_target_id`` (the winner
+    hasn't committed its clone yet). Rather than block or fabricate torn state we
+    return an honest 409 — the client retries the same key once the winner lands,
+    and that retry replays the committed clone. 409."""
+
+    code = "clone.in_progress"
+
+
 class CloneRateLimitedError(RateLimitedError):
     """Per-user clone window exceeded (FR-CLONE-18, R-S7). 429. Non-dollar —
     counted via a DB COUNT over recent ``course.cloned`` audit rows."""

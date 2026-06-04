@@ -55,9 +55,11 @@ def test_idempotency_key_model_registered() -> None:
     from app.models import IdempotencyKey
 
     assert IdempotencyKey.__tablename__ == "idempotency_keys"
-    # The unique constraint that backs the (user, key) idempotency lookup.
+    # The unique constraint that backs the (user, key, endpoint) idempotency
+    # lookup — the 3-col shape after the S4-gate fix (migration 0050) so the same
+    # opaque key can be reused across endpoints without colliding.
     constraint_names = {c.name for c in IdempotencyKey.__table__.constraints}
-    assert "uq_idem_user_key" in constraint_names
+    assert "uq_idem_user_key_endpoint" in constraint_names
     for col in ("user_id", "idempotency_key", "endpoint", "response_target_id", "expires_at"):
         assert col in IdempotencyKey.__table__.columns
 

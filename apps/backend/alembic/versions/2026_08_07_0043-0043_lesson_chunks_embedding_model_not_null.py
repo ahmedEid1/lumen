@@ -62,7 +62,7 @@ revision: str = "0043"
 # test), not silent. Do NOT re-parent applied revisions after W12 ships this
 # chain to prod — from that point the boundary-last invariant must be satisfied
 # by inserting new revisions, never by moving applied ones.
-down_revision: str | Sequence[str] | None = "0049"
+down_revision: str | Sequence[str] | None = "0050"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
