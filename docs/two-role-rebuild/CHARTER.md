@@ -311,6 +311,23 @@ its three gates are green:**
   SEQUENTIAL in the main tree (head decision: Wave-1's parallel worktrees cost 39- and 117-failure
   merge-gates; remaining streams share the course/service surfaces): S6 admin/moderation first (workflow
   wave2-s6-build), then S4 clone, then S3 goal-intake.**
+- **2026-06-04** — **S6 ALL GATES GREEN.** Build workflow wave2-s6-build (3 sequential stages, TDD,
+  ~70 new tests): moderation taxonomy/transitions/reports/admin-endpoints (S6.1-6.5), grant-revoke-admin +
+  last-admin invariant, suspend/reinstate + distinct auth codes (closed the S7 401-vs-403 carry-forward),
+  11-step delete_account + cooperative cancel, DeletedUserName, admin UI (S6.6-6.11). Gates: Codex 4
+  (McpClient typo swallowed by its own ImportError tolerance → MCP never revoked on delete — imports now
+  module-top, ImportError dropped from the tolerance; self-delete bypassing last-admin invariant;
+  report-requeue auto-UNLISTING approved courses via the predicate coupling its own docstring denied —
+  redesigned as review_flagged_at, course stays listed, queue shows 'flagged'; double-resolve replay) +
+  Gate-B s6-ready (2 major: the same requeue convergence + report cursor ordered by random nanoid; TOCTOU
+  last-admin race → advisory lock; tombstone-guard comment now real) + Gate-C live (approve→listed
+  end-to-end IN THE UI; flag-not-unlist at threshold; flagged queue badge; last-admin 422; report
+  coalesce/sanitize/resolve; suspend no-oracle) + Gate-C ADDENDUM (flagged-approved courses had NO
+  non-destructive clear path → approve-as-reaffirmation + last-dismiss clear, live-proven). Verify catch:
+  the fix agent stranded the dev DB at head-0043 so its own 0047 never applied (the adjudicated stranding
+  shape, real this time — stamp-dance applied). Final Codex P2 (flag re-derive vs sticky) ADJUDICATED
+  sticky-until-human-action, documented + pinned by test. Chain: …0046→0047→0043(boundary last). Suites:
+  backend 1197 / frontend 415 green. **Launching wave2-s4-build (clone/remix).**
 ---
 
 ## 6a. Verified RBAC inventory (ground truth, 2026-06-03)
