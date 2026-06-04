@@ -24,6 +24,10 @@ class NotificationKind(StrEnum):
     chat_mention = "chat_mention"
     security = "security"
     discussion_reply = "discussion_reply"
+    # Sent to the ORIGIN course owner when someone clones their publicly-listed
+    # course (FR-CLONE-19 / ADR-0028 §Decision.9). Display-name only; gated by
+    # the owner's notification_prefs like every other kind.
+    course_cloned = "course_cloned"
 
 
 class Notification(IdMixin, TimestampMixin, Base):

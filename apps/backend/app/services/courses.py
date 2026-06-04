@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from slugify import slugify
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
+from app.core.config import get_settings
+from app.core.errors import (
+    CloneCourseLimitError,
+    CloneRateLimitedError,
+    CloneSourceChangedError,
+    CloneSourceNotClonableError,
+    CloneSourceTooLargeError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationAppError,
+)
 from app.core.ids import new_id
 from app.core.logging import get_logger
 from app.models.course import (
@@ -22,10 +33,13 @@ from app.models.course import (
     Visibility,
 )
 from app.models.moderation import ModerationEvent
+from app.models.notification import NotificationKind
 from app.models.user import User
 from app.repositories import audit as audit_repo
 from app.repositories import courses as courses_repo
-from app.services import moderation_safety
+from app.repositories import notifications as notifications_repo
+from app.services import clone_projection, moderation_safety
+from app.services import idempotency as idempotency_service
 from app.services import visibility as visibility_service
 
 # Re-export the central authorizer's can_view_course (ADR-0026 §3 / S2.4) so
@@ -712,6 +726,339 @@ async def slug_or_id(db: AsyncSession, key: str, *, with_modules: bool = False) 
     if not course:
         raise NotFoundError("Course not found", code="course.not_found")
     return course
+
+
+# ---------- Clone / remix (ADR-0028 §Decision.2; S4.6/S4.7) ----------
+
+#: Logical operation guarded by ``Idempotency-Key`` (ADR-0028 §"New model").
+_CLONE_ENDPOINT = "course.clone"
+
+
+async def _assert_clone_quotas(db: AsyncSession, caller: User) -> None:
+    """Pre-flight non-dollar amplification guards (S4.7 / FR-CLONE-18, R-S7).
+
+    A clone is platform compute/storage, not an LLM call, so it never rides the
+    24h-dollar guard (charter decision 4/5). Two durable DB COUNTs:
+
+    * **Rate window** — recent ``course.cloned`` audit rows by this actor within
+      the hour/day window → ``clone.rate_limited`` 429. Counting audit rows
+      (not an in-memory counter) survives worker restarts; slowapi is the fast
+      first line wired on the route.
+    * **Owned-course cap** — live (non-soft-deleted) courses owned by the caller
+      → ``clone.course_limit`` 409. Bounds clone-of-clone amplification.
+    """
+    s = get_settings()
+    now = datetime.now(UTC)
+
+    from sqlalchemy import func, select
+
+    from app.models.audit import AuditEvent
+
+    # Per-hour then per-day clone-window COUNT over audit rows (durable).
+    for window_seconds, limit in (
+        (3600, s.clone_per_hour),
+        (86400, s.clone_per_day),
+    ):
+        since = now - timedelta(seconds=window_seconds)
+        recent = (
+            await db.execute(
+                select(func.count(AuditEvent.id)).where(
+                    AuditEvent.actor_id == caller.id,
+                    AuditEvent.action == "course.cloned",
+                    AuditEvent.created_at >= since,
+                )
+            )
+        ).scalar_one()
+        if int(recent) >= limit:
+            raise CloneRateLimitedError(
+                "You're cloning too fast — try again shortly.",
+                details={"window_seconds": window_seconds, "limit": limit},
+            )
+
+    # Live-owned-course cap (FR-CLONE-18). Soft-deleted courses don't count.
+    owned = (
+        await db.execute(
+            select(func.count(Course.id)).where(
+                Course.owner_id == caller.id,
+                Course.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one()
+    if int(owned) >= s.clone_owned_cap:
+        raise CloneCourseLimitError(
+            "You've reached your course limit.",
+            details={"limit": s.clone_owned_cap},
+        )
+
+
+async def clone_course(
+    db: AsyncSession,
+    *,
+    caller: User,
+    source_key: str,
+    ip: str | None = None,
+    user_agent: str | None = None,
+    source_updated_at: datetime | None = None,
+    idempotency_key: str | None = None,
+) -> Course:
+    """Clone a publicly-listed course into a fresh private draft (ADR-0028 §2).
+
+    The orchestrator: resolve + authorize (``is_publicly_listed`` with the
+    403-vs-404 existence-hide split), idempotency replay, optional
+    ``source_updated_at`` precondition, non-dollar quotas, sanitized-export
+    projection (S4.3), atomic materialization with server-written immutable
+    provenance, owner self-enroll (S4.4), audit ×2 + origin-owner notification,
+    and idempotency-key record. The whole DB tree commits in the caller's single
+    transaction so any failure rolls back to no orphan course (FR-CLONE-22). S3
+    asset re-homing + embeddings are lazy/async (enqueued by the caller after
+    commit — S4.9/S4.10).
+
+    Authorization split (FR-CLONE-03, the security requirement — no existence
+    leak): a source that is NOT ``is_publicly_listed`` raises ``403
+    clone.source_not_clonable`` ONLY if the caller can otherwise view it (their
+    own private draft); for anyone else it is an indistinguishable ``404
+    course.not_found``. ``can_clone(caller)`` (capability) is re-checked here so
+    enforcement is service-level, not route-only (FR-CLONE-02).
+    """
+    # ---- Resolve. A quarantined/delisted/soft-deleted source is loaded but
+    # never publicly listed; the authorize step below existence-hides it. A
+    # genuinely-absent slug/id raises 404 inside slug_or_id. ----
+    source = await slug_or_id(db, source_key, with_modules=True)
+
+    # ---- Authorize (403/404 split — route through the central authorizer,
+    # never a raw status check). ----
+    if not visibility_service.is_publicly_listed(source):
+        if await visibility_service.can_view_course(db, source, caller):
+            # Caller can see it (their own private draft) but it isn't listable.
+            raise CloneSourceNotClonableError("This course cannot be cloned.")
+        # Existence-hide: indistinguishable from a non-existent course.
+        raise NotFoundError("Course not found", code="course.not_found")
+
+    # Capability re-check (service-level, FR-CLONE-02). Suspended/inactive users
+    # are already dropped at the route's CurrentUser dep; belt-and-suspenders.
+    if not visibility_service.can_clone(source, caller) or not caller.is_active:
+        raise ForbiddenError("You cannot clone this course", code="clone.source_not_clonable")
+
+    # ---- Idempotency replay (FR-CLONE-20). A same-key retry returns the prior
+    # committed clone; we do NOT re-enqueue the asset task (the tree is the
+    # durable unit — ADR-0028 §"Open risks"). ----
+    if idempotency_key:
+        prior_id = await idempotency_service.lookup(
+            db, user_id=caller.id, key=idempotency_key, endpoint=_CLONE_ENDPOINT
+        )
+        if prior_id:
+            prior = await courses_repo.get_course(db, prior_id, with_modules=True)
+            if prior is not None:
+                return prior
+
+    # ---- Optional precondition (FR-CLONE-14, best-effort — Course.updated_at
+    # only bumps on a course-row write; snapshot atomicity is the real guard). ----
+    # Compare to second granularity to tolerate ISO round-trip precision.
+    if (
+        source_updated_at is not None
+        and source.updated_at is not None
+        and int(source.updated_at.timestamp()) != int(source_updated_at.timestamp())
+    ):
+        raise CloneSourceChangedError("The source course changed — reload and retry.")
+
+    # ---- Quotas (non-dollar, S4.7). ----
+    await _assert_clone_quotas(db, caller)
+
+    # ---- Project (S4.3 — the whitelist boundary). Size ceiling surfaces here. ----
+    s = get_settings()
+    modules = list(source.modules)
+    lessons = [le for mod in modules for le in mod.lessons]
+    try:
+        export = clone_projection.build_export_projection(
+            source,
+            modules,
+            lessons,
+            max_lessons=s.clone_max_lessons,
+            max_data_bytes=s.clone_max_data_bytes,
+        )
+    except clone_projection.CloneSourceTooLargeError as exc:
+        raise CloneSourceTooLargeError(
+            "This course is too large to clone.",
+            details={"lessons": exc.lessons, "data_bytes": exc.data_bytes},
+        ) from exc
+
+    # ---- Materialize atomically (single transaction; dense orders satisfy the
+    # uq_*_order constraints on first INSERT — NO two-phase reorder). ----
+    new_course = Course(
+        owner_id=caller.id,
+        subject_id=export.subject_id,
+        title=export.title,
+        slug=await _unique_slug(db, export.title),
+        overview=export.overview,
+        difficulty=export.difficulty,
+        cover_url=export.cover_url,
+        learning_outcomes=list(export.learning_outcomes),
+        status=CourseStatus.draft,
+        visibility=Visibility.private,
+        moderation_state=ModerationState.none,
+        is_featured=False,
+        published_at=None,
+        # Provenance — SERVER-WRITTEN ONCE, never client-supplied (FR-CLONE-09).
+        origin_course_id=source.id,
+        origin_owner_id=source.owner_id,
+        root_origin_course_id=source.root_origin_course_id or source.id,
+        origin_title_snapshot=source.title,
+        origin_owner_name_snapshot=source.owner.full_name,
+        cloned_at=datetime.now(UTC),
+    )
+    # Tags are platform-shared — associate existing rows by id (never deep-copy).
+    if export.tag_ids:
+        new_course.tags = await courses_repo.list_tags_by_ids(db, export.tag_ids)
+    db.add(new_course)
+    await _flush_course_with_slug_retry(db, new_course, title=export.title)
+
+    # module → lesson loop, dense pre-computed orders (mirrors commit_outline).
+    for mod_export in export.modules:
+        module = Module(
+            course_id=new_course.id,
+            title=mod_export.title,
+            description=mod_export.description,
+            order=mod_export.order,
+        )
+        db.add(module)
+        await db.flush()
+        for lesson_export in mod_export.lessons:
+            lesson = Lesson(
+                module_id=module.id,
+                title=lesson_export.title,
+                order=lesson_export.order,
+                type=LessonType(lesson_export.type),
+                duration_seconds=lesson_export.duration_seconds,
+                is_preview=lesson_export.is_preview,  # forced False in projection
+                data=lesson_export.data,
+            )
+            db.add(lesson)
+        await db.flush()
+
+    # ---- Owner self-enroll (FR-CLONE-16). MUST use enroll_self, never enroll()
+    # (the clone is draft+private; enroll() rejects non-publicly-listed). ----
+    from app.services import enrollment as enrollment_service
+
+    await enrollment_service.enroll_self(db, user=caller, course=new_course)
+
+    # ---- Audit ×2 + origin-owner notification (FR-CLONE-19), atomic with the
+    # tree. ``asset_copy_failures`` starts empty; the lazy asset task appends. ----
+    audit_data = {
+        "origin_course_id": source.id,
+        "origin_owner_id": source.owner_id,
+        "root_origin_course_id": new_course.root_origin_course_id,
+        "lessons_copied": export.lessons_copied,
+        "modules_copied": export.modules_copied,
+        "modules_dropped": export.modules_dropped,
+        "asset_copy_failures": [],
+    }
+    await audit_repo.record(
+        db,
+        actor_id=caller.id,
+        action="course.cloned",
+        target_type="course",
+        target_id=new_course.id,
+        ip_address=ip,
+        user_agent=user_agent,
+        data=audit_data,
+    )
+    # Second event targets the ORIGIN course (FR-CLONE-24 "who cloned this").
+    await audit_repo.record(
+        db,
+        actor_id=caller.id,
+        action="course.cloned_by_other",
+        target_type="course",
+        target_id=source.id,
+        ip_address=ip,
+        user_agent=user_agent,
+        data={"clone_course_id": new_course.id, "cloned_by": caller.id},
+    )
+    # Notify the origin owner (display-name only; gated by their prefs). Skip a
+    # self-clone — no point telling someone they cloned their own course.
+    if source.owner_id != caller.id:
+        await notifications_repo.create(
+            db,
+            user_id=source.owner_id,
+            kind=NotificationKind.course_cloned,
+            title=f"Someone made a copy of {source.title}",
+            body=f"{caller.full_name} cloned your course.",
+            data={"origin_course_id": source.id, "clone_course_id": new_course.id},
+        )
+
+    # ---- Record the idempotency key pointing at the committed clone. ----
+    if idempotency_key:
+        await idempotency_service.record(
+            db,
+            user_id=caller.id,
+            key=idempotency_key,
+            endpoint=_CLONE_ENDPOINT,
+            response_target_id=new_course.id,
+        )
+
+    return new_course
+
+
+def enqueue_clone_assets(course_id: str) -> None:
+    """Best-effort post-commit enqueue of the lazy asset re-homing task (S4.9).
+
+    Mirrors the defensive :func:`_schedule_embedding_index` shape (CLAUDE.md:
+    Celery is best-effort in dev) — a down broker logs a warning and the clone
+    still succeeds; the orphan sweeper + on-demand re-home reconcile later. The
+    DB tree is the durable unit, so this fires AFTER the request commits.
+    """
+    try:
+        from app.workers.tasks.media import copy_clone_assets
+
+        copy_clone_assets.delay(course_id)
+    except Exception:  # pragma: no cover — broker may be down
+        log.warning("clone_assets_enqueue_failed", course_id=course_id)
+
+
+async def resolve_origin(db: AsyncSession, course: Course):
+    """Read-time clone provenance resolution (S4.8 / DR-19, FR-CLONE-10).
+
+    Returns a :class:`CourseOrigin` (or ``None`` for a from-scratch course)
+    where:
+
+    * ``origin_available`` re-resolves ``origin_course_id`` through
+      ``is_publicly_listed`` — a single indexed lookup
+      (``ix_courses_origin_course_id``). False when the source went
+      private/delisted/quarantined/soft-deleted, suppressing the source link
+      (FR-DEL-01) while the snapshot title still renders.
+    * ``origin_owner_name`` is overridden to the localized deleted-user label
+      key at READ time when the origin owner is tombstoned (``deleted_at IS NOT
+      NULL``) OR ``origin_owner_id IS NULL`` (hard purge) OR the stored snapshot
+      already equals the one-time scrub sentinel — so PII anonymizes even if the
+      S6 ``delete_account`` snapshot scrub never ran (DR-19: read-time, not
+      one-time). Composes with S6's sentinel + the ``UserPublic`` tombstone path.
+    """
+    from app.schemas.course import build_course_origin
+    from app.schemas.user import resolve_owner_display_name
+
+    if getattr(course, "origin_course_id", None) is None:
+        return None
+
+    # origin_available: re-resolve the source and apply the listed predicate.
+    origin_available = False
+    origin_source = await courses_repo.get_course(db, course.origin_course_id)
+    if origin_source is not None and visibility_service.is_publicly_listed(origin_source):
+        origin_available = True
+
+    # Deleted-owner detection (ADR-0030 tombstone discriminator = deleted_at).
+    owner_is_deleted = course.origin_owner_id is None
+    if not owner_is_deleted and course.origin_owner_id is not None:
+        owner = await db.get(User, course.origin_owner_id)
+        owner_is_deleted = owner is None or owner.deleted_at is not None
+
+    display_name = resolve_owner_display_name(
+        course.origin_owner_name_snapshot, owner_is_deleted=owner_is_deleted
+    )
+
+    return build_course_origin(
+        course,
+        origin_available=origin_available,
+        origin_owner_name=display_name,
+    )
 
 
 # ``can_view_course`` now lives in the central authorizer (ADR-0026 §3 / S2.4):

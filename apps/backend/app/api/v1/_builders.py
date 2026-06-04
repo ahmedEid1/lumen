@@ -13,10 +13,12 @@ from app.models.user import User
 from app.schemas.course import (
     CourseDetail,
     CourseListItem,
+    CourseOrigin,
     LessonOut,
     ModuleOut,
     SubjectOut,
     TagOut,
+    build_course_origin,
 )
 from app.schemas.user import UserPublic
 from app.services import visibility as visibility_service
@@ -29,16 +31,28 @@ def _viewer_is_owner_or_admin(course: Course, viewer: User | None) -> bool:
 
 
 def list_item(
-    course: Course, stats: dict[str, Any] | None = None, *, viewer: User | None = None
+    course: Course,
+    stats: dict[str, Any] | None = None,
+    *,
+    viewer: User | None = None,
+    origin: CourseOrigin | None = None,
 ) -> CourseListItem:
     """Build a ``CourseListItem`` from an ORM Course + stats row.
 
     ``visibility`` is always exposed; ``moderation_state`` is REDACTED to
     ``None`` for non-owner/non-admin viewers (FR-VIS-21 — a listed course shows
     nothing internal).
+
+    ``origin`` is the clone provenance (ADR-0028 / FR-CLONE-09/10): when the
+    caller passes a pre-resolved :class:`CourseOrigin` (the S4.8 read-time
+    resolver — ``origin_available`` + deleted-owner anonymization), it is used
+    verbatim; otherwise it falls back to a snapshot-only projection (no source
+    link, raw owner-name snapshot). ``is_clone`` is the studio "Cloned" badge
+    flag = ``origin_course_id is not None``.
     """
     s = stats or {}
     privileged = _viewer_is_owner_or_admin(course, viewer)
+    resolved_origin = origin if origin is not None else build_course_origin(course)
     return CourseListItem(
         id=course.id,
         title=course.title,
@@ -58,6 +72,8 @@ def list_item(
         modules_count=int(s.get("modules_count", 0) or 0),
         enrollments_count=int(s.get("enrollments_count", 0) or 0),
         avg_rating=s.get("avg_rating"),
+        origin=resolved_origin,
+        is_clone=getattr(course, "origin_course_id", None) is not None,
     )
 
 
@@ -77,8 +93,9 @@ def detail(
     progress_pct: float = 0.0,
     completed_lesson_ids: set[str] | None = None,
     viewer: User | None = None,
+    origin: CourseOrigin | None = None,
 ) -> CourseDetail:
-    base = list_item(course, stats, viewer=viewer)
+    base = list_item(course, stats, viewer=viewer, origin=origin)
     done = completed_lesson_ids or set()
     return CourseDetail(
         **base.model_dump(),

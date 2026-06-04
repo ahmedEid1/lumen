@@ -284,6 +284,30 @@ class Settings(BaseSettings):
     # there is no leak window. Env: FEATURE_PRIVATE_PUBLISH_ENABLED.
     feature_private_publish_enabled: bool = False
 
+    # ---------- S4 — Clone/remix (ADR-0028 / FR-CLONE-18, R-S7/R-G1) ----------
+    # ``clone_enabled`` is the master gate (DR-13 pattern, mirrors
+    # ``feature_private_publish_enabled``). Ships OFF: the model + code deploy
+    # inert and the endpoint 404s (``clone.disabled`` — existence-hide, no
+    # feature-probe) until migrations 0048/0049 are fleet-confirmed and the
+    # authorizer image is rolled (ADR-0028 §"Migrations"). Env: CLONE_ENABLED.
+    clone_enabled: bool = False
+    # Non-dollar amplification quotas (R-S7 / R-G1): a clone is platform
+    # compute/storage, not an LLM call, so it NEVER rides the 24h-dollar guard.
+    # Per-user rate window (DB COUNT over recent ``course.cloned`` audit rows so
+    # it survives worker restarts; slowapi is the in-memory fast first line).
+    clone_per_hour: int = 20
+    clone_per_day: int = 100
+    # Live-owned-course cap — bounds clone-of-clone amplification (no max depth
+    # in v1; the cap + window are the practical bound, ADR-0028 §"Open risks").
+    clone_owned_cap: int = 200
+    # Source-size ceiling, enforced in the projection (S4.3) and surfaced as
+    # ``clone.source_too_large`` 413/422 at the endpoint.
+    clone_max_lessons: int = 500
+    clone_max_data_bytes: int = 25 * 1024 * 1024  # 25 MB of projected lesson data
+    # Inline asset-copy budget. ``0`` = always async (the default): asset
+    # re-homing rides the lazy ``copy_clone_assets`` Celery task (S4.9, R-S7).
+    clone_asset_inline_max: int = 0
+
     # ---------- S6.6 — Legacy /role write policy (FR-ADMIN-02) ----------
     # During the role-collapse migration window the ``/admin/users/{id}/role``
     # endpoint NORMALIZES a stale ``student``/``instructor`` write to ``user``

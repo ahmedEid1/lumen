@@ -115,6 +115,7 @@ def RequireCapability(predicate: Callable[..., bool], *, name: str | None = None
 
 
 RequireAuthor = Annotated[User, RequireCapability(cap.can_author, name="can_author")]
+RequireClone = Annotated[User, RequireCapability(cap.can_clone, name="can_clone")]
 RequireIngestUrl = Annotated[User, RequireCapability(cap.can_ingest_url, name="can_ingest_url")]
 
 

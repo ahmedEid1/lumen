@@ -203,6 +203,47 @@ class ByokProviderError(AppError):
 
 
 # ---------------------------------------------------------------------------
+# S4 (clone/remix) error codes — ADR-0028 §"Error codes". All map to the
+# standard {error:{code,message,details,request_id}} envelope.
+# ---------------------------------------------------------------------------
+
+
+class CloneSourceNotClonableError(ForbiddenError):
+    """The caller can SEE the source but it is not ``is_publicly_listed`` — e.g.
+    their own private draft (FR-CLONE-03). 403. The non-visible case is a 404
+    ``course.not_found`` instead (existence-hide, raised separately)."""
+
+    code = "clone.source_not_clonable"
+
+
+class CloneSourceChangedError(ConflictError):
+    """Optional ``source_updated_at`` precondition mismatch (FR-CLONE-14). 409."""
+
+    code = "clone.source_changed"
+
+
+class CloneRateLimitedError(RateLimitedError):
+    """Per-user clone window exceeded (FR-CLONE-18, R-S7). 429. Non-dollar —
+    counted via a DB COUNT over recent ``course.cloned`` audit rows."""
+
+    code = "clone.rate_limited"
+
+
+class CloneCourseLimitError(ConflictError):
+    """Live-owned-course cap reached (FR-CLONE-18). 409."""
+
+    code = "clone.course_limit"
+
+
+class CloneSourceTooLargeError(ValidationAppError):
+    """Source exceeds the clone size ceiling — >max live lessons OR the projected
+    ``data`` byte ceiling (FR-CLONE-18). 422 (the ``ValidationAppError`` shape;
+    the ADR lists 413/422 — we use 422 in the standard envelope)."""
+
+    code = "clone.source_too_large"
+
+
+# ---------------------------------------------------------------------------
 # S6 (admin/account-lifecycle) error codes — ADR-0030 §"Error codes" +
 # FR-ADMIN-03 / FR-SUSP-04. All map to the standard envelope.
 # ---------------------------------------------------------------------------

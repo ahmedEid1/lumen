@@ -7,11 +7,19 @@ import hashlib
 import io
 from datetime import datetime
 
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, Header, Request, Response, status
 from pydantic import BaseModel, ConfigDict
 from starlette.responses import Response as StarletteResponse
 
-from app.api.deps import CurrentUser, DBSession, OptionalUser, RequireAuthor, client_ip, user_agent
+from app.api.deps import (
+    CurrentUser,
+    DBSession,
+    OptionalUser,
+    RequireAuthor,
+    RequireClone,
+    client_ip,
+    user_agent,
+)
 from app.api.v1 import _builders
 from app.core.errors import ForbiddenError, NotFoundError, UnauthorizedError
 from app.core.ratelimit import limiter
@@ -177,6 +185,7 @@ async def get_course(
         )
     response.headers["ETag"] = etag
 
+    origin = await courses_service.resolve_origin(db, course)
     return _builders.detail(
         course,
         list(course.modules),
@@ -185,6 +194,7 @@ async def get_course(
         progress_pct=pct,
         completed_lesson_ids=done,
         viewer=viewer,
+        origin=origin,
     )
 
 
@@ -337,6 +347,66 @@ async def report_course(
         user_agent=user_agent(request),
     )
     return OkResponse()
+
+
+# ---------- Clone / remix (ADR-0028 §API; S4.6/S4.7) ----------
+
+
+def _require_clone_enabled() -> None:
+    """Flag gate: the clone surface is OFF until ``CLONE_ENABLED`` flips.
+
+    Existence-hide while disabled (404 ``clone.disabled``, no feature-probe) —
+    same lesson as the sharing-axis gate and the BYOK gate (ADR-0028 §Migrations).
+    """
+    from app.core.config import get_settings
+
+    if not get_settings().clone_enabled:
+        raise NotFoundError("Not found", code="clone.disabled")
+
+
+@router.post(
+    "/{key}/clone",
+    response_model=CourseListItem,
+    status_code=status.HTTP_201_CREATED,
+)
+@limiter.limit("20/hour")
+async def clone_course(
+    key: str,
+    user: RequireClone,
+    db: DBSession,
+    request: Request,
+    response: Response,
+    source_updated_at: datetime | None = None,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> CourseListItem:
+    """Clone a publicly-listed course into a fresh private draft (FR-CLONE-01).
+
+    Resolve + authorize (``is_publicly_listed`` with the 403-vs-404 existence-hide
+    split), idempotency replay (``Idempotency-Key``), optional ``source_updated_at``
+    precondition, non-dollar quotas, projection + atomic materialization with
+    server-written immutable provenance, owner self-enroll, audit + origin
+    notification. Returns 201 + a ``Location`` header pointing at the new course;
+    the body is a ``CourseListItem`` with structured ``origin``. The slowapi cap
+    is the fast first line; the durable DB-COUNT window backstop lives in the
+    service. ``request``/``response`` are required by slowapi's ``@limiter.limit``.
+    """
+    _require_clone_enabled()
+    new_course = await courses_service.clone_course(
+        db,
+        caller=user,
+        source_key=key,
+        ip=client_ip(request),
+        user_agent=user_agent(request),
+        source_updated_at=source_updated_at,
+        idempotency_key=idempotency_key,
+    )
+    # Lazy asset re-homing rides the post-commit Celery enqueue (S4.9); the DB
+    # tree is the durable unit and has already committed via the request session.
+    courses_service.enqueue_clone_assets(new_course.id)
+    refreshed, stats = await _load_course_with_stats(db, new_course.id)
+    origin = await courses_service.resolve_origin(db, refreshed)
+    response.headers["Location"] = f"/api/v1/courses/{new_course.id}"
+    return _builders.list_item(refreshed, stats, viewer=user, origin=origin)
 
 
 # ---------- Modules ----------
