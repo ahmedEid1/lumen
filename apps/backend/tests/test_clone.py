@@ -929,3 +929,118 @@ async def test_clone_publish_schedules_index(client, db_session, clone_on, monke
     pub = await client.post(f"/api/v1/courses/{clone_id}/publish", headers=headers)
     assert pub.status_code == 200, pub.text
     assert clone_id in scheduled
+
+
+async def test_expired_idempotency_row_taken_over(client, db_session, clone_on, monkeypatch):
+    """Confirm-round-2: an EXPIRED key row lingering before the hourly sweep
+    must neither replay its stale result nor 409 — the TTL contract says the
+    key is reusable. The conflict path takes the row over in place."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.idempotency import IdempotencyKey
+    from app.workers.tasks import media
+
+    monkeypatch.setattr(media.copy_clone_assets, "delay", lambda cid: None)
+
+    owner = await _user(db_session)
+    source = await _source_course(db_session, owner)
+    cloner = await _user(db_session)
+    await db_session.commit()
+
+    headers = await _login(client, cloner)
+    key = {"Idempotency-Key": "expired-key-1", **headers}
+    r1 = await client.post(f"/api/v1/courses/{source.slug}/clone", headers=key)
+    assert r1.status_code == 201
+    first_id = r1.json()["id"]
+
+    # Expire the row (the sweep hasn't run yet) and delete the first clone so
+    # a stale replay would be visible as the OLD id.
+    row = (
+        await db_session.execute(
+            select(IdempotencyKey).where(IdempotencyKey.idempotency_key == "expired-key-1")
+        )
+    ).scalar_one()
+    row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    await db_session.commit()
+
+    r2 = await client.post(f"/api/v1/courses/{source.slug}/clone", headers=key)
+    assert r2.status_code == 201
+    # Fresh materialization, not a stale replay of the expired row's target.
+    assert r2.json()["id"] != first_id
+
+
+async def test_expired_inflight_row_does_not_409(client, db_session, clone_on, monkeypatch):
+    """Confirm-round-2: an expired NULL-target row (a reservation whose owner
+    died long ago) must be taken over, not surfaced as clone.in_progress."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.idempotency import IdempotencyKey
+    from app.workers.tasks import media
+
+    monkeypatch.setattr(media.copy_clone_assets, "delay", lambda cid: None)
+
+    owner = await _user(db_session)
+    source = await _source_course(db_session, owner)
+    cloner = await _user(db_session)
+    # A dead in-flight reservation: NULL target, already expired.
+    db_session.add(
+        IdempotencyKey(
+            user_id=cloner.id,
+            idempotency_key="dead-inflight-1",
+            endpoint="POST /courses/{key}/clone",
+            response_target_id=None,
+            expires_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+    )
+    await db_session.commit()
+
+    headers = await _login(client, cloner)
+    r = await client.post(
+        f"/api/v1/courses/{source.slug}/clone",
+        headers={"Idempotency-Key": "dead-inflight-1", **headers},
+    )
+    assert r.status_code == 201  # takeover, not 409
+
+
+async def test_vanished_replay_target_rebinds_row(client, db_session, clone_on, monkeypatch):
+    """Confirm-round-2: a REPLAY row whose committed course was hard-deleted
+    must be REBOUND before fresh materialization — finalize stamps the same
+    row, so the NEXT retry replays the new clone instead of minting a third."""
+    from sqlalchemy import delete as sa_delete
+
+    from app.models.idempotency import IdempotencyKey
+    from app.workers.tasks import media
+
+    monkeypatch.setattr(media.copy_clone_assets, "delay", lambda cid: None)
+
+    owner = await _user(db_session)
+    source = await _source_course(db_session, owner)
+    cloner = await _user(db_session)
+    await db_session.commit()
+
+    headers = await _login(client, cloner)
+    key = {"Idempotency-Key": "vanish-key-1", **headers}
+    r1 = await client.post(f"/api/v1/courses/{source.slug}/clone", headers=key)
+    assert r1.status_code == 201
+    first_id = r1.json()["id"]
+
+    # Hard-delete the clone (bypassing soft-delete) — the stale-target shape.
+    await db_session.execute(sa_delete(Course).where(Course.id == first_id))
+    await db_session.commit()
+
+    r2 = await client.post(f"/api/v1/courses/{source.slug}/clone", headers=key)
+    assert r2.status_code == 201
+    second_id = r2.json()["id"]
+    assert second_id != first_id
+
+    # The decisive assertion: the THIRD call replays the SECOND clone —
+    # the row was rebound and re-stamped, no duplicate minting.
+    r3 = await client.post(f"/api/v1/courses/{source.slug}/clone", headers=key)
+    assert r3.status_code == 201
+    assert r3.json()["id"] == second_id
+    row = (
+        await db_session.execute(
+            select(IdempotencyKey).where(IdempotencyKey.idempotency_key == "vanish-key-1")
+        )
+    ).scalar_one()
+    assert row.response_target_id == second_id

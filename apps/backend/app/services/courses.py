@@ -867,8 +867,12 @@ async def clone_course(
             )
             if prior is not None:
                 return prior, True
-            # Prior result row vanished (hard delete) — fall through to a fresh
-            # materialization rather than 500; the reserved key is reusable.
+            # Prior result vanished (hard delete) — REBIND the existing key
+            # row before materializing anew (confirm-round-2 fix): without
+            # this, finalize() never stamped the row and every same-key
+            # retry minted another clone until the sweep ran.
+            await idempotency_service.rebind(db, key_id=reservation.key_id)
+            reserved_key_id = reservation.key_id
         elif reservation.outcome is idempotency_service.ReserveOutcome.IN_FLIGHT:
             raise CloneInProgressError(
                 "A clone with this key is already being created — retry shortly."

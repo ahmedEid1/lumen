@@ -127,15 +127,46 @@ async def reserve(
                 )
             )
         ).scalar_one_or_none()
-        if winner is not None and winner.response_target_id is not None:
+        if winner is None:
+            # Pathological (winner deleted between conflict and lookup) —
+            # treat the key as free: re-reserve via recursion-free retry.
+            return Reservation(outcome=ReserveOutcome.IN_FLIGHT)
+        if winner.expires_at <= datetime.now(UTC):
+            # Confirm-round-2 fix: an EXPIRED row lingering before the hourly
+            # sweep must not replay a stale result (or 409 on a dead
+            # reservation) — the TTL contract says the key is reusable.
+            # Take the row over in place: fresh TTL, target cleared, caller
+            # owns materialization (finalize stamps this same row).
+            winner.response_target_id = None
+            winner.expires_at = datetime.now(UTC) + ttl
+            await db.flush()
+            return Reservation(outcome=ReserveOutcome.RESERVED, key_id=winner.id)
+        if winner.response_target_id is not None:
             return Reservation(
                 outcome=ReserveOutcome.REPLAY,
                 response_target_id=winner.response_target_id,
+                key_id=winner.id,
             )
         # Winner reserved but its result has not committed yet → honest 409.
         return Reservation(outcome=ReserveOutcome.IN_FLIGHT)
 
     return Reservation(outcome=ReserveOutcome.RESERVED, key_id=row.id)
+
+
+async def rebind(db: AsyncSession, *, key_id: str, ttl: timedelta = CLONE_IDEMPOTENCY_TTL) -> None:
+    """Re-own an existing key row whose committed target has vanished.
+
+    Confirm-round-2 fix: a REPLAY row pointing at a hard-deleted result must
+    be rebound (target cleared, TTL refreshed) BEFORE the caller materializes
+    anew, so :func:`finalize` stamps THIS row and concurrent same-key
+    requests see IN_FLIGHT — otherwise every retry minted another result
+    until the sweep ran.
+    """
+    row = await db.get(IdempotencyKey, key_id)
+    if row is not None:
+        row.response_target_id = None
+        row.expires_at = datetime.now(UTC) + ttl
+        await db.flush()
 
 
 async def finalize(db: AsyncSession, *, key_id: str, response_target_id: str) -> None:
@@ -157,7 +188,5 @@ async def sweep_expired(db: AsyncSession, *, now: datetime | None = None) -> int
     the cheap age helper this complements; expiry is the authoritative window.
     """
     cutoff = now or datetime.now(UTC)
-    result = await db.execute(
-        delete(IdempotencyKey).where(IdempotencyKey.expires_at <= cutoff)
-    )
+    result = await db.execute(delete(IdempotencyKey).where(IdempotencyKey.expires_at <= cutoff))
     return int(result.rowcount or 0)
