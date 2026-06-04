@@ -101,6 +101,13 @@ def _patch_worker_seams(monkeypatch, *, turn, mocks):
     record_row = AsyncMock()
     monkeypatch.setattr(tutor_streaming, "record_streamed_turn_row", record_row)
 
+    # S6.8 cooperative-cancellation heartbeat — a DB-free unit test mocks the
+    # session, so the account.assert_account_active re-read can't run against the
+    # MagicMock session. Stub the seam to a no-op (the cancellation behaviour is
+    # covered DB-backed in test_cooperative_cancel.py).
+    monkeypatch.setattr(
+        tutor_streaming.account_service, "assert_account_active", AsyncMock()
+    )
     monkeypatch.setattr(tutor_streaming, "emit_event", AsyncMock())
     monkeypatch.setattr(tutor_streaming, "set_stream_ttl", AsyncMock())
     monkeypatch.setattr(tutor_streaming, "reconcile_cost", AsyncMock())

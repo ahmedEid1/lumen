@@ -218,34 +218,36 @@ async def _run_turn_async(turn_id: str) -> None:
         # orchestrator yields events; we relay each to Redis.
         # L33 — intercept turn_complete to capture the real cost
         # so the finally block can reconcile the reservation.
-        async for ev in orchestrate_stream(
-            turn_id=turn_id,
-            user_id=user_id,
-            user_message=user_message_content,
-            course_id=course_id,
-            retrieved_chunks=retrieved_chunks or None,
-            retrieval_latency_ms=retrieval_latency_ms,
-            byok_dispatch=byok_dispatch,
-        ):
-            # R-S10 cooperative cancellation (ADR-0030 §D4): each event tick is a
-            # heartbeat. Re-check that the streaming user's account is still
-            # active; if they were suspended/deleted mid-stream, assert_account_
-            # active raises account.access_revoked and we stop emitting / close
-            # the stream rather than running the turn to completion.
-            if user_id:
-                async with Session() as hb_db:
-                    await account_service.assert_account_active(hb_db, user_id)
-            if ev["event"] == "turn_complete":
-                cost_usd = float(ev["data"].get("cost_usd", 0.0) or 0.0)
-                actual_cost_microcents = int(cost_usd * USD_TO_MICROCENTS)
-                final_cost_usd = cost_usd
-                final_total_ms = int(float(ev["data"].get("total_ms", 0) or 0))
-            await emit_event(
-                redis_client,
+        # R-S10 cooperative cancellation (ADR-0030 §D4): one heartbeat session
+        # for the whole stream — each event tick re-reads is_active through it
+        # (assert_account_active issues a fresh SELECT so it sees a flip
+        # committed by another transaction). One session, not one-per-event.
+        async with Session() as hb_db:
+            async for ev in orchestrate_stream(
                 turn_id=turn_id,
-                event=ev["event"],
-                data=ev["data"],
-            )
+                user_id=user_id,
+                user_message=user_message_content,
+                course_id=course_id,
+                retrieved_chunks=retrieved_chunks or None,
+                retrieval_latency_ms=retrieval_latency_ms,
+                byok_dispatch=byok_dispatch,
+            ):
+                # If the user was suspended/deleted mid-stream, assert_account_
+                # active raises account.access_revoked and we stop emitting /
+                # close the stream rather than running the turn to completion.
+                if user_id:
+                    await account_service.assert_account_active(hb_db, user_id)
+                if ev["event"] == "turn_complete":
+                    cost_usd = float(ev["data"].get("cost_usd", 0.0) or 0.0)
+                    actual_cost_microcents = int(cost_usd * USD_TO_MICROCENTS)
+                    final_cost_usd = cost_usd
+                    final_total_ms = int(float(ev["data"].get("total_ms", 0) or 0))
+                await emit_event(
+                    redis_client,
+                    turn_id=turn_id,
+                    event=ev["event"],
+                    data=ev["data"],
+                )
 
         # Terminal DB transition + stream TTL. The llm_calls row makes the
         # streamed turn visible to the non-dollar request windows and the

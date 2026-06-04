@@ -34,9 +34,14 @@ def test_chain_links_0033_through_0043():
     assert m41.revision == "0041" and m41.down_revision in {"0033"}
     assert m42.revision == "0042" and m42.down_revision == "0041"
     assert m44.revision == "0044" and m44.down_revision == "0042"
-    # Confirm-round-2 reorder: BOTH Phase-A revs (0044 quarantine, 0045
-    # timestamp defaults) precede the gated boundary; 0043 is the head.
-    assert m43.revision == "0043" and m43.down_revision == "0045"
+    # Phase-A revs precede the gated boundary; the boundary (0043) stays the
+    # head. Each new Phase-A revision chains BETWEEN 0045 and 0043, so the head's
+    # down_revision tracks the newest Phase-A rev: 0044 quarantine, 0045
+    # timestamp defaults, 0046 course_reports (S6.3) → 0043 chains off 0046.
+    m45, m46 = _load("0045"), _load("0046")
+    assert m45.revision == "0045" and m45.down_revision == "0044"
+    assert m46.revision == "0046" and m46.down_revision == "0045"
+    assert m43.revision == "0043" and m43.down_revision == "0046"
 
 
 def test_phase_annotations():
