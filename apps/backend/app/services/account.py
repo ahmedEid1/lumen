@@ -56,7 +56,16 @@ log = get_logger(__name__)
 #: owner deletes their account (R-M13). The serializer (DR-19, S6.10) renders it
 #: as the localized "a deleted user" label at READ time, so even if this one-time
 #: scrub never ran (migration ordering), provenance still anonymizes.
-DELETED_OWNER_SNAPSHOT = "\x00deleted_user"
+#:
+#: S4 integration: uses ``\x01`` (SOH), NOT ``\x00`` (NUL). Postgres ``text``/
+#: ``varchar`` cannot store a NUL byte (``CharacterNotInRepertoireError``), and
+#: asyncpg rejects it at bind time even for a zero-row UPDATE — so the original
+#: ``\x00`` sentinel crashed EVERY ``delete_account`` the moment S4.1's
+#: ``courses.origin_owner_id`` column landed (before that the UPDATE was skipped
+#: by the missing-column guard). ``\x01`` is equally impossible in a real
+#: UI-entered ``full_name`` (collision-proof) but is valid, storable UTF-8. Kept
+#: in lockstep with ``app.schemas.user._OWNER_SNAPSHOT_SENTINEL``.
+DELETED_OWNER_SNAPSHOT = "\x01deleted_user"
 
 #: The narrow set of exceptions a sibling-table step may swallow (open-risk 1).
 #: NEVER a blanket ``Exception`` — that could hide a real bug and leave un-

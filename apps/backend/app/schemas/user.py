@@ -18,8 +18,10 @@ DELETED_USER_LABEL = "common.deletedUser"
 #: The provenance sentinel written by ``account.delete_account`` into a clone's
 #: ``origin_owner_name_snapshot``. Re-declared here (not imported) to avoid a
 #: schema→service import cycle; kept in lockstep with
-#: ``app.services.account.DELETED_OWNER_SNAPSHOT``.
-_OWNER_SNAPSHOT_SENTINEL = "\x00deleted_user"
+#: ``app.services.account.DELETED_OWNER_SNAPSHOT``. Uses ``\x01`` (SOH), not
+#: ``\x00`` (NUL) — Postgres ``text``/``varchar`` cannot store a NUL byte, so the
+#: written sentinel is ``\x01``-prefixed (S4 integration; see account.py).
+_OWNER_SNAPSHOT_SENTINEL = "\x01deleted_user"
 
 
 def resolve_owner_display_name(snapshot: str | None, *, owner_is_deleted: bool = False) -> str:
