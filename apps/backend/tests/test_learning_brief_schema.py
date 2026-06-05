@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from app.models.course import Difficulty
 from app.schemas.learning_brief import (
     BriefDraft,
+    BriefEdits,
     BriefFinalizeRequest,
     BriefLevel,
     BriefOut,
@@ -139,13 +140,43 @@ def test_goal_turn_response_shape():
 
 def test_finalize_request_edits_optional():
     assert BriefFinalizeRequest().edits is None
-    req = BriefFinalizeRequest(edits=BriefDraft(time_budget_hours=10))
+    req = BriefFinalizeRequest(edits=BriefEdits(time_budget_hours=10))
     assert req.edits.time_budget_hours == 10
 
 
 def test_finalize_request_forbids_extra():
     with pytest.raises(ValidationError):
         BriefFinalizeRequest(edits=None, bogus=True)
+
+
+def test_brief_edits_collections_default_none_not_empty():
+    """Codex P2: BriefEdits collection fields default to None (a no-op on merge),
+    NOT to empty [] / {} like BriefDraft — so a scalar-only edit never clobbers
+    accumulated outcomes/format_prefs. An explicit empty IS still honoured."""
+    # Omitted collections → None (the merge skips them).
+    edits = BriefEdits(time_budget_hours=10)
+    assert edits.desired_outcomes is None
+    assert edits.format_prefs is None
+    # BriefDraft (the accumulated-state transport) keeps its empty-collection
+    # defaults — the divergence that makes BriefEdits necessary.
+    draft = BriefDraft(time_budget_hours=10)
+    assert draft.desired_outcomes == []
+    assert draft.format_prefs == {}
+    # An EXPLICIT empty on edits is preserved (a deliberate clear).
+    explicit = BriefEdits(desired_outcomes=[], format_prefs={})
+    assert explicit.desired_outcomes == []
+    assert explicit.format_prefs == {}
+
+
+def test_finalize_request_parses_scalar_only_json():
+    """A scalar-only edits JSON (what the review UI sends) leaves collections None
+    so the finalize merge preserves accumulated outcomes (Codex P2)."""
+    req = BriefFinalizeRequest.model_validate(
+        {"edits": {"goal_summary": "x", "level": "beginner", "time_budget_hours": 8}}
+    )
+    assert req.edits is not None
+    assert req.edits.desired_outcomes is None  # omitted → no-op on merge
+    assert req.edits.format_prefs is None
 
 
 # ---------------- BriefOut (FR-PRIV-01) ----------------

@@ -51,6 +51,7 @@ from app.models.user import User
 from app.repositories import learning_briefs as brief_repo
 from app.schemas.learning_brief import (
     BriefDraft,
+    BriefEdits,
     BriefLevel,
     difficulty_from_level,
 )
@@ -182,8 +183,14 @@ def to_draft(brief: LearningBrief) -> BriefDraft:
     )
 
 
-def _apply_updates(brief: LearningBrief, update: _BriefUpdate | BriefDraft) -> None:
-    """Merge non-None structured fields onto the brief (in-progress mutation)."""
+def _apply_updates(brief: LearningBrief, update: _BriefUpdate | BriefDraft | BriefEdits) -> None:
+    """Merge non-None structured fields onto the brief (in-progress mutation).
+
+    The "apply when ``is not None``" rule is what makes :class:`BriefEdits`'
+    None-defaulted collections a true partial merge: an omitted ``desired_outcomes``
+    / ``format_prefs`` is ``None`` → skipped (accumulated state preserved), while an
+    EXPLICIT ``[]`` / ``{}`` is a deliberate clear that IS applied (Codex P2).
+    """
     if update.goal_summary is not None:
         brief.goal_summary = update.goal_summary
     if update.level is not None:
@@ -378,9 +385,12 @@ async def finalize(
     *,
     user: User,
     session_id: str,
-    edits: BriefDraft | None = None,
+    edits: BriefEdits | None = None,
 ) -> LearningBrief | None:
     """Freeze the brief (FR-DEFINE-03), applying optional ``edits`` once.
+
+    ``edits`` is a :class:`BriefEdits` (None-defaulted collections) so a
+    scalar-only edit never clobbers accumulated outcomes/format_prefs (Codex P2).
 
     Returns the finalized brief, or ``None`` (caller renders 404) when the
     session is unknown / not the user's. A second finalize raises

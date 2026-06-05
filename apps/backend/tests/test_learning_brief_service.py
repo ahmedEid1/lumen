@@ -22,7 +22,7 @@ from app.core.errors import (
     DefineTurnCapError,
 )
 from app.models.learning_brief import LearningBrief
-from app.schemas.learning_brief import BriefDraft, BriefLevel
+from app.schemas.learning_brief import BriefEdits, BriefLevel
 from app.services import byok as byok_service
 from app.services import learning_brief as svc
 from app.services import llm as llm_service
@@ -246,11 +246,70 @@ async def test_finalize_applies_edits_once(db_session, make_user, monkeypatch):
     brief, _ = await svc.start_session(db_session, user=user, goal="learn sql")
     await db_session.commit()
 
-    edits = BriefDraft(level=BriefLevel.advanced, time_budget_hours=40)
+    edits = BriefEdits(level=BriefLevel.advanced, time_budget_hours=40)
     finalized = await svc.finalize(db_session, user=user, session_id=brief.id, edits=edits)
     await db_session.commit()
     assert finalized.level == "advanced"
     assert finalized.time_budget_hours == 40
+
+
+async def test_finalize_scalar_edits_preserve_accumulated_outcomes(
+    db_session, make_user, monkeypatch
+):
+    """Codex P2 (exact repro): a scalar-only edit must NOT clobber the accumulated
+    desired_outcomes/format_prefs. The review UI sends only scalar fields; under
+    the old BriefDraft edits those omitted collections deserialized to []/{} and
+    the merge wiped the learner's outcomes right before the build read them."""
+    _install_provider(
+        monkeypatch,
+        [
+            _reply(
+                "ready",
+                level="beginner",
+                time_budget_hours=10,
+                prior_knowledge="some",
+                desired_outcomes=["Ship a CLI", "Write tests"],
+            )
+        ],
+    )
+    user = await make_user()
+    brief, _ = await svc.start_session(db_session, user=user, goal="learn go")
+    await db_session.commit()
+    assert brief.desired_outcomes == ["Ship a CLI", "Write tests"]
+
+    # The review UI's scalar-only edits payload (no desired_outcomes key).
+    edits = BriefEdits(goal_summary="Learn Go", level=BriefLevel.intermediate, time_budget_hours=12)
+    finalized = await svc.finalize(db_session, user=user, session_id=brief.id, edits=edits)
+    await db_session.commit()
+
+    # Scalars applied; accumulated outcomes PRESERVED (not wiped to []).
+    assert finalized.level == "intermediate"
+    assert finalized.time_budget_hours == 12
+    assert finalized.desired_outcomes == ["Ship a CLI", "Write tests"]
+
+
+async def test_finalize_explicit_outcome_edits_still_apply(db_session, make_user, monkeypatch):
+    """An EXPLICIT desired_outcomes edit is still honoured (deliberate change)."""
+    _install_provider(
+        monkeypatch,
+        [
+            _reply(
+                "ready",
+                level="beginner",
+                time_budget_hours=10,
+                prior_knowledge="some",
+                desired_outcomes=["Old outcome"],
+            )
+        ],
+    )
+    user = await make_user()
+    brief, _ = await svc.start_session(db_session, user=user, goal="learn rust")
+    await db_session.commit()
+
+    edits = BriefEdits(desired_outcomes=["New outcome A", "New outcome B"])
+    finalized = await svc.finalize(db_session, user=user, session_id=brief.id, edits=edits)
+    await db_session.commit()
+    assert finalized.desired_outcomes == ["New outcome A", "New outcome B"]
 
 
 async def test_second_finalize_raises_brief_finalized(db_session, make_user, monkeypatch):

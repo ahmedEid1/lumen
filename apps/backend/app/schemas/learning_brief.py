@@ -75,6 +75,37 @@ class BriefDraft(BaseModel):
     suggested_subject: str | None = Field(default=None, max_length=120)
 
 
+class BriefEdits(BaseModel):
+    """Last-mile partial edits applied once on finalize (FR-DEFINE-03 / Codex P2).
+
+    Distinct from :class:`BriefDraft` (the accumulated-state transport) on ONE
+    point that matters: the collection fields default to ``None``, NOT to empty
+    ``[]`` / ``{}``. ``BriefDraft`` uses ``default_factory=list/dict`` so that a
+    deserialized accumulated brief always carries concrete collections — but that
+    is exactly wrong for an EDITS payload. The review UI sends only the scalar
+    fields it lets the learner tweak (goal_summary / level / time budget /
+    sessions) and renders ``desired_outcomes`` read-only; under ``BriefDraft`` the
+    omitted ``desired_outcomes`` / ``format_prefs`` deserialize to ``[]`` / ``{}``
+    and the finalize merge (``_apply_updates``, "apply when ``is not None``")
+    overwrites the accumulated outcomes with empty — silently dropping the
+    learner's outcomes right before the build reads them. Defaulting these to
+    ``None`` here means an omitted collection is a NO-OP (merge skips it), while an
+    EXPLICIT ``[]`` / ``{}`` still clears it (a deliberate edit is honoured).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    goal_summary: str | None = Field(default=None, max_length=2_000)
+    level: BriefLevel | None = None
+    prior_knowledge: str | None = Field(default=None, max_length=4_000)
+    time_budget_hours: int | None = Field(default=None, ge=1, le=2_000)
+    sessions_per_week: int | None = Field(default=None, ge=1, le=21)
+    desired_outcomes: list[str] | None = Field(default=None, max_length=20)
+    format_prefs: dict[str, bool] | None = None
+    language: str | None = Field(default=None, max_length=8)
+    suggested_subject: str | None = Field(default=None, max_length=120)
+
+
 class GoalStartRequest(BaseModel):
     """Open the elicitation with a fuzzy goal (the ONLY raw-goal input site)."""
 
@@ -103,11 +134,16 @@ class GoalTurnResponse(BaseModel):
 
 
 class BriefFinalizeRequest(BaseModel):
-    """Freeze the brief, applying optional last-mile ``edits`` once."""
+    """Freeze the brief, applying optional last-mile ``edits`` once.
+
+    ``edits`` is a :class:`BriefEdits` (None-defaulted collections) rather than a
+    :class:`BriefDraft` so a scalar-only edit from the review UI never clobbers
+    the accumulated ``desired_outcomes`` / ``format_prefs`` with empty (Codex P2).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    edits: BriefDraft | None = None
+    edits: BriefEdits | None = None
 
 
 class BriefOut(BaseModel):
