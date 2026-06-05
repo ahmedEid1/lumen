@@ -229,6 +229,18 @@ async def _run_turn_async(turn_id: str) -> None:
         # for the whole stream — each event tick re-reads is_active through it
         # (assert_account_active issues a fresh SELECT so it sees a flip
         # committed by another transaction). One session, not one-per-event.
+        #
+        # S7 (Gate-B P1): the orchestrator catches a stream_chat failure,
+        # YIELDS a ``turn_failed`` event, then returns normally (soft-yield,
+        # no raise — e.g. an unsupported provider or a synth exception it
+        # chose to surface as an event). Without intercepting it here the loop
+        # would forward the event, exit cleanly, and fall through to the
+        # SUCCESS block below — DB says complete while the client saw failure.
+        # We capture the yielded failure and branch to the failure handler
+        # AFTER the loop. The event was ALREADY forwarded by emit_event in
+        # this loop, so the post-loop handler must NOT re-emit turn_failed
+        # (the except block below would — avoid the double SSE event).
+        yielded_failure_code: str | None = None
         async with Session() as hb_db:
             async for ev in orchestrate_stream(
                 turn_id=turn_id,
@@ -254,12 +266,60 @@ async def _run_turn_async(turn_id: str) -> None:
                     # COUNT-based).
                     final_prompt_tokens = int(ev["data"].get("prompt_tokens", 0) or 0)
                     final_completion_tokens = int(ev["data"].get("completion_tokens", 0) or 0)
+                elif ev["event"] == "turn_failed":
+                    # Orchestrator soft-yield: capture the error_code so the
+                    # post-loop failure handler can persist it on the job row.
+                    # We still emit below (the SSE consumer needs the event) —
+                    # the handler then skips its own re-emit to avoid a double
+                    # event on the wire.
+                    yielded_failure_code = str(
+                        ev["data"].get("error_code") or "tutor.runtime: unknown"
+                    )
                 await emit_event(
                     redis_client,
                     turn_id=turn_id,
                     event=ev["event"],
                     data=ev["data"],
                 )
+
+        if yielded_failure_code is not None:
+            # FAILURE path for a yielded (not raised) turn_failed. Mirrors the
+            # except-block semantics — mark_terminal FAILED + STATUS_ERROR row
+            # with 0 tokens — but does NOT re-emit turn_failed (the loop above
+            # already forwarded it to Redis). Mirrors the except path's
+            # best-effort suppress so a DB-down state doesn't mask the failure.
+            with contextlib.suppress(Exception):
+                async with Session() as db:
+                    await mark_terminal(
+                        db,
+                        turn_id=turn_id,
+                        status=TURN_STATUS_FAILED,
+                        error_code=yielded_failure_code,
+                    )
+                    if user_id is not None:
+                        # Failed turns count toward the request windows too —
+                        # a failing key must not grant unmetered retries.
+                        # error_kind mirrors the except path's class-name
+                        # shape: strip the "tutor.runtime: " prefix when the
+                        # orchestrator wrapped an exception class name into the
+                        # code, else keep the bare code (e.g. the unsupported-
+                        # provider sentinel).
+                        error_kind = yielded_failure_code.split("tutor.runtime: ", 1)[-1]
+                        await record_streamed_turn_row(
+                            db,
+                            user_id=user_id,
+                            provider=_stream_provider_name(byok_dispatch),
+                            model=_stream_model_name(byok_dispatch),
+                            cost_usd=0.0,
+                            latency_ms=0,
+                            status=STATUS_ERROR,
+                            error_kind=error_kind,
+                            billing_mode=BILLING_BYOK if byok_dispatch else BILLING_PLATFORM,
+                        )
+                    await db.commit()
+            with contextlib.suppress(Exception):
+                await set_stream_ttl(redis_client, turn_id=turn_id)
+            return
 
         # Terminal DB transition + stream TTL. The llm_calls row makes the
         # streamed turn visible to the non-dollar request windows and the

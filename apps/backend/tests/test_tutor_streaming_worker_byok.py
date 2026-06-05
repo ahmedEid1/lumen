@@ -127,6 +127,15 @@ def _patch_worker_seams(monkeypatch, *, turn, mocks):
     mocks["claim"] = claim
     mocks["reserve_cost"] = reserve_cost
     mocks["set_reserved_cost"] = set_reserved
+    # The S7 yielded-turn_failed test counts how many turn_failed events
+    # reached the SSE consumer — emit_event is the only seam that writes to
+    # Redis, so expose it for the call-list assertion.
+    mocks["emit_event"] = tutor_streaming.emit_event
+
+
+def _emitted_event_names(emit_mock) -> list[str]:
+    """Pull the ``event=`` kwarg from each emit_event call (call order)."""
+    return [c.kwargs["event"] for c in emit_mock.await_args_list]
 
 
 # ---------------------------------------------------------------------
@@ -525,3 +534,188 @@ async def test_stream_aborts_after_partial_tokens_records_zero(monkeypatch) -> N
     # Honest zeros — the provider's usage chunk never arrived.
     assert kwargs.get("prompt_tokens", 0) == 0
     assert kwargs.get("completion_tokens", 0) == 0
+
+
+# ---------------------------------------------------------------------
+# S7 Gate-B P1 — orchestrator YIELDS turn_failed (soft-yield, no raise):
+# the worker must take the FAILURE path, NOT fall through to SUCCESS.
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_yielded_turn_failed_takes_failure_path(monkeypatch) -> None:
+    """The orchestrator catches a stream_chat error, yields a ``turn_failed``
+    event, then returns normally (no raise). Before the fix the worker forwarded
+    the event, exited the loop cleanly, and ran the SUCCESS block:
+    mark_terminal(COMPLETE) + STATUS_OK row. The fix branches to the failure
+    handler: mark_terminal(FAILED) + STATUS_ERROR row with 0 tokens, the
+    error_code preserved on the job row — and crucially NO double turn_failed
+    on the wire (the loop already forwarded the orchestrator's event)."""
+    turn = _make_turn(credential_id=None)
+    mocks: dict = {}
+    _patch_worker_seams(monkeypatch, turn=turn, mocks=mocks)
+
+    dispatch = AsyncMock(return_value=None)
+    monkeypatch.setattr(tutor_streaming.byok_service, "stream_dispatch_for_turn", dispatch)
+    monkeypatch.setattr(tutor_streaming.byok_service, "is_auth_error", lambda exc: False)
+
+    def _orchestrate(**_kwargs):
+        async def _gen():
+            yield {"event": "planner_start", "data": {"model": "x", "route": "synth-only"}}
+            yield {"event": "synth_chunk", "data": {"delta": "partial"}}
+            # Soft-yield failure (e.g. unsupported provider / synth exception
+            # the orchestrator chose to surface as an event), then return.
+            yield {
+                "event": "turn_failed",
+                "data": {"error_code": "tutor.streaming_unsupported_provider"},
+            }
+
+        return _gen()
+
+    monkeypatch.setattr(tutor_streaming, "orchestrate_stream", _orchestrate)
+
+    # Soft-yield → the generator returns normally, so the task does NOT raise.
+    await tutor_streaming._run_turn_async("turn_yielded_fail")
+
+    # FAILURE path: the turn is marked FAILED (not COMPLETE) with the yielded
+    # error_code preserved on the job row.
+    assert mocks["mark_terminal"].await_count == 1
+    _mt_args, mt_kwargs = mocks["mark_terminal"].await_args
+    assert mt_kwargs["status"] == TURN_STATUS_FAILED
+    assert mt_kwargs["error_code"] == "tutor.streaming_unsupported_provider"
+
+    # STATUS_ERROR row with honest zero tokens (no usage chunk arrived).
+    assert mocks["record_row"].await_count == 1
+    _r_args, r_kwargs = mocks["record_row"].await_args
+    assert r_kwargs["status"] == STATUS_ERROR
+    assert r_kwargs["billing_mode"] == BILLING_PLATFORM
+    assert r_kwargs.get("prompt_tokens", 0) == 0
+    assert r_kwargs.get("completion_tokens", 0) == 0
+    # The error_code is preserved on the row's error_kind too.
+    assert r_kwargs["error_kind"] == "tutor.streaming_unsupported_provider"
+
+    # NO DOUBLE EVENT: the orchestrator's turn_failed was forwarded by the loop,
+    # and the failure handler must NOT re-emit it. Exactly one turn_failed on
+    # the wire.
+    emitted = _emitted_event_names(mocks["emit_event"])
+    assert emitted.count("turn_failed") == 1, emitted
+    # And it carried the orchestrator's original error_code (forwarded as-is).
+    failed_calls = [
+        c for c in mocks["emit_event"].await_args_list if c.kwargs["event"] == "turn_failed"
+    ]
+    assert failed_calls[0].kwargs["data"]["error_code"] == "tutor.streaming_unsupported_provider"
+
+
+@pytest.mark.asyncio
+async def test_yielded_turn_failed_runtime_code_strips_prefix_for_error_kind(
+    monkeypatch,
+) -> None:
+    """A yielded ``turn_failed`` whose code is the wrapped ``tutor.runtime:
+    <Class>`` shape preserves the full code on the job row (error_code) but
+    records the bare class name as error_kind — mirroring the raised-exception
+    path's class-name semantics."""
+    turn = _make_turn(credential_id="cred_byok_yield")
+    mocks: dict = {}
+    _patch_worker_seams(monkeypatch, turn=turn, mocks=mocks)
+
+    monkeypatch.setattr(
+        tutor_streaming.byok_service,
+        "stream_dispatch_for_turn",
+        AsyncMock(return_value=dict(BYOK_DISPATCH)),
+    )
+    monkeypatch.setattr(tutor_streaming.byok_service, "is_auth_error", lambda exc: False)
+
+    def _orchestrate(**_kwargs):
+        async def _gen():
+            yield {"event": "synth_chunk", "data": {"delta": "x"}}
+            yield {
+                "event": "turn_failed",
+                "data": {"error_code": "tutor.runtime: ValueError"},
+            }
+
+        return _gen()
+
+    monkeypatch.setattr(tutor_streaming, "orchestrate_stream", _orchestrate)
+
+    await tutor_streaming._run_turn_async("turn_yield_runtime")
+
+    _mt_args, mt_kwargs = mocks["mark_terminal"].await_args
+    assert mt_kwargs["status"] == TURN_STATUS_FAILED
+    # Full prefixed code on the job row (matches the raised-path error_code).
+    assert mt_kwargs["error_code"] == "tutor.runtime: ValueError"
+
+    _r_args, r_kwargs = mocks["record_row"].await_args
+    assert r_kwargs["status"] == STATUS_ERROR
+    assert r_kwargs["billing_mode"] == BILLING_BYOK
+    # error_kind = bare class name (prefix stripped), like type(exc).__name__.
+    assert r_kwargs["error_kind"] == "ValueError"
+
+
+@pytest.mark.asyncio
+async def test_raised_exception_path_still_emits_single_turn_failed(monkeypatch) -> None:
+    """Regression for the double-emit boundary: when the orchestrator RAISES
+    (hard exception, not a yielded event), the except block IS the only thing
+    that emits turn_failed. Exactly one turn_failed reaches the wire, and the
+    task re-raises (the soft-yield branch must not swallow hard failures)."""
+    turn = _make_turn(credential_id=None)
+    mocks: dict = {}
+    _patch_worker_seams(monkeypatch, turn=turn, mocks=mocks)
+
+    dispatch = AsyncMock(return_value=None)
+    monkeypatch.setattr(tutor_streaming.byok_service, "stream_dispatch_for_turn", dispatch)
+    monkeypatch.setattr(tutor_streaming.byok_service, "is_auth_error", lambda exc: False)
+
+    def _orchestrate(**_kwargs):
+        async def _gen():
+            yield {"event": "synth_chunk", "data": {"delta": "x"}}
+            raise RuntimeError("connection reset")
+
+        return _gen()
+
+    monkeypatch.setattr(tutor_streaming, "orchestrate_stream", _orchestrate)
+
+    with pytest.raises(RuntimeError):
+        await tutor_streaming._run_turn_async("turn_raised")
+
+    # FAILED + STATUS_ERROR row (unchanged hard-exception semantics).
+    _mt_args, mt_kwargs = mocks["mark_terminal"].await_args
+    assert mt_kwargs["status"] == TURN_STATUS_FAILED
+    _r_args, r_kwargs = mocks["record_row"].await_args
+    assert r_kwargs["status"] == STATUS_ERROR
+
+    # Exactly one turn_failed on the wire — the except block emitted it; the
+    # loop never forwarded one (the orchestrator raised instead of yielding).
+    emitted = _emitted_event_names(mocks["emit_event"])
+    assert emitted.count("turn_failed") == 1, emitted
+
+
+@pytest.mark.asyncio
+async def test_completed_turn_emits_no_turn_failed(monkeypatch) -> None:
+    """Success regression: a turn_complete stream takes the SUCCESS path
+    (mark_terminal COMPLETE + STATUS_OK row with real tokens) and never emits
+    turn_failed — the yielded-failure branch must not trip on a clean turn."""
+    turn = _make_turn(credential_id="cred_ok2")
+    mocks: dict = {}
+    _patch_worker_seams(monkeypatch, turn=turn, mocks=mocks)
+
+    monkeypatch.setattr(
+        tutor_streaming.byok_service,
+        "stream_dispatch_for_turn",
+        AsyncMock(return_value=dict(BYOK_DISPATCH)),
+    )
+    monkeypatch.setattr(tutor_streaming.byok_service, "is_auth_error", lambda exc: False)
+    _completed_orchestrator(monkeypatch)
+
+    await tutor_streaming._run_turn_async("turn_ok_no_fail")
+
+    _mt_args, mt_kwargs = mocks["mark_terminal"].await_args
+    assert mt_kwargs["status"] == TURN_STATUS_COMPLETE
+    _r_args, r_kwargs = mocks["record_row"].await_args
+    assert r_kwargs["status"] == STATUS_OK
+    # S7 token capture unchanged on the success path.
+    assert r_kwargs["prompt_tokens"] == 200
+    assert r_kwargs["completion_tokens"] == 55
+
+    emitted = _emitted_event_names(mocks["emit_event"])
+    assert "turn_failed" not in emitted, emitted
+    assert "turn_complete" in emitted
