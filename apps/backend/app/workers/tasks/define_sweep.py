@@ -6,12 +6,16 @@ engine via :func:`make_worker_engine`, batched ``FOR UPDATE SKIP LOCKED``, engin
 disposed in ``finally``):
 
 * :func:`sweep_orphaned_build_drafts` — soft-deletes (``deleted_at``) a course
-  that is a self-serve-build artifact the owner never opened and is older than the
+  that is a self-serve-build artifact the owner never opened, untouched for the
   retention window. "Build artifact" = ``status=build_failed`` (a failed/cancelled
   build) OR a ``draft`` course linked to a learning brief (an AI build the learner
   walked away from). "Never opened" = no ``lesson_progress`` row for any of the
-  owner's enrollments in that course (the simplest verifiable signal). A recently
-  created/opened draft is left alone, so a learner mid-define is never reaped.
+  owner's enrollments in that course (the simplest verifiable signal). "Abandoned"
+  requires BOTH ``created_at`` AND ``updated_at`` older than the window (FR-DEFINE-14b
+  "opened/EDITED recently is left alone"): a draft a learner edits in studio for
+  weeks never self-enrolls, so it has no ``lesson_progress`` — without the
+  ``updated_at`` guard the never-opened arm would wrongly reap it. So a learner
+  mid-define OR mid-edit is never reaped.
 
 * :func:`sweep_unfinalized_briefs` — hard-deletes a ``LearningBrief`` whose
   ``finalized_at IS NULL`` and is older than the retention window (DR-1b). A
@@ -69,6 +73,14 @@ async def _sweep_orphaned_build_drafts_async() -> int:
                         FROM courses c
                         WHERE c.deleted_at IS NULL
                           AND c.created_at < NOW() - make_interval(days => :days)
+                          -- "Edited recently is left alone" (FR-DEFINE-14b /
+                          -- Gate-B F2): a build draft edited in studio for weeks
+                          -- (no self-enroll → no lesson_progress, so the
+                          -- never-opened arm below alone would still reap it)
+                          -- survives as long as it was TOUCHED within the window.
+                          -- Applies to BOTH arms (build_failed and draft) so a
+                          -- recently-revisited failed shell is also spared.
+                          AND c.updated_at < NOW() - make_interval(days => :days)
                           AND (
                                 c.status = 'build_failed'
                                 OR (

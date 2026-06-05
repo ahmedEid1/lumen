@@ -94,7 +94,15 @@ async def _course(
     await db.flush()
     if age_days:
         old = datetime.now(UTC) - timedelta(days=age_days)
-        await db.execute(update(Course).where(Course.id == course.id).values(created_at=old))
+        # Age BOTH created_at and updated_at: a truly-abandoned build artifact is
+        # old in both. The sweep now requires updated_at older than the window too
+        # (FR-DEFINE-14b "edited recently is left alone" / Gate-B F2), so a test of
+        # the abandoned path must age updated_at as well.
+        await db.execute(
+            update(Course)
+            .where(Course.id == course.id)
+            .values(created_at=old, updated_at=old)
+        )
     await db.commit()
     await db.refresh(course)
     return course
@@ -155,6 +163,67 @@ async def test_recently_opened_draft_left_alone(db_session: AsyncSession, make_u
     await define_sweep._sweep_orphaned_build_drafts_async()
     await db_session.refresh(course)
     assert course.deleted_at is None  # opened → left alone
+
+
+async def test_old_but_recently_edited_draft_left_alone(
+    db_session: AsyncSession, make_user
+) -> None:
+    """A draft CREATED long ago but EDITED recently survives (Gate-B F2).
+
+    A learner can edit a build draft in studio for weeks without self-enrolling,
+    so it has no LessonProgress — the never-opened arm alone would reap it. The
+    updated_at guard (FR-DEFINE-14b "edited recently is left alone") spares it: the
+    course is old by created_at but its updated_at is inside the window.
+    """
+    user = await make_user()
+    subj = await _subject(db_session)
+    await db_session.commit()
+    retention = get_settings().orphan_build_draft_retention_days
+    brief_id = uuid.uuid4().hex
+    # Create old in BOTH timestamps first (the abandoned baseline), then bump
+    # updated_at to NOW to model an edit that just happened.
+    course = await _course(
+        db_session,
+        owner_id=user.id,
+        subject_id=subj.id,
+        status=CourseStatus.draft,
+        brief_id=brief_id,
+        age_days=retention + 5,
+    )
+    await db_session.execute(
+        update(Course).where(Course.id == course.id).values(updated_at=datetime.now(UTC))
+    )
+    await db_session.commit()
+
+    n = await define_sweep._sweep_orphaned_build_drafts_async()
+    await db_session.refresh(course)
+    assert course.deleted_at is None  # edited recently → left alone
+    assert n == 0
+
+
+async def test_old_but_recently_edited_build_failed_left_alone(
+    db_session: AsyncSession, make_user
+) -> None:
+    """The updated_at guard applies to the build_failed arm too (Gate-B F2)."""
+    user = await make_user()
+    subj = await _subject(db_session)
+    await db_session.commit()
+    retention = get_settings().orphan_build_draft_retention_days
+    course = await _course(
+        db_session,
+        owner_id=user.id,
+        subject_id=subj.id,
+        status=CourseStatus.build_failed,
+        age_days=retention + 5,
+    )
+    await db_session.execute(
+        update(Course).where(Course.id == course.id).values(updated_at=datetime.now(UTC))
+    )
+    await db_session.commit()
+
+    await define_sweep._sweep_orphaned_build_drafts_async()
+    await db_session.refresh(course)
+    assert course.deleted_at is None  # recently touched → spared on both arms
 
 
 async def test_fresh_orphan_left_alone(db_session: AsyncSession, make_user) -> None:
