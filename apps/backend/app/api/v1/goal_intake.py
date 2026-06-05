@@ -20,7 +20,8 @@ via ``AppError`` subclasses; a cross-user/unknown session surfaces as 404
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Header, Request, Response, status
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import DBSession, RequireAuthor
 from app.core.config import get_settings
@@ -33,10 +34,30 @@ from app.schemas.learning_brief import (
     GoalTurnRequest,
     GoalTurnResponse,
 )
+from app.services import build as build_service
 from app.services import byok as byok_service
 from app.services import learning_brief as brief_service
 
 router = APIRouter()
+
+
+class DraftFromBriefRequest(BaseModel):
+    """Body for ``POST /ai/courses/draft`` — build a course from a finalized brief."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    brief_id: str = Field(min_length=1, max_length=64)
+
+
+class DraftFromBriefResponse(BaseModel):
+    """The built (or replayed) private draft course + its reasoning-trace id."""
+
+    course_id: str
+    slug: str
+    module_count: int
+    lesson_count: int
+    draft_id: str
+    revisions_used: int
 
 
 def _turn_response(brief, assistant_message: str, converged: bool) -> GoalTurnResponse:
@@ -117,3 +138,43 @@ async def finalize_goal_session(
     if brief is None:
         raise NotFoundError("Goal session not found", code="define.session_not_found")
     return BriefOut.model_validate(brief)
+
+
+@router.post(
+    "/ai/courses/draft",
+    response_model=DraftFromBriefResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+@limiter.limit("5/minute")
+async def build_course_from_brief(
+    payload: DraftFromBriefRequest,
+    user: RequireAuthor,
+    db: DBSession,
+    request: Request,
+    response: Response,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> DraftFromBriefResponse:
+    """Build a PRIVATE draft course from a finalized brief (FR-DEFINE-05/11/13/15).
+
+    The canonical self-serve build entry (learner-facing, NOT ``/studio``). The
+    foreground :class:`LLMContext` is resolved here so the metered pipeline is
+    BYOK-eligible (ADR-0027 §4 / DR-8). The build service enforces idempotency
+    (a finalized brief that already produced a live course replays it), the
+    per-user concurrency cap (``define.build_in_flight`` 409), and the non-dollar
+    daily quota (``define.build_quota`` 429). On unrecoverable pipeline failure the
+    course is left ``build_failed`` and a normalized ``define.build_failed`` 502 is
+    returned. ``Idempotency-Key`` is accepted (the brief id is the primary
+    idempotency key in v1; the header is reserved for the S4 idempotency table).
+    The slowapi cap is the fast first line; the DB advisory-lock/COUNT are durable.
+    """
+    _ = idempotency_key  # reserved (brief_id is the v1 idempotency key)
+    ctx = await byok_service.resolve_context(db, user_id=user.id)
+    result = await build_service.build_from_brief(db, user=user, brief_id=payload.brief_id, ctx=ctx)
+    return DraftFromBriefResponse(
+        course_id=result.course_id,
+        slug=result.slug,
+        module_count=result.module_count,
+        lesson_count=result.lesson_count,
+        draft_id=result.draft_id,
+        revisions_used=result.revisions_used,
+    )

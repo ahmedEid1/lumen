@@ -327,6 +327,25 @@ class Settings(BaseSettings):
     define_elicitation_sessions_24h: int = 20
     # The rolling window (hours) the session quota counts over.
     define_elicitation_session_window_hours: int = 24
+    # Per-user concurrent self-serve build cap (FR-DEFINE-13). A second
+    # in-flight build by the same user → ``define.build_in_flight`` (409). The
+    # hard backstop is a Postgres advisory lock keyed on the user (try-acquire);
+    # default 1 means strictly serial builds per user. Env: DEFINE_BUILD_CONCURRENCY.
+    define_build_concurrency: int = 1
+    # Per-user daily build quota (FR-DEFINE-13). Non-dollar DB COUNT over
+    # ``course.built`` audit rows in the trailing window — a $0 BYOK build still
+    # counts (DR-11). N+1 in-window → ``define.build_quota`` (429). Quota is
+    # consumed only on a successful build START, never on a validation rejection.
+    # Env: DEFINE_BUILD_QUOTA_24H.
+    define_build_quota_24h: int = 10
+    # The rolling window (hours) the build quota counts over.
+    define_build_window_hours: int = 24
+    # DR-1b retention: an orphaned ``build_failed``/never-opened build draft older
+    # than this is soft-deleted by ``sweep_orphaned_build_drafts``; an
+    # un-finalized brief older than this is reaped by ``sweep_unfinalized_briefs``.
+    # Env: ORPHAN_BUILD_DRAFT_RETENTION_DAYS / UNFINALIZED_BRIEF_RETENTION_DAYS.
+    orphan_build_draft_retention_days: int = 30
+    unfinalized_brief_retention_days: int = 30
 
     # ---------- S6.6 — Legacy /role write policy (FR-ADMIN-02) ----------
     # During the role-collapse migration window the ``/admin/users/{id}/role``

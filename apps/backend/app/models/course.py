@@ -35,6 +35,16 @@ class CourseStatus(StrEnum):
     draft = "draft"
     published = "published"
     archived = "archived"
+    # S3.7 / FR-DEFINE-15 / ADR-0029 §2.2: a self-serve AI build that failed
+    # unrecoverably leaves the course row in this terminal-but-recoverable state
+    # rather than a silent half-course. ``build_failed`` is NOT listable, NOT
+    # enrollable, and excluded from the owner's cross-course RAG retrieval
+    # (``retrieval_acl_clause`` already references the string literal
+    # ``"build_failed"`` defensively — this enum value MUST match it exactly).
+    # Re-running the build for the same brief flips it back to ``draft``. Stored
+    # in the same ``String(20)`` column as the other statuses, so NO DDL/migration
+    # is required to add the value.
+    build_failed = "build_failed"
 
 
 class Visibility(StrEnum):
