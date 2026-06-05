@@ -168,10 +168,18 @@ async def orchestrate_stream(
     # 3. Real synthesiser via the streaming LLM client.
     messages = _build_synth_messages(user_message, retrieved_chunks)
     total_cost_usd = 0.0
+    # S7: carry the provider's reported token usage off the terminal chunk so
+    # the worker can persist it on the streamed turn's llm_calls row. Defaults
+    # to 0 so a stream that dies before the usage chunk records honest zeros
+    # (the provider billed nothing we can observe).
+    prompt_tokens = 0
+    completion_tokens = 0
     try:
         async for chunk in stream_chat(messages, byok_dispatch=byok_dispatch):
             if chunk.done:
                 total_cost_usd = float(chunk.usage.get("cost_usd", 0.0) or 0.0)
+                prompt_tokens = int(chunk.usage.get("prompt_tokens", 0) or 0)
+                completion_tokens = int(chunk.usage.get("completion_tokens", 0) or 0)
                 break
             if chunk.delta:
                 if first_token_ms is None:
@@ -199,6 +207,8 @@ async def orchestrate_stream(
         "data": {
             "message_id": None,
             "cost_usd": total_cost_usd,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
             "first_token_ms": first_token_ms,
             "total_ms": total_ms,
         },

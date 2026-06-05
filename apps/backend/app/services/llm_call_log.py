@@ -168,15 +168,31 @@ async def record_streamed_turn_row(
     status: str,
     error_kind: str | None,
     billing_mode: str,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
 ) -> None:
     """Persist an ``llm_calls`` row for a terminal streamed tutor turn.
 
     Gate-B fix / ADR-0027 §Consequences: streamed turns previously wrote no
     ``llm_calls`` row at all, so they escaped the non-dollar request windows
     and the admin ``billing_mode`` rollup. The worker calls this at the
-    terminal transition. Token counts aren't plumbed through the stream
-    usage events yet, so they persist as zero — the request COUNT and
-    ``billing_mode``/``cost_usd`` are the quota- and rollup-bearing fields.
+    terminal transition.
+
+    S7 token plumbing: ``prompt_tokens`` / ``completion_tokens`` now carry the
+    provider's reported usage from the stream's terminal ``turn_complete``
+    event (OpenAI/Groq via ``stream_options={"include_usage": true}`` on the
+    final chunk; Anthropic via ``get_final_message().usage``; Noop synthesises
+    zero). They default to 0 so a failure/abort that never received a usage
+    chunk records honest zeros — the provider billed nothing observable, so we
+    claim nothing.
+
+    QUOTA INVARIANT (do not silently change): streaming request windows stay
+    COUNT-based (``user_request_count`` over ``llm_calls`` rows), NOT
+    token-based. These token columns are recorded for cost/observability only.
+    A future refactor that wires streaming quota off ``prompt_tokens`` /
+    ``completion_tokens`` would break the count-based contract pinned by
+    ``test_streamed_turn_tokens_are_observability_only`` — change the test
+    deliberately if that is ever the intent.
     """
     await _persist_row(
         session,
@@ -184,8 +200,8 @@ async def record_streamed_turn_row(
         feature="tutor.stream",
         provider=provider,
         model=model,
-        prompt_tokens=0,
-        completion_tokens=0,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
         cost_usd=cost_usd,
         latency_ms=latency_ms,
         status=status,

@@ -117,6 +117,13 @@ async def _run_turn_async(turn_id: str) -> None:
     byok_dispatch: dict[str, str] | None = None
     final_cost_usd: float = 0.0
     final_total_ms: int = 0
+    # S7 — provider-reported token usage carried off the terminal
+    # turn_complete event. Stays 0 if the stream dies before the usage chunk
+    # arrives (failure/abort) so the persisted row claims only what the
+    # provider actually billed. Observability/cost only — streaming quota
+    # stays COUNT-based (see record_streamed_turn_row's QUOTA INVARIANT note).
+    final_prompt_tokens: int = 0
+    final_completion_tokens: int = 0
 
     try:
         async with Session() as db:
@@ -242,6 +249,11 @@ async def _run_turn_async(turn_id: str) -> None:
                     actual_cost_microcents = int(cost_usd * USD_TO_MICROCENTS)
                     final_cost_usd = cost_usd
                     final_total_ms = int(float(ev["data"].get("total_ms", 0) or 0))
+                    # S7 — provider usage off the terminal chunk for the
+                    # llm_calls row (observability/cost only; quota stays
+                    # COUNT-based).
+                    final_prompt_tokens = int(ev["data"].get("prompt_tokens", 0) or 0)
+                    final_completion_tokens = int(ev["data"].get("completion_tokens", 0) or 0)
                 await emit_event(
                     redis_client,
                     turn_id=turn_id,
@@ -265,6 +277,8 @@ async def _run_turn_async(turn_id: str) -> None:
                 status=STATUS_OK,
                 error_kind=None,
                 billing_mode=BILLING_BYOK if byok_dispatch else BILLING_PLATFORM,
+                prompt_tokens=final_prompt_tokens,
+                completion_tokens=final_completion_tokens,
             )
             await db.commit()
 

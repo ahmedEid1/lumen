@@ -105,9 +105,7 @@ def _patch_worker_seams(monkeypatch, *, turn, mocks):
     # session, so the account.assert_account_active re-read can't run against the
     # MagicMock session. Stub the seam to a no-op (the cancellation behaviour is
     # covered DB-backed in test_cooperative_cancel.py).
-    monkeypatch.setattr(
-        tutor_streaming.account_service, "assert_account_active", AsyncMock()
-    )
+    monkeypatch.setattr(tutor_streaming.account_service, "assert_account_active", AsyncMock())
     monkeypatch.setattr(tutor_streaming, "emit_event", AsyncMock())
     monkeypatch.setattr(tutor_streaming, "set_stream_ttl", AsyncMock())
     monkeypatch.setattr(tutor_streaming, "reconcile_cost", AsyncMock())
@@ -226,14 +224,21 @@ async def test_auth_error_marks_credential_invalid(monkeypatch) -> None:
 
 def _completed_orchestrator(monkeypatch):
     """Patch orchestrate_stream to a happy-path generator: a synth chunk
-    then a turn_complete carrying cost_usd=0.002 / total_ms=123."""
+    then a turn_complete carrying cost_usd=0.002 / total_ms=123 plus the
+    S7 provider token usage (prompt_tokens=200 / completion_tokens=55)."""
 
     def _orchestrate(**_kwargs):
         async def _gen():
             yield {"event": "synth_chunk", "data": {"delta": "a closure is..."}}
             yield {
                 "event": "turn_complete",
-                "data": {"cost_usd": 0.002, "total_ms": 123, "first_token_ms": 10},
+                "data": {
+                    "cost_usd": 0.002,
+                    "total_ms": 123,
+                    "first_token_ms": 10,
+                    "prompt_tokens": 200,
+                    "completion_tokens": 55,
+                },
             }
 
         return _gen()
@@ -271,6 +276,9 @@ async def test_completed_turn_writes_byok_row(monkeypatch) -> None:
     # BYOK provider/model labels come from the dispatch dict, not settings.
     assert kwargs["provider"] == "openai"
     assert kwargs["model"] == "m"
+    # S7: provider-reported token usage off the terminal chunk is persisted.
+    assert kwargs["prompt_tokens"] == 200
+    assert kwargs["completion_tokens"] == 55
 
 
 @pytest.mark.asyncio
@@ -297,6 +305,9 @@ async def test_completed_turn_writes_platform_row(monkeypatch) -> None:
     _args, kwargs = mocks["record_row"].await_args
     assert kwargs["status"] == STATUS_OK
     assert kwargs["billing_mode"] == BILLING_PLATFORM
+    # S7: a completed platform turn also persists the provider token usage.
+    assert kwargs["prompt_tokens"] == 200
+    assert kwargs["completion_tokens"] == 55
 
 
 @pytest.mark.asyncio
@@ -468,3 +479,49 @@ async def test_failed_turn_writes_error_row_and_no_credential_invalidation(
 
     # Transient failure never invalidates the key.
     mark_invalid.assert_not_called()
+
+    # S7: the stream died before any turn_complete usage chunk arrived, so the
+    # error row records honest zero tokens — we claim only what the provider
+    # actually billed. The failure-path call omits the token kwargs entirely,
+    # so they fall back to record_streamed_turn_row's 0 defaults.
+    assert kwargs.get("prompt_tokens", 0) == 0
+    assert kwargs.get("completion_tokens", 0) == 0
+
+
+@pytest.mark.asyncio
+async def test_stream_aborts_after_partial_tokens_records_zero(monkeypatch) -> None:
+    """S7 honest-abort: a stream that yields synth chunks but then raises
+    BEFORE the terminal turn_complete event records zero tokens on the error
+    row. The worker only captures tokens from turn_complete, which never fired
+    here — so no usage is fabricated from the partial stream."""
+    turn = _make_turn(credential_id=None)
+    mocks: dict = {}
+    _patch_worker_seams(monkeypatch, turn=turn, mocks=mocks)
+
+    dispatch = AsyncMock(return_value=None)
+    monkeypatch.setattr(tutor_streaming.byok_service, "stream_dispatch_for_turn", dispatch)
+    monkeypatch.setattr(tutor_streaming.byok_service, "is_auth_error", lambda exc: False)
+
+    def _orchestrate(**_kwargs):
+        async def _gen():
+            yield {"event": "synth_chunk", "data": {"delta": "half an answer"}}
+            yield {"event": "synth_chunk", "data": {"delta": " and then..."}}
+            raise RuntimeError("upstream reset before usage chunk")
+
+        return _gen()
+
+    monkeypatch.setattr(tutor_streaming, "orchestrate_stream", _orchestrate)
+
+    with pytest.raises(RuntimeError):
+        await tutor_streaming._run_turn_async("turn_partial_abort")
+
+    _mt_args, mt_kwargs = mocks["mark_terminal"].await_args
+    assert mt_kwargs["status"] == TURN_STATUS_FAILED
+
+    assert mocks["record_row"].await_count == 1
+    _args, kwargs = mocks["record_row"].await_args
+    assert kwargs["status"] == STATUS_ERROR
+    assert kwargs["billing_mode"] == BILLING_PLATFORM
+    # Honest zeros — the provider's usage chunk never arrived.
+    assert kwargs.get("prompt_tokens", 0) == 0
+    assert kwargs.get("completion_tokens", 0) == 0
