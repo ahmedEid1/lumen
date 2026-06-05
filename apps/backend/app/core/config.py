@@ -308,6 +308,26 @@ class Settings(BaseSettings):
     # re-homing rides the lazy ``copy_clone_assets`` Celery task (S4.9, R-S7).
     clone_asset_inline_max: int = 0
 
+    # ---------- S3 — Goal intake / define-and-build (FR-DEFINE-*, R-M10/R-G1) ----------
+    # The reserved Subject the self-serve build attaches to when the learner's
+    # suggested subject matches no live admin-curated Subject (FR-DEFINE-12) —
+    # the escape from ``authoring.subject_not_found``. Seeded idempotently by
+    # migration 0051 + the demo seed; ``Subject.slug`` is unique. Env:
+    # PERSONAL_SUBJECT_SLUG.
+    personal_subject_slug: str = "personal-self-directed"
+    # Bounded elicitation: the assistant asks at most this many clarification
+    # turns per goal-intake conversation before forcing convergence (R-M10 /
+    # FR-DEFINE-02). The (cap+1)th turn raises ``define.turn_cap`` and makes NO
+    # LLM call. Env: DEFINE_ELICITATION_MAX_TURNS.
+    define_elicitation_max_turns: int = 6
+    # Per-user session quota: at most this many goal-intake sessions may be
+    # *started* within the rolling window (R-M10 / R-G1). A non-dollar DB COUNT
+    # backstop (a brief row is created per session). Env:
+    # DEFINE_ELICITATION_SESSIONS_24H.
+    define_elicitation_sessions_24h: int = 20
+    # The rolling window (hours) the session quota counts over.
+    define_elicitation_session_window_hours: int = 24
+
     # ---------- S6.6 — Legacy /role write policy (FR-ADMIN-02) ----------
     # During the role-collapse migration window the ``/admin/users/{id}/role``
     # endpoint NORMALIZES a stale ``student``/``instructor`` write to ``user``

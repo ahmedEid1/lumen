@@ -45,6 +45,7 @@ from typing import Any
 from rich.console import Console
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.core.security import hash_password
 from app.db.base import get_sessionmaker
 from app.models.course import (
@@ -517,6 +518,18 @@ async def run() -> None:
             Subject,
             lookup={"slug": "data-science"},
             defaults={"title": "Data Science"},
+        )
+        # S3.5 / FR-DEFINE-12: the reserved Personal/Self-directed subject the
+        # self-serve build attaches to when the learner's suggested subject
+        # matches no live admin-curated Subject (escape from
+        # ``authoring.subject_not_found``). Idempotent on re-run; mirrors the
+        # 0051 migration's ON CONFLICT seed so a seeded-but-unmigrated or
+        # migrated-but-unseeded DB both converge to exactly one row.
+        await _get_or_create(
+            db,
+            Subject,
+            lookup={"slug": get_settings().personal_subject_slug},
+            defaults={"title": "Personal / Self-directed"},
         )
 
         tag_data: list[tuple[str, str]] = [
