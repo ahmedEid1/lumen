@@ -72,6 +72,8 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("finalized_at", sa.DateTime(timezone=True), nullable=True),
+        # Bounded assistant-turn count (R-M10 / FR-DEFINE-02).
+        sa.Column("turns_used", sa.Integer(), server_default=sa.text("0"), nullable=False),
         # The only sensitive field — field-encrypted ciphertext (DR-22).
         sa.Column("source_goal_enc", sa.LargeBinary(), nullable=False),
         # Structured (non-sensitive) fields, filled across elicitation turns.

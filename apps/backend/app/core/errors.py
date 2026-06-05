@@ -256,6 +256,37 @@ class CloneSourceTooLargeError(ValidationAppError):
 
 
 # ---------------------------------------------------------------------------
+# S3 (goal intake / define) error codes — FR-DEFINE-02/03 / R-M10. All map to
+# the standard {error:{code,message,details,request_id}} envelope.
+# ---------------------------------------------------------------------------
+
+
+class DefineTurnCapError(RateLimitedError):
+    """FR-DEFINE-02 / R-M10 — the bounded clarification conversation is spent.
+
+    429. The (cap+1)th assistant turn raises this and makes NO LLM call; the
+    client should finalize (or revise) the accumulated brief instead.
+    """
+
+    code = "define.turn_cap"
+
+
+class DefineSessionQuotaError(RateLimitedError):
+    """R-M10 / R-G1 — the per-user goal-intake session quota for the window is
+    exhausted. 429; the tripped window is in ``details``. A non-dollar DB-COUNT
+    backstop (a started brief is a row), independent of the LLM request guard."""
+
+    code = "define.session_quota"
+
+
+class DefineBriefFinalizedError(ValidationAppError):
+    """FR-DEFINE-03 — a finalized brief is immutable; a second finalize (or a
+    mutating turn after finalize) raises this. 422; the row is unchanged."""
+
+    code = "define.brief_finalized"
+
+
+# ---------------------------------------------------------------------------
 # S6 (admin/account-lifecycle) error codes — ADR-0030 §"Error codes" +
 # FR-ADMIN-03 / FR-SUSP-04. All map to the standard envelope.
 # ---------------------------------------------------------------------------

@@ -51,6 +51,16 @@ class LearningBrief(IdMixin, Base):
     # never cleared (immutable thereafter, FR-DEFINE-03).
     finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Count of assistant clarification turns spent on this conversation. The
+    # service caps it at ``Settings.define_elicitation_max_turns`` (R-M10 /
+    # FR-DEFINE-02); the (cap+1)th turn raises ``define.turn_cap`` and makes NO
+    # LLM call. This is the bounded-conversation state (the conversation memory
+    # itself is the accumulated structured brief + the decrypted goal — both
+    # already persisted — so no transcript column is needed).
+    turns_used: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0"), default=0
+    )
+
     # The ONLY sensitive field. Field-encrypted ciphertext blob produced by
     # ``secrets_crypto.encrypt`` (DR-22). Never logged, never serialized, never
     # in repr. BYTEA on Postgres.
