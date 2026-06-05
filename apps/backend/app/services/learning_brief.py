@@ -67,8 +67,10 @@ __all__ = [
     "difficulty_from_level",
     "estimate_counts",
     "finalize",
+    "is_converged",
     "start_session",
     "take_turn",
+    "to_draft",
 ]
 
 _FEATURE = "goal_elicitation"
@@ -125,7 +127,7 @@ _SYSTEM_PROMPT = (
 # --------------------------------------------------------------------------- #
 
 
-def _is_converged(brief: LearningBrief) -> bool:
+def is_converged(brief: LearningBrief) -> bool:
     """Python-side completeness check (never trusted to the model).
 
     Converged when the four required fields are all present: level, time
@@ -368,7 +370,7 @@ async def take_turn(
     _apply_updates(brief, update)
     brief.turns_used += 1
     await db.flush()
-    return brief, update.assistant_message, _is_converged(brief)
+    return brief, update.assistant_message, is_converged(brief)
 
 
 async def finalize(

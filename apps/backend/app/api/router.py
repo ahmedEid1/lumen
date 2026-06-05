@@ -20,6 +20,7 @@ from app.api.v1 import (
     discussions,
     enrollments,
     eval_public,
+    goal_intake,
     health,
     learner_traces,
     learning_path,
@@ -104,6 +105,10 @@ api_router.include_router(tutor_streaming.router, tags=["tutor-streaming"])
 # generation. All four endpoints share the ``/studio/ai`` prefix and
 # the per-user 5/minute rate limit declared inside the module.
 api_router.include_router(ai_authoring.router, prefix="/studio", tags=["studio-ai"])
+# S3.4 — Goal-intake (define) endpoints. Learner-facing, so mounted under
+# ``/api/v1/ai`` (the module declares ``/ai/goal/*`` paths), NOT ``/studio``
+# (FR-DEFINE-09). RequireAuthor + slowapi + metered via call_logged.
+api_router.include_router(goal_intake.router, tags=["goal-intake"])
 # L20.5 — Public runtime-flags read endpoint. Anon-readable so the
 # frontend can probe before sign-in. Currently reads from Settings;
 # L21-Sec adds a Redis-backed override layer for live flag-flips.
