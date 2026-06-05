@@ -105,6 +105,18 @@ describe("CourseCard", () => {
     expect(screen.getByText("Programming")).toBeInTheDocument();
     expect(screen.getByText("beginner")).toBeInTheDocument();
   });
+
+  // S6.10 / DR-19 read-time anonymization (S7 Gate-B): the API serializes a
+  // tombstoned owner's `full_name` as the i18n KEY "common.deletedUser". The
+  // card must resolve it to the localized label, never paint the raw key.
+  it("renders the localized deleted-user label for a tombstoned owner", () => {
+    renderCard({
+      ...baseSample,
+      owner: { ...baseSample.owner, full_name: "common.deletedUser" },
+    });
+    expect(screen.getByText(en["common.deletedUser"])).toBeInTheDocument();
+    expect(screen.queryByText("common.deletedUser")).not.toBeInTheDocument();
+  });
 });
 
 describe("CourseCard — clone CTA gating (S4.11)", () => {

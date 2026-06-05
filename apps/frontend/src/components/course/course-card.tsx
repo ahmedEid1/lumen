@@ -35,6 +35,13 @@ export function CourseCard({ course }: { course: CourseListItem }) {
   // painting in the meantime.
   const [coverFailed, setCoverFailed] = useState(false);
   const showCover = !!course.cover_url && !coverFailed;
+  // S6.10 read-time anonymization (DR-19): the API serializes a tombstoned
+  // owner's `full_name` as the i18n KEY "common.deletedUser". The provider's
+  // t() does a flat var-replace, not recursive key resolution, so the raw value
+  // would paint "common.deletedUser" literally. Resolve it at the render site
+  // (mirrors origin-attribution.tsx, Gate-B B2).
+  const ownerIsDeleted = course.owner.full_name === "common.deletedUser";
+  const ownerName = ownerIsDeleted ? t("common.deletedUser") : course.owner.full_name;
   return (
     <div className="surface group hover:border-foreground/30 flex h-full flex-col overflow-hidden transition-colors duration-[160ms]">
       <Link href={`/courses/${course.slug}`} className="flex flex-1 flex-col">
@@ -73,12 +80,12 @@ export function CourseCard({ course }: { course: CourseListItem }) {
             <Avatar className="border-border h-6 w-6 border">
               <AvatarImage
                 src={course.owner.avatar_url ?? undefined}
-                alt={course.owner.full_name}
+                alt={ownerName}
               />
-              <AvatarFallback>{course.owner.full_name.slice(0, 1).toUpperCase()}</AvatarFallback>
+              <AvatarFallback>{ownerName.slice(0, 1).toUpperCase()}</AvatarFallback>
             </Avatar>
             <span className="font-body text-muted-foreground text-xs">
-              {course.owner.full_name}
+              {ownerName}
             </span>
           </div>
 
