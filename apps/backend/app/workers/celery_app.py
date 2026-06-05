@@ -37,6 +37,9 @@ celery = Celery(
         # empty table / no-orphan state.
         "app.workers.tasks.tutor_streaming",
         "app.workers.tasks.tutor_sweep",
+        # S3.10 — define-and-build orphan/unfinalized sweeps. Idempotent against
+        # an empty/no-orphan state; the beat entries below run unconditionally.
+        "app.workers.tasks.define_sweep",
     ],
 )
 
@@ -100,6 +103,18 @@ celery.conf.beat_schedule = {
     "tutor-cleanup-orphan-streams": {
         "task": "tutor.cleanup_orphan_streams.v1",
         "schedule": timedelta(minutes=5),
+    },
+    # S3.10 (DR-1b) — daily off-peak define-and-build cleanup. 04:30 UTC sits
+    # alongside the existing 3-4am sweeps; both tasks are idempotent so the exact
+    # tick is a soft target. They reap >30d (default) abandoned build drafts +
+    # un-finalized briefs (FR-DEFINE-14b).
+    "define-sweep-orphaned-build-drafts": {
+        "task": "define.sweep_orphaned_build_drafts.v1",
+        "schedule": crontab(hour="4", minute="30"),
+    },
+    "define-sweep-unfinalized-briefs": {
+        "task": "define.sweep_unfinalized_briefs.v1",
+        "schedule": crontab(hour="4", minute="35"),
     },
 }
 
