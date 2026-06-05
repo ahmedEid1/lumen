@@ -66,8 +66,11 @@ export default function DefinePage() {
   const [buildResult, setBuildResult] = useState<DraftFromBriefResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The brief id, captured the first time we finalize, so a retry re-runs the
-  // SAME (idempotent) build rather than minting a new draft.
+  // SAME (idempotent) build rather than minting a new draft. Mirrored into state
+  // (`buildBriefId`) so BuildProgress's brief→course poll activates reactively
+  // (a ref change wouldn't re-render the poll's `enabled` gate).
   const finalizedBriefId = useRef<string | null>(null);
+  const [buildBriefId, setBuildBriefId] = useState<string | null>(null);
 
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/learn/define");
@@ -112,6 +115,7 @@ export default function DefinePage() {
         const finalized = await Define.finalize(latest.session_id, edits);
         briefId = finalized.id;
         finalizedBriefId.current = briefId;
+        setBuildBriefId(briefId); // activate the brief→course poll (Gate-B F1)
       }
       return Define.draftFromBrief(briefId);
     },
@@ -130,10 +134,9 @@ export default function DefinePage() {
   });
 
   const cancelM = useMutation({
-    mutationFn: () => {
-      if (!buildResult) throw new Error("no course");
-      return Define.cancelBuild(buildResult.course_id);
-    },
+    // The course id comes from BuildProgress: while building it is the polled
+    // shell id (Gate-B F1), once landed it is the build result's id.
+    mutationFn: (courseId: string) => Define.cancelBuild(courseId),
     onSuccess: () => {
       setError(t("define.error.cancelled"));
       setPhase("failed");
@@ -184,10 +187,19 @@ export default function DefinePage() {
         <BuildProgress
           phase={buildPhase}
           result={buildResult}
+          briefId={buildBriefId}
           error={error}
           busy={buildM.isPending || cancelM.isPending}
+          // The cancel button must stay enabled WHILE the build is pending — that
+          // is the whole window it is for — so it is gated only by an in-flight
+          // cancel, never by buildM.isPending (Gate-B F1).
+          cancelBusy={cancelM.isPending}
           onRetry={() => buildM.mutate({})}
-          onCancel={() => cancelM.mutate()}
+          onCancel={(courseId) => cancelM.mutate(courseId)}
+          onTerminalFailure={(msg) => {
+            setError(msg);
+            setPhase("failed");
+          }}
         />
       )}
     </div>

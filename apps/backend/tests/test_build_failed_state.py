@@ -236,3 +236,115 @@ async def test_rerun_flips_build_failed_to_draft(
     assert rebuilt is not None
     assert rebuilt.status == CourseStatus.draft
     assert rebuilt.visibility == Visibility.private
+
+
+async def test_rerun_reuses_same_shell_no_duplicate_course(
+    db_session: AsyncSession, make_user, monkeypatch
+) -> None:
+    """A re-run of a failed brief reuses the SAME course row (one course, not two).
+
+    Shell-first (S3.7): the failed shell IS the row the success path fills, so a
+    re-run flips it back to ``draft`` in place rather than minting a second course.
+    """
+    user = await make_user(role=Role.instructor)
+    await _personal_subject(db_session)
+    brief = await _finalized_brief(db_session, owner_id=user.id)
+
+    _install_provider(monkeypatch, ["not json", "still not json"])
+    with pytest.raises(DefineBuildFailedError):
+        await build_service.build_from_brief(db_session, user=user, brief_id=brief.id)
+    failed = await build_service.find_course_for_brief(
+        db_session, owner_id=user.id, brief_id=brief.id
+    )
+    assert failed is not None
+
+    _install_provider(monkeypatch, _happy_queue())
+    result = await build_service.build_from_brief(db_session, user=user, brief_id=brief.id)
+    assert result.course_id == failed.id  # same row reused, not a duplicate
+
+    all_courses = (
+        (await db_session.execute(select(Course.id).where(Course.owner_id == user.id)))
+        .scalars()
+        .all()
+    )
+    assert len(all_courses) == 1
+
+
+# ---------- Shell-first durability: the exact Codex P1 repro ----------
+
+
+async def test_shell_survives_request_session_rollback(
+    db_session: AsyncSession, make_user, monkeypatch
+) -> None:
+    """The build_failed shell PERSISTS even when the REQUEST session rolls back.
+
+    The Codex P1 bug: the old design materialized the build_failed shell inside the
+    request session; ``get_db`` rolls the whole session back on the raised
+    exception, so NO row survived on the outliner/lesson failure path — killing
+    retry/idempotency/sweep on exactly their target path. Shell-first commits the
+    shell in its OWN session, so it is rollback-immune. Here we drive the build
+    through a request-style session that ROLLS BACK on the exception (mimicking
+    ``get_db``), then assert the shell row exists post-rollback with
+    ``status=build_failed`` — read back in a SEPARATE session to prove it committed.
+    """
+    from app.db.base import get_sessionmaker
+
+    user = await make_user(role=Role.instructor)
+    await _personal_subject(db_session)
+    brief = await _finalized_brief(db_session, owner_id=user.id)
+    _install_provider(monkeypatch, ["not json", "still not json"])
+
+    sessionmaker = get_sessionmaker()
+    # Mimic the get_db request lifecycle: yield a session, rollback on exception.
+    req_db = sessionmaker()
+    try:
+        with pytest.raises(DefineBuildFailedError):
+            try:
+                await build_service.build_from_brief(req_db, user=user, brief_id=brief.id)
+                await req_db.commit()
+            except Exception:
+                await req_db.rollback()  # exactly what get_db does
+                raise
+    finally:
+        await req_db.close()
+
+    # A FRESH session sees the committed shell, build_failed, despite the rollback.
+    async with sessionmaker() as fresh:
+        course = await build_service.find_course_for_brief(
+            fresh, owner_id=user.id, brief_id=brief.id
+        )
+        assert course is not None, "shell must survive the request rollback (Codex P1)"
+        assert course.status == CourseStatus.build_failed
+        assert course.visibility == Visibility.private
+
+
+async def test_empty_shell_not_replayed_as_success(
+    db_session: AsyncSession, make_user, monkeypatch
+) -> None:
+    """An empty (mid-build/crashed) ``draft`` shell is re-buildable, never replayed.
+
+    Invariant 2: shell-first commits an EMPTY ``draft`` before the pipeline runs.
+    A crash that never reaches the failure handler leaves a module-less ``draft``.
+    The replay short-circuit must NOT return that empty shell as a successful build
+    — it must fall through to a real re-run. We simulate the crash by committing a
+    bare shell (no modules), then a healthy re-run must produce a FILLED course.
+    """
+    user = await make_user(role=Role.instructor)
+    await _personal_subject(db_session)
+    brief = await _finalized_brief(db_session, owner_id=user.id)
+
+    # Simulate a crashed build: an empty draft shell, committed, with the brief link.
+    shell_id = await build_service._materialize_build_shell(user=user, brief_id=brief.id)
+    shell = await build_service.find_course_for_brief(
+        db_session, owner_id=user.id, brief_id=brief.id
+    )
+    assert shell is not None
+    assert shell.id == shell_id
+    assert shell.status == CourseStatus.draft
+    assert build_service._is_successfully_built(shell) is False  # empty → not success
+
+    # A healthy re-run fills the SAME shell — not replayed-as-empty.
+    _install_provider(monkeypatch, _happy_queue())
+    result = await build_service.build_from_brief(db_session, user=user, brief_id=brief.id)
+    assert result.course_id == shell_id
+    assert result.module_count >= 1  # the shell was actually filled, not replayed empty

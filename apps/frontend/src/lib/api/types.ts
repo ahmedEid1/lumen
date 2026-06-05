@@ -422,3 +422,16 @@ export interface DraftFromBriefResponse {
   draft_id: string;
   revisions_used: number;
 }
+
+/**
+ * The in-flight / built course a finalized brief produced
+ * (`GET /me/briefs/{id}/course`, Gate-B F1). The define UI polls this while
+ * `phase === "building"` to obtain the cancel target (`course_id`) and detect a
+ * terminal state (`status === "build_failed"` = failed/cancelled) BEFORE the
+ * synchronous build endpoint returns — a 404 means the build shell hasn't
+ * materialized yet ("still spinning up").
+ */
+export interface BriefCourseStatus {
+  course_id: string;
+  status: string;
+}

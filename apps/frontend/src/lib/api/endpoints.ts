@@ -1,5 +1,6 @@
 import { api } from "@/lib/api/client";
 import type {
+  BriefCourseStatus,
   BriefDraft,
   BriefOut,
   CourseAdminOut,
@@ -696,6 +697,14 @@ export const Define = {
     api<{ ok: true }>(
       `/api/v1/me/courses/${encodeURIComponent(courseId)}/cancel-build`,
       { method: "POST", token },
+    ),
+  /** The in-flight/built course a finalized brief produced (Gate-B F1). Polled
+   *  while building to obtain the cancel target + terminal state before the
+   *  synchronous build endpoint returns. 404 = shell not materialized yet. */
+  briefCourse: (briefId: string, token?: string) =>
+    api<BriefCourseStatus>(
+      `/api/v1/me/briefs/${encodeURIComponent(briefId)}/course`,
+      { token },
     ),
 };
 

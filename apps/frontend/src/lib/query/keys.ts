@@ -41,4 +41,8 @@ export const qk = {
   // and `qk.course(slug)` for the build-status poll.
   goalSession: (id: string) => ["define", "goal", id] as const,
   brief: (id: string) => ["define", "brief", id] as const,
+  // Gate-B F1 — the in-flight build shell for a finalized brief. Polled while
+  // `phase === "building"` to get the cancel target + terminal state before the
+  // synchronous build endpoint returns (`GET /me/briefs/{id}/course`).
+  briefCourse: (briefId: string) => ["define", "brief-course", briefId] as const,
 };

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 
-from app.api.deps import CurrentUser, DBSession
+from app.api.deps import CurrentUser, DBSession, RequireAuthor
 from app.api.v1 import _builders
 from app.core.errors import NotFoundError, ValidationAppError
 from app.core.ratelimit import limiter
@@ -17,6 +17,7 @@ from app.models.quiz_attempt import QuizAttempt
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
 from app.schemas.course import EnrollmentOut, ProgressUpdate
+from app.services import build as build_service
 from app.services import courses as courses_service
 from app.services import enrollment as enrollment_service
 from app.services import quiz as quiz_service
@@ -36,6 +37,37 @@ async def cancel_build(course_id: str, user: CurrentUser, db: DBSession) -> OkRe
     """
     await courses_service.cancel_build(db, course_id=course_id, owner=user)
     return OkResponse()
+
+
+class BriefCourseStatus(BaseModel):
+    """The in-flight/built course a finalized brief produced (Gate-B F1)."""
+
+    course_id: str
+    status: str
+
+
+@router.get("/briefs/{brief_id}/course", response_model=BriefCourseStatus)
+async def brief_course_status(
+    brief_id: str, user: RequireAuthor, db: DBSession
+) -> BriefCourseStatus:
+    """Owner-scoped lookup of the course a finalized brief is building (Gate-B F1).
+
+    The synchronous build endpoint only returns the ``course_id`` once the whole
+    pipeline lands, but the UI needs it WHILE ``phase==='building'`` to render the
+    cancel button and to detect a server-side flip to ``build_failed`` (e.g. via
+    cancel). With the shell-first design (S3.7) a durable in-flight shell is
+    committed before the pipeline runs, so the UI can poll this to obtain the
+    cancel target + the terminal state.
+
+    Owner-scoped + existence-hidden: an unknown brief, another user's brief, or a
+    brief that hasn't materialized a shell yet all return 404 (the UI treats the
+    404 as "still spinning up" and keeps polling).
+    """
+    result = await build_service.brief_course_status(db, owner_id=user.id, brief_id=brief_id)
+    if result is None:
+        raise NotFoundError("No course for this brief", code="define.brief_course_not_found")
+    course_id, course_status = result
+    return BriefCourseStatus(course_id=course_id, status=course_status)
 
 
 async def _get_live_lesson(db: DBSession, lesson_id: str) -> Lesson:

@@ -21,6 +21,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type {
+  BriefCourseStatus,
   BriefOut,
   CourseDetail,
   DraftFromBriefResponse,
@@ -62,7 +63,8 @@ const startGoal = vi.fn<[string], Promise<GoalTurnResponse>>();
 const takeTurn = vi.fn<[string, string], Promise<GoalTurnResponse>>();
 const finalize = vi.fn<[], Promise<BriefOut>>();
 const draftFromBrief = vi.fn<[string], Promise<DraftFromBriefResponse>>();
-const cancelBuild = vi.fn(async () => ({ ok: true as const }));
+const cancelBuild = vi.fn<[string], Promise<{ ok: true }>>();
+const briefCourse = vi.fn<[string], Promise<BriefCourseStatus>>();
 const draftTrace = vi.fn<[string], Promise<DraftTraceResponse>>();
 const courseGet = vi.fn<[string], Promise<CourseDetail>>();
 vi.mock("@/lib/api/endpoints", () => ({
@@ -71,7 +73,8 @@ vi.mock("@/lib/api/endpoints", () => ({
     takeTurn: (sid: string, msg: string) => takeTurn(sid, msg),
     finalize: () => finalize(),
     draftFromBrief: (id: string) => draftFromBrief(id),
-    cancelBuild: (_id: string) => cancelBuild(),
+    cancelBuild: (id: string) => cancelBuild(id),
+    briefCourse: (id: string) => briefCourse(id),
   },
   AI: { draftTrace: (cid: string) => draftTrace(cid) },
   Courses: { get: (key: string) => courseGet(key) },
@@ -161,7 +164,14 @@ describe("DefinePage (S3.11 define→build→learn)", () => {
     takeTurn.mockReset();
     finalize.mockReset();
     draftFromBrief.mockReset();
-    cancelBuild.mockClear();
+    cancelBuild.mockReset();
+    cancelBuild.mockResolvedValue({ ok: true });
+    briefCourse.mockReset();
+    // Default: no shell yet (the build hasn't materialized one) — a 404 the UI
+    // treats as "still spinning up". Specs that exercise cancel override this.
+    briefCourse.mockRejectedValue(
+      Object.assign(new Error("not found"), { status: 404, code: "define.brief_course_not_found" }),
+    );
     draftTrace.mockReset();
     courseGet.mockReset();
     authState.user = mkUser();
@@ -298,6 +308,63 @@ describe("DefinePage (S3.11 define→build→learn)", () => {
       name: /start learning|go to my course|learn/i,
     });
     expect(learnLink).toHaveAttribute("href", "/learn/react-from-scratch");
+  });
+
+  it("cancels an in-flight build via the polled shell id (Gate-B F1)", async () => {
+    const user = userEvent.setup();
+    startGoal.mockResolvedValue(mkTurn({ converged: true }));
+    finalize.mockResolvedValue(mkBrief());
+    // The build endpoint never resolves → the page stays in `building`, exactly
+    // the window where the cancel target is only known from the polled shell.
+    draftFromBrief.mockReturnValue(new Promise<DraftFromBriefResponse>(() => {}));
+    // The brief→course poll surfaces the committed in-flight shell id.
+    briefCourse.mockResolvedValue({ course_id: "shell-c1", status: "draft" });
+    draftTrace.mockResolvedValue(mkTrace({ course_id: "shell-c1" }));
+    courseGet.mockResolvedValue({ status: "draft" } as CourseDetail);
+
+    renderPage();
+    await user.type(
+      await screen.findByLabelText(/what do you want to learn/i),
+      "React",
+    );
+    await user.click(screen.getByRole("button", { name: /start/i }));
+    await user.click(await screen.findByRole("button", { name: /review/i }));
+    await user.click(
+      await screen.findByRole("button", { name: /build my course/i }),
+    );
+
+    // The cancel button appears once the polled shell id arrives, and cancelling
+    // calls the endpoint with the POLLED id (not the build result, still null).
+    const cancelBtn = await screen.findByRole("button", { name: /cancel/i });
+    await user.click(cancelBtn);
+    await waitFor(() => expect(cancelBuild).toHaveBeenCalledWith("shell-c1"));
+    // After cancel the page lands on the failed terminal surface.
+    expect(await screen.findByTestId("build-failed")).toBeInTheDocument();
+  });
+
+  it("surfaces a server-side build_failed flip detected by the poll (R-S10)", async () => {
+    const user = userEvent.setup();
+    startGoal.mockResolvedValue(mkTurn({ converged: true }));
+    finalize.mockResolvedValue(mkBrief());
+    draftFromBrief.mockReturnValue(new Promise<DraftFromBriefResponse>(() => {}));
+    // The poll detects the shell was flipped to build_failed elsewhere (e.g. a
+    // cancel from another tab) — the page must reach its failed terminal state.
+    briefCourse.mockResolvedValue({ course_id: "shell-c1", status: "build_failed" });
+    draftTrace.mockResolvedValue(mkTrace({ course_id: "shell-c1" }));
+    courseGet.mockResolvedValue({ status: "build_failed" } as CourseDetail);
+
+    renderPage();
+    await user.type(
+      await screen.findByLabelText(/what do you want to learn/i),
+      "React",
+    );
+    await user.click(screen.getByRole("button", { name: /start/i }));
+    await user.click(await screen.findByRole("button", { name: /review/i }));
+    await user.click(
+      await screen.findByRole("button", { name: /build my course/i }),
+    );
+
+    expect(await screen.findByTestId("build-failed")).toBeInTheDocument();
   });
 
   it("renders a clean build_failed surface with a re-run affordance", async () => {

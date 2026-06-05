@@ -31,6 +31,7 @@ import structlog
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.core.errors import (
@@ -39,6 +40,7 @@ from app.core.errors import (
     DefineBuildInFlightError,
     DefineBuildQuotaError,
 )
+from app.db.base import get_sessionmaker
 from app.models.audit import AuditEvent
 from app.models.course import Course, CourseStatus, Visibility
 from app.models.course_draft_trace import CourseDraftTrace
@@ -94,10 +96,13 @@ async def find_course_for_brief(db: AsyncSession, *, owner_id: str, brief_id: st
     """Most-recent live course this brief produced (replay + S3.10 sweep link).
 
     Resolves via the ``brief_id`` recorded in the course's draft-trace payload
-    (set by both the success pipeline and the ``build_failed`` shell). Returns the
-    course in ANY status (draft / build_failed / published) so the caller can tell
-    a successful replay from a failed re-runnable shell. Soft-deleted courses are
-    excluded.
+    (set by the shell-first materialization, the success pipeline, and the
+    ``build_failed`` shell). Returns the course in ANY status (draft /
+    build_failed / published) so the caller can tell a successful replay from a
+    failed re-runnable shell from an in-flight empty shell. ``modules`` are eager-
+    loaded so :func:`_is_successfully_built` can distinguish a filled course
+    (≥1 module = a real build) from an empty mid-build/crashed ``draft`` shell.
+    Soft-deleted courses are excluded.
     """
     stmt = (
         select(Course)
@@ -107,10 +112,28 @@ async def find_course_for_brief(db: AsyncSession, *, owner_id: str, brief_id: st
             Course.deleted_at.is_(None),
             CourseDraftTrace.payload["brief_id"].astext == brief_id,
         )
+        .options(selectinload(Course.modules))
         .order_by(Course.created_at.desc())
         .limit(1)
     )
     return (await db.execute(stmt)).scalars().first()
+
+
+def _is_successfully_built(course: Course) -> bool:
+    """True iff ``course`` is a completed, replayable build (not a shell).
+
+    A successful build is a course whose status is NOT ``build_failed`` AND whose
+    module tree was actually filled (≥1 module). The second condition is the
+    crash-safety distinguisher (invariant 2): the shell-first design commits an
+    EMPTY ``draft`` course before the pipeline runs, so a mid-build crash (process
+    death before the failure handler flips it to ``build_failed``) leaves a
+    module-less ``draft``. Treating that as "successfully built" would let the
+    replay short-circuit return an empty course as success — so an empty draft is
+    re-buildable, exactly like ``build_failed``.
+    """
+    if course.status == CourseStatus.build_failed:
+        return False
+    return len(course.modules) > 0
 
 
 async def _assert_build_quota(db: AsyncSession, user_id: str) -> None:
@@ -143,61 +166,114 @@ async def _assert_build_quota(db: AsyncSession, user_id: str) -> None:
         )
 
 
-async def _materialize_build_failed(db: AsyncSession, *, user: User, brief_id: str) -> None:
-    """Commit a ``build_failed`` private shell linked to the brief (FR-DEFINE-15).
+async def _materialize_build_shell(*, user: User, brief_id: str) -> str:
+    """Commit an in-flight course shell linked to the brief, in its OWN session.
 
-    Wrapped in a SAVEPOINT so it survives the failed pipeline's partial state
-    rollback (the orchestrator commits its own course rows, but an outliner
-    failure raises before any course exists — we create a minimal shell so the
-    owner sees the failure and can re-run). If a course for this brief already
-    exists (a prior failed shell), it is flipped to ``build_failed`` in place.
+    The shell is the durable spine the whole build hangs on (Codex P1 + Gate-B
+    F1). It is created and **committed in a fresh session from
+    :func:`get_sessionmaker`** — independent of the request session — so it
+    survives the request's commit-or-rollback regardless of how the pipeline ends.
+    That closes two holes at once:
+
+    * **Codex P1.** The old design materialized the ``build_failed`` row inside
+      the request session via a SAVEPOINT and only on failure; ``get_db`` rolls
+      the whole session back on exception, so the shell never persisted on the
+      outliner/lesson failure path — killing the retry/idempotency/sweep
+      contracts on exactly their target path.
+    * **Gate-B F1.** The cancel button + status poll need a ``course_id`` while
+      ``phase==='building'``; the synchronous build endpoint only returns it at
+      the END. A committed shell gives the UI a row to poll (via
+      ``GET /me/briefs/{id}/course``) and a target to cancel mid-build.
+
+    **State adjudication (S3.7 / ADR-0029).** The shell starts ``status=draft``,
+    NOT ``build_failed``: the IMPLEMENTATION-PLAN S3.7 spec + ADR-0029 D2 enumerate
+    only ``draft/published/archived/build_failed`` — no dedicated ``building``
+    state was specified, and adding one is out of scope ("no DDL/migration").
+    ``build_failed`` is wrong for the in-flight shell because the replay short-
+    circuit treats it as retryable AND ``retrieval_acl_clause`` excludes it from
+    the owner's own RAG. A mid-build empty ``draft`` is owner-visible but has zero
+    chunks (never indexed), so it leaks nothing; the brief-link trace row is the
+    marker the cancel endpoint, the sweep, and the replay distinguisher
+    (:func:`_is_successfully_built`) recognise. On a re-run of a prior
+    ``build_failed`` course this flips that SAME course back to ``draft`` and
+    reuses it (FR-DEFINE-15 — no manual deletion, no duplicate row).
+
+    Returns the shell's ``course_id``.
     """
+    from app.repositories import courses as courses_repo
     from app.services.courses import _unique_slug
 
-    try:
-        async with db.begin_nested():
-            existing = await find_course_for_brief(db, owner_id=user.id, brief_id=brief_id)
-            if existing is not None:
-                existing.status = CourseStatus.build_failed
-                existing.visibility = Visibility.private
-                await db.flush()
-                return
-            # Fresh shell. Personal subject is the safe default (it always
-            # resolves for a self-serve build; FR-DEFINE-12).
-            from app.repositories import courses as courses_repo
+    sessionmaker = get_sessionmaker()
+    async with sessionmaker() as shell_db:
+        existing = await find_course_for_brief(shell_db, owner_id=user.id, brief_id=brief_id)
+        if existing is not None:
+            # Re-run of a failed/abandoned shell: reuse it, reset to a clean
+            # in-flight draft (FR-DEFINE-15). Its modules are dropped by the
+            # pipeline's overwrite of the same row.
+            existing.status = CourseStatus.draft
+            existing.visibility = Visibility.private
+            await shell_db.commit()
+            return existing.id
+        # Fresh shell. Personal subject is the safe default (it always resolves
+        # for a self-serve build; FR-DEFINE-12).
+        subject = await courses_repo.get_subject_by_slug(
+            shell_db, get_settings().personal_subject_slug
+        )
+        slug = await _unique_slug(shell_db, "Untitled build")
+        course = Course(
+            owner_id=user.id,
+            subject_id=subject.id if subject else None,
+            title="Untitled build",
+            slug=slug,
+            overview="",
+            status=CourseStatus.draft,
+            visibility=Visibility.private,
+        )
+        shell_db.add(course)
+        await shell_db.flush()
+        # Link the shell to the brief via a trace row (the same channel the
+        # success path, the cancel endpoint, and the S3.10 sweep read).
+        shell_db.add(
+            CourseDraftTrace(
+                draft_id=f"shell_{course.id}",
+                course_id=course.id,
+                user_id=user.id,
+                step="outliner",
+                step_index=0,
+                payload={"brief_id": brief_id, "phase": "building"},
+                duration_ms=0,
+                status="ok",
+            )
+        )
+        await shell_db.commit()
+        return course.id
 
-            subject = await courses_repo.get_subject_by_slug(
-                db, get_settings().personal_subject_slug
+
+async def _flip_shell_to_build_failed(*, course_id: str) -> None:
+    """Flip the committed shell to ``build_failed`` in its OWN session (FR-DEFINE-15).
+
+    Runs in a fresh session from :func:`get_sessionmaker` so it is immune to the
+    request session's rollback: when the pipeline raises, ``get_db`` rolls back
+    the request session (discarding the half-built tree), but this UPDATE has
+    already committed the terminal ``build_failed`` state on the durable shell. A
+    course the owner cancelled mid-build is already ``build_failed`` — the
+    ``WHERE status != build_failed`` guard keeps this idempotent and avoids
+    clobbering the cancel's audit trail.
+    """
+    sessionmaker = get_sessionmaker()
+    try:
+        async with sessionmaker() as fail_db:
+            await fail_db.execute(
+                text(
+                    "UPDATE courses SET status = 'build_failed', visibility = 'private', "
+                    "is_featured = false "
+                    "WHERE id = :id AND deleted_at IS NULL AND status != 'build_failed'"
+                ),
+                {"id": course_id},
             )
-            slug = await _unique_slug(db, "Untitled build")
-            course = Course(
-                owner_id=user.id,
-                subject_id=subject.id if subject else None,
-                title="Untitled build",
-                slug=slug,
-                overview="",
-                status=CourseStatus.build_failed,
-                visibility=Visibility.private,
-            )
-            db.add(course)
-            await db.flush()
-            # Link the shell to the brief via a trace row (the same channel the
-            # success path + the S3.10 sweep read).
-            db.add(
-                CourseDraftTrace(
-                    draft_id=f"failed_{course.id}",
-                    course_id=course.id,
-                    user_id=user.id,
-                    step="outliner",
-                    step_index=0,
-                    payload={"brief_id": brief_id, "error": "build_failed"},
-                    duration_ms=0,
-                    status="error",
-                )
-            )
-            await db.flush()
+            await fail_db.commit()
     except SQLAlchemyError:  # pragma: no cover — defensive, never block the re-raise
-        log.exception("define_build_failed_shell_persist_failed", brief_id=brief_id)
+        log.exception("define_build_failed_shell_flip_failed", course_id=course_id)
 
 
 async def build_from_brief(
@@ -210,9 +286,17 @@ async def build_from_brief(
     """Run (or replay) a self-serve build for a finalized brief.
 
     Order: cooperative-cancel fence → in-flight advisory lock → replay
-    short-circuit → daily quota → pipeline → audit ``course.built``. On pipeline
-    failure: materialize a ``build_failed`` shell + raise a normalized error.
-    Commits its own rows but not the outer transaction (caller's request commit).
+    short-circuit → daily quota → **shell-first materialize** → pipeline →
+    audit ``course.built``. The shell is committed in its OWN session BEFORE the
+    pipeline runs (Codex P1 + Gate-B F1) so a mid-build failure or crash leaves a
+    durable row the retry/sweep/cancel paths recognise, and so the UI has a
+    ``course_id`` to poll + cancel while the synchronous build is still running.
+    On pipeline failure: flip the committed shell to ``build_failed`` (own
+    session, rollback-immune) + raise a normalized error. On success: the request
+    txn commits the full tree the pipeline wrote INTO the shell row.
+
+    Commits the shell + the failure-flip in their own sessions; the success tree +
+    the audit ride the caller's request commit (same pattern as the orchestrator).
     """
     # Fail-closed cooperative-cancel fence (R-S10): a suspended/deleted account
     # never starts a build.
@@ -226,10 +310,14 @@ async def build_from_brief(
             "A course build is already running for your account. Please wait for it to finish."
         )
 
-    # Replay short-circuit (idempotency): a live, non-failed course already built
-    # from this brief is returned as-is — no second LLM run, no quota charge.
+    # Replay short-circuit (idempotency): a live, SUCCESSFULLY-BUILT course
+    # already produced by this brief is returned as-is — no second LLM run, no
+    # quota charge. A ``build_failed`` shell OR an empty (mid-build/crashed)
+    # ``draft`` shell is NOT a successful build and falls through to a re-run
+    # (FR-DEFINE-15 re-runnable; invariant 2 — an empty shell never replays as
+    # success).
     existing = await find_course_for_brief(db, owner_id=user.id, brief_id=brief_id)
-    if existing is not None and existing.status != CourseStatus.build_failed:
+    if existing is not None and _is_successfully_built(existing):
         return _result_for_existing(existing)
 
     # Validate + quota BEFORE charging anything. An un-finalized / unknown brief
@@ -239,16 +327,23 @@ async def build_from_brief(
     await _assert_buildable(db, user=user, brief_id=brief_id)
     await _assert_build_quota(db, user.id)
 
+    # Shell-first: commit the durable in-flight shell in its own session BEFORE
+    # the pipeline starts. The pipeline then FILLS this exact row (so success =
+    # one course, not two) and a failure flips this same row to build_failed.
+    shell_course_id = await _materialize_build_shell(user=user, brief_id=brief_id)
+
     try:
         result = await authoring_orchestrator.draft_course(
-            db, user=user, brief_id=brief_id, ctx=ctx
+            db, user=user, brief_id=brief_id, ctx=ctx, existing_course_id=shell_course_id
         )
     except DefineBuildFailedError:
         raise
     except AppError as exc:
         # Validation-class rejections (not_finalized / session_not_found /
         # subject_missing / access_revoked) propagate untouched — they are NOT a
-        # build failure and must not mint a build_failed shell or charge quota.
+        # build failure and must not flip the shell to build_failed or charge
+        # quota. (assert_account_active already ran, but a mid-run suspension can
+        # still surface account.access_revoked here.)
         if exc.code in {
             "define.brief_not_finalized",
             "define.session_not_found",
@@ -256,9 +351,10 @@ async def build_from_brief(
             "account.access_revoked",
         }:
             raise
-        # Genuine pipeline failure (e.g. authoring.outliner_failed): persist the
-        # build_failed shell + surface a normalized, vendor-free error.
-        await _materialize_build_failed(db, user=user, brief_id=brief_id)
+        # Genuine pipeline failure (e.g. authoring.outliner_failed): flip the
+        # committed shell to build_failed (rollback-immune) + surface a
+        # normalized, vendor-free error.
+        await _flip_shell_to_build_failed(course_id=shell_course_id)
         log.warning("define_build_failed", brief_id=brief_id, underlying=exc.code)
         raise DefineBuildFailedError(
             "We couldn't finish building your course. You can try again.",
@@ -316,3 +412,22 @@ def _result_for_existing(course: Course) -> authoring_orchestrator.OrchestratorR
         draft_id="",
         revisions_used=0,
     )
+
+
+async def brief_course_status(
+    db: AsyncSession, *, owner_id: str, brief_id: str
+) -> tuple[str, str] | None:
+    """Owner-scoped ``(course_id, status)`` for the brief's in-flight/built course.
+
+    Backs ``GET /me/briefs/{brief_id}/course`` (Gate-B F1): while the synchronous
+    build endpoint hasn't returned yet, the UI polls this to obtain the cancel
+    target (``course_id``) and detect terminal states (``draft`` = built/in-flight,
+    ``build_failed`` = failed/cancelled). Resolves through :func:`find_course_for_brief`
+    so it returns the SAME shell the build threads. Returns ``None`` when no shell
+    exists yet (the build hasn't materialized one) so the caller 404s — which the
+    UI treats as "still spinning up."
+    """
+    course = await find_course_for_brief(db, owner_id=owner_id, brief_id=brief_id)
+    if course is None:
+        return None
+    return course.id, str(course.status)

@@ -828,6 +828,7 @@ async def draft_course(
     user: User,
     brief_id: str,
     ctx: LLMContext = PLATFORM_CONTEXT,
+    existing_course_id: str | None = None,
 ) -> OrchestratorResult:
     """Run the full self-critique authoring pipeline against a finalized brief.
 
@@ -845,6 +846,12 @@ async def draft_course(
     On success, persists one ``courses`` row + N ``modules`` + M
     ``lessons`` (all draft + private) + K ``course_draft_traces`` rows.
     Returns an :class:`OrchestratorResult`.
+
+    ``existing_course_id`` (S3.7 shell-first): when the S3.7 build wrapper has
+    already committed a durable in-flight shell, the pipeline FILLS that exact
+    course row (title/overview/outcomes + modules/lessons) instead of inserting a
+    new one — so a successful build is ONE course (the shell), not two. ``None``
+    (the legacy / direct-call path) inserts a fresh course.
 
     On an un-finalized brief, raises ``define.brief_not_finalized`` (FR-DEFINE-07)
     before any LLM tokens are burned. On unrecoverable LLM failure, raises
@@ -875,7 +882,14 @@ async def draft_course(
     # subject so a self-serve build NEVER raises authoring.subject_not_found.
     subject = await _resolve_subject(db, bb.desired_subject_hint)
 
-    return await _run_pipeline(db, user=user, bb=bb, subject_id=subject.id, ctx=ctx)
+    return await _run_pipeline(
+        db,
+        user=user,
+        bb=bb,
+        subject_id=subject.id,
+        ctx=ctx,
+        existing_course_id=existing_course_id,
+    )
 
 
 async def draft_course_from_text(
@@ -926,6 +940,7 @@ async def _run_pipeline(
     bb: _BuildBrief,
     subject_id: str,
     ctx: LLMContext = PLATFORM_CONTEXT,
+    existing_course_id: str | None = None,
 ) -> OrchestratorResult:
     """Shared researcher→outliner→critic↺reviser→drafter→final-critic pipeline.
 
@@ -933,6 +948,9 @@ async def _run_pipeline(
     brief-driven :func:`draft_course` (S3.6) and the legacy text path
     :func:`draft_course_from_text`. Commits its own course rows but not the outer
     transaction (caller's request-scoped commit).
+
+    ``existing_course_id`` (S3.7 shell-first): when set, :func:`_persist_outline`
+    fills that pre-committed shell row in place instead of inserting a new course.
     """
     user_id = user.id
     constraints = _constraints_block(bb)
@@ -1178,6 +1196,7 @@ async def _run_pipeline(
         subject_id=subject_id,
         outline=outline,
         build_brief=bb,
+        existing_course_id=existing_course_id,
     )
     # Back-fill course_id on the trace rows we wrote before the
     # course existed.
@@ -1436,6 +1455,7 @@ async def _persist_outline(
     subject_id: str,
     outline: ai_authoring.CourseOutline,
     build_brief: _BuildBrief,
+    existing_course_id: str | None = None,
 ) -> Course:
     """Materialise the outline as a PRIVATE draft course + modules + lessons.
 
@@ -1453,21 +1473,50 @@ async def _persist_outline(
     Course slug is minted via the same ``_unique_slug`` helper the
     courses service uses, so a slug collision on the draft title
     degrades to ``"<base>-2"`` etc. without crashing.
+
+    ``existing_course_id`` (S3.7 shell-first): when set, FILL that pre-committed
+    shell row in place — update its title/slug/overview/outcomes/difficulty and
+    reset it to a clean ``draft`` (a re-run of a prior ``build_failed`` shell
+    flips it back), then attach freshly-built modules/lessons. The shell row is
+    loaded in THIS (request) session so the new tree commits atomically with the
+    request txn; only the shell's creation lived in its own session.
     """
-    slug = await _unique_slug(db, outline.title)
-    course = Course(
-        owner_id=user.id,
-        subject_id=subject_id,
-        title=outline.title,
-        slug=slug,
-        overview=outline.overview,
-        learning_outcomes=list(build_brief.desired_outcomes),
-        difficulty=build_brief.difficulty,
-        status=CourseStatus.draft,
-        visibility=Visibility.private,
-    )
-    db.add(course)
-    await db.flush()
+    if existing_course_id is not None:
+        course = await courses_repo.get_course(db, existing_course_id, with_modules=True)
+        if course is None:
+            # The shell was deleted/swept between materialization and now — fall
+            # back to a fresh insert so the build still completes.
+            existing_course_id = None
+    if existing_course_id is not None:
+        # Re-fill the shell. A re-run of a failed shell may carry stale modules
+        # from a prior partial attempt; drop them so the new outline is clean.
+        for stale in list(course.modules):
+            await db.delete(stale)
+        await db.flush()
+        course.subject_id = subject_id
+        course.title = outline.title
+        course.slug = await _unique_slug(db, outline.title, exclude_id=course.id)
+        course.overview = outline.overview
+        course.learning_outcomes = list(build_brief.desired_outcomes)
+        course.difficulty = build_brief.difficulty
+        course.status = CourseStatus.draft
+        course.visibility = Visibility.private
+        await db.flush()
+    else:
+        slug = await _unique_slug(db, outline.title)
+        course = Course(
+            owner_id=user.id,
+            subject_id=subject_id,
+            title=outline.title,
+            slug=slug,
+            overview=outline.overview,
+            learning_outcomes=list(build_brief.desired_outcomes),
+            difficulty=build_brief.difficulty,
+            status=CourseStatus.draft,
+            visibility=Visibility.private,
+        )
+        db.add(course)
+        await db.flush()
 
     for mi, m in enumerate(outline.modules):
         module = Module(
@@ -1497,7 +1546,12 @@ async def _persist_outline(
         await db.flush()
 
     # Re-fetch with relationships so the orchestrator's lesson-drafter
-    # loop can iterate ``course.modules`` + ``module.lessons``.
+    # loop can iterate ``course.modules`` + ``module.lessons``. Expire the
+    # identity-mapped course's ``modules`` collection first so the selectinload
+    # re-reads from the DB rather than handing back a stale (pre-fill) collection
+    # — matters on the shell-first re-fill path, where the shell may have been
+    # selectinloaded with an empty/old ``modules`` set earlier in the request.
+    db.expire(course, ["modules"])
     fresh = await courses_repo.get_course(db, course.id, with_modules=True)
     if fresh is None:
         # Shouldn't happen — we just inserted the row — but the
