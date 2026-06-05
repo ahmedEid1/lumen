@@ -328,6 +328,21 @@ its three gates are green:**
   shape, real this time — stamp-dance applied). Final Codex P2 (flag re-derive vs sticky) ADJUDICATED
   sticky-until-human-action, documented + pinned by test. Chain: …0046→0047→0043(boundary last). Suites:
   backend 1197 / frontend 415 green. **Launching wave2-s4-build (clone/remix).**
+- **2026-06-05** — **S4 ALL GATES GREEN.** Build workflow wave2-s4-build (S4.1-S4.11, TDD; the build agent
+  itself caught S6's \x00 deletion sentinel being unstorable in PG text — would have crashed EVERY account
+  deletion once the provenance column landed; fixed to \x01 in lockstep). Gates: Codex 2 (enqueue-before-
+  commit — the project's own ADR-0019 gotcha recommitted with a comment claiming the opposite + silent
+  worker success on missing row; idempotency insert race) + Gate-B needs-work (replay re-enqueued asset
+  re-homing = the ADR's named amplification risk; deleted-owner i18n key rendered raw; constraint/lookup
+  key mismatch) + Gate-C live (clone 201 → draft/private + server provenance; idempotent replay same-id;
+  private source 404; 0 chunks copied; student edits their own copy in the UI). Fix wave: after-commit
+  enqueue via the tutor_turn pattern + (course,replayed) tuple; reserve-then-materialize idempotency +
+  0050 endpoint-bearing unique + TTL sweep; label fix. Confirm rounds: 3 stale sibling assertions + env-
+  robust flag test (verify catch); TTL takeover + stale-replay rebind (round-2); FOR UPDATE atomic row
+  ownership closing the concurrent doors (round-3); round-4 CLEAN. Curve 5→3→2→2→0. Suites: backend 1282 /
+  frontend 430 green. Chain: …0048→0049→0050→0043(boundary last). NOT PUSHED (user directive: hold all
+  pushes; W12 merge waits for explicit go). **Launching wave2-s3-build (goal intake → build → self-learn,
+  the final stream).**
 ---
 
 ## 6a. Verified RBAC inventory (ground truth, 2026-06-03)
