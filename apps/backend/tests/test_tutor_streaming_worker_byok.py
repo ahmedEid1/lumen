@@ -719,3 +719,167 @@ async def test_completed_turn_emits_no_turn_failed(monkeypatch) -> None:
     emitted = _emitted_event_names(mocks["emit_event"])
     assert "turn_failed" not in emitted, emitted
     assert "turn_complete" in emitted
+
+
+# ---------------------------------------------------------------------
+# S7 (P2) — yielded turn_failed carrying auth_failure must mirror the
+# raised-path BYOK credential-invalidation choreography. The orchestrator
+# owns the exception object at its catch site and stamps the verdict onto
+# the event; on a soft-yield the worker can't re-inspect the exception, so
+# it reads ``auth_failure`` off the event data.
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_yielded_auth_failure_byok_marks_credential_invalid(monkeypatch) -> None:
+    """(a) A YIELDED turn_failed with ``auth_failure=true`` on a BYOK dispatch
+    invalidates the credential — same as the raised-path except block — so the
+    bad key stops being dispatched on the user's next turns. Spies the byok
+    service exactly like the hard-path auth test
+    (``test_auth_error_marks_credential_invalid``)."""
+    turn = _make_turn(credential_id="cred_softauth")
+    mocks: dict = {}
+    _patch_worker_seams(monkeypatch, turn=turn, mocks=mocks)
+
+    monkeypatch.setattr(
+        tutor_streaming.byok_service,
+        "stream_dispatch_for_turn",
+        AsyncMock(return_value=dict(BYOK_DISPATCH)),
+    )
+    mark_invalid = AsyncMock()
+    monkeypatch.setattr(tutor_streaming.byok_service, "mark_credential_invalid", mark_invalid)
+
+    def _orchestrate(**_kwargs):
+        async def _gen():
+            yield {"event": "synth_chunk", "data": {"delta": "partial"}}
+            # The orchestrator caught a provider 401 and SURFACED it as an event
+            # (soft-yield, no raise), stamping auth_failure=True at its catch site.
+            yield {
+                "event": "turn_failed",
+                "data": {
+                    "error_code": "tutor.runtime: AuthenticationError",
+                    "auth_failure": True,
+                },
+            }
+
+        return _gen()
+
+    monkeypatch.setattr(tutor_streaming, "orchestrate_stream", _orchestrate)
+
+    # Soft-yield → the task returns normally (does NOT raise).
+    await tutor_streaming._run_turn_async("turn_soft_auth")
+
+    # The credential the turn dispatched on is marked invalid (one-time notice).
+    mark_invalid.assert_awaited_once()
+    inv_args, _inv_kwargs = mark_invalid.await_args
+    # Signature is mark_credential_invalid(db, credential_id) — positional.
+    assert "cred_softauth" in inv_args
+
+    # Still a FAILED turn + byok error row (failing key counts toward windows).
+    _mt_args, mt_kwargs = mocks["mark_terminal"].await_args
+    assert mt_kwargs["status"] == TURN_STATUS_FAILED
+    assert mt_kwargs["error_code"] == "tutor.runtime: AuthenticationError"
+    _r_args, r_kwargs = mocks["record_row"].await_args
+    assert r_kwargs["status"] == STATUS_ERROR
+    assert r_kwargs["billing_mode"] == BILLING_BYOK
+
+    # No double event: the loop forwarded the orchestrator's turn_failed; the
+    # failure handler did NOT re-emit. Exactly one turn_failed on the wire.
+    emitted = _emitted_event_names(mocks["emit_event"])
+    assert emitted.count("turn_failed") == 1, emitted
+
+
+@pytest.mark.asyncio
+async def test_yielded_non_auth_failure_byok_does_not_touch_credential(monkeypatch) -> None:
+    """(b) A YIELDED turn_failed with ``auth_failure=false`` on a BYOK dispatch
+    is a transient/non-auth failure: the credential is NOT invalidated (item 4 —
+    only auth-class failures invalidate). Mirrors
+    ``test_failed_turn_writes_error_row_and_no_credential_invalidation`` for the
+    soft-yield path."""
+    turn = _make_turn(credential_id="cred_softtransient")
+    mocks: dict = {}
+    _patch_worker_seams(monkeypatch, turn=turn, mocks=mocks)
+
+    monkeypatch.setattr(
+        tutor_streaming.byok_service,
+        "stream_dispatch_for_turn",
+        AsyncMock(return_value=dict(BYOK_DISPATCH)),
+    )
+    mark_invalid = AsyncMock()
+    monkeypatch.setattr(tutor_streaming.byok_service, "mark_credential_invalid", mark_invalid)
+
+    def _orchestrate(**_kwargs):
+        async def _gen():
+            yield {"event": "synth_chunk", "data": {"delta": "x"}}
+            # A transient/unsupported failure surfaced as an event — NOT auth.
+            yield {
+                "event": "turn_failed",
+                "data": {
+                    "error_code": "tutor.runtime: RuntimeError",
+                    "auth_failure": False,
+                },
+            }
+
+        return _gen()
+
+    monkeypatch.setattr(tutor_streaming, "orchestrate_stream", _orchestrate)
+
+    await tutor_streaming._run_turn_async("turn_soft_transient")
+
+    # The non-auth soft-yield never invalidates the key.
+    mark_invalid.assert_not_called()
+
+    # Still FAILED + byok error row (failing key counts toward windows).
+    _mt_args, mt_kwargs = mocks["mark_terminal"].await_args
+    assert mt_kwargs["status"] == TURN_STATUS_FAILED
+    _r_args, r_kwargs = mocks["record_row"].await_args
+    assert r_kwargs["status"] == STATUS_ERROR
+    assert r_kwargs["billing_mode"] == BILLING_BYOK
+
+
+@pytest.mark.asyncio
+async def test_yielded_auth_failure_platform_dispatch_is_plain_failure(monkeypatch) -> None:
+    """(c) A YIELDED turn_failed with ``auth_failure=true`` on a PLATFORM
+    dispatch (no byok_dispatch dict) is a plain failure — no byok call. A
+    platform auth blip must never touch a user's credential (there isn't one in
+    play), exactly like the raised-path guards on ``credential_id``/dispatch."""
+    # No credential → stream_dispatch_for_turn returns None → byok_dispatch=None.
+    turn = _make_turn(credential_id=None)
+    mocks: dict = {}
+    _patch_worker_seams(monkeypatch, turn=turn, mocks=mocks)
+
+    dispatch = AsyncMock(return_value=None)
+    monkeypatch.setattr(tutor_streaming.byok_service, "stream_dispatch_for_turn", dispatch)
+    mark_invalid = AsyncMock()
+    monkeypatch.setattr(tutor_streaming.byok_service, "mark_credential_invalid", mark_invalid)
+
+    def _orchestrate(**_kwargs):
+        async def _gen():
+            yield {"event": "synth_chunk", "data": {"delta": "x"}}
+            # Even with auth_failure=True, there is no BYOK credential to
+            # invalidate — the dispatch was platform.
+            yield {
+                "event": "turn_failed",
+                "data": {
+                    "error_code": "tutor.runtime: AuthenticationError",
+                    "auth_failure": True,
+                },
+            }
+
+        return _gen()
+
+    monkeypatch.setattr(tutor_streaming, "orchestrate_stream", _orchestrate)
+
+    await tutor_streaming._run_turn_async("turn_soft_platform_auth")
+
+    # credential_id is None → the dispatch-resolution block was skipped.
+    dispatch.assert_not_called()
+    # No BYOK credential touched on a platform dispatch.
+    mark_invalid.assert_not_called()
+
+    # Plain FAILED turn + platform error row.
+    _mt_args, mt_kwargs = mocks["mark_terminal"].await_args
+    assert mt_kwargs["status"] == TURN_STATUS_FAILED
+    _r_args, r_kwargs = mocks["record_row"].await_args
+    assert r_kwargs["status"] == STATUS_ERROR
+    assert r_kwargs["billing_mode"] == BILLING_PLATFORM

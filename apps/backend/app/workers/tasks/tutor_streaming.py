@@ -241,6 +241,13 @@ async def _run_turn_async(turn_id: str) -> None:
         # this loop, so the post-loop handler must NOT re-emit turn_failed
         # (the except block below would — avoid the double SSE event).
         yielded_failure_code: str | None = None
+        # S7 (P2): the orchestrator owns the exception object at its catch
+        # sites and stamps an ``auth_failure`` verdict (same byok.is_auth_error
+        # predicate the raised-path except block uses) onto the turn_failed
+        # event. We carry it here so the soft-failure branch can mirror the
+        # except path's BYOK credential-invalidation choreography — on a
+        # soft-yield the worker can't re-inspect the original exception.
+        yielded_auth_failure: bool = False
         async with Session() as hb_db:
             async for ev in orchestrate_stream(
                 turn_id=turn_id,
@@ -275,6 +282,7 @@ async def _run_turn_async(turn_id: str) -> None:
                     yielded_failure_code = str(
                         ev["data"].get("error_code") or "tutor.runtime: unknown"
                     )
+                    yielded_auth_failure = bool(ev["data"].get("auth_failure", False))
                 await emit_event(
                     redis_client,
                     turn_id=turn_id,
@@ -288,6 +296,23 @@ async def _run_turn_async(turn_id: str) -> None:
             # with 0 tokens — but does NOT re-emit turn_failed (the loop above
             # already forwarded it to Redis). Mirrors the except path's
             # best-effort suppress so a DB-down state doesn't mask the failure.
+            #
+            # S7 (P2): an auth-class failure that the orchestrator SURFACED AS A
+            # YIELDED EVENT (rather than raising) still has to invalidate the
+            # BYOK credential — otherwise the bad key keeps getting dispatched on
+            # the user's next turns. The orchestrator owns the exception object
+            # at its catch site and stamped ``auth_failure`` on the event; we
+            # mirror the raised-path except block's choreography here: invalidate
+            # FIRST (same relative position the except block uses), only when the
+            # turn actually dispatched on BYOK (``byok_dispatch``) — a PLATFORM
+            # dispatch never touches a user credential even on a 401. The next
+            # turn then resolves to platform (items 1/5) and the banner carries
+            # the one-time notice. Best-effort by design (suppress-wrapped).
+            if yielded_auth_failure and byok_dispatch and credential_id is not None:
+                with contextlib.suppress(Exception):
+                    async with Session() as db:
+                        await byok_service.mark_credential_invalid(db, credential_id)
+                        await db.commit()
             with contextlib.suppress(Exception):
                 async with Session() as db:
                     await mark_terminal(
