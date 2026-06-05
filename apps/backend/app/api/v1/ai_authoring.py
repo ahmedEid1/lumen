@@ -333,7 +333,7 @@ async def draft_course(
     separate tighter limit.
     """
     ctx = await byok_service.resolve_context(db, user_id=user.id)
-    result = await authoring_orchestrator.draft_course(
+    result = await authoring_orchestrator.draft_course_from_text(
         db,
         user=user,
         brief=payload.brief,

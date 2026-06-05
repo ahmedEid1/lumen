@@ -63,7 +63,12 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import AppError, NotFoundError
+from app.core.config import get_settings
+from app.core.errors import (
+    AppError,
+    DefineBriefNotFinalizedError,
+    NotFoundError,
+)
 from app.core.ids import new_id
 from app.core.logging import get_logger
 from app.models.course import (
@@ -73,6 +78,7 @@ from app.models.course import (
     Lesson,
     LessonType,
     Module,
+    Visibility,
 )
 from app.models.course_draft_trace import (
     DRAFT_STATUS_ERROR,
@@ -316,8 +322,12 @@ async def _backfill_course_id(db: AsyncSession, *, draft_id: str, course_id: str
 
 _OUTLINER_WITH_RESEARCH_SYSTEM = """\
 You are a course-design assistant working on the first pass of an \
-outline. The instructor pasted a brief; a research sub-agent has \
-gathered context for you. Use it to scope the outline.
+outline. You are helping a SELF-DIRECTED LEARNER build a course FOR \
+THEMSELVES to learn from — the learner described a goal, which a goal- \
+intake step distilled into the brief + explicit constraints below; a \
+research sub-agent has gathered context for you. Use them to scope the \
+outline so it fits the learner's level, time budget, and desired \
+outcomes.
 
 Return a single JSON object with this exact shape (no surrounding \
 prose, no markdown code fences):
@@ -338,8 +348,10 @@ the course detail page",
 }
 
 Rules:
-- Generate 3-6 modules unless the brief explicitly asked for a \
-different number.
+- Honour the CONSTRAINTS block: aim for the target module count it \
+gives (derived from the learner's time budget), pitch every lesson at \
+the stated level, and make sure the outline delivers the learner's \
+required outcomes.
 - Each module has 3-5 lessons.
 - Most lessons should be "text". Every module should end with one \
 "quiz" lesson that checks the module's material.
@@ -351,18 +363,20 @@ existing Lumen courses so you can avoid duplicating their angles.
 
 
 _CRITIC_SYSTEM_PROMPT = """\
-You are a course-design critic. The instructor's brief and the \
-proposed outline are provided. Rate the outline on three axes, \
-each 0-5 inclusive:
+You are a course-design critic. The learner's brief, the explicit \
+CONSTRAINTS (level, time budget → target module count, required \
+outcomes), and the proposed outline are provided. Rate the outline on \
+three axes, each 0-5 inclusive:
 
   - "coverage"     — does the outline cover the brief's stated \
-scope? Missing major topics drops this score.
+scope AND deliver the learner's required outcomes? Missing major \
+topics or an unmet outcome drops this score.
   - "learning_arc" — do later modules genuinely build on earlier \
 ones? A flat list of topics is a 2; a deliberate progression is \
 a 5.
-  - "scope"        — is the outline neither too broad (10 modules \
-trying to teach a whole field) nor too narrow (3 lessons that \
-under-deliver on the brief)?
+  - "scope"        — is the outline sized to the learner's time \
+budget (the CONSTRAINTS give a target module count) and pitched at \
+the stated level — neither too broad nor too narrow?
 
 Identify up to THREE weak spots — concrete, actionable prose \
 suggestions the reviser can act on. Examples:
@@ -395,10 +409,11 @@ Hard rules:
 
 
 _REVISER_SYSTEM_PROMPT = """\
-You are a course-design reviser. The instructor's brief, the \
-previous outline, and a critic's weak-spot notes are provided. \
-Produce a revised outline that addresses the weak spots while \
-keeping the parts that the critic didn't flag.
+You are a course-design reviser. The learner's brief, the explicit \
+CONSTRAINTS (level, time budget → target module count, required \
+outcomes), the previous outline, and a critic's weak-spot notes are \
+provided. Produce a revised outline that addresses the weak spots and \
+honours the constraints while keeping the parts the critic didn't flag.
 
 Return a single JSON object with the same shape as an outliner \
 reply (no surrounding prose, no markdown code fences):
@@ -428,16 +443,20 @@ ignore one, explain in the overview WHY.
 
 
 _FINAL_CRITIC_SYSTEM_PROMPT = """\
-You are the final critic for an AI-drafted course. The instructor \
-will see your score before they hit Publish. The brief, the full \
-outline, and the per-lesson body lengths are provided.
+You are the final critic for an AI-drafted course. The self-directed \
+learner who is building this course to study from will see your score \
+before they start learning. The brief, the explicit CONSTRAINTS (level, \
+time budget, required outcomes), the full outline, and the per-lesson \
+body counts are provided.
 
 Rate the course on the same three axes, each 0-5 inclusive:
 
-  - "coverage"     — does the finished course deliver on the brief?
+  - "coverage"     — does the finished course deliver on the brief \
+AND the learner's required outcomes?
   - "learning_arc" — do the modules + lessons actually build on \
 each other?
-  - "scope"        — is the depth right for the brief's audience?
+  - "scope"        — is the depth right for the learner's stated \
+level and time budget?
 
 Return strict JSON with this exact shape — no prose, no markdown \
 fences:
@@ -457,6 +476,153 @@ Hard rules:
 - ``rationale`` is ≤2000 chars.
 - Return ONE JSON object. No preamble, no fences.
 """
+
+
+# ---------- Brief → build threading (DR-4 / S3.6) ----------
+
+
+class _BuildBrief(BaseModel):
+    """In-request, decrypted view of a finalized :class:`LearningBrief`.
+
+    The orchestrator works against this value object instead of the raw model so
+    the decrypted goal text is decrypted exactly ONCE (FR-PRIV-01) and the
+    constraint plumbing (level / time budget → module estimate / outcomes) is a
+    single, testable surface. ``goal_text`` is the only sensitive field — it is
+    fed into prompts (allowed) but NEVER into a trace summary or log
+    (``goal_summary`` is the non-sensitive paraphrase used for traces).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    brief_id: str
+    goal_text: str
+    goal_summary: str
+    difficulty: Difficulty
+    level: str
+    time_budget_hours: int | None
+    target_modules: int
+    desired_outcomes: list[str]
+    desired_subject_hint: str | None
+
+
+def _load_build_brief(brief) -> _BuildBrief:
+    """Project a finalized ``LearningBrief`` ORM row → :class:`_BuildBrief`.
+
+    Decrypts the goal once (DR-22 / FR-PRIV-01). Raises
+    ``define.brief_not_finalized`` if the brief was never finalized (FR-DEFINE-07:
+    a build starts only on explicit confirmation). Difficulty + module estimate
+    are derived through the DR-4 seams in ``services.learning_brief``.
+    """
+    from app.core import secrets_crypto
+    from app.schemas.learning_brief import difficulty_from_level
+    from app.services.learning_brief import estimate_counts
+
+    if brief.finalized_at is None:
+        raise DefineBriefNotFinalizedError(
+            "Review and confirm your course brief before building.",
+            details={"brief_id": brief.id},
+        )
+    goal_text = secrets_crypto.decrypt(brief.source_goal_enc).decode("utf-8")
+    target_modules, _ = estimate_counts(brief.time_budget_hours)
+    # goal_summary is non-sensitive; fall back to a generic label (never the raw
+    # goal) when the learner never gave one, so traces stay leak-free.
+    summary = brief.goal_summary or "a self-directed learning goal"
+    return _BuildBrief(
+        brief_id=brief.id,
+        goal_text=goal_text,
+        goal_summary=summary,
+        difficulty=difficulty_from_level(brief.level),
+        level=brief.level or "beginner",
+        time_budget_hours=brief.time_budget_hours,
+        target_modules=target_modules,
+        desired_outcomes=list(brief.desired_outcomes or []),
+        desired_subject_hint=brief.suggested_subject,
+    )
+
+
+async def _assert_build_not_cancelled(db: AsyncSession, course_id: str) -> None:
+    """R-S10 cooperative-cancel fence for the build job (S3.8 / DR-1a).
+
+    Re-reads ``course.status`` straight from the DB (NOT the identity map, which a
+    sibling cancel-build request can't have mutated in THIS session) and raises
+    ``AccessRevokedError`` if the owner cancelled the build mid-run (status flipped
+    to ``build_failed`` by :func:`courses.cancel_build`). Called at the per-lesson
+    phase boundary so a cancel during the expensive lesson-drafting loop aborts
+    before the next lesson-body LLM call fires (no further partial work).
+    """
+    from app.core.errors import AccessRevokedError
+
+    status_now = (
+        await db.execute(
+            select(Course.status)
+            .where(Course.id == course_id)
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    if status_now == CourseStatus.build_failed.value or status_now == CourseStatus.build_failed:
+        raise AccessRevokedError("This build was cancelled.", code="define.build_cancelled")
+
+
+async def _resolve_subject(db: AsyncSession, suggested: str | None):
+    """Resolve the build's subject (FR-DEFINE-12).
+
+    Match the learner's ``suggested_subject`` to a live :class:`Subject` by slug
+    first, then by case-insensitive title; fall back to the reserved
+    ``personal-self-directed`` subject when there is no match (or no suggestion).
+    A self-serve build must NEVER hard-fail on the admin-only subject taxonomy —
+    so this never raises ``authoring.subject_not_found`` (that path is reserved
+    for the legacy instructor ``/studio/ai/draft-course`` flow, which is gone for
+    the define entry).
+
+    The Personal subject is seeded idempotently by migration 0051 + the demo
+    seed; if it is somehow absent we raise a clear ``define.personal_subject_missing``
+    so the operator fixes the seed rather than the learner seeing a vendor 404.
+    """
+    from app.models.course import Subject
+
+    if suggested:
+        by_slug = await courses_repo.get_subject_by_slug(db, suggested)
+        if by_slug is not None:
+            return by_slug
+        # Fall back to a case-insensitive title match before Personal.
+        from sqlalchemy import func, select
+
+        by_title = (
+            await db.execute(
+                select(Subject).where(func.lower(Subject.title) == suggested.strip().lower())
+            )
+        ).scalar_one_or_none()
+        if by_title is not None:
+            return by_title
+
+    personal_slug = get_settings().personal_subject_slug
+    personal = await courses_repo.get_subject_by_slug(db, personal_slug)
+    if personal is None:
+        raise NotFoundError(
+            "The reserved Personal subject is not seeded — run the seed/migration.",
+            code="define.personal_subject_missing",
+        )
+    return personal
+
+
+def _constraints_block(bb: _BuildBrief) -> str:
+    """Render the explicit constraint lines DR-4 injects into every build prompt.
+
+    The critic scores the outline against these (DR-4 "the critic scores the
+    outline against the budget"). Contains the level, the time budget, the
+    budget-derived target module count, and the required outcomes — but NEVER the
+    raw goal (that rides the dedicated ``Learner's goal`` line in the user
+    message, which is allowed in prompts but not in traces).
+    """
+    budget = f"{bb.time_budget_hours} hours" if bb.time_budget_hours else "unspecified"
+    outcomes = "\n".join(f"  - {o}" for o in bb.desired_outcomes) or "  - (none specified)"
+    return (
+        "CONSTRAINTS:\n"
+        f"- Target level: {bb.level}.\n"
+        f"- Time budget: {budget} → aim for ~{bb.target_modules} modules.\n"
+        "- Required outcomes (the course MUST enable the learner to):\n"
+        f"{outcomes}"
+    )
 
 
 # ---------- LLM call helpers ----------
@@ -660,20 +826,31 @@ async def draft_course(
     db: AsyncSession,
     *,
     user: User,
-    brief: str,
-    subject_slug: str,
+    brief_id: str,
     ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> OrchestratorResult:
-    """Run the full self-critique authoring pipeline.
+    """Run the full self-critique authoring pipeline against a finalized brief.
+
+    DR-4 / S3.6: the build is driven by a finalized
+    :class:`~app.models.learning_brief.LearningBrief` (``brief_id``), NOT a raw
+    free-form string + subject slug. Difficulty derives from ``brief.level``,
+    learning outcomes from the brief, the module-count target from
+    ``time_budget_hours``, and the level/budget/outcomes are injected as explicit
+    constraint lines into the outliner + critic + reviser + final-critic prompts.
+    The subject auto-resolves to the learner's ``suggested_subject`` when it
+    matches a live Subject, else to the reserved ``personal-self-directed``
+    subject (FR-DEFINE-12 — self-serve build never 404s on the admin taxonomy).
+    The built course is ``visibility=private, status=draft`` (FR-DEFINE-11).
 
     On success, persists one ``courses`` row + N ``modules`` + M
-    ``lessons`` (all draft status) + K ``course_draft_traces`` rows.
-    Returns an :class:`OrchestratorResult` the API surface returns
-    to the instructor.
+    ``lessons`` (all draft + private) + K ``course_draft_traces`` rows.
+    Returns an :class:`OrchestratorResult`.
 
-    On unrecoverable LLM failure, raises :class:`AppError`
-    (``authoring.outliner_failed`` or ``authoring.subject_not_found``)
-    which the API edge converts to 502 / 404 respectively.
+    On an un-finalized brief, raises ``define.brief_not_finalized`` (FR-DEFINE-07)
+    before any LLM tokens are burned. On unrecoverable LLM failure, raises
+    :class:`AppError` (``authoring.outliner_failed``); the S3.7 build wrapper
+    (:func:`build_from_brief`) is responsible for translating that into the
+    ``build_failed`` course state + a normalized error.
 
     Important: this function commits its own course rows but does
     NOT commit the outer transaction — the caller's API handler is
@@ -681,21 +858,89 @@ async def draft_course(
     request-scoped commit, same pattern as every other service
     method in the codebase).
     """
+    from app.repositories import learning_briefs as brief_repo
+
+    user_id = user.id
+
+    brief_row = await brief_repo.get_active_session(db, session_id=brief_id, owner_id=user_id)
+    if brief_row is None:
+        # Existence-hide: unknown or another user's brief is a 404.
+        raise NotFoundError("Goal session not found", code="define.session_not_found")
+    # Decrypt the goal ONCE + derive all DR-4 constraints; raises
+    # define.brief_not_finalized when the brief was never confirmed (FR-DEFINE-07).
+    bb = _load_build_brief(brief_row)
+
+    # Subject auto-resolution (FR-DEFINE-12): match the learner's suggested
+    # subject to a live Subject by slug; fall back to the reserved Personal
+    # subject so a self-serve build NEVER raises authoring.subject_not_found.
+    subject = await _resolve_subject(db, bb.desired_subject_hint)
+
+    return await _run_pipeline(db, user=user, bb=bb, subject_id=subject.id, ctx=ctx)
+
+
+async def draft_course_from_text(
+    db: AsyncSession,
+    *,
+    user: User,
+    brief: str,
+    subject_slug: str,
+    ctx: LLMContext = PLATFORM_CONTEXT,
+) -> OrchestratorResult:
+    """LEGACY raw-brief build path for the instructor ``/studio/ai/draft-course``.
+
+    The pre-S3 single-paragraph free-form entry. Kept intact (the studio surface
+    + ``test_authoring_trace_api.py`` still exercise it) but now layered on the
+    same shared pipeline as the brief-driven build by synthesising a minimal
+    :class:`_BuildBrief` (no level/budget/outcomes constraints, beginner default).
+    The subject is resolved by exact slug here — a missing slug 404s
+    (``authoring.subject_not_found``) the way the studio UI expects (it picks a
+    real Subject), unlike the self-serve define entry which never 404s.
+    """
     brief = brief.strip()
     if not brief:
         raise AppError("Brief must not be empty", code="authoring.brief_empty")
-
-    # Resolve subject up front — if it doesn't exist we want to
-    # fail before burning any LLM tokens.
     subject = await courses_repo.get_subject_by_slug(db, subject_slug)
     if subject is None:
         raise NotFoundError(
             f"Subject {subject_slug!r} not found",
             code="authoring.subject_not_found",
         )
+    bb = _BuildBrief(
+        brief_id="",
+        goal_text=brief,
+        goal_summary=brief[:200],
+        difficulty=Difficulty.beginner,
+        level="beginner",
+        time_budget_hours=None,
+        target_modules=4,
+        desired_outcomes=[],
+        desired_subject_hint=subject_slug,
+    )
+    return await _run_pipeline(db, user=user, bb=bb, subject_id=subject.id, ctx=ctx)
+
+
+async def _run_pipeline(
+    db: AsyncSession,
+    *,
+    user: User,
+    bb: _BuildBrief,
+    subject_id: str,
+    ctx: LLMContext = PLATFORM_CONTEXT,
+) -> OrchestratorResult:
+    """Shared researcher→outliner→critic↺reviser→drafter→final-critic pipeline.
+
+    Driven by a resolved :class:`_BuildBrief` + subject id. Used by both the
+    brief-driven :func:`draft_course` (S3.6) and the legacy text path
+    :func:`draft_course_from_text`. Commits its own course rows but not the outer
+    transaction (caller's request-scoped commit).
+    """
+    user_id = user.id
+    constraints = _constraints_block(bb)
+    # The free-form prompt brief is the decrypted goal + the structured summary;
+    # the goal text may enter prompts (FR-PRIV-01) but never a trace.
+    prompt_brief = f"Learner's goal: {bb.goal_text}\nSummary: {bb.goal_summary}"
 
     draft_id = new_id()
-    user_id = user.id
     metered_user_id = user_id or SYSTEM_USER_ID
     step_index = 0
 
@@ -712,7 +957,7 @@ async def draft_course(
     # S2.7: thread the authoring user so the researcher's cross-catalog read
     # may surface the author's OWN private courses but never another user's.
     research_bundle: ResearchBundle = await run_researcher(
-        db, brief=brief, requesting_user_id=user_id
+        db, brief=prompt_brief, requesting_user_id=user_id
     )
     research_duration_ms = int((time.perf_counter() - started) * 1000)
     await _record_trace(
@@ -722,7 +967,10 @@ async def draft_course(
         step=DRAFT_STEP_RESEARCHER,
         step_index=step_index,
         payload={
-            "prompt_summary": brief[:240],
+            # FR-PRIV-01: trace summaries use the non-sensitive goal_summary,
+            # NEVER the decrypted raw goal text.
+            "prompt_summary": bb.goal_summary[:240],
+            "brief_id": bb.brief_id,
             "response_summary": (
                 f"{len(research_bundle.web_snippets)} web snippet(s); "
                 f"{len(research_bundle.catalog_neighbours)} catalog "
@@ -741,7 +989,8 @@ async def draft_course(
     outline, outline_raw, outline_err = await _call_outliner(
         db,
         user_id=metered_user_id,
-        brief=brief,
+        brief=prompt_brief,
+        constraints=constraints,
         research=research_bundle,
         ctx=ctx,
     )
@@ -754,7 +1003,7 @@ async def draft_course(
             step=DRAFT_STEP_OUTLINER,
             step_index=step_index,
             payload={
-                "prompt_summary": brief[:240],
+                "prompt_summary": bb.goal_summary[:240],
                 "response_summary": (outline_raw or "")[:240],
                 "error": outline_err,
             },
@@ -771,7 +1020,7 @@ async def draft_course(
         step=DRAFT_STEP_OUTLINER,
         step_index=step_index,
         payload={
-            "prompt_summary": brief[:240],
+            "prompt_summary": bb.goal_summary[:240],
             "response_summary": _summarise_outline(outline),
             "outline": outline.model_dump(),
         },
@@ -813,7 +1062,8 @@ async def draft_course(
         critique, critic_raw, critic_err = await _call_critic(
             db,
             user_id=metered_user_id,
-            brief=brief,
+            brief=prompt_brief,
+            constraints=constraints,
             outline=outline,
             ctx=ctx,
         )
@@ -867,7 +1117,8 @@ async def draft_course(
         revised, reviser_raw, reviser_err = await _call_reviser(
             db,
             user_id=metered_user_id,
-            brief=brief,
+            brief=prompt_brief,
+            constraints=constraints,
             outline=outline,
             critique=critique,
             ctx=ctx,
@@ -924,8 +1175,9 @@ async def draft_course(
     course = await _persist_outline(
         db,
         user=user,
-        subject_id=subject.id,
+        subject_id=subject_id,
         outline=outline,
+        build_brief=bb,
     )
     # Back-fill course_id on the trace rows we wrote before the
     # course existed.
@@ -945,6 +1197,11 @@ async def draft_course(
     lesson_count = 0
     for module in sorted(course.modules, key=lambda m: m.order):
         for lesson in sorted(module.lessons, key=lambda lsn: lsn.order):
+            # R-S10 cooperative-cancel fence (S3.8): abort the lesson-drafting
+            # loop if the owner cancelled the build (course flipped to
+            # build_failed by POST /me/courses/{id}/cancel-build) — before the
+            # next lesson-body LLM call fires.
+            await _assert_build_not_cancelled(db, course.id)
             lesson_started = time.perf_counter()
             data = await _draft_lesson_content(
                 db,
@@ -980,7 +1237,8 @@ async def draft_course(
     final_critique = await _call_final_critic(
         db,
         user_id=metered_user_id,
-        brief=brief,
+        brief=prompt_brief,
+        constraints=constraints,
         outline=outline,
         lesson_count=lesson_count,
         ctx=ctx,
@@ -1031,12 +1289,16 @@ async def _call_outliner(
     *,
     user_id: str,
     brief: str,
+    constraints: str,
     research: ResearchBundle,
     ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> tuple[ai_authoring.CourseOutline | None, str, str | None]:
-    """First-pass outline call with the research bundle in the prompt."""
+    """First-pass outline call with the research bundle + DR-4 constraints."""
     user_msg = (
-        f"BRIEF:\n{brief}\n\nRESEARCH:\n{research.to_prompt_block()}\n\nDraft the outline now."
+        f"BRIEF:\n{brief}\n\n"
+        f"{constraints}\n\n"
+        f"RESEARCH:\n{research.to_prompt_block()}\n\n"
+        "Draft the outline now."
     )
     return await _chat_with_retry(
         db,
@@ -1055,12 +1317,14 @@ async def _call_critic(
     *,
     user_id: str,
     brief: str,
+    constraints: str,
     outline: ai_authoring.CourseOutline,
     ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> tuple[CritiqueResult | None, str, str | None]:
-    """Critic call against a candidate outline."""
+    """Critic call against a candidate outline (scored against the DR-4 budget)."""
     user_msg = (
         f"BRIEF:\n{brief}\n\n"
+        f"{constraints}\n\n"
         f"OUTLINE:\n{_render_outline_for_prompt(outline)}\n\n"
         "Emit the JSON critique now."
     )
@@ -1081,17 +1345,19 @@ async def _call_reviser(
     *,
     user_id: str,
     brief: str,
+    constraints: str,
     outline: ai_authoring.CourseOutline,
     critique: CritiqueResult,
     ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> tuple[ai_authoring.CourseOutline | None, str, str | None]:
-    """Revise a flagged outline against the critic's weak-spot list."""
+    """Revise a flagged outline against the critic's weak-spot list + constraints."""
     weak_block = (
         "\n".join(f"- {w}" for w in critique.weak_spots)
         or "- (no specific weak spots — improve the outline broadly)"
     )
     user_msg = (
         f"BRIEF:\n{brief}\n\n"
+        f"{constraints}\n\n"
         f"PREVIOUS OUTLINE:\n{_render_outline_for_prompt(outline)}\n\n"
         f"CRITIC WEAK SPOTS:\n{weak_block}\n\n"
         "Produce the revised outline JSON now."
@@ -1113,6 +1379,7 @@ async def _call_final_critic(
     *,
     user_id: str,
     brief: str,
+    constraints: str,
     outline: ai_authoring.CourseOutline,
     lesson_count: int,
     ctx: LLMContext = PLATFORM_CONTEXT,
@@ -1120,11 +1387,12 @@ async def _call_final_critic(
     """Final critic. Always returns a :class:`CritiqueResult`.
 
     On LLM failure synthesises a neutral 3/5 score with an
-    operator-visible note in the rationale — the instructor still
-    needs *some* score to render on the publish-anyway button.
+    operator-visible note in the rationale — the learner still
+    needs *some* score before they start studying their built course.
     """
     user_msg = (
         f"BRIEF:\n{brief}\n\n"
+        f"{constraints}\n\n"
         f"OUTLINE:\n{_render_outline_for_prompt(outline)}\n\n"
         f"LESSON COUNT: {lesson_count}\n\n"
         "Emit the final critique JSON now."
@@ -1167,8 +1435,15 @@ async def _persist_outline(
     user: User,
     subject_id: str,
     outline: ai_authoring.CourseOutline,
+    build_brief: _BuildBrief,
 ) -> Course:
-    """Materialise the outline as draft course + modules + lessons.
+    """Materialise the outline as a PRIVATE draft course + modules + lessons.
+
+    DR-4 / S3.6 / FR-DEFINE-04/11: the course ``difficulty`` derives from the
+    brief's level (replacing the old hardcoded ``Difficulty.beginner``),
+    ``learning_outcomes`` come from the brief's ``desired_outcomes``, and the
+    course is created ``visibility=private`` (FR-DEFINE-11 — a self-serve build
+    is the owner's private artifact until they choose to share it).
 
     Lessons are inserted with placeholder ``data`` (same shape as the
     E2 commit_outline path) so the schema's non-empty-content
@@ -1186,8 +1461,10 @@ async def _persist_outline(
         title=outline.title,
         slug=slug,
         overview=outline.overview,
-        difficulty=Difficulty.beginner,
+        learning_outcomes=list(build_brief.desired_outcomes),
+        difficulty=build_brief.difficulty,
         status=CourseStatus.draft,
+        visibility=Visibility.private,
     )
     db.add(course)
     await db.flush()
@@ -1304,5 +1581,6 @@ __all__ = [
     "CritiqueResult",
     "OrchestratorResult",
     "draft_course",
+    "draft_course_from_text",
     "list_traces_for_course",
 ]

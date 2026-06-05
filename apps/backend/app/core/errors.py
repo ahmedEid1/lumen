@@ -286,6 +286,45 @@ class DefineBriefFinalizedError(ValidationAppError):
     code = "define.brief_finalized"
 
 
+class DefineBriefNotFinalizedError(ValidationAppError):
+    """S3.6 / FR-DEFINE-07 — a build was requested against a brief that has not
+    been finalized yet. 422. The learner must review + confirm (finalize) the
+    brief before any build starts ("build starts only on explicit confirmation").
+    An unknown / cross-user brief is a 404 ``define.session_not_found`` instead
+    (existence-hide), raised separately."""
+
+    code = "define.brief_not_finalized"
+
+
+class DefineBuildInFlightError(ConflictError):
+    """S3.7 / FR-DEFINE-13/15 — a build for this brief (or under the same
+    Idempotency-Key) is already in flight, OR the per-user build concurrency cap
+    is reached. 409. The second submit does NOT start a duplicate build; the
+    client retries once the winner lands and replays the committed course."""
+
+    code = "define.build_in_flight"
+
+
+class DefineBuildQuotaError(RateLimitedError):
+    """S3.7 / FR-DEFINE-13 — the per-user daily build quota is exhausted. 429.
+    Non-dollar: a $0 BYOK build still counts (DR-11). The tripped window is in
+    ``details``. Quota is consumed only on a successful build START, never on a
+    validation rejection."""
+
+    code = "define.build_quota"
+
+
+class DefineBuildFailedError(AppError):
+    """S3.7 / FR-DEFINE-15 — the self-serve build failed unrecoverably. The
+    course row is left in ``status=build_failed`` (no silent half-course) and a
+    NORMALIZED, user-safe message is surfaced — never the raw model/vendor output.
+    502 (mirrors ``authoring.outliner_failed``). Re-running the same brief retries
+    without manual deletion."""
+
+    status_code = status.HTTP_502_BAD_GATEWAY
+    code = "define.build_failed"
+
+
 # ---------------------------------------------------------------------------
 # S6 (admin/account-lifecycle) error codes — ADR-0030 §"Error codes" +
 # FR-ADMIN-03 / FR-SUSP-04. All map to the standard envelope.

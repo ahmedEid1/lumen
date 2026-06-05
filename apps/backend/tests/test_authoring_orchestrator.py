@@ -19,6 +19,17 @@ Coverage:
 * Outliner double-failure → :class:`AppError` with the
   ``authoring.outliner_failed`` code.
 * Trace rows land in step-index order with the right step kinds.
+
+FR-DEFINE-18 (conscious pinned-test update for S3.6 / DR-4): the public
+brief-driven entry point ``draft_course`` now takes a finalized ``brief_id`` and
+derives difficulty/outcomes/estimate from the brief (those NEW behaviours are
+pinned in ``test_authoring_brief_constraints.py``). The legacy raw-paragraph
+instructor path — which these tests exercise — moved to
+``draft_course_from_text``, which preserves the pre-S3 contract verbatim
+(``Difficulty.beginner`` default + ``authoring.subject_not_found`` on a missing
+slug). We deliberately repoint every call here to ``draft_course_from_text``
+rather than weaken an assertion: the legacy pipeline behaviour is unchanged; only
+its name and the new brief-driven sibling differ.
 """
 
 from __future__ import annotations
@@ -257,7 +268,7 @@ async def test_draft_course_happy_path_no_revisions(
     ]
     _install_provider(monkeypatch, replies)
 
-    result = await authoring_orchestrator.draft_course(
+    result = await authoring_orchestrator.draft_course_from_text(
         db_session,
         user=user,
         brief="Teach FastAPI to absolute beginners.",
@@ -326,7 +337,7 @@ async def test_critic_low_triggers_reviser(
     ]
     _install_provider(monkeypatch, replies)
 
-    result = await authoring_orchestrator.draft_course(
+    result = await authoring_orchestrator.draft_course_from_text(
         db_session,
         user=user,
         brief="Teach FastAPI with depth.",
@@ -379,7 +390,7 @@ async def test_revisions_cap_at_max(db_session: AsyncSession, make_user, monkeyp
     ]
     _install_provider(monkeypatch, replies)
 
-    result = await authoring_orchestrator.draft_course(
+    result = await authoring_orchestrator.draft_course_from_text(
         db_session,
         user=user,
         brief="Stubborn brief.",
@@ -415,7 +426,7 @@ async def test_unknown_subject_raises_before_llm(
     prov = _install_provider(monkeypatch, [])  # empty — must not be called
 
     with pytest.raises(NotFoundError) as exc:
-        await authoring_orchestrator.draft_course(
+        await authoring_orchestrator.draft_course_from_text(
             db_session,
             user=user,
             brief="Teach FastAPI.",
@@ -437,7 +448,7 @@ async def test_outliner_double_failure_raises(
 
     _install_provider(monkeypatch, ["not json", "still not json"])
     with pytest.raises(AppError) as exc:
-        await authoring_orchestrator.draft_course(
+        await authoring_orchestrator.draft_course_from_text(
             db_session,
             user=user,
             brief="Teach FastAPI.",
