@@ -1044,3 +1044,20 @@ async def test_vanished_replay_target_rebinds_row(client, db_session, clone_on, 
         )
     ).scalar_one()
     assert row.response_target_id == second_id
+
+
+def test_idempotency_conflict_lookup_locks_row():
+    """Confirm-round-3 guard: ownership of the key row must be acquired
+    ATOMICALLY — the conflict lookup carries FOR UPDATE so concurrent
+    same-key retries serialize on the row through commit (without it, two
+    transactions could both observe an expired/vanished state and both
+    materialize). Source-level pin, mirroring the no-lazy-imports guard."""
+    import inspect
+
+    from app.services import idempotency
+
+    src = inspect.getsource(idempotency.reserve)
+    assert ".with_for_update()" in src, (
+        "reserve()'s conflict lookup lost its FOR UPDATE row lock — "
+        "concurrent same-key takeover/rebind would duplicate results"
+    )

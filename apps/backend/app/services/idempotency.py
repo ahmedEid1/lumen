@@ -117,14 +117,25 @@ async def reserve(
             db.add(row)
             await db.flush()
     except IntegrityError:
-        # Lost the race — resolve to the winner inside the (still-usable) outer txn.
+        # Lost the race — resolve to the winner inside the (still-usable) outer
+        # txn. FOR UPDATE (confirm-round-3 fix): ownership of the key row must
+        # be acquired ATOMICALLY — without the row lock, two same-key retries
+        # could both read an expired/vanished state before either committed,
+        # both take RESERVED, and both materialize (duplicate clones — the
+        # exact regression the takeover/rebind paths were built to prevent).
+        # The lock is held to the end of THIS request's transaction, so a
+        # concurrent contender blocks here and then re-reads committed state:
+        # a refreshed reservation → IN_FLIGHT, a stamped target → REPLAY.
+        # Single-row, single-order acquisition → no deadlock surface.
         winner = (
             await db.execute(
-                select(IdempotencyKey).where(
+                select(IdempotencyKey)
+                .where(
                     IdempotencyKey.user_id == user_id,
                     IdempotencyKey.idempotency_key == key,
                     IdempotencyKey.endpoint == endpoint,
                 )
+                .with_for_update()
             )
         ).scalar_one_or_none()
         if winner is None:
