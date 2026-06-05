@@ -101,6 +101,14 @@ async def enroll(db: AsyncSession, *, user: User, course: Course) -> Enrollment:
     can, reason = await visibility_service.can_enroll(db, course, user)
     if not can:
         raise ForbiddenError("Course is not available", code=reason or "enrollment.not_available")
+    # S3.9 / R-M8': the owner enrolling in their OWN course (e.g. self-learn on a
+    # private/draft AI build, FR-LEARN-01) is a self-enrollment — route it through
+    # ``enroll_self`` so it is marked ``is_self=True`` and never mints a
+    # certificate/badge (completing your own course is not an achievement). A
+    # genuine learner (non-owner) on a publicly-listed course gets the normal,
+    # cert-eligible enrollment + the welcome notification below.
+    if course.owner_id == user.id:
+        return await enroll_self(db, user=user, course=course)
     existing = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
     if existing:
         return existing
