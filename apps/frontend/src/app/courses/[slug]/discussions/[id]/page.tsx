@@ -62,6 +62,16 @@ export default function ThreadPage({
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
 
+  // S7 Gate-B F2: a tombstoned author serializes through UserPublic with
+  // `full_name` set to the i18n KEY "common.deletedUser" (not null), so a
+  // bare `author?.full_name ?? t(...)` fallback only catches author === null
+  // and would paint the raw key. Resolve BOTH cases to the localized label
+  // (mirrors course-card.tsx). Keep the existing discussions.deletedUser key.
+  const authorName = (author: Author) =>
+    !author || author.full_name === "common.deletedUser"
+      ? t("discussions.deletedUser")
+      : author.full_name;
+
   const threadQ = useQuery({
     queryKey: ["discussion", id],
     queryFn: () => api<ThreadDetail>(`/api/v1/discussions/${id}`),
@@ -231,10 +241,10 @@ export default function ThreadPage({
               <Avatar className="h-5 w-5 border border-border">
                 <AvatarImage src={thread.author?.avatar_url ?? undefined} alt="" />
                 <AvatarFallback>
-                  {(thread.author?.full_name ?? "?").slice(0, 1)}
+                  {authorName(thread.author).slice(0, 1)}
                 </AvatarFallback>
               </Avatar>
-              <span>{thread.author?.full_name ?? t("discussions.deletedUser")}</span>
+              <span>{authorName(thread.author)}</span>
               <span className="font-mono">· {formatRelative(thread.created_at)}</span>
             </div>
             {thread.body && (
@@ -261,10 +271,10 @@ export default function ThreadPage({
                     <Avatar className="h-5 w-5 border border-border">
                       <AvatarImage src={r.author?.avatar_url ?? undefined} alt="" />
                       <AvatarFallback>
-                        {(r.author?.full_name ?? "?").slice(0, 1)}
+                        {authorName(r.author).slice(0, 1)}
                       </AvatarFallback>
                     </Avatar>
-                    <span>{r.author?.full_name ?? t("discussions.deletedUser")}</span>
+                    <span>{authorName(r.author)}</span>
                     <span className="font-mono">· {formatRelative(r.created_at)}</span>
                   </span>
                   {canDelete && (
