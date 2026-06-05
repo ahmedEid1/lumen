@@ -56,6 +56,7 @@ from __future__ import annotations
 import json
 import re
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -65,6 +66,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.errors import (
+    AccessRevokedError,
     AppError,
     DefineBriefNotFinalizedError,
     NotFoundError,
@@ -949,8 +951,10 @@ async def _run_pipeline(
     :func:`draft_course_from_text`. Commits its own course rows but not the outer
     transaction (caller's request-scoped commit).
 
-    ``existing_course_id`` (S3.7 shell-first): when set, :func:`_persist_outline`
-    fills that pre-committed shell row in place instead of inserting a new course.
+    ``existing_course_id`` (S3.7 shell-first): when set,
+    :func:`_persist_outline_shell` fills that pre-committed shell row in place
+    (per-phase commit: outline UPDATE + skeleton in its own short txn, then the
+    lesson loop on the request session) instead of inserting a new course.
     """
     user_id = user.id
     constraints = _constraints_block(bb)
@@ -1190,14 +1194,27 @@ async def _run_pipeline(
         # Loop back to the critic with the revised outline.
 
     # ---------- Step 5. Persist course + modules + lessons ----------
-    course = await _persist_outline(
-        db,
-        user=user,
-        subject_id=subject_id,
-        outline=outline,
-        build_brief=bb,
-        existing_course_id=existing_course_id,
-    )
+    # Shell-first path (S3.7): fill the pre-committed shell with the outline UPDATE
+    # in its OWN short txn (releasing the parent-row write lock) + a cancel-aware
+    # refill, then insert the skeleton on the request session (Codex P1). The
+    # legacy / direct-call path inserts a fresh course atomically.
+    if existing_course_id is not None:
+        course = await _persist_outline_shell(
+            db,
+            user=user,
+            subject_id=subject_id,
+            outline=outline,
+            build_brief=bb,
+            existing_course_id=existing_course_id,
+        )
+    else:
+        course = await _persist_outline(
+            db,
+            user=user,
+            subject_id=subject_id,
+            outline=outline,
+            build_brief=bb,
+        )
     # Back-fill course_id on the trace rows we wrote before the
     # course existed.
     await _backfill_course_id(db, draft_id=draft_id, course_id=course.id)
@@ -1211,8 +1228,12 @@ async def _run_pipeline(
     # ---------- Step 6. Lesson-drafter (one per lesson) ----------
     # We iterate the freshly-persisted modules so we can populate
     # ``lesson.data`` in place (and record traces against real
-    # lesson ids). The cascade in ``_persist_outline`` already
-    # added every lesson with placeholder data — we just overwrite.
+    # lesson ids). The skeleton insert (``_persist_outline`` /
+    # ``_persist_outline_shell``) already added every lesson with placeholder
+    # data — we just overwrite. On the shell path these UPDATEs lock the
+    # ``lessons`` rows only; the parent ``courses`` row carries no write lock here
+    # (its outline UPDATE already committed in its own txn), so a mid-loop cancel
+    # lands promptly and the per-lesson fence sees it within one lesson (P1#1).
     lesson_count = 0
     for module in sorted(course.modules, key=lambda m: m.order):
         for lesson in sorted(module.lessons, key=lambda lsn: lsn.order):
@@ -1277,6 +1298,17 @@ async def _run_pipeline(
         },
         status=DRAFT_STATUS_OK,
     )
+
+    # ---------- Step 8. Stamp the honest completion marker (Codex P1) ----------
+    # ``build_completed_at`` is the durable "this build finished" signal that
+    # replaces the fragile ">=1 module" heuristic (build._is_successfully_built).
+    # Stamped on the request session at the very end so it commits with the final
+    # tree: a crash/cancel BEFORE this point leaves it NULL (re-buildable, never
+    # replayed as success). This is the only parent-row write after the outline
+    # phase — a short FOR-NO-KEY-UPDATE hold to the request commit, not across the
+    # loop, so it doesn't reintroduce the P1#1 long lock.
+    course.build_completed_at = datetime.now(UTC)
+    await db.flush()
 
     log.info(
         "authoring_draft_course_done",
@@ -1448,79 +1480,28 @@ async def _call_final_critic(
 # ---------- Persistence ----------
 
 
-async def _persist_outline(
+async def _insert_skeleton_modules_lessons(
     db: AsyncSession,
     *,
-    user: User,
-    subject_id: str,
+    course_id: str,
     outline: ai_authoring.CourseOutline,
-    build_brief: _BuildBrief,
-    existing_course_id: str | None = None,
-) -> Course:
-    """Materialise the outline as a PRIVATE draft course + modules + lessons.
+) -> None:
+    """Insert the outline's modules + lessons (placeholder ``data``) under a course.
 
-    DR-4 / S3.6 / FR-DEFINE-04/11: the course ``difficulty`` derives from the
-    brief's level (replacing the old hardcoded ``Difficulty.beginner``),
-    ``learning_outcomes`` come from the brief's ``desired_outcomes``, and the
-    course is created ``visibility=private`` (FR-DEFINE-11 — a self-serve build
-    is the owner's private artifact until they choose to share it).
+    Lessons get placeholder ``data`` (same shape as the E2 commit_outline path) so
+    the schema's non-empty-content constraint is satisfied; the lesson-drafter loop
+    overwrites ``data`` in place afterwards.
 
-    Lessons are inserted with placeholder ``data`` (same shape as the
-    E2 commit_outline path) so the schema's non-empty-content
-    constraint is satisfied; the lesson-drafter step overwrites
-    ``data`` in place after this returns.
-
-    Course slug is minted via the same ``_unique_slug`` helper the
-    courses service uses, so a slug collision on the draft title
-    degrades to ``"<base>-2"`` etc. without crashing.
-
-    ``existing_course_id`` (S3.7 shell-first): when set, FILL that pre-committed
-    shell row in place — update its title/slug/overview/outcomes/difficulty and
-    reset it to a clean ``draft`` (a re-run of a prior ``build_failed`` shell
-    flips it back), then attach freshly-built modules/lessons. The shell row is
-    loaded in THIS (request) session so the new tree commits atomically with the
-    request txn; only the shell's creation lived in its own session.
+    Critically (Codex confirm-round P1#1): these child INSERTs take only ``FOR KEY
+    SHARE`` on the parent ``courses`` row (the FK reference lock), which does NOT
+    conflict with a concurrent cancel/failure-flip's ``FOR NO KEY UPDATE``. So when
+    this runs on the request session AFTER the parent-row outline UPDATE has been
+    committed in its own short transaction, the long lesson-drafting loop holds no
+    parent-row write lock and a mid-build cancel lands promptly.
     """
-    if existing_course_id is not None:
-        course = await courses_repo.get_course(db, existing_course_id, with_modules=True)
-        if course is None:
-            # The shell was deleted/swept between materialization and now — fall
-            # back to a fresh insert so the build still completes.
-            existing_course_id = None
-    if existing_course_id is not None:
-        # Re-fill the shell. A re-run of a failed shell may carry stale modules
-        # from a prior partial attempt; drop them so the new outline is clean.
-        for stale in list(course.modules):
-            await db.delete(stale)
-        await db.flush()
-        course.subject_id = subject_id
-        course.title = outline.title
-        course.slug = await _unique_slug(db, outline.title, exclude_id=course.id)
-        course.overview = outline.overview
-        course.learning_outcomes = list(build_brief.desired_outcomes)
-        course.difficulty = build_brief.difficulty
-        course.status = CourseStatus.draft
-        course.visibility = Visibility.private
-        await db.flush()
-    else:
-        slug = await _unique_slug(db, outline.title)
-        course = Course(
-            owner_id=user.id,
-            subject_id=subject_id,
-            title=outline.title,
-            slug=slug,
-            overview=outline.overview,
-            learning_outcomes=list(build_brief.desired_outcomes),
-            difficulty=build_brief.difficulty,
-            status=CourseStatus.draft,
-            visibility=Visibility.private,
-        )
-        db.add(course)
-        await db.flush()
-
     for mi, m in enumerate(outline.modules):
         module = Module(
-            course_id=course.id,
+            course_id=course_id,
             title=m.title,
             description="",
             order=mi,
@@ -1528,8 +1509,6 @@ async def _persist_outline(
         db.add(module)
         await db.flush()
         for li, lesson_spec in enumerate(m.lessons):
-            # Default placeholder; overwritten by the lesson-drafter
-            # loop in the orchestrator.
             data = (
                 _placeholder_quiz_data() if lesson_spec.type == "quiz" else _placeholder_text_data()
             )
@@ -1545,17 +1524,170 @@ async def _persist_outline(
             db.add(lesson)
         await db.flush()
 
-    # Re-fetch with relationships so the orchestrator's lesson-drafter
-    # loop can iterate ``course.modules`` + ``module.lessons``. Expire the
-    # identity-mapped course's ``modules`` collection first so the selectinload
-    # re-reads from the DB rather than handing back a stale (pre-fill) collection
-    # — matters on the shell-first re-fill path, where the shell may have been
-    # selectinloaded with an empty/old ``modules`` set earlier in the request.
-    db.expire(course, ["modules"])
+
+async def _persist_outline(
+    db: AsyncSession,
+    *,
+    user: User,
+    subject_id: str,
+    outline: ai_authoring.CourseOutline,
+    build_brief: _BuildBrief,
+) -> Course:
+    """Materialise the outline as a fresh PRIVATE draft course + modules + lessons.
+
+    LEGACY / direct-call path (``existing_course_id is None``): the studio raw-brief
+    flow + direct ``draft_course`` calls. Inserts one fresh ``courses`` row plus the
+    module/lesson skeleton in the caller's (request) transaction — atomic single-txn
+    is acceptable here because there is no shell and no cancel target (no
+    cancellability to trade for). The shell-first build uses
+    :func:`_persist_outline_shell` instead.
+
+    DR-4 / S3.6 / FR-DEFINE-04/11: ``difficulty`` derives from the brief's level,
+    ``learning_outcomes`` from ``desired_outcomes``, ``visibility=private``. Slug is
+    minted via the same ``_unique_slug`` helper so a collision degrades to
+    ``"<base>-2"`` without crashing.
+    """
+    slug = await _unique_slug(db, outline.title)
+    course = Course(
+        owner_id=user.id,
+        subject_id=subject_id,
+        title=outline.title,
+        slug=slug,
+        overview=outline.overview,
+        learning_outcomes=list(build_brief.desired_outcomes),
+        difficulty=build_brief.difficulty,
+        status=CourseStatus.draft,
+        visibility=Visibility.private,
+    )
+    db.add(course)
+    await db.flush()
+
+    await _insert_skeleton_modules_lessons(db, course_id=course.id, outline=outline)
+
     fresh = await courses_repo.get_course(db, course.id, with_modules=True)
     if fresh is None:
-        # Shouldn't happen — we just inserted the row — but the
-        # type-checker doesn't know that.
+        raise AppError(
+            "Drafted course vanished between insert and read.",
+            code="authoring.persistence_failed",
+        )
+    return fresh
+
+
+async def _persist_outline_shell(
+    db: AsyncSession,
+    *,
+    user: User,
+    subject_id: str,
+    outline: ai_authoring.CourseOutline,
+    build_brief: _BuildBrief,
+    existing_course_id: str,
+) -> Course:
+    """Fill a pre-committed shell — outline phase in its OWN txn, then skeleton.
+
+    S3.7 shell-first + Codex confirm-round P1 fix. Two phases:
+
+    **Phase 1 — outline UPDATE in its OWN short session (closes P1#1 + P1#2).**
+    Open a fresh session from :func:`get_sessionmaker`, re-read the shell
+    ``FOR UPDATE``, and:
+
+    * **Cancel-aware refill (P1#2).** If the shell is ALREADY ``build_failed`` (the
+      owner cancelled, or a prior attempt's failure-flip landed) abort the build
+      immediately via the cancel/abort path — raise ``AccessRevokedError`` with the
+      ``define.build_cancelled`` code. The old code unconditionally reset the shell
+      to ``draft``, erasing a cancel that arrived between shell-materialization and
+      this point; the per-lesson fence then never observed it.
+    * Otherwise update the parent row's outline fields (title/slug/overview/
+      outcomes/difficulty/subject) + drop any stale modules from a prior partial
+      attempt, then COMMIT this own session. The parent-row write lock releases at
+      that commit — so the subsequent (long) lesson-drafting loop on the request
+      session holds NO parent-row write lock, and a concurrent cancel/failure-flip
+      lands promptly (P1#1). Per-phase commit trades whole-tree atomicity for
+      cancellability + durable-partial (the shell-first contract); each committed
+      phase leaves a state the fence/sweep/replay understand (``build_completed_at``
+      stays NULL until the very end, so a crash here is re-buildable, never
+      replayed as success).
+
+    The module/lesson SKELETON (placeholder ``data``) is inserted + COMMITTED in
+    this same own session, so a crash mid lesson-drafting leaves a DURABLE partial
+    course (HAS modules) — yet ``build_completed_at`` stays NULL, so the replay
+    distinguisher (:func:`build._is_successfully_built`) reports it un-built and
+    re-buildable (the exact ">=1 module isn't enough" fix). The lesson-drafter loop
+    then only OVERWRITES ``lesson.data`` on the request session — those updates
+    lock the ``lessons`` rows, never taking a conflicting write lock on the parent
+    ``courses`` row.
+
+    **Phase 2 — re-read on the request session.** Re-fetch the (committed) course
+    with relations on the caller's ``db`` and return it for the lesson-drafter loop.
+    """
+    from app.db.base import get_sessionmaker
+
+    # ---- Phase 1: outline UPDATE + stale-module cleanup + skeleton, OWN txn ----
+    sessionmaker = get_sessionmaker()
+    async with sessionmaker() as own_db:
+        shell = (
+            await own_db.execute(
+                select(Course)
+                .where(Course.id == existing_course_id, Course.deleted_at.is_(None))
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if shell is None:
+            # Shell deleted/swept between materialization and now — fall back to a
+            # fresh insert on the request session so the build still completes.
+            return await _persist_outline(
+                db,
+                user=user,
+                subject_id=subject_id,
+                outline=outline,
+                build_brief=build_brief,
+            )
+        # Cancel-aware refill (P1#2): a shell already terminal-failed (cancel or a
+        # prior fail-flip) must NOT be reset to draft — abort the build instead.
+        if shell.status == CourseStatus.build_failed:
+            raise AccessRevokedError(
+                "This build was cancelled.", code="define.build_cancelled"
+            )
+        # Drop stale modules from a prior partial attempt so the new outline is
+        # clean (a re-run of a crashed draft shell). The module cascade removes
+        # their lessons.
+        stale = (
+            (
+                await own_db.execute(
+                    select(Module).where(Module.course_id == existing_course_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for m in stale:
+            await own_db.delete(m)
+        await own_db.flush()
+        shell.subject_id = subject_id
+        shell.title = outline.title
+        shell.slug = await _unique_slug(own_db, outline.title, exclude_id=existing_course_id)
+        shell.overview = outline.overview
+        shell.learning_outcomes = list(build_brief.desired_outcomes)
+        shell.difficulty = build_brief.difficulty
+        shell.status = CourseStatus.draft
+        shell.visibility = Visibility.private
+        # Skeleton modules/lessons in the SAME own txn → durable-partial: a crash
+        # in the request-session lesson loop leaves committed modules but a NULL
+        # build_completed_at (un-built, re-buildable). The parent-row write lock
+        # is held only until THIS commit, never across the loop (P1#1).
+        await _insert_skeleton_modules_lessons(
+            own_db, course_id=existing_course_id, outline=outline
+        )
+        await own_db.commit()
+
+    # ---- Phase 2: re-read the committed course on the REQUEST session ----
+    # Drop any identity-mapped/stale copy of the shell (+ its modules) so the
+    # request session re-reads the just-committed parent state + new tree.
+    cached = await db.get(Course, existing_course_id)
+    if cached is not None:
+        await db.refresh(cached)
+        db.expire(cached, ["modules"])
+    fresh = await courses_repo.get_course(db, existing_course_id, with_modules=True)
+    if fresh is None:
         raise AppError(
             "Drafted course vanished between insert and read.",
             code="authoring.persistence_failed",

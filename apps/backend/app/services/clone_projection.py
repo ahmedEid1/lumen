@@ -67,6 +67,10 @@ COURSE_EXCLUDE_FIELDS: frozenset[str] = frozenset(
         "visibility",
         "moderation_state",
         "published_at",
+        # Self-serve build completion marker (migration 0052) — a build-lifecycle
+        # timestamp of the SOURCE; a clone is a fresh course, never a finished
+        # build of the source, so it is deliberately dropped.
+        "build_completed_at",
         "is_featured",
         "quarantined",
         "deleted_at",

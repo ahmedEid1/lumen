@@ -211,6 +211,19 @@ class Course(IdMixin, TimestampMixin, Base):
         index=True,
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # S3.7 hardening (Codex confirm-round P1). The honest build-completion marker:
+    # stamped ONLY at the very end of a successful self-serve build pipeline. The
+    # shell-first build commits per-phase (outline phase commits BEFORE the lesson
+    # loop so the parent-row write lock is released — see build._is_successfully_built
+    # + authoring_orchestrator._persist_outline_shell), so a crashed/cancelled
+    # mid-build draft HAS modules yet is NOT a completed build. This column (NOT the
+    # ">=1 module" heuristic) is the replay/idempotency distinguisher: NULL ⇒
+    # re-buildable, NOT NULL ⇒ a real, replayable build. Orthogonal to status/
+    # visibility (a mid-build draft stays owner-visible with zero/partial chunks,
+    # never indexed until publish — no leak). Migration 0052.
+    build_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Full-quarantine flag (DR-18-R2 / migration 0044). Set TRUE only by the
     # admin hard-removal moderation action for reason ∈ {csam, illegal} (NOT

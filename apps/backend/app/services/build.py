@@ -99,10 +99,12 @@ async def find_course_for_brief(db: AsyncSession, *, owner_id: str, brief_id: st
     (set by the shell-first materialization, the success pipeline, and the
     ``build_failed`` shell). Returns the course in ANY status (draft /
     build_failed / published) so the caller can tell a successful replay from a
-    failed re-runnable shell from an in-flight empty shell. ``modules`` are eager-
-    loaded so :func:`_is_successfully_built` can distinguish a filled course
-    (≥1 module = a real build) from an empty mid-build/crashed ``draft`` shell.
-    Soft-deleted courses are excluded.
+    failed re-runnable shell from an in-flight empty shell.
+    :func:`_is_successfully_built` distinguishes a completed build (``build_
+    completed_at`` stamped) from an in-flight/crashed/cancelled shell via that
+    column (migration 0052), NOT the old ">=1 module" heuristic. ``modules`` stay
+    eager-loaded for :func:`_result_for_existing`'s ``module_count``. Soft-deleted
+    courses are excluded.
     """
     stmt = (
         select(Course)
@@ -123,17 +125,21 @@ def _is_successfully_built(course: Course) -> bool:
     """True iff ``course`` is a completed, replayable build (not a shell).
 
     A successful build is a course whose status is NOT ``build_failed`` AND whose
-    module tree was actually filled (≥1 module). The second condition is the
-    crash-safety distinguisher (invariant 2): the shell-first design commits an
-    EMPTY ``draft`` course before the pipeline runs, so a mid-build crash (process
-    death before the failure handler flips it to ``build_failed``) leaves a
-    module-less ``draft``. Treating that as "successfully built" would let the
-    replay short-circuit return an empty course as success — so an empty draft is
-    re-buildable, exactly like ``build_failed``.
+    ``build_completed_at`` is stamped (the honest completion marker, migration
+    0052). This REPLACES the old fragile ">=1 module" heuristic (Codex confirm-
+    round P1): the shell-first build now commits PER-PHASE — the outline phase
+    (parent-row title/overview/etc + skeleton modules/lessons) commits BEFORE the
+    lesson-drafting loop so the parent-row write lock is released and a concurrent
+    cancel/failure-flip is never blocked. That makes ">=1 module" a LIE: a build
+    that crashed mid-loop (process death before the failure handler flips it to
+    ``build_failed``) HAS modules but is NOT a completed build. ``build_completed_at
+    IS NOT NULL`` is stamped only at the very end of a successful pipeline, so a
+    crashed/cancelled mid-build draft (NULL) is correctly re-buildable — exactly
+    like ``build_failed`` — instead of being replayed as a (partial) success.
     """
     if course.status == CourseStatus.build_failed:
         return False
-    return len(course.modules) > 0
+    return course.build_completed_at is not None
 
 
 async def _assert_build_quota(db: AsyncSession, user_id: str) -> None:
@@ -259,6 +265,13 @@ async def _flip_shell_to_build_failed(*, course_id: str) -> None:
     course the owner cancelled mid-build is already ``build_failed`` — the
     ``WHERE status != build_failed`` guard keeps this idempotent and avoids
     clobbering the cancel's audit trail.
+
+    Codex confirm-round P1 guard: also require ``build_completed_at IS NULL``.
+    Now that the build commits per-phase (the success path stamps
+    ``build_completed_at`` + commits the final tree on the request session BEFORE
+    this failure handler could fire), a flip must NEVER demote a course that
+    actually finished between a late non-fatal error and this flip — only an
+    unfinished (NULL) shell is a real failure.
     """
     sessionmaker = get_sessionmaker()
     try:
@@ -267,7 +280,8 @@ async def _flip_shell_to_build_failed(*, course_id: str) -> None:
                 text(
                     "UPDATE courses SET status = 'build_failed', visibility = 'private', "
                     "is_featured = false "
-                    "WHERE id = :id AND deleted_at IS NULL AND status != 'build_failed'"
+                    "WHERE id = :id AND deleted_at IS NULL AND status != 'build_failed' "
+                    "AND build_completed_at IS NULL"
                 ),
                 {"id": course_id},
             )
