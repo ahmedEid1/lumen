@@ -372,6 +372,44 @@ async def restore_course(db: AsyncSession, *, course_id: str, owner: User) -> Co
     return course
 
 
+async def cancel_build(db: AsyncSession, *, course_id: str, owner: User) -> Course:
+    """Owner cancels an in-flight / abandoned self-serve build (DR-1a / S3.8).
+
+    Transitions the course to ``build_failed`` (force-private), flags it for the
+    S3.10 orphan sweep, and writes ONE ``course.build_cancelled`` audit event.
+    This is also the cooperative-cancellation (R-S10) signal: a build job
+    re-reading ``course.status`` at a phase boundary sees ``build_failed`` and
+    aborts (see ``authoring_orchestrator._assert_build_not_cancelled``).
+
+    Ownership: existence-hidden — a non-owner (or a missing course) gets a 404,
+    NOT a 403, so a stranger can't probe whether someone else's course exists
+    (the cancel surface is owner-scoped under ``/me/courses``). Admins act on
+    other users' courses through the moderation surface (S6), never here.
+
+    Idempotent (NFR-OBS-3): a course already in ``build_failed`` returns without a
+    second transition or a duplicate audit row.
+    """
+    course = await courses_repo.get_course(db, course_id)
+    # Existence-hide non-owner AND missing as the same 404.
+    if course is None or course.owner_id != owner.id:
+        raise NotFoundError("Course not found", code="course.not_found")
+    if course.status == CourseStatus.build_failed:
+        # Already cancelled — idempotent no-op (no duplicate audit).
+        return course
+    course.status = CourseStatus.build_failed
+    course.visibility = Visibility.private
+    course.is_featured = False
+    await db.flush()
+    await audit_repo.record(
+        db,
+        actor_id=owner.id,
+        action="course.build_cancelled",
+        target_type="course",
+        target_id=course.id,
+    )
+    return course
+
+
 def _reshare_target_state(events: list[ModerationEvent]) -> ModerationState:
     """R-M9: re-share returns to ``approved`` iff there is a prior approval with
     NO later reject/delist; otherwise ``pending_review``. ``events`` newest-first.

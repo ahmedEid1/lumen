@@ -17,10 +17,25 @@ from app.models.quiz_attempt import QuizAttempt
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
 from app.schemas.course import EnrollmentOut, ProgressUpdate
+from app.services import courses as courses_service
 from app.services import enrollment as enrollment_service
 from app.services import quiz as quiz_service
 
 router = APIRouter()
+
+
+@router.post("/courses/{course_id}/cancel-build", response_model=OkResponse)
+async def cancel_build(course_id: str, user: CurrentUser, db: DBSession) -> OkResponse:
+    """Cancel an in-flight / abandoned self-serve build (DR-1a / S3.8 / FR-DEFINE-14a).
+
+    Owner-scoped: a non-owner (or missing course) gets a 404 (existence-hide), an
+    anonymous caller 401. Transitions the course to ``build_failed`` (flagged for
+    the S3.10 sweep), audits it, and is idempotent (a re-cancel returns 200 with no
+    duplicate audit). The transition is also the R-S10 cooperative-cancel signal a
+    running build job re-reads at its phase fence.
+    """
+    await courses_service.cancel_build(db, course_id=course_id, owner=user)
+    return OkResponse()
 
 
 async def _get_live_lesson(db: DBSession, lesson_id: str) -> Lesson:
