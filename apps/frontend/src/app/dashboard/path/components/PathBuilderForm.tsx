@@ -26,7 +26,8 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { api, ApiError } from "@/lib/api/client";
+import { api } from "@/lib/api/client";
+import type { ApiError } from "@/lib/api/client";
 import type { LearningPathOut } from "./types";
 
 const PLACEHOLDER =

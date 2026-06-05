@@ -58,13 +58,14 @@ export default function ModuleEditorPage({
   const t = useT();
   const courseQ = useQuery({ queryKey: qk.course(id), queryFn: () => Courses.get(id) });
 
-  const module = useMemo(
+  const activeModule = useMemo(
     () => courseQ.data?.modules.find((m) => m.id === moduleId) ?? null,
     [courseQ.data, moduleId],
   );
   const lessons = useMemo(
-    () => (module ? [...module.lessons].sort((a, b) => a.order - b.order) : []),
-    [module],
+    () =>
+      activeModule ? [...activeModule.lessons].sort((a, b) => a.order - b.order) : [],
+    [activeModule],
   );
 
   const [editing, setEditing] = useState<LessonOut | null>(null);
@@ -87,7 +88,7 @@ export default function ModuleEditorPage({
         {t("common.loading")}
       </div>
     );
-  if (!courseQ.data || !module)
+  if (!courseQ.data || !activeModule)
     return (
       <div className="container mx-auto flex flex-col items-start gap-3 px-6 py-20">
         <p className="font-display text-xl leading-tight tracking-tight text-muted-foreground">
@@ -118,13 +119,13 @@ export default function ModuleEditorPage({
           {t("moduleEdit.cartouche")}
         </p>
         <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-          {courseQ.data.title} · {t("courseDetail.module", { n: module.order + 1 })}
+          {courseQ.data.title} · {t("courseDetail.module", { n: activeModule.order + 1 })}
         </p>
         <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
-          {module.title}
+          {activeModule.title}
         </h1>
-        {module.description && (
-          <p className="font-body text-sm text-muted-foreground">{module.description}</p>
+        {activeModule.description && (
+          <p className="font-body text-sm text-muted-foreground">{activeModule.description}</p>
         )}
       </header>
 

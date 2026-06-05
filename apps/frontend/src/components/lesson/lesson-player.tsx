@@ -19,7 +19,7 @@ import type { MessageKey } from "@/lib/i18n/messages/en";
 
 export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
   const t = useT();
-  const data = lesson.data as Record<string, any>;
+  const data = lesson.data as Record<string, unknown>;
   switch (lesson.type) {
     case "text": {
       // Two storage shapes for a text body:
