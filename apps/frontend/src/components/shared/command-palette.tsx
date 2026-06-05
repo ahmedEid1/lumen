@@ -16,6 +16,7 @@ import {
   Sparkles,
   Sun,
   User,
+  Wand2,
 } from "lucide-react";
 import {
   Dialog,
@@ -133,6 +134,8 @@ export function CommandPalette() {
     ];
     if (user) {
       items.push(
+        // S3.11 — the define→build→learn entry as a palette command (FR-DEFINE-09).
+        { id: "nav.define", label: t("palette.define"), href: "/learn/define", icon: Wand2 },
         { id: "nav.dashboard", label: t("nav.dashboard"), href: "/dashboard", icon: LayoutDashboard },
         { id: "nav.reviews", label: t("nav.reviews"), href: "/dashboard/reviews", icon: GraduationCap },
         { id: "nav.mastery", label: t("nav.mastery"), href: "/dashboard/mastery", icon: GraduationCap },

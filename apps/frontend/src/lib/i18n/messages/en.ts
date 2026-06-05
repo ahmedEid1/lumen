@@ -816,6 +816,91 @@ export const en = {
   "dashboard.continue": "Continue",
   "dashboard.certificate": "Certificate",
   "dashboard.openBadge": "Open Badge",
+  // S3.11 — define→build→learn entry CTA (FR-DEFINE-09).
+  "dashboard.define.cartouche": "Learn anything",
+  "dashboard.define.title": "Create a course to learn",
+  "dashboard.define.body":
+    "Describe what you want to learn. Lumen builds a private, self-paced course just for you.",
+  "dashboard.define.cta": "Create a course to learn",
+
+  // S3.11 — define → build → learn flow (FR-DEFINE-*).
+  "define.cartouche": "Define your goal",
+  "define.title": "Create a course to learn",
+  "define.subtitle":
+    "Tell us what you want to learn. We'll ask a few questions, then build a private course just for you.",
+  // Goal-intake chat
+  "define.chat.logLabel": "Goal clarification conversation",
+  "define.chat.intro":
+    "Start by describing what you want to learn — be as rough as you like. We'll refine it together.",
+  "define.chat.assistantLabel": "Lumen",
+  "define.chat.thinking": "Thinking…",
+  "define.chat.goalLabel": "What do you want to learn?",
+  "define.chat.goalPlaceholder": "e.g. I want to get good at React",
+  "define.chat.start": "Start",
+  "define.chat.replyLabel": "Your reply",
+  "define.chat.replyPlaceholder": "Type your answer…",
+  "define.chat.send": "Send",
+  "define.chat.review": "Review my brief",
+  "define.chat.turnsRemaining": "{n} questions left",
+  "define.chat.turnCap":
+    "We've gathered enough to get started. Review your brief and build your course.",
+  // Running brief preview
+  "define.brief.runningLabel": "Your brief so far",
+  "define.brief.level": "Level",
+  "define.brief.timeBudget": "Time budget",
+  "define.brief.sessions": "Sessions / week",
+  "define.brief.hours": "{n} hours",
+  // Levels
+  "define.level.beginner": "Beginner",
+  "define.level.intermediate": "Intermediate",
+  "define.level.advanced": "Advanced",
+  // Brief review
+  "define.review.cartouche": "Review",
+  "define.review.title": "Review your brief",
+  "define.review.subtitle":
+    "Tweak anything below, then build. Nothing happens until you confirm.",
+  "define.review.goalSummary": "Goal",
+  "define.review.level": "Level",
+  "define.review.levelUnset": "Not set",
+  "define.review.timeBudget": "Time budget (hours)",
+  "define.review.sessions": "Sessions / week",
+  "define.review.outcomes": "What you'll be able to do",
+  "define.review.estimate":
+    "Estimated course: about {modules} modules · {lessons} lessons.",
+  "define.review.privateNote":
+    "A private course will be created — only you can see it until you choose to share it.",
+  "define.review.build": "Build my course",
+  "define.review.back": "Back to questions",
+  // Build progress
+  "define.build.cartouche": "Building",
+  "define.build.title": "Building your course",
+  "define.build.doneTitle": "Your course is ready",
+  "define.build.failedTitle": "Build didn't finish",
+  "define.build.working":
+    "Researching, outlining, and drafting your lessons — this can take a moment.",
+  "define.build.timeline": "Build progress",
+  "define.build.timelinePending": "Starting the build…",
+  "define.build.doneBody":
+    "Built {modules} modules and {lessons} lessons. Your private course is ready to study.",
+  "define.build.startLearning": "Start learning",
+  "define.build.cancel": "Cancel build",
+  "define.build.failedHeading": "The build didn't complete",
+  "define.build.failedBody":
+    "Something went wrong while building your course. No partial course was kept. You can try again.",
+  "define.build.retry": "Try again",
+  // Normalized errors
+  "define.error.generic": "Something went wrong. Please try again.",
+  "define.error.turnCap":
+    "We've reached the question limit. Review your brief and build your course.",
+  "define.error.buildInFlight":
+    "A build is already running for this brief. Please wait for it to finish.",
+  "define.error.buildQuota":
+    "You've reached today's build limit. Please try again tomorrow.",
+  "define.error.buildFailed":
+    "The build didn't complete. No partial course was kept — you can try again.",
+  "define.error.briefFinalized": "This brief is already finalized.",
+  "define.error.sessionNotFound": "We couldn't find that conversation.",
+  "define.error.cancelled": "Build cancelled. No partial course was kept.",
 
   // Onboarding — first-login tour (Phase D3)
   "onboarding.welcome": "Welcome to Lumen",
@@ -967,6 +1052,8 @@ export const en = {
   "palette.theme.dark": "Switch to dark",
   "palette.theme.light": "Switch to light",
   "palette.openHint": "Open command palette",
+  // S3.11 — "Create a course to learn" command (FR-DEFINE-09).
+  "palette.define": "Create a course to learn",
   "common.save": "Save",
   "common.saving": "Saving…",
   "common.cancel": "Cancel",

@@ -1,9 +1,13 @@
 import { api } from "@/lib/api/client";
 import type {
+  BriefDraft,
+  BriefOut,
   CourseAdminOut,
   CourseDetail,
   CourseListItem,
+  DraftFromBriefResponse,
   EnrollmentOut,
+  GoalTurnResponse,
   LessonOut,
   LLMCredentialPublic,
   LLMCredentialValidateResult,
@@ -644,6 +648,54 @@ export const AI = {
     api<DraftTraceResponse>(
       `/api/v1/studio/drafts/${encodeURIComponent(courseId)}/trace`,
       { token },
+    ),
+};
+
+// ---------- S3: goal-intake → define → build (FR-DEFINE) ----------
+//
+// The learner-author entry (NOT `/studio`). `AI.draftCourse` above hits the
+// instructor `/studio/ai/draft-course` path and was a dead binding; the live
+// self-serve learner build is `Define.draftFromBrief` → `POST /ai/courses/draft`
+// (FR-DEFINE-05), which takes a finalized brief id rather than free-text. The
+// goal-intake conversation (start/turn/finalize) is bounded (6 turns, R-M10) and
+// metered BYOK-eligible server-side (ADR-0027 §4 / DR-8).
+export const Define = {
+  /** Open a bounded goal-intake conversation with a fuzzy goal (the ONLY
+   *  raw-goal input site; encrypted at rest server-side, FR-PRIV-01). */
+  startGoal: (goal: string, token?: string) =>
+    api<GoalTurnResponse>("/api/v1/ai/goal/start", {
+      method: "POST",
+      body: { goal },
+      token,
+    }),
+  /** Advance the conversation by one learner reply (FR-DEFINE-02/08). At the
+   *  cap the server returns 429 `define.turn_cap` (no LLM call). */
+  takeTurn: (sessionId: string, message: string, token?: string) =>
+    api<GoalTurnResponse>(
+      `/api/v1/ai/goal/${encodeURIComponent(sessionId)}/turn`,
+      { method: "POST", body: { message }, token },
+    ),
+  /** Freeze the brief into an immutable `BriefOut`, applying optional last-mile
+   *  `edits` once (FR-DEFINE-03). A second finalize → 422. */
+  finalize: (sessionId: string, edits?: BriefDraft, token?: string) =>
+    api<BriefOut>(
+      `/api/v1/ai/goal/${encodeURIComponent(sessionId)}/finalize`,
+      { method: "POST", body: { edits: edits ?? null }, token },
+    ),
+  /** Build a PRIVATE draft course from a finalized brief (FR-DEFINE-05/11). The
+   *  canonical learner build entry; idempotent on the brief id. */
+  draftFromBrief: (briefId: string, token?: string) =>
+    api<DraftFromBriefResponse>("/api/v1/ai/courses/draft", {
+      method: "POST",
+      body: { brief_id: briefId },
+      token,
+    }),
+  /** Cancel an in-flight / abandoned build (DR-1a / FR-DEFINE-14a). Owner-scoped
+   *  (404 existence-hide for non-owner); flips the course to `build_failed`. */
+  cancelBuild: (courseId: string, token?: string) =>
+    api<{ ok: true }>(
+      `/api/v1/me/courses/${encodeURIComponent(courseId)}/cancel-build`,
+      { method: "POST", token },
     ),
 };
 

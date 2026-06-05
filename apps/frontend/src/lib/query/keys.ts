@@ -34,4 +34,11 @@ export const qk = {
   reports: ["admin", "reports"] as const,
   adminUsers: ["admin", "users"] as const,
   adminStats: ["admin", "stats"] as const,
+  // S3.11 — define→build→learn. `goalSession` namespaces an in-flight
+  // goal-intake conversation by its session id; `brief` is the finalized,
+  // immutable brief. The build-progress surface reuses the existing
+  // `["draft-trace", courseId]` key (CourseDraftTrace) for the trace timeline
+  // and `qk.course(slug)` for the build-status poll.
+  goalSession: (id: string) => ["define", "goal", id] as const,
+  brief: (id: string) => ["define", "brief", id] as const,
 };

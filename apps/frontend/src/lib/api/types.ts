@@ -36,7 +36,11 @@ export interface TagOut {
   slug: string;
 }
 
-export type CourseStatus = "draft" | "published" | "archived";
+// S3.7 / ADR-0026: `build_failed` is the terminal state of a self-serve AI
+// build that died mid-pipeline (or was cancelled, S3.8). It is NOT listable and
+// NOT publishable — the define→build→learn flow reads it to render a clean
+// failure surface instead of a half-course. Hand-written (DR-5).
+export type CourseStatus = "draft" | "published" | "archived" | "build_failed";
 export type Difficulty = "beginner" | "intermediate" | "advanced";
 // Hand-written (DR-5: never `make api-client`). Visibility = owner-controlled
 // sharing intent; ModerationState = admin/system authority axis (ADR-0026).
@@ -341,4 +345,80 @@ export interface UserAdminOut {
   is_active: boolean;
   created_at: string;
   last_login_at: string | null;
+}
+
+// ---------- S3: goal-intake / define → build (FR-DEFINE) ----------
+//
+// Hand-written (DR-5: NEVER `make api-client`). Mirrors the backend Pydantic
+// DTOs in `app/schemas/learning_brief.py` + the `goal_intake.py` route bodies.
+//
+// PRIVACY CONTRACT (FR-PRIV-01 / charter decision 2): the raw goal text is the
+// learner's input ONLY — it is field-encrypted at rest server-side and NEVER
+// returned on any output DTO. `goal_summary` is the non-sensitive paraphrase
+// that is safe to surface. There is deliberately no `goal` field on
+// `BriefDraft`-as-output or `BriefOut`.
+
+/** Self-assessed learner level (maps 1:1 to course `Difficulty`, DR-4). */
+export type BriefLevel = "beginner" | "intermediate" | "advanced";
+
+/**
+ * The accumulated, still-mutable structured brief during elicitation. Every
+ * field is optional — they fill in across turns (FR-DEFINE-08). Also the shape
+ * of the `edits` payload applied once on finalize (FR-DEFINE-03).
+ */
+export interface BriefDraft {
+  goal_summary?: string | null;
+  level?: BriefLevel | null;
+  prior_knowledge?: string | null;
+  time_budget_hours?: number | null;
+  sessions_per_week?: number | null;
+  desired_outcomes?: string[];
+  format_prefs?: Record<string, boolean>;
+  language?: string | null;
+  suggested_subject?: string | null;
+}
+
+/**
+ * The assistant's reply + the running brief + bounded-turn bookkeeping
+ * (`GoalTurnResponse`). `turns_remaining` reaching 0 is the turn-cap signal the
+ * UI surfaces (R-M10); `converged` unlocks the review→build step.
+ */
+export interface GoalTurnResponse {
+  session_id: string;
+  assistant_message: string;
+  accumulated_brief: BriefDraft;
+  turns_used: number;
+  turns_remaining: number;
+  converged: boolean;
+}
+
+/**
+ * The finalized, immutable brief — STRUCTURED FIELDS ONLY (FR-PRIV-01). Omits
+ * the raw goal text and the `source_goal_enc` ciphertext by construction.
+ */
+export interface BriefOut {
+  id: string;
+  level: BriefLevel | string | null;
+  time_budget_hours: number | null;
+  sessions_per_week: number | null;
+  prior_knowledge: string | null;
+  desired_outcomes: string[];
+  goal_summary: string | null;
+  suggested_subject: string | null;
+  language: string | null;
+  finalized_at: string | null;
+}
+
+/**
+ * The built (or idempotently replayed) PRIVATE draft course + its
+ * reasoning-trace id (`DraftFromBriefResponse`). The slug is the deep-link key
+ * into the owner self-learn surface (`/learn/[slug]`, FR-LEARN-01).
+ */
+export interface DraftFromBriefResponse {
+  course_id: string;
+  slug: string;
+  module_count: number;
+  lesson_count: number;
+  draft_id: string;
+  revisions_used: number;
 }

@@ -817,6 +817,91 @@ export const ar: Record<MessageKey, string> = {
   "dashboard.continue": "متابعة",
   "dashboard.certificate": "الشهادة",
   "dashboard.openBadge": "الشارة المفتوحة",
+  // S3.11 — define→build→learn entry CTA (FR-DEFINE-09).
+  "dashboard.define.cartouche": "تعلّم أي شيء",
+  "dashboard.define.title": "أنشئ دورة لتتعلّمها",
+  "dashboard.define.body":
+    "صِف ما تريد تعلّمه. سيبني لومن دورة خاصة بك بإيقاعك الخاص.",
+  "dashboard.define.cta": "أنشئ دورة لتتعلّمها",
+
+  // S3.11 — define → build → learn flow (FR-DEFINE-*).
+  "define.cartouche": "حدّد هدفك",
+  "define.title": "أنشئ دورة لتتعلّمها",
+  "define.subtitle":
+    "أخبرنا بما تريد تعلّمه. سنطرح بضعة أسئلة، ثم نبني لك دورة خاصة بك.",
+  // Goal-intake chat
+  "define.chat.logLabel": "محادثة توضيح الهدف",
+  "define.chat.intro":
+    "ابدأ بوصف ما تريد تعلّمه — مهما كان مبهماً. سنصقله معاً.",
+  "define.chat.assistantLabel": "لومن",
+  "define.chat.thinking": "جارٍ التفكير…",
+  "define.chat.goalLabel": "ما الذي تريد تعلّمه؟",
+  "define.chat.goalPlaceholder": "مثال: أريد أن أتقن React",
+  "define.chat.start": "ابدأ",
+  "define.chat.replyLabel": "ردّك",
+  "define.chat.replyPlaceholder": "اكتب إجابتك…",
+  "define.chat.send": "إرسال",
+  "define.chat.review": "راجع موجزي",
+  "define.chat.turnsRemaining": "بقيت {n} أسئلة",
+  "define.chat.turnCap":
+    "جمعنا ما يكفي للبدء. راجع موجزك وابنِ دورتك.",
+  // Running brief preview
+  "define.brief.runningLabel": "موجزك حتى الآن",
+  "define.brief.level": "المستوى",
+  "define.brief.timeBudget": "الوقت المتاح",
+  "define.brief.sessions": "جلسات / أسبوع",
+  "define.brief.hours": "{n} ساعة",
+  // Levels
+  "define.level.beginner": "مبتدئ",
+  "define.level.intermediate": "متوسط",
+  "define.level.advanced": "متقدّم",
+  // Brief review
+  "define.review.cartouche": "مراجعة",
+  "define.review.title": "راجع موجزك",
+  "define.review.subtitle":
+    "عدّل ما تشاء أدناه، ثم ابنِ. لن يحدث شيء حتى تؤكّد.",
+  "define.review.goalSummary": "الهدف",
+  "define.review.level": "المستوى",
+  "define.review.levelUnset": "غير محدّد",
+  "define.review.timeBudget": "الوقت المتاح (ساعات)",
+  "define.review.sessions": "جلسات / أسبوع",
+  "define.review.outcomes": "ما ستتمكّن من فعله",
+  "define.review.estimate":
+    "الدورة المقدّرة: نحو {modules} وحدات · {lessons} دروس.",
+  "define.review.privateNote":
+    "ستُنشأ دورة خاصة — لا يراها سواك حتى تختار مشاركتها.",
+  "define.review.build": "ابنِ دورتي",
+  "define.review.back": "العودة إلى الأسئلة",
+  // Build progress
+  "define.build.cartouche": "جارٍ البناء",
+  "define.build.title": "جارٍ بناء دورتك",
+  "define.build.doneTitle": "دورتك جاهزة",
+  "define.build.failedTitle": "لم يكتمل البناء",
+  "define.build.working":
+    "نبحث ونرتّب ونصيغ دروسك — قد يستغرق هذا لحظة.",
+  "define.build.timeline": "تقدّم البناء",
+  "define.build.timelinePending": "جارٍ بدء البناء…",
+  "define.build.doneBody":
+    "تم بناء {modules} وحدات و{lessons} دروس. دورتك الخاصة جاهزة للدراسة.",
+  "define.build.startLearning": "ابدأ التعلّم",
+  "define.build.cancel": "إلغاء البناء",
+  "define.build.failedHeading": "لم يكتمل البناء",
+  "define.build.failedBody":
+    "حدث خطأ أثناء بناء دورتك. لم يُحتفظ بأي دورة جزئية. يمكنك المحاولة مجدداً.",
+  "define.build.retry": "حاول مجدداً",
+  // Normalized errors
+  "define.error.generic": "حدث خطأ ما. يُرجى المحاولة مجدداً.",
+  "define.error.turnCap":
+    "بلغنا حدّ الأسئلة. راجع موجزك وابنِ دورتك.",
+  "define.error.buildInFlight":
+    "هناك بناء قيد التنفيذ لهذا الموجز. يُرجى انتظار اكتماله.",
+  "define.error.buildQuota":
+    "بلغت حدّ عمليات البناء لهذا اليوم. يُرجى المحاولة غداً.",
+  "define.error.buildFailed":
+    "لم يكتمل البناء. لم يُحتفظ بأي دورة جزئية — يمكنك المحاولة مجدداً.",
+  "define.error.briefFinalized": "هذا الموجز مُنتهٍ بالفعل.",
+  "define.error.sessionNotFound": "لم نتمكّن من العثور على تلك المحادثة.",
+  "define.error.cancelled": "أُلغي البناء. لم يُحتفظ بأي دورة جزئية.",
 
   // Onboarding — first-login tour (Phase D3)
   "onboarding.welcome": "مرحبًا بك في لومن",
@@ -968,6 +1053,8 @@ export const ar: Record<MessageKey, string> = {
   "palette.theme.dark": "التبديل إلى الداكن",
   "palette.theme.light": "التبديل إلى الفاتح",
   "palette.openHint": "فتح لوحة الأوامر",
+  // S3.11 — "Create a course to learn" command (FR-DEFINE-09).
+  "palette.define": "أنشئ دورة لتتعلّمها",
   "common.save": "حفظ",
   "common.saving": "جارٍ الحفظ…",
   "common.cancel": "إلغاء",

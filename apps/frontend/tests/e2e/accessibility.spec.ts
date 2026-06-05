@@ -223,6 +223,20 @@ test.describe("WCAG 2.2 AA — authenticated routes", () => {
     await expectNoAxeViolations(page);
   });
 
+  // S3.11 — the define→build→learn goal-intake surface (FR-A11Y-01). Audited in
+  // its initial intake state: the goal textarea + start button + the aria-live
+  // transcript log. The brief-review and build-progress states are exercised by
+  // the vitest flow test; this gate proves the net-new define ENTRY surface is
+  // WCAG 2.2 AA clean (later states reuse already-audited primitives + the
+  // CourseDraftTrace timeline).
+  test("learner define (goal intake)", async ({ page }) => {
+    await signIn(page, "student@lumen.test", "Learn!2026");
+    await page.goto("/learn/define");
+    await expect(page).toHaveURL(/\/learn\/define/);
+    await expect(page.getByLabel(/what do you want to learn/i)).toBeVisible();
+    await expectNoAxeViolations(page);
+  });
+
   test("admin dashboard", async ({ page }) => {
     await signIn(page, "admin@lumen.test", "Admin!2026");
     await page.goto("/admin");
