@@ -1,11 +1,12 @@
 # Two-Role Rebuild — Status Board
 
 > Compact, current-state view. History + decisions live in [CHARTER.md](CHARTER.md) §6 (ledger).
-> Updated by the orchestrator as work lands. Last update: **2026-06-03**.
+> Updated by the orchestrator as work lands. Last update: **2026-06-06**.
 
 ## Where we are
 
-**Wave 1 integration** on branch `two-role-rebuild` (never auto-deployed; main merges at W12 only).
+**Wave 2 closed** on branch `two-role-rebuild` — all six streams green; S7 cross-cutting (W10) is next
+(never auto-deployed; main merges at W12 only).
 
 | Stream | Build | Merge | Gate A (Codex) | Gate B (Claude) | Gate C (live) |
 |---|---|---|---|---|---|
@@ -13,7 +14,7 @@
 | S1 role collapse | ✅ | ✅ 506e1f5+acf390e | ✅ | ✅ | ✅ |
 | S5 BYOK | ✅ | ✅ 89fea7a + fixes →2ca6d33 | ✅ (rounds 4→4→3→1→0) | ✅ | ✅ live-proven |
 | S2 visibility/authorizer | ✅ | ✅ 8860c7e + fixes →121bad9 | ✅ (117→10→1→0) | ✅ | ✅ live-proven |
-| S3 goal intake→build | 🟡 building (wave2-s3-build) | | | | |
+| S3 goal intake→build | ✅ wave2-s3-build | ✅ (in-tree) | ✅ (4→2→0; final 2 P1s adjudicated, pinned in 0052) | ✅ | ✅ live-proven incl. encrypted-brief privacy |
 | S4 clone/remix | ✅ wave2-s4-build | ✅ (in-tree) | ✅ (5→3→2→2→0) | ✅ | ✅ live-proven incl. UI remix |
 | S6 admin/moderation | ✅ wave2-s6-build | ✅ (in-tree) | ✅ (4→1→1 adjudicated) | ✅ | ✅ live-proven incl. UI approve |
 | S7 cross-cutting | ⬜ W10 | | | | |
@@ -21,7 +22,7 @@
 ## Migration chain (single head required)
 
 `… → 0030 → 0031 (S1, IRREVERSIBLE) → 0032 → 0038 → 0039 → 0040 (S5) → 0033 → 0041 → 0042
-→ 0044 → 0045 → 0046 → 0047 → 0048 → 0049 → 0050 → 0043 (NOT-NULL boundary LAST, Phase D, head)`
+→ 0044 → 0045 → 0046 → 0047 → 0048 → 0049 → 0050 → 0051 → 0052 → 0043 (NOT-NULL boundary LAST, Phase D, head)`
 
 Confirm-fix reorder: 0044 (Phase-A `courses.quarantined`, referenced by visibility SQL) now
 precedes the deferrable 0043 boundary; 0045 adds the moderation_events timestamp defaults

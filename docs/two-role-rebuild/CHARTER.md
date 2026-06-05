@@ -343,6 +343,26 @@ its three gates are green:**
   frontend 430 green. Chain: …0048→0049→0050→0043(boundary last). NOT PUSHED (user directive: hold all
   pushes; W12 merge waits for explicit go). **Launching wave2-s3-build (goal intake → build → self-learn,
   the final stream).**
+- **2026-06-06** — **S3 ALL GATES GREEN — WAVE 2 CLOSED.** Build workflow wave2-s3-build (S3.1-S3.11:
+  LearningBrief w/ field-encrypted source_goal_enc per FR-PRIV-01/DR-22, 6-turn bounded elicitation,
+  brief→draft_course threading, build_failed + idempotent re-run + cancel, owner self-learn w/ cert
+  suppression, beat sweeps, define→build→learn frontend). Gates: Codex fix-wave findings (4, +1 self-
+  caught) then 2 concurrency P1s on the build path — shell rollback-lost + parent-row lock held through
+  the lesson loop blocking cancel/failure-flip → redesigned as shell-first own-session commit + per-phase
+  commits + `build_completed_at` completion marker + FOR UPDATE refill-abort. Confirm round raised the
+  0052 backfill P1 (pre-marker builds read as unbuilt → replay broken) → implemented (idempotent UPDATE
+  mirroring the old >=1-module heuristic; dev DB patched manually UPDATE 16, audited missed=0). Final
+  scoped Codex pass: 2 P1s ADJUDICATED dismiss-with-rationale, pinned in 0052's docstring — (a) in-place
+  migration edit safe only pre-release (sole crossed DB = dev, patched + audited; banned post-W12), (b)
+  backfill predicate exact only at migration time (shell-first code ORM-maps the column so it cannot
+  predate 0052; no in-data discriminator exists — shells reuse commit_outline placeholder shapes — so
+  manual re-runs post-shell-first are banned). Gate-B green across fix waves. Gate-C live: define →
+  intake → review → build (noop-LLM shell persists, poll endpoint honest, build_failed re-runnable);
+  privacy proven (source_goal 181 encrypted bytes at rest, zero plaintext leaks in API/logs). DB-backed
+  backfill regression test (MissingGreenlet trap dodged: ids captured before expire_all — third
+  occurrence, idiom now standard). Suites: backend **1403** / frontend 438 green. Chain:
+  …0050→0051→0052→0043(boundary last). Branch pushed (push rule rescinded by user 2026-06-05).
+  **Wave 2 complete: S2+S3+S4+S5+S6 all gates green. Next: S7 cross-cutting (W10).**
 ---
 
 ## 6a. Verified RBAC inventory (ground truth, 2026-06-03)
