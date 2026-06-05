@@ -75,7 +75,6 @@ def require_role(*roles: Role):
     return _dep
 
 
-RequireInstructor = Annotated[User, Depends(require_role(Role.instructor, Role.admin))]
 RequireAdmin = Annotated[User, Depends(require_role(Role.admin))]
 
 

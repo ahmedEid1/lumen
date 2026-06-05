@@ -373,8 +373,8 @@ ASYNC_FASTAPI_MODULES: list[dict[str, Any]] = [
                     "FastAPI resolves the dependency graph per request and "
                     "passes the results into your handler as keyword arguments.\n\n"
                     "Lumen uses this for `DBSession` (yields an AsyncSession), "
-                    "`CurrentUser` (decodes the JWT), and the role guards "
-                    "(`RequireInstructor`, `RequireAdmin`)."
+                    "`CurrentUser` (decodes the JWT), capability guards like "
+                    "`RequireAuthor`, and the admin guard `RequireAdmin`."
                 ),
             },
         ],

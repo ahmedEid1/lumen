@@ -233,7 +233,8 @@ async def delete_course(course_id: str, user: RequireAuthor, db: DBSession) -> O
 #
 # Replace PATCH-as-publish (FR-VIS-08). The owner check + can_publish_public
 # live INSIDE the service (_owned_course), so these are correct regardless of
-# whether S1 has flipped RequireInstructor to any-authenticated-user yet.
+# the route-level guard — S1 collapsed roles and authoring is now gated by the
+# `RequireAuthor` capability (any active user), not by an instructor role.
 
 
 async def _render_detail(db: DBSession, course_id: str, user: User) -> CourseDetail:
