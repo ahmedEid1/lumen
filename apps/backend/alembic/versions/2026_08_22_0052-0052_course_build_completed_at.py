@@ -57,6 +57,25 @@ def upgrade() -> None:
         "courses",
         sa.Column("build_completed_at", sa.DateTime(timezone=True), nullable=True),
     )
+    # Backfill (Codex confirm-round): _is_successfully_built consults this
+    # marker IMMEDIATELY for replay decisions — a deployment carrying
+    # pre-marker successful builds would see them all as "not built"
+    # (re-submits could overwrite or even flip them to build_failed on a
+    # failing re-run). Stamp every course the OLD heuristic considered
+    # built: non-failed, live, with >=1 module. Over-covering studio
+    # courses is harmless — only brief-linked courses ever reach the
+    # replay check. Idempotent (build_completed_at IS NULL guard).
+    op.execute(
+        sa.text(
+            """
+            UPDATE courses SET build_completed_at = updated_at
+            WHERE build_completed_at IS NULL
+              AND status != 'build_failed'
+              AND deleted_at IS NULL
+              AND EXISTS (SELECT 1 FROM modules m WHERE m.course_id = courses.id)
+            """
+        )
+    )
 
 
 def downgrade() -> None:
