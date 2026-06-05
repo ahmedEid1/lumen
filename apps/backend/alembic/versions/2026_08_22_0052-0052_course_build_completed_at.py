@@ -23,6 +23,26 @@ fresh successful build stamps it.
 
 Down: ``drop_column`` — additive ⇒ reversible (DR-21).
 
+Backfill correctness invariant (Codex scoped-review adjudication, 2026-06-06):
+the ">=1 module" predicate in the backfill below is EXACT only for pre-marker
+data — the old monolithic build committed all-or-nothing, so pre-marker rows
+with modules are completed builds by construction. This holds for every
+migration-driven execution because shell-first code maps this column in the
+ORM: it cannot run against a DB that hasn't applied 0052 (every Course SELECT
+would hit UndefinedColumn). Two consequences:
+
+* DO NOT re-run this backfill manually on a DB where shell-first builds have
+  already executed — a crashed/cancelled draft shell with skeleton modules
+  satisfies the predicate, and there is NO reliable in-data discriminator
+  (shell skeletons reuse the exact placeholder ``data`` shapes the legitimate
+  commit_outline path persists). The one historical manual run (dev box,
+  2026-06-06, UPDATE 16) was audited: zero placeholder-lesson stamps.
+* This backfill was added by editing 0052 in place AFTER the column shipped
+  to the dev DB — acceptable only because the two-role-rebuild chain is
+  unreleased (sole crossed DB = dev, patched manually + verified missed=0).
+  After W12 ships, data fixes go in NEW revisions, never in-place edits
+  (same rule as 0043's re-parent ban).
+
 Phase: A (additive). A net-new nullable column — invisible to old pods (no
 code reads ``build_completed_at`` until the S3-hardening image ships). Lands
 BEFORE the gated 0043 NOT-NULL boundary (HOUSE RULES / test_migration_chain):
