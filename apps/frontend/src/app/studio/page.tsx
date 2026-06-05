@@ -17,6 +17,7 @@ import { Courses } from "@/lib/api/endpoints";
 import type { CourseListItem, CourseStatus } from "@/lib/api/types";
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
+import { useCapabilities } from "@/lib/auth/capabilities";
 import { useT, useTN } from "@/lib/i18n/provider";
 import { instructorSteps } from "@/lib/onboarding/steps";
 import type { MessageKey } from "@/lib/i18n/messages/en";
@@ -44,6 +45,7 @@ const FILTERS: { value: FilterValue; labelKey: MessageKey }[] = [
 
 export default function StudioPage() {
   const { user, ready } = useAuth();
+  const { isAdmin } = useCapabilities();
   const router = useRouter();
   const t = useT();
   const tn = useTN();
@@ -91,9 +93,18 @@ export default function StudioPage() {
             <Button variant="outline" onClick={() => setAiOpen(true)}>
               <Sparkles className="me-2 h-4 w-4" /> {t("studio.aiOutline.button")}
             </Button>
-            <Button variant="outline" onClick={() => setImportOpen(true)}>
-              <Download className="me-2 h-4 w-4" /> {t("studio.import.button")}
-            </Button>
+            {/* URL ingest is admin-only AND flag-gated server-side
+                (`can_ingest_url`: active && admin && ingest_url_enabled, default
+                OFF — closed by construction until SSRF hardening, R-M12). The
+                flag isn't exposed client-side, so we gate visibility on the
+                identity half of the rule (`isAdmin`). This hides the button from
+                the non-admins who could never use it; the residual flag-off case
+                only ever shows an admin a control whose API 403s. */}
+            {isAdmin && (
+              <Button variant="outline" onClick={() => setImportOpen(true)}>
+                <Download className="me-2 h-4 w-4" /> {t("studio.import.button")}
+              </Button>
+            )}
             <Link href="/studio/new">
               <Button>
                 <Plus className="me-2 h-4 w-4" /> {t("studio.newCourse")}

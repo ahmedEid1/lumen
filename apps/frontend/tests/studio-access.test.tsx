@@ -7,7 +7,7 @@
  * behavior via a mocked router, without a full page render (the page pulls in
  * heavy modals + TanStack Query that are out of scope here).
  */
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { UserOut } from "@/lib/api/types";
 
@@ -72,5 +72,22 @@ describe("Studio access (S1.11)", () => {
     authState.ready = true;
     render(<StudioPage />);
     expect(replaceMock).toHaveBeenCalledWith("/login?next=/studio");
+  });
+
+  // S7 — URL ingest is admin-only AND flag-gated server-side
+  // (`can_ingest_url`). The button's visibility mirrors the identity half of
+  // that rule so non-admins never see a control whose API 403s.
+  it("hides the Import-from-URL button from a regular user", () => {
+    authState.user = mkUser("user");
+    authState.ready = true;
+    render(<StudioPage />);
+    expect(screen.queryByText("studio.import.button")).toBeNull();
+  });
+
+  it("shows the Import-from-URL button to an admin", () => {
+    authState.user = mkUser("admin");
+    authState.ready = true;
+    render(<StudioPage />);
+    expect(screen.getByText("studio.import.button")).toBeInTheDocument();
   });
 });
