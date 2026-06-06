@@ -132,6 +132,162 @@ export function legacyMarkdownOf(
 }
 
 /* ---------------------------------------------------------------- */
+/*  Serialization: block doc → markdown                              */
+/* ---------------------------------------------------------------- */
+
+/**
+ * Serialize a block doc into a markdown string.
+ *
+ * Why this exists: the backend `text` lesson schema
+ * (`TextLessonData`) requires a non-empty `body_markdown` — it's the
+ * canonical text projection consumed by RAG chunking + Postgres
+ * full-text search. The editor only ever wrote `data.blocks`, so
+ * every Studio text-lesson save 422'd on the missing field. We derive
+ * `body_markdown` from the block tree on save so both the structured
+ * `blocks` (what the player reads) and the flat `body_markdown` (what
+ * the AI/search read) stay in sync.
+ *
+ * Scope / lossiness — this is intentionally a *minimal* serializer
+ * covering exactly the node + mark types the Tiptap config in
+ * `block-editor.tsx` can produce (StarterKit + Link + Image +
+ * CodeBlockLowlight). Known, accepted lossiness for v1:
+ *   - nested lists flatten to a single indent level (Tiptap can nest
+ *     but the indent depth isn't tracked here);
+ *   - the `callout` node (renderer-only, not authorable in the
+ *     editor) degrades to its inner blocks with no marker;
+ *   - link `title`/`target` attrs are dropped (href is kept);
+ *   - image `title` is dropped (alt + src kept).
+ * It is NOT a round-trippable markdown ⇄ blocks bridge — `blocks`
+ * remains the source of truth; this projection is write-only and
+ * exists to satisfy the search/RAG contract.
+ */
+export function blocksToMarkdown(doc: BlockDoc | null | undefined): string {
+  if (!doc || !Array.isArray(doc.content)) return "";
+  const out = doc.content.map((node) => blockToMarkdown(node)).filter((s) => s.length > 0);
+  // Blank line between top-level blocks is the markdown paragraph
+  // separator; collapse the trailing whitespace so we don't ship a
+  // doc that's all newlines.
+  return out.join("\n\n").trim();
+}
+
+function blockToMarkdown(node: BlockNode): string {
+  switch (node.type) {
+    case "paragraph":
+      return inlineToMarkdown(node.content);
+    case "heading": {
+      const raw = Number((node.attrs as { level?: unknown } | undefined)?.level ?? 2);
+      const level = Math.min(6, Math.max(1, Number.isFinite(raw) ? raw : 2)) | 0;
+      return `${"#".repeat(level)} ${inlineToMarkdown(node.content)}`;
+    }
+    case "bulletList":
+      return (node.content ?? [])
+        .map((li) => `- ${listItemToMarkdown(li)}`)
+        .join("\n");
+    case "orderedList":
+      return (node.content ?? [])
+        .map((li, i) => `${i + 1}. ${listItemToMarkdown(li)}`)
+        .join("\n");
+    case "blockquote":
+      return (node.content ?? [])
+        .map((child) => blockToMarkdown(child))
+        .filter((s) => s.length > 0)
+        .join("\n\n")
+        .split("\n")
+        .map((line) => `> ${line}`)
+        .join("\n");
+    case "codeBlock": {
+      const lang = (node.attrs as { language?: unknown } | undefined)?.language;
+      const fence = typeof lang === "string" ? lang : "";
+      return `\`\`\`${fence}\n${textOf(node.content)}\n\`\`\``;
+    }
+    case "horizontalRule":
+      return "---";
+    case "image": {
+      const attrs = (node.attrs ?? {}) as { src?: unknown; alt?: unknown };
+      if (typeof attrs.src !== "string" || attrs.src.length === 0) return "";
+      const alt = typeof attrs.alt === "string" ? attrs.alt : "";
+      return `![${alt}](${attrs.src})`;
+    }
+    case "hardBreak":
+      return "";
+    case "text":
+      return inlineToMarkdown([node]);
+    default:
+      // Unknown / non-authorable block (e.g. renderer-only `callout`):
+      // emit its children so we never silently drop content from the
+      // search projection.
+      if (Array.isArray(node.content)) {
+        return node.content
+          .map((child) => blockToMarkdown(child))
+          .filter((s) => s.length > 0)
+          .join("\n\n");
+      }
+      return "";
+  }
+}
+
+/** A list item holds block children; collapse them onto one line item. */
+function listItemToMarkdown(node: BlockNode): string {
+  return (node.content ?? [])
+    .map((child) => blockToMarkdown(child))
+    .filter((s) => s.length > 0)
+    .join(" ");
+}
+
+/** Render inline children (text nodes + marks, hard breaks) to markdown. */
+function inlineToMarkdown(children: BlockNode[] | undefined): string {
+  if (!children) return "";
+  return children
+    .map((child) => {
+      if (child.type === "hardBreak") return "\n";
+      if (child.type === "text") return textWithMarks(child);
+      // A nested inline-ish block (rare) — fall back to its plain text.
+      return textOf(child.content);
+    })
+    .join("");
+}
+
+function textWithMarks(node: BlockNode): string {
+  let text = node.text ?? "";
+  const marks = (node.marks ?? []) as BlockMark[];
+  // Apply marks inside-out. Order is commutative for the wrappers we
+  // emit, so the result is stable regardless of mark ordering.
+  for (const mark of marks) {
+    switch (mark.type) {
+      case "bold":
+        text = `**${text}**`;
+        break;
+      case "italic":
+        text = `*${text}*`;
+        break;
+      case "code":
+        text = `\`${text}\``;
+        break;
+      case "strike":
+        text = `~~${text}~~`;
+        break;
+      case "link": {
+        const attrs = (mark.attrs ?? {}) as { href?: unknown };
+        const href = typeof attrs.href === "string" ? attrs.href : "";
+        text = `[${text}](${href})`;
+        break;
+      }
+      // `underline` has no markdown equivalent — emit the text plain
+      // (matches the renderer treating it as a soft style).
+      default:
+        break;
+    }
+  }
+  return text;
+}
+
+/** Flatten a node's text descendants to a single plain string. */
+function textOf(children: BlockNode[] | undefined): string {
+  if (!children) return "";
+  return children.map((c) => (c.type === "text" ? (c.text ?? "") : textOf(c.content))).join("");
+}
+
+/* ---------------------------------------------------------------- */
 /*  Guards                                                           */
 /* ---------------------------------------------------------------- */
 

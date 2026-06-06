@@ -19,7 +19,13 @@ import { Switch } from "@/components/ui/switch";
 import { AI, Courses } from "@/lib/api/endpoints";
 import type { LessonOut, LessonType, TextLessonData } from "@/lib/api/types";
 import { BlockEditor } from "@/components/lesson/block-editor";
-import { resolveTextLessonDoc, type BlockDoc, isBlockDoc, emptyDoc } from "@/lib/lesson/blocks";
+import {
+  resolveTextLessonDoc,
+  blocksToMarkdown,
+  type BlockDoc,
+  isBlockDoc,
+  emptyDoc,
+} from "@/lib/lesson/blocks";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
@@ -139,7 +145,7 @@ export function LessonEditor({
         duration_seconds: duration || undefined,
         type,
         is_preview: isPreview,
-        data: { type, ...stripType(data) },
+        data: buildDataPayload(type, data),
       };
       if (lesson) {
         await Courses.patchLesson(lesson.id, {
@@ -623,4 +629,34 @@ function normalizeData(type: LessonType, raw: Record<string, unknown>): EditorDa
 function stripType(obj: EditorData): Omit<EditorData, "type"> {
   const { type: _type, ...rest } = obj;
   return rest;
+}
+
+/**
+ * Build the wire `data` payload from the editor's working state.
+ *
+ * For `text` lessons this re-attaches `body_markdown` alongside
+ * `blocks`. The backend `TextLessonData` schema *requires*
+ * `body_markdown` (min_length=1) — it's the canonical flat text
+ * projection consumed by RAG chunking + Postgres full-text search —
+ * and the same discriminated union validates both the create
+ * (`LessonCreate.data`) and edit (`LessonUpdate.data`) paths, so
+ * BOTH would 422 without it. `blocks` stays the structured source of
+ * truth the player reads; `body_markdown` is derived from it on every
+ * save so the search/RAG projection never drifts.
+ *
+ * The block doc always has at least one (empty) paragraph, so a
+ * lesson the instructor left blank would serialize to "" and still
+ * 422. We guard that with a single-space fallback so an empty-bodied
+ * text lesson can be saved as a stub (the instructor fills it in
+ * later) — same forgiving behaviour the editor had before the block
+ * migration, when an empty `body_markdown` string was accepted.
+ */
+function buildDataPayload(type: LessonType, data: EditorData): Record<string, unknown> {
+  const base = { type, ...stripType(data) };
+  if (type === "text") {
+    const doc = isBlockDoc(data.blocks) ? data.blocks : emptyDoc();
+    const md = blocksToMarkdown(doc);
+    return { ...base, body_markdown: md.length > 0 ? md : " " };
+  }
+  return base;
 }

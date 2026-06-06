@@ -14,9 +14,31 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // test stays focused on the lesson-editor wiring (title / preview
 // / save), not the editor's own behaviour. There's a dedicated
 // block-editor.test.tsx for that.
+//
+// The stub also exposes an "edit body" button that pushes a fixed
+// block doc up through `onChange` so a test can simulate the
+// instructor typing rich content and then assert the derived
+// `body_markdown` projection on save.
+const TYPED_DOC = {
+  type: "doc",
+  content: [
+    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Intro" }] },
+    {
+      type: "paragraph",
+      content: [
+        { type: "text", text: "Hello " },
+        { type: "text", text: "world", marks: [{ type: "bold" }] },
+      ],
+    },
+  ],
+};
 vi.mock("@/components/lesson/block-editor", () => ({
-  BlockEditor: ({ value }: { value: unknown }) => (
-    <div data-testid="block-editor" data-value={JSON.stringify(value)} />
+  BlockEditor: ({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) => (
+    <div data-testid="block-editor" data-value={JSON.stringify(value)}>
+      <button type="button" onClick={() => onChange(TYPED_DOC)}>
+        edit body
+      </button>
+    </div>
   ),
 }));
 
@@ -81,10 +103,19 @@ describe("LessonEditor", () => {
     expect(payload.title).toBe("Renamed");
     expect(payload.is_preview).toBe(true);
     // Legacy `body_markdown` is promoted to a block-tree doc on save.
-    const data = payload.data as { type: string; blocks: { type: string; content: unknown[] } };
+    const data = payload.data as {
+      type: string;
+      blocks: { type: string; content: unknown[] };
+      body_markdown: string;
+    };
     expect(data.type).toBe("text");
     expect(data.blocks.type).toBe("doc");
     expect(JSON.stringify(data.blocks)).toContain("Hello world");
+    // The PATCH path must ALSO send body_markdown — the backend
+    // TextLessonData schema requires it on edit just like create.
+    // Derived from the (promoted-legacy) block doc.
+    expect(data.body_markdown).toBeTruthy();
+    expect(data.body_markdown).toContain("Hello world");
     expect(onSaved).toHaveBeenCalled();
   });
 
@@ -106,10 +137,49 @@ describe("LessonEditor", () => {
     expect(payload.title).toBe("Fresh");
     expect(payload.type).toBe("text");
     expect(payload.is_preview).toBe(false);
-    const data = payload.data as { type: string; blocks: { type: string } };
+    const data = payload.data as { type: string; blocks: { type: string }; body_markdown: string };
     expect(data.type).toBe("text");
     // Empty new lesson — the block tree is an empty doc, not legacy markdown.
     expect(data.blocks.type).toBe("doc");
+    // Backend requires a NON-empty body_markdown (min_length=1). An
+    // empty-bodied stub falls back to a single space so the save still
+    // succeeds rather than 422-ing.
+    expect(typeof data.body_markdown).toBe("string");
+    expect((data.body_markdown as string).length).toBeGreaterThan(0);
+  });
+
+  it("derives a non-empty body_markdown from typed content and round-trips blocks (new text lesson)", async () => {
+    // W11 regression: creating a text lesson used to send only
+    // `data.blocks`, so the backend TextLessonData schema 422'd on
+    // the missing required `body_markdown`. The save payload must now
+    // carry BOTH the structured blocks (player) and a markdown
+    // projection derived from them (RAG chunking + full-text search).
+    const onSaved = vi.fn();
+    renderWithClient(<LessonEditor moduleId="m_1" newType="text" onSaved={onSaved} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/^Title$/i), "Typed");
+    // Simulate the instructor authoring rich content in the block editor.
+    await user.click(screen.getByRole("button", { name: /edit body/i }));
+    await user.click(screen.getByRole("button", { name: /save lesson/i }));
+
+    await waitFor(() => {
+      expect(createSpy).toHaveBeenCalled();
+    });
+    const [, payload] = createSpy.mock.calls[0] as [string, Record<string, unknown>];
+    const data = payload.data as {
+      type: string;
+      blocks: { type: string; content: unknown[] };
+      body_markdown: string;
+    };
+    // blocks round-trip the typed doc unchanged.
+    expect(data.blocks.type).toBe("doc");
+    expect(JSON.stringify(data.blocks)).toContain("Intro");
+    expect(JSON.stringify(data.blocks)).toContain("world");
+    // body_markdown is the derived projection: heading marker + bold
+    // mark survive the serializer.
+    expect(data.body_markdown).toContain("## Intro");
+    expect(data.body_markdown).toContain("Hello **world**");
   });
 
   it("Delete invokes deleteLesson and onDeleted", async () => {
