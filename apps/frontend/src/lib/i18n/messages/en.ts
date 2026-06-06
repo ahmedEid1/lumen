@@ -460,6 +460,20 @@ export const en = {
   "report.ownCourse": "You cannot report your own course.",
   "report.ineligible": "Your account is not eligible to file reports yet.",
   "report.rateLimited": "Too many reports — try again later.",
+  // W11 — user-side course report affordance (FR-MOD-11 / S6.3).
+  "report.cta": "Report",
+  "report.reported": "Reported",
+  "report.dialogTitle": "Report this course",
+  "report.dialogBody":
+    "Tell us what's wrong. Our moderators review every report — your name is never shown to the course owner.",
+  "report.reasonLabel": "Reason",
+  "report.reasonPlaceholder": "Choose a reason",
+  "report.detailsLabel": "Details (optional)",
+  "report.detailsPlaceholder": "Add anything that helps us understand the issue.",
+  "report.submit": "Submit report",
+  "report.submitting": "Submitting…",
+  "report.success": "Thanks — your report has been submitted.",
+  "report.error": "Couldn't submit your report. Please try again.",
 
   // Admin / audit
   "adminAudit.cartouche": "Audit",

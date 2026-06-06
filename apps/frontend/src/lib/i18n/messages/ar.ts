@@ -466,6 +466,20 @@ export const ar: Record<MessageKey, string> = {
   "report.ownCourse": "لا يمكنك الإبلاغ عن دورتك الخاصة.",
   "report.ineligible": "حسابك غير مؤهّل لتقديم بلاغات بعد.",
   "report.rateLimited": "عدد كبير من البلاغات — حاول لاحقًا.",
+  // W11 — واجهة الإبلاغ عن الدورة من جانب المستخدم (FR-MOD-11 / S6.3).
+  "report.cta": "إبلاغ",
+  "report.reported": "تم الإبلاغ",
+  "report.dialogTitle": "الإبلاغ عن هذه الدورة",
+  "report.dialogBody":
+    "أخبرنا بما هو غير صحيح. يراجع مشرفونا كل بلاغ — ولا يظهر اسمك أبدًا لصاحب الدورة.",
+  "report.reasonLabel": "السبب",
+  "report.reasonPlaceholder": "اختر سببًا",
+  "report.detailsLabel": "تفاصيل (اختياري)",
+  "report.detailsPlaceholder": "أضف أي شيء يساعدنا على فهم المشكلة.",
+  "report.submit": "إرسال البلاغ",
+  "report.submitting": "جارٍ الإرسال…",
+  "report.success": "شكرًا — تم إرسال بلاغك.",
+  "report.error": "تعذّر إرسال بلاغك. يرجى المحاولة مرة أخرى.",
 
   // Admin / audit
   "adminAudit.cartouche": "المراقبة",
