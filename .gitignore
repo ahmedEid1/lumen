@@ -81,6 +81,7 @@ legacy/media/
 
 # ---- ralph loop session state ----
 .claude/ralph-loop.local.md
+.claude/worktrees/
 
 # ---- Playwright MCP transient state ----
 # Playwright MCP browser tooling writes per-session state here when
