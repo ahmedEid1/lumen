@@ -41,6 +41,7 @@ from app.core.security import hash_password, verify_password
 # import time (the whole app refuses to boot), not silently at runtime.
 from app.models.course import Course, Review, Visibility
 from app.models.discussion import Discussion, DiscussionReply
+from app.models.learning_brief import LearningBrief
 from app.models.mcp_client import MCPClient
 from app.models.user import Role, User
 from app.models.user_llm_credential import UserLLMCredential
@@ -106,9 +107,18 @@ async def delete_account(
     The D2 order — authn → last-admin invariant → audit-first → scrub PII +
     ``deleted_at`` → deactivate → purge sessions → [guarded] BYOK purge → MCP
     revoke → owned-course delist+soft-delete → provenance anonymize → discussion
-    soft-delete → review soft-delete. The optional sibling-table steps are
-    independently try-guarded against missing sibling tables; the core is
-    un-guarded.
+    soft-delete → review soft-delete → learning-brief purge. The optional
+    sibling-table steps are independently try-guarded against missing sibling
+    tables; the core is un-guarded.
+
+    W11 (F7): the learning-brief purge (Step 12) was added after the model landed
+    (S3.1, migration 0051) — this choreography (S6.8, migration 0030) predates it
+    and was leaving the user's field-encrypted private learning goal
+    (``learning_briefs.source_goal_enc``, FR-PRIV-01 / DR-22) behind on deletion,
+    so a data-deletion request never removed it. It is a HARD delete (personal
+    data, no shared value; hard-delete is the convention for non-user-visible
+    data, CLAUDE.md). Other per-user S3/S4/S5-era tables are intentionally NOT
+    purged here (see the audit note at ``_purge_learning_briefs``).
 
     F2 (S6 gate): the sole active admin cannot self-delete to zero admins. The
     same FR-ADMIN-03 invariant the grant/revoke + suspend paths enforce is
@@ -178,6 +188,9 @@ async def delete_account(
 
     # ---- Step 11. Soft-delete authored reviews ----
     await _soft_delete_reviews(db, uid)
+
+    # ---- Step 12. Hard-delete learning briefs (private encrypted goal, F7) ----
+    await _purge_learning_briefs(db, uid)
 
 
 # ---------------------------------------------------------------------------
@@ -289,3 +302,40 @@ async def _soft_delete_reviews(db: AsyncSession, user_id: str) -> None:
         )
     except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — missing-table tolerance
         log.warning("delete_account_review_skipped", error=str(exc), user_id=user_id)
+
+
+async def _purge_learning_briefs(db: AsyncSession, user_id: str) -> None:
+    """Hard-delete every ``learning_briefs`` row owned by the user (W11/F7).
+
+    The brief's ``source_goal_enc`` is the learner's raw, field-encrypted private
+    learning goal (FR-PRIV-01 / DR-22 encrypt it *because* it is sensitive
+    personal data). It carries no shared value and is not user-visible content, so
+    a data-deletion request must HARD-delete it (hard-delete is the convention for
+    non-user-visible data, CLAUDE.md) — anonymize-in-place is wrong here. The FK is
+    ``learning_briefs.owner_id`` (not ``user_id``). Soft-delete on the user row
+    would never reach the brief: ``ondelete="CASCADE"`` only fires on a real row
+    delete, which the anonymize-in-place tombstone never does.
+
+    Sibling audit (W11): other per-user tables added after S6.8 (migration 0030)
+    were reviewed for missed PII —
+      * ``idempotency_keys(user_id)`` (S4, 0049/0050): NO PII — only an opaque
+        client key + an opaque result id, TTL-bounded and reclaimed by the periodic
+        expiry sweep. Left in place (purging mid-window could let a replay re-run a
+        mutation against the tombstone). Consistent with leaving operational rows.
+      * ``llm_calls`` / agent traces / ``tutor_turn_jobs`` / retrieval audits:
+        operational/cost records keyed by a plain-string user id (no FK), kept for
+        cost-history and audit exactly as the BYOK purge note states for
+        ``llm_calls``. Not PII-bearing in the deletion sense; left untouched to stay
+        consistent with the existing choreography.
+      * ``learning_paths`` / ``review_cards`` / ``notifications`` (study state): not
+        sensitive personal-goal data; out of this fix's scope (no live-walk
+        evidence of a privacy leak) and would expand the blast radius.
+    Only ``learning_briefs`` carries encrypted personal goal text, so it is the
+    one table this fix purges.
+    """
+    try:
+        await db.execute(
+            sa_delete(LearningBrief).where(LearningBrief.owner_id == user_id)
+        )
+    except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — missing-table tolerance
+        log.warning("delete_account_brief_purge_skipped", error=str(exc), user_id=user_id)

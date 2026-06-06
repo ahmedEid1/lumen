@@ -385,3 +385,69 @@ async def test_delete_account_soft_deletes_authored_reviews(
     await db_session.refresh(got)
     assert got.deleted_at is not None  # authored review hidden
     assert got.author_id == uid  # author pointer kept at the tombstone
+
+
+async def test_delete_account_purges_learning_briefs(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """W11 (F7): the user's private encrypted learning brief is HARD-deleted.
+
+    Live evidence: after a full UI account deletion, ``learning_briefs`` kept a row
+    with the field-encrypted ``source_goal_enc`` (the learner's private goal,
+    FR-PRIV-01 / DR-22). delete_account (S6.8) predated the model (S3.1) and never
+    purged it. The brief must be gone; an unrelated user's brief must survive.
+    """
+    import uuid as _uuid
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.idempotency import IdempotencyKey
+    from app.models.learning_brief import LearningBrief
+
+    email = f"brief-{_uuid.uuid4().hex[:6]}@lumen.test"
+    password = "Password!1234"
+    token = await _register_and_login(client, email, password)
+    h = {"Authorization": f"Bearer {token}"}
+    me = await client.get("/api/v1/auth/me", headers=h)
+    uid = me.json()["id"]
+
+    # The deleting user's private brief (raw ciphertext bytes stand in for the
+    # field-encrypted goal — the purge keys on owner_id, not content) ...
+    brief = LearningBrief(owner_id=uid, source_goal_enc=b"\x00secret-goal-ciphertext")
+    db_session.add(brief)
+    # ... and a second, in-progress brief to prove the WHERE matches all owned rows.
+    brief2 = LearningBrief(owner_id=uid, source_goal_enc=b"\x01another-goal")
+    # An idempotency row (S4) carries no PII and is TTL-swept — it must SURVIVE.
+    idem = IdempotencyKey(
+        user_id=uid,
+        idempotency_key=f"k-{_uuid.uuid4().hex[:8]}",
+        endpoint="course.clone",
+        response_target_id="trgt",
+        expires_at=datetime.now(UTC) + timedelta(hours=24),
+    )
+    db_session.add_all([brief2, idem])
+    await db_session.commit()
+    brief_id, brief2_id, idem_id = brief.id, brief2.id, idem.id
+
+    # An UNRELATED user's brief must be untouched (scoped to the deleting owner).
+    other_token = await _register_and_login(
+        client, f"other-{_uuid.uuid4().hex[:6]}@lumen.test", password
+    )
+    other_me = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {other_token}"}
+    )
+    other_uid = other_me.json()["id"]
+    other_brief = LearningBrief(owner_id=other_uid, source_goal_enc=b"\x02keep-me")
+    db_session.add(other_brief)
+    await db_session.commit()
+    other_brief_id = other_brief.id
+
+    r = await client.request("DELETE", "/api/v1/users/me", json={"password": password}, headers=h)
+    assert r.status_code == 200, r.text
+
+    db_session.expire_all()
+    assert await db_session.get(LearningBrief, brief_id) is None  # PII hard-deleted
+    assert await db_session.get(LearningBrief, brief2_id) is None  # all owned rows gone
+    # The idempotency row (no PII, TTL-swept) is intentionally left in place.
+    assert await db_session.get(IdempotencyKey, idem_id) is not None
+    # Another user's brief is untouched (owner-scoped purge).
+    assert await db_session.get(LearningBrief, other_brief_id) is not None
