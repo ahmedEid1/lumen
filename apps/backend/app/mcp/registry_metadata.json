@@ -61,8 +61,8 @@
         {"name": "ask_tutor", "auth": "user", "description": "Ask the Lumen course tutor a question. Returns a cited answer or refusal if the course content doesn't cover the topic. Requires enrollment."},
         {"name": "list_my_due_reviews", "auth": "user", "description": "Spaced-repetition queue for the calling user: cards whose FSRS-6 due-at has passed. Oldest-due first."},
         {"name": "grade_review_card", "auth": "user", "description": "Submit one FSRS-6 rating against a review card. `rating` is 1=again, 2=hard, 3=good, 4=easy."},
-        {"name": "create_course_draft", "auth": "instructor", "description": "Generate a course outline from a brief and persist it as a draft course owned by the calling instructor."},
-        {"name": "ingest_url_to_draft", "auth": "instructor", "description": "Import a YouTube / Notion / Google Docs URL into a draft course. Creates a fresh course when `course_id` is omitted, otherwise appends."},
+        {"name": "create_course_draft", "auth": "user", "description": "Generate a course outline from a brief and persist it as a draft course owned by the calling user. Requires the `can_author` capability (any active user)."},
+        {"name": "ingest_url_to_draft", "auth": "admin", "description": "Import a YouTube / Notion / Google Docs URL into a draft course. Creates a fresh course when `course_id` is omitted, otherwise appends. Admin-only and gated by the `ingest_url_enabled` flag (off by default)."},
         {"name": "list_my_progress", "auth": "user", "description": "Per-enrolled-course completion + mastery rollup for the calling user. Newest enrollment first."}
       ]
     }
