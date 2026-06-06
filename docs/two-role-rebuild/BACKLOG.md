@@ -11,8 +11,12 @@
 
 ## P3 — polish / hygiene
 
-- **P3 — brief elicitation misses time-budget from compound replies.** When a user answers several intake questions in one message, time-budget extraction is dropped and the agent re-asks; the 6-turn cap saves the UX but it reads as not-listening. (Observed on the W12 prod walk.)
-- **P3 — "Instructor studio" heading copy.** Stale three-role framing; everyone authors now — reword the studio heading.
-- **P3 — BYOK model-select pristine state.** When a provider exposes only one model, Save stays disabled until the select is explicitly touched; default-select the sole option (or treat single-option as touched).
-- **P3 — e2e-user rows pollute dev `/admin/users`.** Playwright-created `e2e-*` users accumulate in the dev DB and clutter the admin users list; add a data-hygiene sweep.
-- **P3 — consolidate `common.deletedUser` vs `discussions.deletedUser`.** Two i18n keys carry the same deleted-user label; collapse to one shared key.
+- ~~P3 — brief elicitation misses time-budget from compound replies~~ **DONE 2026-06-06** (8e83d6a — rate×duration prompt rules + deterministic regex fallback that never overwrites LLM values + no-re-ask prompt pins; 109-test battery green).
+- ~~P3 — "Instructor studio" heading copy~~ **DONE 2026-06-06** (7e76832 — reworded to "Studio", en+ar).
+- ~~P3 — BYOK model-select pristine state~~ **DONE 2026-06-06** (f7d86b7 — provider change programmatically sets the first model in form state; Save enables honestly).
+- ~~P3 — e2e-user rows pollute dev `/admin/users`~~ **DONE 2026-06-06** (d25495d + 053475a — `python -m app.cli prune-e2e-users` w/ dry-run + prod refusal, foreign-loop-safe; dev pruned).
+- ~~P3 — consolidate `common.deletedUser` vs `discussions.deletedUser`~~ **DONE 2026-06-06** (6ef015d — single key `common.deletedUser`; parity green).
+
+## Released
+
+- **v2.0.0 tagged 2026-06-06** at 053475a — https://github.com/ahmedEid1/lumen/releases/tag/v2.0.0 (release.yml publishes arm64 `:v2.0.0` + `:latest`).
