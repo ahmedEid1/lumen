@@ -28,7 +28,7 @@ Public deploy on AWS t4g.small (Graviton2 ARM, 2 vCPU + 2 GB RAM) — Caddy 2 fr
 Lumen is the live demo of how multi-agent systems, retrieval-augmented generation, the Model Context Protocol, and evaluation rigor come together inside a real product. It is the centrepiece of an agentic-AI engineering portfolio — a self-hostable LMS that doubles as a working argument for "I build production-grade AI systems, not toy demos."
 
 - **AI tutor with citations** — course-scoped retrieval-augmented generation; every claim points at a specific lesson chunk.
-- **Multi-modal ingest** — paste a YouTube, Notion, or Google Docs URL and get a draft course back; instructor reviews before commit.
+- **Multi-modal ingest** — paste a YouTube, Notion, or Google Docs URL and get a draft course back; the author reviews before commit.
 - **AI-assisted authoring** — brief → outline → lesson bodies → quizzes; nothing auto-persists.
 - **Spaced-repetition reviews** — FSRS-6 scheduler; every completed quiz joins the learner's queue.
 - **Open Badges 3.0** — Ed25519-signed verifiable credentials; PDF certificate as the human-readable fallback.
@@ -53,7 +53,7 @@ If you're reviewing the code, these are the highest-signal files:
 
 ```mermaid
 flowchart LR
-    user([Learner / Instructor])
+    user([User · learns + authors])
 
     subgraph Edge[Edge]
       web[Next.js 15<br/>App Router · RSC<br/>Docker on EC2]
@@ -127,7 +127,7 @@ Architecture B+: AI-first OSS LMS. Provider-agnostic LLM layer; the live demo ru
 The resume bullets, with links to the code. Every item below is on the release branch today (1.1.0-agentic).
 
 - **Planner-orchestrator multi-agent tutor** *(shipped — Phase I, item I2)* — [`apps/backend/app/services/tutor_orchestrator.py`](apps/backend/app/services/tutor_orchestrator.py) reads the learner's question and picks among five sub-agents under [`apps/backend/app/services/tutor_subagents/`](apps/backend/app/services/tutor_subagents/) — `retriever`, `web_searcher`, `code_runner`, `quiz_generator`, `concept_explainer` — with a hard cap of 5 tool-call rounds per turn. Every step lands in [`agent_tracer.py`](apps/backend/app/services/agent_tracer.py) so the frontend can render the plan and which tools fired. The moat is showing how the agent thinks, not just what it said.
-- **Self-critique authoring agent** *(shipped — Phase I, item I3)* — [`apps/backend/app/services/authoring_orchestrator.py`](apps/backend/app/services/authoring_orchestrator.py) drives researcher → outliner → critic → reviser → lesson-drafter → final-critic via the modules under [`authoring_subagents/`](apps/backend/app/services/authoring_subagents/); max three revision loops; the full chain persists as `CourseDraftTrace` so an instructor replays the reasoning before accepting a draft.
+- **Self-critique authoring agent** *(shipped — Phase I, item I3)* — [`apps/backend/app/services/authoring_orchestrator.py`](apps/backend/app/services/authoring_orchestrator.py) drives researcher → outliner → critic → reviser → lesson-drafter → final-critic via the modules under [`authoring_subagents/`](apps/backend/app/services/authoring_subagents/); max three revision loops; the full chain persists as `CourseDraftTrace` so the author replays the reasoning before accepting a draft.
 - **Lumen MCP server** *(shipped — Phase I, item I1)* — [`apps/backend/app/mcp/server.py`](apps/backend/app/mcp/server.py) exposes nine tools (`list_courses`, `get_course`, `ask_tutor`, `list_my_due_reviews`, `grade_review_card`, `create_course_draft`, `ingest_url_to_draft`, `list_my_progress`, `search_lesson_content`) over stdio + HTTP; OAuth client-credentials for service-to-service; installable in Claude Desktop with the JSON snippet below. Registry metadata at [`apps/backend/app/mcp/registry_metadata.json`](apps/backend/app/mcp/registry_metadata.json) ready for `mcp-publisher publish` against `registry.modelcontextprotocol.io`.
 - **Eval harness with LLM-as-judge** *(shipped — Phase H, item H2)* — 30-item tutor suite + 10 authoring + 10 ingest under [`apps/backend/evals/`](apps/backend/evals/). Run with `make eval` or `python -m app.evals run --suite tutor`. Judge scores each item 0–5 on suite-specific axes; reports land as JSONL with mean + regression vs. previous run. CI smoke gate runs a 3-item subset on every PR. Admin dashboard at `/admin/evals`.
 - **Production-grade observability** *(shipped — Phase H, items H1 + H7)* — every LLM call's prompt/completion tokens, USD cost, latency, and outcome land in the `llm_calls` table (Alembic 0022) via [`apps/backend/app/services/llm_call_log.py`](apps/backend/app/services/llm_call_log.py). The per-user 24h budget guard returns HTTP 429 `llm.budget_exceeded` once the threshold trips. `/admin/observability` adds Celery queue depth, retrieval-quality drill-down, and a per-trace expander; learners get a per-turn trace drill-down at `/dashboard/tutor/{conversation_id}/turn/{message_id}` powered by [`learner_traces.py`](apps/backend/app/services/learner_traces.py) + [`agent_tracer.py`](apps/backend/app/services/agent_tracer.py) (I4).
@@ -206,11 +206,11 @@ make seed
 
 Then open <http://localhost:3000> and log in with one of the seeded accounts:
 
-| Role       | Email              | Password    |
-|------------|--------------------|-------------|
-| Admin      | admin@lumen.test   | Admin!2026  |
-| Instructor | teacher@lumen.test | Teach!2026  |
-| Student    | student@lumen.test | Learn!2026  |
+| Role  | Email              | Password    |
+|-------|--------------------|-------------|
+| admin | admin@lumen.test   | Admin!2026  |
+| user  | teacher@lumen.test | Teach!2026  |
+| user  | student@lumen.test | Learn!2026  |
 
 For real LLM features (tutor, authoring, ingest, evals), set the following in `.env` and restart:
 

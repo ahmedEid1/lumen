@@ -20,6 +20,8 @@ What makes it more than a CRUD LMS — the **agentic layer** is the centerpiece 
 - **Eval harness** (`app/evals/`) — golden datasets + LLM-as-judge + adversarial probes; `make eval`, public results under `/eval`.
 - **Observable agent traces** — every LLM call logged with tokens/cost/latency (`app/services/agent_tracer.py`, `llm_call_log.py`).
 
+**Learner-owned, two-role (2.0.0):** Lumen collapsed to `user | admin` — every `user` runs the full loop themselves: **define** (guided goal elicitation → an immutable, field-encrypted learning brief), **build** (the brief feeds the authoring orchestrator into a private course), **learn** (the RAG tutor walks the journey). Users **share** a private course to the public catalog (publish stays private; public listing is share + admin moderation), **clone/remix** any listed course into their own draft with immutable "Based on …" provenance, and **bring their own model** (allowlisted-provider, envelope-encrypted BYOK keys override the platform's free Groq model).
+
 The original Django prototype lived under `legacy/` through v1.0.0 as a read-only archive; it was deleted in May 2026 once the rewrite shipped and the snapshot stopped earning its 160 MB. The reference history is preserved in git — `git log -- legacy/` recovers the tree at any pre-deletion commit if you need it.
 
 ## Layout
@@ -57,7 +59,7 @@ Within the backend:
 - **Soft-delete** with `deleted_at` for user-visible content (Course, Lesson, Review); hard-delete for sessions, refresh tokens, ephemeral data
 - **Mutating endpoints** that may be safely retried accept `Idempotency-Key` — not yet enforced in v1 but planned
 - **Auth** is JWT access (15 min) + rotating opaque refresh (14 d). Cookies for browsers (`__Host-*` in prod), Bearer for API clients, `?token=` for WebSockets
-- **Roles** are `student | instructor | admin` — checked in the service layer, not just routes
+- **Roles** are `user | admin` — checked in the service layer via capability gates (`RequireAuthor` / `RequireAdmin`), not just routes. The `Role.instructor` enum member is retained for historical rows only (legacy data loads cleanly; no production user holds it)
 - **Pagination** is offset+page for catalog-style reads; cursor for messages/audit
 - **Pydantic v2** — use `model_validate`, `model_dump(mode="json")`, `ConfigDict(from_attributes=True)`
 
@@ -67,8 +69,8 @@ Within the backend:
 make up                            # bring the full dev stack up
 make migrate                       # alembic upgrade head
 make revision m="..."              # alembic autogenerate
-make seed                          # demo data (admin/teacher/student)
-make demo-seed                     # agentic-demo bundle (3 courses + tutor turn + draft)
+make seed                          # demo data (admin + two seeded users: teacher@/student@)
+make demo-seed                     # agentic-demo bundle (3 courses + demo learner + tutor turn + draft)
 make test                          # backend + frontend
 make test.api                      # backend only
 make test.web                      # frontend unit only
@@ -87,11 +89,13 @@ make api-client                    # regenerate the TS client from OpenAPI
 
 Default seeded accounts (dev only):
 
-| Role       | Email              | Password    |
-|------------|--------------------|-------------|
-| Admin      | admin@lumen.test   | Admin!2026  |
-| Instructor | teacher@lumen.test | Teach!2026  |
-| Student    | student@lumen.test | Learn!2026  |
+| Persona (legacy)    | Role  | Email              | Password    |
+|---------------------|-------|--------------------|-------------|
+| Admin               | admin | admin@lumen.test   | Admin!2026  |
+| Author (ex-teacher) | user  | teacher@lumen.test | Teach!2026  |
+| Learner (ex-student)| user  | student@lumen.test | Learn!2026  |
+
+Every `user` both authors and learns; the persona labels just keep the old fixtures recognizable. Roles are seeded as `Role.user` in `cli.py` + the demo bundles.
 
 ## How to make changes safely
 
@@ -117,6 +121,11 @@ Default seeded accounts (dev only):
 - **Tutor adversarial probes are OFF by default** on the standard rail — only the eval harness turns them on (ADR-0024); don't enable them on the live tutor path
 - **Publish enqueues the embedding reindex _after commit_** behind an atomic phase fence (ADR-0019) — enqueuing inside the transaction races the worker against uncommitted rows
 - **Search index** lives in a `GENERATED ALWAYS AS` Postgres `tsvector` column on `courses` — Postgres maintains it on every insert/update, no Celery trigger involved. The Celery reindex task is a separate path that rebuilds **lesson-chunk embeddings** for the RAG tutor (fires on publish + admin reindex only; `delete_course` is a soft-delete that doesn't enqueue). There's no separate search service — the original Meilisearch wire was retired during the rebuild (see superseded ADR-0003 / new ADR-0015).
+- **Publish keeps a course private** — public listing is a separate axis: **share + admin approval** (`visibility=public` + `moderation_state=approved`, routed through `is_publicly_listed`, ADR-0026). `CourseStatus` (draft/published) is lifecycle; never read `status == published` as a public check.
+- **Seeds must mirror `approve_course`** for intended-public courses — set `visibility=public` + `moderation_state=approved`, not just `status=published`, or a fresh stack lists **zero** courses (5197f3c; bit CI three times).
+- **Migrations: never blind `alembic upgrade head` across a phase boundary.** The 2.0.0 stop-the-world deploy crossed its phase boundaries by hand (the one documented exception, c212b3c). FUTURE releases use `make migrate` (phase-guard safe path, refuses to cross a boundary) + `make migrate.phase` (`ALLOW_PHASE_MIGRATION=1`, one boundary per run).
+- **0052 backfill is one-shot** — never re-run its `build_completed_at` backfill manually post-shell-first (shell-first builds ORM-map the column, so its ">=1 module" predicate is exact only at migration time; no in-data discriminator exists). Invariant is spelled out in the migration docstring.
+- **Text-lesson saves derive `body_markdown` from blocks** (`blocksToMarkdown` in `src/lib/lesson/blocks.ts`, via `buildDataPayload`) — the backend **requires** `body_markdown` (RAG/search projection); a blocks-only payload 422s (W11 F1, c2a833e).
 
 ## Where to put new things
 
