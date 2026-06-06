@@ -7,7 +7,7 @@
 ## P2 — should fix soon
 
 - **P2 — prod SMTP unconfigured.** MITIGATED (EMAIL_ENABLED=false on prod) — real provider still a user decision. `send_email` now short-circuits at the service level when `EMAIL_ENABLED=false`, logging one `email_disabled_skipped` line instead of letting verify-email/reset/digest Celery tasks retry-crash on `socket.gaierror` (was 7 tracebacks/registration; prod never had an SMTP host). Flip `EMAIL_ENABLED=true` once a mail provider is wired.
-- **P2 — rotate the Cloudflare `EMBEDDING_OPENAI_API_KEY`.** Surfaced in an operator transcript during the 2026-06-06 deploy diagnosis; rotate the embedding provider key.
+- **P2 — rotate the Cloudflare `EMBEDDING_OPENAI_API_KEY`.** Surfaced in an operator transcript during the 2026-06-06 deploy diagnosis (exposure: local session transcripts + Anthropic conversation retention only — never git/CI/public; token is Workers-AI-inference-scoped). **DEFERRED by owner 2026-06-06** — accepted risk for now. To rotate later: dash.cloudflare.com as the account owner → My Profile → API Tokens → roll token `fb754872b91fac5f5deb95056b8afaa1` (or mint a Workers AI: Read replacement) → drop the value in a file on the dev box and have the operator swap it into prod env via the deploy workflow (never bare `up -d` — IMAGE_TAG trap).
 
 ## P3 — polish / hygiene
 
