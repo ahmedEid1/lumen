@@ -1,22 +1,35 @@
-# Screenshots
+# Screenshots & GIFs
 
-This directory holds the screenshots referenced from the top-level [`README.md`](../../README.md).
+This directory holds every image and GIF the top-level [`README.md`](../../README.md) embeds. Treat the contents as code: when the UI changes meaningfully, recapture — stale screenshots are the fastest way to make a portfolio README read as abandoned.
+
+## Inventory (captured 2026-06-06, post-redesign, 2.0.0-two-role on prod)
+
+| File | Surface | Source |
+|---|---|---|
+| `gifs/define-build.gif` | Full define→build loop: goal → AI intake → brief → orchestrator build → finished course | **Prod**, real Groq build (intake 6×, build 16× time-compression) |
+| `gifs/tutor.gif` | RAG tutor turn: question → retriever fires → streamed answer | **Prod**, 2× |
+| `gifs/cmdk.gif` | ⌘K command palette over the dashboard | **Prod**, ~1× |
+| `gifs/hero.gif` | Home-page agent-replay hero (one full 14 s CSS cycle) | **Prod**, 1× — kept for reuse even though the README currently embeds the static `home.png` |
+| `home.png` | Home page, final composite frame of the replay hero | Prod |
+| `catalog.png` | Public catalog with filters | Prod |
+| `dashboard.png` | Learner dashboard (demo account, populated) | Prod |
+| `built-course.png` | Freshly built private course in the learn workbench | Prod |
+| `brief-review.png` | Brief review step (level / time budget / outcomes) | Prod |
+| `tutor-answer.png` | Tutor answer with retriever row, in the workbench | Prod |
+| `eval-page.png` | Public `/eval` page with the sealed-run scores | Prod |
+| `agent-trace.png` | Tutor-turn trace drill-down: timeline + retrieval audits | **Local seeded stack** (owner-visible surface; the seeded curated turn is the richest example — note the seed uses the `noop` provider, so its cost badge reads $0) |
+| `trace-drilldown.png` | Same surface, top of page (CostBadge + LLM-call row) | Local seeded stack |
+| `studio-replay.png` | AI authoring build replay, step-by-step | Local seeded stack |
+| `social-preview.png` | The prod `/opengraph-image` render — upload via GitHub *Settings → Social preview* (manual, repo admin only) | Prod |
 
 ## Conventions
 
-- File names are lowercase-kebab-case (`hero.png`, `tutor-trace.png`, `eval-dashboard.png`).
-- Source format is PNG at 2x retina width (the README's hero target is 2400 x 1500). Keep individual files under ~500 KB; run them through `oxipng -o4` or equivalent before committing.
-- One hero (`hero.png`) is referenced unconditionally from the README; the rest are optional inline references from prose.
+- Viewport **1280×800 at `deviceScaleFactor: 2`** (2560×1600 PNGs), dark theme, English locale, onboarding pre-dismissed.
+- PNGs run through `pngquant --quality 65-90` before commit — keep each under ~300 KB (the dark UI compresses to well under 100 KB).
+- GIFs: ≤900 px wide, 12 fps, palette-optimized (`ffmpeg palettegen/paletteuse` → `gifsicle -O3 --lossy=25 --colors 128`), target ≤3 MB each.
+- Auth for capture scripts: **API login once per role** (`POST /api/v1/auth/login` via `context.request`), persist `storageState`, never fill the login form in a browser. Note the SPA rotates the refresh token on every page bootstrap, and presenting a consumed token revokes the whole chain — persist storage state after every context, or expect to re-login.
 
-## Pending captures
+## Regenerating
 
-These slots are referenced from the README with `_TBD` comments and are owned by the operator (Ahmed) — they need a working live demo (Phase H, item H4) before they can be captured:
-
-- `hero.png` — the tutor surface on a real course with a citation pill open and the agent-trace expander visible. This is the screenshot a recruiter sees first; it should make the "agentic-AI engineering signature project" framing legible at a glance.
-- *(future)* `tutor-trace.png` — the planner-orchestrator's tool-call log on a single turn (after Phase I, item I2 lands).
-- *(future)* `eval-dashboard.png` — `/admin/evals` with a real tutor-suite run plotted against the previous one.
-- *(future)* `mcp-claude-desktop.png` — Claude Desktop's tool sidebar showing Lumen's MCP tools firing on `'list my courses'` (after Phase I, item I1 lands).
-
-## Why this directory exists before the screenshots do
-
-Phase H, item H5 (the README rewrite) lands ahead of H4 (the live demo) so the README's positioning is ready to take the live URL as soon as H4 ships. The README references `docs/screenshots/hero.png`; this placeholder directory keeps that link from looking broken on the repo browser between H5 landing and H4's first screenshot being captured.
+- The local "hero pack" (trace drill-down, studio replay, admin observability/evals at 1440×900) has a maintained generator: `apps/frontend/tests/e2e/screenshots.spec.ts` (run it against a seeded `make up` stack; it overwrites `hero.png`, `trace-timeline.png`, `studio-replay.png`, `observability.png`, `evals.png` — names not currently embedded by the README except `studio-replay.png`).
+- The prod captures were taken with a throwaway Playwright harness following the conventions above (login as `demo@lumen.test`, record `recordVideo` contexts, encode with the ffmpeg pipeline). The walkthrough screencast tooling lives in `tools/recording/`.

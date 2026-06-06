@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **README redesigned around fresh production evidence.** New hook +
+  proof-forward layout (flat-square badge row, eval-results table with
+  the weak scores kept in, per-claim screenshots); four new GIFs
+  recorded against the live site (define→build loop, tutor turn with
+  retriever trace, ⌘K palette, home replay hero) plus refreshed
+  post-redesign screenshots, all under `docs/screenshots/` (PNGs
+  pngquant-optimized, GIFs palette-optimized ≤1.9 MB each). Corrects two
+  stale claims (a11y gate is 11 checks, not 13; the authoring six-stage
+  pipeline lives in `authoring_orchestrator.py`, with `researcher` as
+  the only split-out subagent module) and drops the repo-committed
+  `.mp4` poster link, which GitHub never inline-plays.
+
 ### Fixed (QA loop iters 8–23 — live-walk fixes)
 
 - **Tutor cost-reservation leak:** closing the tutor mid-turn now aborts
