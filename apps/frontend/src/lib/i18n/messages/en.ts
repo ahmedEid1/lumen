@@ -539,7 +539,7 @@ export const en = {
   "admin.tile.moderation.title": "Moderation",
   "admin.tile.moderation.body": "Review courses awaiting approval to list.",
   "admin.tile.users.title": "Users",
-  "admin.tile.users.body": "Promote instructors, manage activity.",
+  "admin.tile.users.body": "Grant or revoke admin, suspend or reinstate accounts.",
   "admin.tile.audit.title": "Audit log",
   "admin.tile.audit.body": "Track sensitive admin actions.",
   "admin.tile.observability.title": "Observability",

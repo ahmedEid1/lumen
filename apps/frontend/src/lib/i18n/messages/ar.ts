@@ -545,7 +545,7 @@ export const ar: Record<MessageKey, string> = {
   "admin.tile.moderation.title": "الإشراف",
   "admin.tile.moderation.body": "راجِع الدورات بانتظار الموافقة على الإدراج.",
   "admin.tile.users.title": "المستخدمون",
-  "admin.tile.users.body": "رقّ المدرّسين وأدر نشاط الحسابات.",
+  "admin.tile.users.body": "امنح صلاحية المشرف أو اسحبها، وأوقف الحسابات أو أعد تفعيلها.",
   "admin.tile.audit.title": "سجل المراقبة",
   "admin.tile.audit.body": "تتبّع الإجراءات الإدارية الحسّاسة.",
   "admin.tile.observability.title": "المراقبة",
