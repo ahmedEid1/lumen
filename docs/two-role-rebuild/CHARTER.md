@@ -428,6 +428,37 @@ its three gates are green:**
   studio" heading copy, BYOK model-select pristine-touch nit, e2e-user dev-data pollution.
   **Next: W12 merge → main, CI auto-deploy, prod migrations + flag sequence, prod live walk (real-LLM
   generation quality judged there per W11-W13-PLAN.md).**
+- **2026-06-06** — **W12 SHIPPED: 2.0.0-two-role LIVE ON PRODUCTION.** Merge c212b3c (--no-ff, 144 commits)
+  after pre-merge gates (no main drift, CHANGELOG 2.0.0-two-role 95c1b9d, hand-written TS client = no
+  regen, pre-merge prod DB snapshot ~/backups/pre-two-role-rebuild-20260606.dump). CI took FOUR runs —
+  each failure a CI-environment class invisible to local gates, each fixed forward: (1) ruff format
+  --check on 7 fix-wave files (967c59c); (2) test_retrieval_acl imported sentence_transformers at query
+  time — torch is dev-image-only; noop-provider fixture per the test_tutor_idor pattern (ae2f413);
+  (3+4) E2E tutor-citations + a11y course-detail dead on a FRESH stack: seeds set status=published but
+  never visibility/moderation_state, so zero courses listed without the 0033 backfill — all seed bundles
+  + base cli seed now mirror approve_course, with anon-GET regression tests (5197f3c). Run 4: ALL GATES
+  GREEN → auto-deploy. Deploy drama, all by design: plain `alembic upgrade head` fragmented at 0048's
+  CONCURRENTLY autocommit block after 0043's EVIDENCE GATE correctly REFUSED (85 legacy lesson_chunks
+  rows NULL embedding_model — the operator-confirmed backfill 0041 had rightly skipped); repaired by
+  dropping the 0048 fragments (empty), running the operator backfill ('@cf/baai/bge-small-en-v1.5', 384d
+  — verified against prod's CF Workers AI config + uniform chunk dims), clean upgrade → **0043 HEAD**.
+  S5's production boot guard then refused startup without a real KEK — exactly its job; KEK generated
+  server-side (never in transcript) + BYOK_MASTER_KEY_VERSION=1 + FEATURE_BYOK_ENABLED=true +
+  FEATURE_PRIVATE_PUBLISH_ENABLED=true + CLONE_ENABLED=true in one env edit. Re-dispatched deploy for a
+  green record (no-op roll + smoke PASS). **PROD LIVE WALK (real Groq Llama 3.3 70B):** fresh UI signup
+  (w12.walk) → define: contextual elicitation w/ live brief extraction ("YOUR BRIEF SO FAR"), 6-turn cap
+  forced convergence (extraction quirk noted: time-budget missed from compound replies, re-asked 3× —
+  P3 for the backlog) → build: **4 modules / 16 lessons in ~50s**, structure maps VERBATIM to the
+  brief's outcomes (EXPLAIN plans / indexing / slow queries), content on-topic and competent → learn →
+  tutor streamed w/ retrieval trace (1056ms) and a correct partial-index answer → **REAL TOKENS recorded
+  on llm_calls** (closing S7's deferred verification) → publish → share (pending_review) → admin
+  approve in UI → publicly listed; anon sees course + clone CTA, report trigger correctly hidden, tab
+  title correct. Prod brief privacy: 229 encrypted bytes, zero plaintext leak, turns_used=6,
+  build_completed_at stamped. Sweep: api 0 tracebacks; worker 7 = ONE benign pre-existing class
+  (verify-email SMTP host unresolvable — prod never had SMTP; W13 note). OPS NOTES: future releases use
+  the phase-guard CLI path, never blind upgrade-head across boundaries (this merge was the one valid
+  stop-the-world exception, documented in c212b3c); ROTATE the Cloudflare EMBEDDING_OPENAI_API_KEY
+  (surfaced in an operator transcript during diagnosis). **Next: W13 docs/CLAUDE.md/memory truth-up.**
 ---
 
 ## 6a. Verified RBAC inventory (ground truth, 2026-06-03)

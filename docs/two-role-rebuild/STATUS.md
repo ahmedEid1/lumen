@@ -5,9 +5,9 @@
 
 ## Where we are
 
-**W11 closed** on branch `two-role-rebuild` — full local system test green (6 live journeys; 7 product
-findings F1-F7 + 3 test-infra classes found AND fixed). Next: W12 merge→main → CI auto-deploy →
-prod migrations/flags → prod live walk → W13 docs.
+**W12 SHIPPED — 2.0.0-two-role LIVE at https://lumen.ahmedhobeishy.tech** (merge c212b3c; CI green on
+run 4 after 3 CI-only fix classes; prod at migration head 0043; KEK+flags set; full story walked on
+prod with the real LLM — 4-module/16-lesson build in ~50s, real tokens recorded). Next: W13 docs truth-up.
 
 | Stream | Build | Merge | Gate A (Codex) | Gate B (Claude) | Gate C (live) |
 |---|---|---|---|---|---|
