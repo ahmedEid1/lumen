@@ -1,12 +1,13 @@
 # Two-Role Rebuild — Status Board
 
 > Compact, current-state view. History + decisions live in [CHARTER.md](CHARTER.md) §6 (ledger).
-> Updated by the orchestrator as work lands. Last update: **2026-06-06**.
+> Updated by the orchestrator as work lands. Last update: **2026-06-06** (post-W11).
 
 ## Where we are
 
-**W10/S7 closed** on branch `two-role-rebuild` — all seven streams green; next W11 full local system
-test, then W12 merge→deploy→prod walk (never auto-deployed; main merges at W12 only).
+**W11 closed** on branch `two-role-rebuild` — full local system test green (6 live journeys; 7 product
+findings F1-F7 + 3 test-infra classes found AND fixed). Next: W12 merge→main → CI auto-deploy →
+prod migrations/flags → prod live walk → W13 docs.
 
 | Stream | Build | Merge | Gate A (Codex) | Gate B (Claude) | Gate C (live) |
 |---|---|---|---|---|---|

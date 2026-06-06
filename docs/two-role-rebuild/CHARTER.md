@@ -387,6 +387,47 @@ its three gates are green:**
   verification pinned to the W12 prod walk per W11-W13-PLAN.md). Walk artifacts kept in dev DB
   (tombstone.walk@lumen.test + "Tombstone Walk Course") as W11 fixtures. Suites: backend **1418** /
   frontend **448**, eslint ZERO, tsc clean. **Next: W11 full local system test.**
+- **2026-06-06** — **W11 FULL LOCAL SYSTEM TEST GREEN.** Six journeys walked live in the browser
+  (scripted persona auth throughout; one UI signup + one UI form-login total): (1) NEW USER — register →
+  define (6-turn cap honored, brief review w/ privacy note, finalize) → build (honest noop failure,
+  "no partial kept", re-run reuses the SAME shell — 1 course, no dupes; brief stored as 195 encrypted
+  bytes, zero plaintext) → manual studio course (module + Tiptap text lesson) → publish; (2) SHARE —
+  publish stays PRIVATE → Share publicly → pending_review → admin approves in UI ("Course approved and
+  listed") → tsvector catalog finds it → second user enrolls → learns → completes → CERTIFICATE issued
+  (non-owner); (3) REMIX — clone CTA → editor (post-F3), rename saved, origin attribution renders,
+  private-page tab title == H1 (post-F4); (4) BYOK — flag flipped on (KEK present), store fake Groq key →
+  wire shows last4 only, real validation → honest "INVALID KEY"/provider-rejected, zero key echo; flag
+  restored OFF after; (5) MODERATION — new-account report correctly refused (report.ineligible 403,
+  anti-abuse gate), eligible student reports via the NEW dialog (201, trigger inert), admin resolves in
+  UI; suspend→SUSPENDED→reinstate→ACTIVE via UI row actions; last-admin demotion refused
+  (user.last_admin 422); (6) DELETE — UI dialog (password + DELETE phrase) → email scrubbed to
+  deleted-<id>@lumen.invalid, name emptied, ALL owned courses private+soft-deleted, catalog clean, BYOK
+  credential purged, sessions revoked.
+  **W11 findings (the reason this gate exists): 7 product + 3 test-infra, ALL fixed with tests.**
+  P1s: F1 text-lesson save 422'd EVERY UI create/edit since Phase E6 (blocks-only payload vs required
+  body_markdown; masked because E2E instructor-flow had been failing-and-ignored and unit mocks were
+  truthful to the wrong shape) → c2a833e blocksToMarkdown + buildDataPayload; F2 NO user-facing report
+  affordance existed (moderation intake was API-only; S6.11 built admin side only) → 62ab818 ReportButton
+  + taxonomy dialog; F6 /admin/users rendered EMPTY rows (page consumed an envelope, API returned a bare
+  unpaginated array; the S6.11e mock mirrored the page's wish, not the wire) → 09bc87e Page[UserAdminOut]
+  both sides + truthful-mock pin; F7 PRIVACY — learning_briefs (encrypted personal goals) SURVIVED
+  account deletion (choreography predates S3) → f1f89b5 hard-delete purge + sibling audit. P2/P3: F3
+  clone landed on empty AI-trace page → 77b0cd7; F4 private courses got "Course not found" TAB TITLE
+  (generateMetadata fetched unauthenticated) → 181a5e4 cookie-forwarding (route now per-request dynamic);
+  F5+E1 stale three-role copy (admin subtitle + tile) → 2b7209d/6dbfe05. Test-infra: in-container mailpit
+  URL killed the auth golden path on BOTH browsers; a smoke login that never filled credentials; stale
+  hero/selectors/publish⇒catalog expectations from the three-role era + Tiptap/dropdown migrations;
+  onboarding-tour overlay intercepting nav clicks → e6e49a3 + c88677d; 16 visual baselines re-captured on
+  the quiesced tree (several old ones were SKELETON captures) → cd6f080.
+  **Final gates at close:** backend **1421** / frontend **468** / eslint ZERO / tsc clean / i18n parity;
+  a11y 13 passed (0 axe violations); visual-regression 20/20; auth, smoke, instructor-flow,
+  learner-journey, accessibility ALL green on chromium+webkit; zero 5xx + zero worker tracebacks
+  (API log window post-BYOK-restart; earlier window evidenced by in-browser wire captures — all observed
+  failures were designed 4xx). Remaining flake class: dev-server cold-compile timing under parallel E2E
+  pressure (documented, hardened with NAV_TIMEOUT/toPass where it bit). Parked for W13: "Instructor
+  studio" heading copy, BYOK model-select pristine-touch nit, e2e-user dev-data pollution.
+  **Next: W12 merge → main, CI auto-deploy, prod migrations + flag sequence, prod live walk (real-LLM
+  generation quality judged there per W11-W13-PLAN.md).**
 ---
 
 ## 6a. Verified RBAC inventory (ground truth, 2026-06-03)
