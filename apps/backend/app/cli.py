@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from app.core.config import Environment, get_settings
 from app.core.security import hash_password
-from app.db.base import get_sessionmaker
+from app.db.base import get_sessionmaker, worker_session_scope
 from app.models.course import (
     Course,
     CourseStatus,
@@ -586,56 +586,76 @@ def prune_e2e_users(
     nothing.
     """
     _refuse_prod_seed_or_pass("prune-e2e-users")
-    asyncio.run(_prune_e2e_users(dry_run=dry_run))
+
+    async def _run() -> None:
+        # Foreign-event-loop safety (ADR-0017): open a FRESH ``NullPool``
+        # engine inside this ``asyncio.run`` loop instead of borrowing the
+        # module-global pooled engine (``get_sessionmaker``). The pooled
+        # engine caches asyncpg connections bound to whichever loop first
+        # opened them; reusing one across the new loop ``asyncio.run`` spins
+        # up raises ``RuntimeError: got Future ... attached to a different
+        # loop``. ``worker_session_scope`` builds the engine here and
+        # disposes it on exit, so no connection survives the loop boundary —
+        # the same pattern the Celery worker tasks use.
+        async with worker_session_scope() as Session, Session() as db:
+            await _prune_e2e_users(db, dry_run=dry_run)
+
+    asyncio.run(_run())
 
 
-async def _prune_e2e_users(*, dry_run: bool) -> None:
-    Session = get_sessionmaker()
-    async with Session() as db:
-        users = (
-            (await db.execute(select(User).where(User.email.like(_E2E_USER_EMAIL_LIKE))))
-            .scalars()
-            .all()
-        )
-        if not users:
-            console.print("[yellow]No e2e fixture users found — nothing to prune.[/yellow]")
-            return
+async def _prune_e2e_users(db, *, dry_run: bool) -> None:
+    """Prune logic, parametrised on an open :class:`AsyncSession`.
 
-        user_ids = [u.id for u in users]
-        # Include soft-deleted courses too: a hygiene sweep must leave NO trace
-        # of the fixture account, and a soft-deleted row still pins owner_id
-        # under the RESTRICT FK.
-        courses = (
-            (await db.execute(select(Course).where(Course.owner_id.in_(user_ids)))).scalars().all()
-        )
-        course_ids = [c.id for c in courses]
+    Session lifecycle (engine creation/disposal) is the caller's job: the
+    Typer command above passes a session from a fresh per-invocation engine,
+    while the DB-backed tests pass the test ``db_session`` so the work runs
+    on the test's own event loop (xdist-safe — no nested ``asyncio.run``
+    touching a loop-bound pool). This function commits its own deletes.
+    """
+    users = (
+        (await db.execute(select(User).where(User.email.like(_E2E_USER_EMAIL_LIKE))))
+        .scalars()
+        .all()
+    )
+    if not users:
+        console.print("[yellow]No e2e fixture users found — nothing to prune.[/yellow]")
+        return
 
-        if dry_run:
-            console.print(
-                f"[cyan]DRY RUN — would prune {len(users)} user(s) "
-                f"and {len(courses)} owned course(s):[/cyan]"
-            )
-            for u in users:
-                console.print(f"  user  {u.email:40s} ({u.id})")
-            for c in courses:
-                console.print(f"  course {c.slug:39s} ({c.id})")
-            return
+    user_ids = [u.id for u in users]
+    # Include soft-deleted courses too: a hygiene sweep must leave NO trace
+    # of the fixture account, and a soft-deleted row still pins owner_id
+    # under the RESTRICT FK.
+    courses = (
+        (await db.execute(select(Course).where(Course.owner_id.in_(user_ids)))).scalars().all()
+    )
+    course_ids = [c.id for c in courses]
 
-        # FK-safe order: courses first (owner_id is RESTRICT), then users.
-        # Use ORM ``session.delete`` so SQLAlchemy issues per-row DELETEs the
-        # DB-level ``ondelete`` rules act on (CASCADE children, SET NULL
-        # provenance / audit pointers).
-        for c in courses:
-            await db.delete(c)
-        await db.flush()
-        for u in users:
-            await db.delete(u)
-        await db.commit()
-
+    if dry_run:
         console.print(
-            f"[green]Pruned {len(user_ids)} e2e fixture user(s) "
-            f"and {len(course_ids)} owned course(s).[/green]"
+            f"[cyan]DRY RUN — would prune {len(users)} user(s) "
+            f"and {len(courses)} owned course(s):[/cyan]"
         )
+        for u in users:
+            console.print(f"  user  {u.email:40s} ({u.id})")
+        for c in courses:
+            console.print(f"  course {c.slug:39s} ({c.id})")
+        return
+
+    # FK-safe order: courses first (owner_id is RESTRICT), then users.
+    # Use ORM ``session.delete`` so SQLAlchemy issues per-row DELETEs the
+    # DB-level ``ondelete`` rules act on (CASCADE children, SET NULL
+    # provenance / audit pointers).
+    for c in courses:
+        await db.delete(c)
+    await db.flush()
+    for u in users:
+        await db.delete(u)
+    await db.commit()
+
+    console.print(
+        f"[green]Pruned {len(user_ids)} e2e fixture user(s) "
+        f"and {len(course_ids)} owned course(s).[/green]"
+    )
 
 
 @cli.command()

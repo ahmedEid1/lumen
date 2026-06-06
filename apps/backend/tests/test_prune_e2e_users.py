@@ -155,12 +155,17 @@ async def test_prune_removes_e2e_users_and_content(db_session: AsyncSession) -> 
     normal user survives."""
     ids = await _seed_fixture(db_session)
 
-    # The CLI opens its own session on the same test DB — it sees our
-    # committed rows.
-    await _prune_e2e_users(dry_run=False)
+    # Run the prune logic on the TEST's own session/loop. We call the inner
+    # ``_prune_e2e_users(db, ...)`` directly rather than the Typer command:
+    # the command wraps the body in ``asyncio.run`` with a fresh engine, which
+    # would spin a second event loop and deadlock against the xdist session
+    # loop the test fixtures already run on. Passing ``db_session`` keeps the
+    # whole DB interaction on one loop — the xdist-safe path.
+    await _prune_e2e_users(db_session, dry_run=False)
 
     # Re-read through our session. expire_all so we re-fetch from the DB
-    # rather than the identity map (the CLI mutated rows out-of-session).
+    # rather than the identity map (the deletes above ran in this same
+    # session, but expire_all also re-syncs cascade-affected rows).
     db_session.expire_all()
 
     assert await db_session.get(User, ids["e2e_owner"]) is None
@@ -179,7 +184,7 @@ async def test_prune_dry_run_deletes_nothing(db_session: AsyncSession) -> None:
     """--dry-run lists but never mutates."""
     ids = await _seed_fixture(db_session)
 
-    await _prune_e2e_users(dry_run=True)
+    await _prune_e2e_users(db_session, dry_run=True)
 
     db_session.expire_all()
 
@@ -204,7 +209,7 @@ async def test_prune_noop_when_no_e2e_users(db_session: AsyncSession) -> None:
     await db_session.commit()
     normal_id = normal.id
 
-    await _prune_e2e_users(dry_run=False)
+    await _prune_e2e_users(db_session, dry_run=False)
 
     db_session.expire_all()
     assert await db_session.get(User, normal_id) is not None
