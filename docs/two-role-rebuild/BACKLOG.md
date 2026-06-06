@@ -6,7 +6,7 @@
 
 ## P2 — should fix soon
 
-- **P2 — prod SMTP unconfigured.** verify-email Celery tasks fail with a DNS-resolution error (prod never had an SMTP host); configure a mail provider or disable verification emails in prod. (Worker sweep at W12: 7 tracebacks, all this one benign pre-existing class.)
+- **P2 — prod SMTP unconfigured.** MITIGATED (EMAIL_ENABLED=false on prod) — real provider still a user decision. `send_email` now short-circuits at the service level when `EMAIL_ENABLED=false`, logging one `email_disabled_skipped` line instead of letting verify-email/reset/digest Celery tasks retry-crash on `socket.gaierror` (was 7 tracebacks/registration; prod never had an SMTP host). Flip `EMAIL_ENABLED=true` once a mail provider is wired.
 - **P2 — rotate the Cloudflare `EMBEDDING_OPENAI_API_KEY`.** Surfaced in an operator transcript during the 2026-06-06 deploy diagnosis; rotate the embedding provider key.
 
 ## P3 — polish / hygiene

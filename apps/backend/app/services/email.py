@@ -14,6 +14,14 @@ log = get_logger(__name__)
 
 def send_email(*, to: str, subject: str, text: str, html: str | None = None) -> None:
     s = get_settings()
+    # Graceful degradation: when no provider is configured (prod ships without
+    # an SMTP host), skip the send entirely rather than letting smtplib raise
+    # socket.gaierror and burn the Celery task's 5 autoretries. Gated here at
+    # the service level so every sender (verify-email, password-reset, digest)
+    # is covered without touching enqueue sites.
+    if not s.email_enabled:
+        log.info("email_disabled_skipped", to=to, subject=subject)
+        return
     msg = EmailMessage()
     msg["From"] = s.smtp_from
     msg["To"] = to

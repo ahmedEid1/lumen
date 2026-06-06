@@ -35,6 +35,13 @@ x-api-env: &api-env
   SMTP_PASSWORD: ${SMTP_PASSWORD}
   SMTP_FROM: ${SMTP_FROM}
   SMTP_TLS: "true"
+  # Master switch for outbound transactional email. Defaults ON, but prod
+  # ships WITHOUT a real SMTP host — set EMAIL_ENABLED=false in
+  # .env.production until a provider is configured, otherwise every
+  # verify-email/reset send raises socket.gaierror and burns all 5 Celery
+  # retries (7 tracebacks/registration, see two-role-rebuild/BACKLOG.md).
+  # Same pass-through lesson as FEATURE_BYOK_ENABLED below.
+  EMAIL_ENABLED: ${EMAIL_ENABLED:-true}
   SENTRY_DSN: ${SENTRY_DSN:-}
   PROMETHEUS_ENABLED: "true"
   # Embedding + LLM pass-through. Both default to noop so the stack

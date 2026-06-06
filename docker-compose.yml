@@ -33,6 +33,11 @@ x-api-env: &api-env
   SMTP_HOST: ${SMTP_HOST}
   SMTP_PORT: ${SMTP_PORT}
   SMTP_FROM: ${SMTP_FROM}
+  # Master switch for outbound email. ON in dev (the local `mail` MailHog
+  # container is always up); mirrored here so EMAIL_ENABLED=false is
+  # exercisable in dev/e2e exactly as in prod. Same pass-through lesson as
+  # FEATURE_BYOK_ENABLED below.
+  EMAIL_ENABLED: ${EMAIL_ENABLED:-true}
   SENTRY_DSN: ${SENTRY_DSN:-}
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
   PROMETHEUS_ENABLED: ${PROMETHEUS_ENABLED:-true}

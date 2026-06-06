@@ -111,6 +111,15 @@ class Settings(BaseSettings):
     smtp_password: SecretStr = SecretStr("")
     smtp_from: str = "Lumen <no-reply@lumen.test>"
     smtp_tls: bool = False
+    # Master switch for all outbound transactional email. When ``False`` the
+    # service-level ``send_email`` short-circuits BEFORE any SMTP connection:
+    # it logs one structured ``email_disabled_skipped`` line and returns, so the
+    # Celery task SUCCEEDS instead of retry-crashing. This covers every sender
+    # (verify-email, password-reset, digest) at one chokepoint. Ships ON for
+    # dev (the local ``mail`` MailHog container is always present); set
+    # ``EMAIL_ENABLED=false`` on prod until a real SMTP provider is configured,
+    # otherwise each send raises ``socket.gaierror`` and burns all 5 retries.
+    email_enabled: bool = True
 
     # ---------- Observability ----------
     sentry_dsn: str = ""
