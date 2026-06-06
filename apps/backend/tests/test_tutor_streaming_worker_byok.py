@@ -101,6 +101,14 @@ def _patch_worker_seams(monkeypatch, *, turn, mocks):
     record_row = AsyncMock()
     monkeypatch.setattr(tutor_streaming, "record_streamed_turn_row", record_row)
 
+    # Message persistence (2026-06-06 fix) is DB-backed coverage —
+    # see test_tutor_streaming_message_persistence.py. These DB-free
+    # dispatch-wiring tests stub the seams like every other DB call.
+    monkeypatch.setattr(tutor_streaming, "persist_stream_user_message", AsyncMock())
+    monkeypatch.setattr(
+        tutor_streaming, "persist_stream_assistant_message", AsyncMock(return_value="msg_x")
+    )
+
     # S6.8 cooperative-cancellation heartbeat — a DB-free unit test mocks the
     # session, so the account.assert_account_active re-read can't run against the
     # MagicMock session. Stub the seam to a no-op (the cancellation behaviour is

@@ -47,10 +47,17 @@ from app.services import account as account_service
 from app.services import byok as byok_service
 from app.services.llm_call_log import record_streamed_turn_row
 from app.services.redis_streams import emit_event, set_stream_ttl
+from app.services.tutor import extract_citation_dicts
 from app.services.tutor_orchestrator_stream import orchestrate_stream
 from app.services.tutor_subagents.retriever import RetrieverChunk
 from app.services.tutor_subagents.retriever import run as run_retriever
-from app.services.tutor_turn_service import claim_pending_turn, mark_terminal, set_reserved_cost
+from app.services.tutor_turn_service import (
+    claim_pending_turn,
+    mark_terminal,
+    persist_stream_assistant_message,
+    persist_stream_user_message,
+    set_reserved_cost,
+)
 from app.workers.celery_app import celery
 
 log = get_task_logger(__name__)
@@ -140,6 +147,15 @@ async def _run_turn_async(turn_id: str) -> None:
             # The row stores USD as Decimal; convert back to the
             # integer microcent shape the reconcile Lua expects.
             reserved_microcents = int(turn.reserved_cost_usd * USD_TO_MICROCENTS)
+            # Persist the learner's question in the SAME transaction as
+            # the claim (non-streaming contract: "the user message is
+            # persisted before the LLM call so a network blip leaves a
+            # clean audit trail"). Without this row a streamed turn was
+            # invisible to conversation history entirely — the 2026-06-06
+            # prod finding (BACKLOG P2).
+            await persist_stream_user_message(
+                db, conversation_id=conversation_id, content=user_message_content
+            )
             await db.commit()
 
         # S5.12/R-S1'': re-resolve + decrypt the user's BYOK key IN THE WORKER
@@ -248,6 +264,11 @@ async def _run_turn_async(turn_id: str) -> None:
         # except path's BYOK credential-invalidation choreography — on a
         # soft-yield the worker can't re-inspect the original exception.
         yielded_auth_failure: bool = False
+        # The streamed answer exists only as synth_chunk deltas on a
+        # TTL'd Redis Stream — accumulate them so the assistant turn can
+        # be persisted to tutor_messages at turn_complete (the missing
+        # write behind the 2026-06-06 "history empty after reload" bug).
+        answer_parts: list[str] = []
         async with Session() as hb_db:
             async for ev in orchestrate_stream(
                 turn_id=turn_id,
@@ -263,7 +284,9 @@ async def _run_turn_async(turn_id: str) -> None:
                 # close the stream rather than running the turn to completion.
                 if user_id:
                     await account_service.assert_account_active(hb_db, user_id)
-                if ev["event"] == "turn_complete":
+                if ev["event"] == "synth_chunk":
+                    answer_parts.append(str(ev["data"].get("delta") or ""))
+                elif ev["event"] == "turn_complete":
                     cost_usd = float(ev["data"].get("cost_usd", 0.0) or 0.0)
                     actual_cost_microcents = int(cost_usd * USD_TO_MICROCENTS)
                     final_cost_usd = cost_usd
@@ -273,6 +296,32 @@ async def _run_turn_async(turn_id: str) -> None:
                     # COUNT-based).
                     final_prompt_tokens = int(ev["data"].get("prompt_tokens", 0) or 0)
                     final_completion_tokens = int(ev["data"].get("completion_tokens", 0) or 0)
+                    # Persist the assistant turn BEFORE the terminal event
+                    # hits the wire, so the SSE consumer can link straight
+                    # to the trace drill-down via a real message_id (the
+                    # orchestrator is DB-free and yields message_id=None).
+                    # Best-effort by design: the answer was already
+                    # delivered, so a persistence failure must not turn a
+                    # streamed success into a turn_failed — but it is loud
+                    # (log.exception), never silent.
+                    try:
+                        answer_text = "".join(answer_parts)
+                        async with Session() as mdb:
+                            message_id = await persist_stream_assistant_message(
+                                mdb,
+                                conversation_id=conversation_id,
+                                content=answer_text,
+                                citations=extract_citation_dicts(
+                                    answer_text, retrieved_chunks or []
+                                ),
+                            )
+                            await mdb.commit()
+                        ev["data"]["message_id"] = message_id
+                    except Exception:
+                        log.exception(
+                            "tutor_stream_message_persist_failed",
+                            extra={"turn_id": turn_id, "conversation_id": conversation_id},
+                        )
                 elif ev["event"] == "turn_failed":
                     # Orchestrator soft-yield: capture the error_code so the
                     # post-loop failure handler can persist it on the job row.
@@ -445,4 +494,3 @@ async def _run_turn_async(turn_id: str) -> None:
             await redis_client.aclose()
         with contextlib.suppress(Exception):
             await engine.dispose()
-        del conversation_id  # currently unused; keeps the linter happy

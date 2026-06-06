@@ -39,6 +39,7 @@ click through to a lesson the tutor didn't ground its answer in.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -220,6 +221,44 @@ def extract_citations(answer: str, chunks: list[LessonChunk]) -> list[Citation]:
         cite = by_lesson.get(lid)
         if cite is not None:
             out.append(cite)
+    return out
+
+
+def extract_citation_dicts(answer: str, chunks: Sequence[Any]) -> list[dict[str, str]]:
+    """:func:`extract_citations` for detached chunk records.
+
+    The streaming worker holds pydantic ``RetrieverChunk``s (duck shape:
+    ``lesson_id`` / ``lesson_title`` / ``text``), not ORM ``LessonChunk``
+    rows — by the time the answer finishes streaming, the retrieval
+    session is long closed, so ``chunk.lesson`` lazy-loads are off the
+    table. Same guardrails as the ORM variant: the retrieval set bounds
+    the citation universe, order of first appearance, deduplicated.
+    Returns the JSONB dict shape stored on ``tutor_messages.citations``.
+    """
+    if not answer or not chunks:
+        return []
+
+    by_lesson: dict[str, Citation] = {}
+    for chunk in chunks:
+        lid = chunk.lesson_id
+        if lid in by_lesson:
+            continue
+        by_lesson[lid] = Citation(
+            lesson_id=lid,
+            lesson_title=chunk.lesson_title or "Untitled lesson",
+            chunk_excerpt=_excerpt(chunk.text, CITATION_EXCERPT_CHARS),
+        )
+
+    seen: set[str] = set()
+    out: list[dict[str, str]] = []
+    for match in CITATION_RE.finditer(answer):
+        lid = match.group(1)
+        if lid in seen:
+            continue
+        seen.add(lid)
+        cite = by_lesson.get(lid)
+        if cite is not None:
+            out.append(cite.to_dict())
     return out
 
 

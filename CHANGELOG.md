@@ -21,6 +21,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the only split-out subagent module) and drops the repo-committed
   `.mp4` poster link, which GitHub never inline-plays.
 
+### Fixed
+
+- **Streamed tutor turns never persisted their messages.** Found on prod
+  2026-06-06 (BACKLOG P2): a streamed turn completed cleanly (job row
+  `complete`, `llm_calls` row written, SSE delivered) while writing zero
+  `tutor_messages` rows — the worker forwarded `synth_chunk` deltas to a
+  TTL'd Redis Stream and discarded them, `turn_complete` hard-carried
+  `message_id: null`, and the POST endpoint neither created nor
+  validated a conversation (prod job rows sat at `conversation_id NULL`).
+  History was empty after reload and the per-turn trace drill-down was
+  unreachable for streamed turns. Now: `POST /tutor/turns` auto-creates
+  the conversation for course-scoped turns and gates a client-supplied
+  `conversation_id` on ownership AND course match (existence-hide 404 —
+  ownership would otherwise have become an IDOR the moment the worker
+  started writing, and a course mismatch would persist course-B messages
+  + citations into a course-A thread; a follow-up turn may omit
+  `course_slug` and the course derives from the thread); the worker
+  persists the user message in the claim transaction (the non-streaming
+  "question survives an LLM blip" contract), accumulates the synth
+  deltas, and at `turn_complete` persists the assistant message with
+  `[L:id]` citations parsed against the retrieved chunks, bumps
+  `last_message_at`, and enriches the event with the real `message_id`;
+  the streaming panel echoes the server-assigned conversation on
+  follow-ups so a session stays one thread. DB-backed regression suite
+  added (`test_tutor_streaming_message_persistence.py`) — the prior
+  coverage mocked every DB seam and structurally could not catch the
+  missing INSERT.
+
 ### Fixed (QA loop iters 8–23 — live-walk fixes)
 
 - **Tutor cost-reservation leak:** closing the tutor mid-turn now aborts

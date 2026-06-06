@@ -46,15 +46,21 @@ export interface StreamingTutorPanelProps {
 interface PostTurnResponse {
   id: string;
   status: string;
+  /** The thread this turn's messages persist into — server-created on
+   * the first course-scoped turn; echo it back on follow-ups so a
+   * multi-question session stays ONE conversation in history. */
+  conversation_id: string | null;
 }
 
 async function postTurn(
   content: string,
   courseSlug: string | null,
+  conversationId: string | null,
   token: string | null,
 ): Promise<PostTurnResponse> {
   const body: Record<string, string> = { content };
   if (courseSlug) body.course_slug = courseSlug;
+  if (conversationId) body.conversation_id = conversationId;
   const res = await fetch("/api/v1/tutor/turns", {
     method: "POST",
     headers: {
@@ -82,12 +88,18 @@ export function StreamingTutorPanel({
   const [currentTurnId, setCurrentTurnId] = useState<string | null>(null);
   const [sentPrompt, setSentPrompt] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Thread handle for this panel session — the server auto-creates a
+  // conversation on the first course-scoped turn; echoing it back keeps
+  // follow-up questions in the same persisted thread.
+  const conversationIdRef = useRef<string | null>(null);
 
   const stream = useTutorStream(currentTurnId);
 
   const sendMut = useMutation({
-    mutationFn: (content: string) => postTurn(content, courseSlug ?? null, token),
+    mutationFn: (content: string) =>
+      postTurn(content, courseSlug ?? null, conversationIdRef.current, token),
     onSuccess: (resp, content) => {
+      conversationIdRef.current = resp.conversation_id ?? conversationIdRef.current;
       setCurrentTurnId(resp.id);
       setSentPrompt(content);
       setDraft("");

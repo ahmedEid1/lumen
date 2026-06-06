@@ -27,6 +27,7 @@ import redis.asyncio as redis
 from fastapi import APIRouter, Header, Request, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 
 from app.api.deps import CurrentUser, DBSession
@@ -48,6 +49,7 @@ from app.core.errors import (
 )
 from app.core.ratelimit import limiter
 from app.models.llm_call import BILLING_BYOK
+from app.models.tutor_conversation import TutorConversation
 from app.models.tutor_turn_job import TERMINAL_TURN_STATUSES, TURN_STATUS_ABORTED
 from app.services import byok as byok_service
 from app.services.llm_call_log import quota_limits, user_request_count
@@ -153,6 +155,43 @@ async def post_turn(
         if course is None or not await visibility_service.can_view_course(db, course, user):
             raise NotFoundError("course not found")
         course_id = course.id
+
+    # Conversation linkage — resolved BEFORE the reservation for the same
+    # leak-avoidance reason as the course lookup above. The worker persists
+    # the turn's messages INTO this conversation (history must survive a
+    # reload — 2026-06-06 prod finding), which makes two things mandatory
+    # here that the pre-persistence wiring never needed:
+    #   1. ownership validation when the client supplies an id (a foreign
+    #      conversation_id would otherwise write into another user's
+    #      thread — IDOR, existence-hide 404 like every other tutor read);
+    #   2. auto-create for course-scoped turns without one (the streaming
+    #      panel sends only {content, course_slug} on a fresh thread; with
+    #      no conversation the messages would have nowhere to land).
+    # Course-less turns (the /demo synth-only path) stay conversation-less
+    # by design — nothing to attach history to.
+    conversation_id: str | None = body.conversation_id
+    if conversation_id is not None:
+        conv = (
+            await db.execute(
+                select(TutorConversation).where(TutorConversation.id == conversation_id)
+            )
+        ).scalar_one_or_none()
+        if conv is None or conv.user_id != user.id:
+            raise NotFoundError("conversation not found")
+        # Codex P2: conversations are course-scoped — a turn for course B
+        # must not persist into a course-A thread (wrong-course history +
+        # citations). Derive the course when the body omits it (follow-up
+        # turns can send just {content, conversation_id}); reject a
+        # mismatch with the same existence-hide shape as above.
+        if course_id is None:
+            course_id = conv.course_id
+        elif conv.course_id != course_id:
+            raise NotFoundError("conversation not found")
+    elif course_id is not None:
+        conv = TutorConversation(user_id=user.id, course_id=course_id)
+        db.add(conv)
+        await db.flush()
+        conversation_id = conv.id
 
     # L33 — cost-cap + concurrency reservation. The order matters:
     # check_concurrency first (cheap, no Lua write happens until ok),
@@ -266,7 +305,7 @@ async def post_turn(
         turn = await create_turn(
             db,
             user_id=user.id,
-            conversation_id=body.conversation_id,
+            conversation_id=conversation_id,
             reserved_cost_usd=reserved_usd,
             reservation_ip_key=client_ip,
             prompt_template_hash=None,

@@ -62,7 +62,7 @@ async def create_turn(
     user_id: str,
     conversation_id: str | None,
     reserved_cost_usd: Decimal,
-    reservation_ip_key: str,
+    reservation_ip_key: str | None,
     prompt_template_hash: str | None = None,
     user_message: str | None = None,
     course_id: str | None = None,
@@ -265,3 +265,79 @@ async def get_turn_for_user(db: AsyncSession, *, turn_id: str, user_id: str) -> 
         )
     )
     return result.scalar_one_or_none()
+
+
+async def persist_stream_user_message(
+    db: AsyncSession, *, conversation_id: str | None, content: str
+) -> str | None:
+    """Persist the learner's question for a streamed turn.
+
+    Mirrors the non-streaming contract (``app/api/v1/tutor.py`` —
+    "the user message is persisted before the LLM call so a network
+    blip leaves a clean audit trail"): the worker calls this right
+    after winning the claim fence, in the same transaction, so the
+    question survives even if the provider dies mid-stream. No-op for
+    conversation-less turns (the ``/demo`` synth-only path).
+
+    Flush-only — the caller owns the commit boundary.
+    """
+    if not conversation_id or not content.strip():
+        return None
+    from app.models.tutor_conversation import TutorMessage, TutorMessageRole
+
+    msg = TutorMessage(
+        conversation_id=conversation_id,
+        role=TutorMessageRole.user,
+        content=content,
+        citations=[],
+    )
+    db.add(msg)
+    await db.flush()
+    return msg.id
+
+
+async def persist_stream_assistant_message(
+    db: AsyncSession,
+    *,
+    conversation_id: str | None,
+    content: str,
+    citations: list[dict[str, str]],
+) -> str | None:
+    """Persist the streamed answer + bump the conversation's ordering.
+
+    The streamed answer otherwise exists only as ephemeral
+    ``synth_chunk`` events on a TTL'd Redis Stream — this is the row
+    that makes history survive a reload and gives ``turn_complete`` a
+    real ``message_id`` for the trace drill-down link. Also bumps
+    ``last_message_at`` exactly like the non-streaming path
+    (``app/api/v1/tutor.py``) so conversation lists order correctly.
+
+    Flush-only — the caller owns the commit boundary.
+    """
+    if not conversation_id or not content.strip():
+        return None
+    from sqlalchemy import select
+
+    from app.models.tutor_conversation import (
+        TutorConversation,
+        TutorMessage,
+        TutorMessageRole,
+    )
+
+    msg = TutorMessage(
+        conversation_id=conversation_id,
+        role=TutorMessageRole.assistant,
+        content=content,
+        citations=citations,
+    )
+    db.add(msg)
+    await db.flush()
+    await db.refresh(msg)  # server_default created_at for the bump below
+
+    conv = (
+        await db.execute(select(TutorConversation).where(TutorConversation.id == conversation_id))
+    ).scalar_one_or_none()
+    if conv is not None:
+        conv.last_message_at = msg.created_at
+        await db.flush()
+    return msg.id
