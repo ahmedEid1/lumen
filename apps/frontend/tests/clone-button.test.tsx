@@ -7,8 +7,10 @@
  *     publicly-listed course; hidden for anonymous / not-listed.
  *  2. Anonymous click routes to /login with a `next` return path
  *     (handled by the card/sidebar wrappers).
- *  3. A 201 success calls Courses.clone, routes to
- *     /studio/draft/{newId}, and invalidates myCourses + enrollments.
+ *  3. A 201 success calls Courses.clone, routes to the new course's
+ *     editor /studio/{newId} (NOT the AI trace surface /studio/draft/{id},
+ *     which is empty for a clone — W11 F3), and invalidates myCourses +
+ *     enrollments.
  *  4. 429 / 409 / 413 surface the matching localized error toast.
  *  5. <OriginAttribution> renders a "View original" link when the
  *     origin is available, plain "no longer available" text when not,
@@ -115,7 +117,7 @@ describe("CloneButton — render gating", () => {
 });
 
 describe("CloneButton — clone mutation", () => {
-  it("on 201 success routes to /studio/draft/{newId} and invalidates myCourses + enrollments", async () => {
+  it("on 201 success routes to /studio/{newId} and invalidates myCourses + enrollments", async () => {
     vi.spyOn(endpoints.Courses, "clone").mockResolvedValue(
       makeListItem({
         id: "new9",
@@ -130,7 +132,7 @@ describe("CloneButton — clone mutation", () => {
     await userEvent.click(screen.getByRole("button", { name: en["clone.cta"] }));
 
     await waitFor(() => expect(endpoints.Courses.clone).toHaveBeenCalledWith({ key: "src1" }));
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/studio/draft/new9"));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/studio/new9"));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["me", "my-courses"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["me", "enrollments"] });
   });

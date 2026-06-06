@@ -24,9 +24,13 @@ import { qk } from "@/lib/query/keys";
  *
  * The clone flag (`CLONE_ENABLED`) is **not** mirrored client-side: when
  * off, the POST 404s and we surface the generic error toast — exactly the
- * share/unshare flag pattern (`studio/[id]/page.tsx`). On 201 success the
- * server has already created the private draft + auto-enrolled the cloner,
- * so we invalidate `myCourses` + `enrollments` and route to the new draft.
+ * share/unshare flag pattern (`studio/[id]/page.tsx`). On 201 success (or a
+ * replayed idempotent 200 — both return the created/existing CourseListItem)
+ * the server has already created the private draft + auto-enrolled the cloner,
+ * so we invalidate `myCourses` + `enrollments` and route to the new course's
+ * editor at `/studio/{id}`. A clone has no AI authoring trace, so we must NOT
+ * route to the reasoning-trace surface `/studio/draft/{id}` — that renders an
+ * empty "no trace recorded" state for clones (W11 F3).
  */
 export function CloneButton({
   course,
@@ -57,7 +61,7 @@ export function CloneButton({
       toast.success(t("clone.success"));
       qc.invalidateQueries({ queryKey: qk.myCourses });
       qc.invalidateQueries({ queryKey: qk.enrollments });
-      router.push(`/studio/draft/${created.id}`);
+      router.push(`/studio/${created.id}`);
     },
     onError: (e: unknown) => toast.error(messageForError(e, t)),
   });
