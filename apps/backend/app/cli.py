@@ -540,6 +540,104 @@ def rotate_byok_master_key() -> None:
     asyncio.run(_run())
 
 
+# The exact fixture template Playwright registers in
+# apps/frontend/tests/e2e/auth.spec.ts:
+#   const email = `e2e-auth-${Date.now()}@lumen.test`;  full_name "E2E Auth User"
+# A LIKE on this prefix (anchored to the @lumen.test domain so a real user who
+# happens to start their address with "e2e-auth-" on another domain is never
+# swept) is the pin. ``%`` matches the epoch-ms stamp. Keep this in lock-step
+# with the spec — if the fixture template ever changes, this pattern must too.
+_E2E_USER_EMAIL_LIKE = "e2e-auth-%@lumen.test"
+
+
+@cli.command(name="prune-e2e-users")
+def prune_e2e_users(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="List what WOULD be pruned without deleting anything.",
+    ),
+) -> None:
+    """Hard-delete throwaway Playwright auth-fixture users + their owned data.
+
+    The e2e auth golden-path spec registers a fresh
+    ``e2e-auth-<epoch>@lumen.test`` user on every run (see
+    ``apps/frontend/tests/e2e/auth.spec.ts``). Those accounts accumulate in
+    the dev DB and clutter ``/admin/users``. This is a data-hygiene sweep —
+    it HARD-deletes the matching users and every row they own, in FK-safe
+    order:
+
+    1. Their owned courses are deleted FIRST. ``courses.owner_id`` is an
+       ``ondelete="RESTRICT"`` FK (ADR-0030 D1), so a user who owns a course
+       can't be removed until the course is gone. Deleting the course lets
+       Postgres CASCADE tear down its whole subtree (modules → lessons →
+       chunks, enrollments, reviews, discussions, tutor conversations,
+       learning-path items, moderation rows, …) and SET NULL the clone-
+       provenance self-pointers on any descendant courses.
+    2. The users are deleted SECOND. Postgres then CASCADEs the remaining
+       user-owned rows (refresh tokens, enrollments in other courses,
+       notifications, MCP clients, BYOK credentials, learning briefs/paths,
+       tutor jobs, …) and SET NULLs the audit / authored-by columns that are
+       deliberately ``ondelete="SET NULL"``.
+
+    L21-Sec — refuses in production unless ``LUMEN_ALLOW_PROD_SEED=1``
+    (the same operator opt-in the seed commands use). Prints a count summary
+    of users + courses pruned. ``--dry-run`` lists what WOULD go and deletes
+    nothing.
+    """
+    _refuse_prod_seed_or_pass("prune-e2e-users")
+    asyncio.run(_prune_e2e_users(dry_run=dry_run))
+
+
+async def _prune_e2e_users(*, dry_run: bool) -> None:
+    Session = get_sessionmaker()
+    async with Session() as db:
+        users = (
+            (await db.execute(select(User).where(User.email.like(_E2E_USER_EMAIL_LIKE))))
+            .scalars()
+            .all()
+        )
+        if not users:
+            console.print("[yellow]No e2e fixture users found — nothing to prune.[/yellow]")
+            return
+
+        user_ids = [u.id for u in users]
+        # Include soft-deleted courses too: a hygiene sweep must leave NO trace
+        # of the fixture account, and a soft-deleted row still pins owner_id
+        # under the RESTRICT FK.
+        courses = (
+            (await db.execute(select(Course).where(Course.owner_id.in_(user_ids)))).scalars().all()
+        )
+        course_ids = [c.id for c in courses]
+
+        if dry_run:
+            console.print(
+                f"[cyan]DRY RUN — would prune {len(users)} user(s) "
+                f"and {len(courses)} owned course(s):[/cyan]"
+            )
+            for u in users:
+                console.print(f"  user  {u.email:40s} ({u.id})")
+            for c in courses:
+                console.print(f"  course {c.slug:39s} ({c.id})")
+            return
+
+        # FK-safe order: courses first (owner_id is RESTRICT), then users.
+        # Use ORM ``session.delete`` so SQLAlchemy issues per-row DELETEs the
+        # DB-level ``ondelete`` rules act on (CASCADE children, SET NULL
+        # provenance / audit pointers).
+        for c in courses:
+            await db.delete(c)
+        await db.flush()
+        for u in users:
+            await db.delete(u)
+        await db.commit()
+
+        console.print(
+            f"[green]Pruned {len(user_ids)} e2e fixture user(s) "
+            f"and {len(course_ids)} owned course(s).[/green]"
+        )
+
+
 @cli.command()
 def info() -> None:
     """Print configuration summary."""
