@@ -363,6 +363,30 @@ its three gates are green:**
   occurrence, idiom now standard). Suites: backend **1403** / frontend 438 green. Chain:
   …0050→0051→0052→0043(boundary last). Branch pushed (push rule rescinded by user 2026-06-05).
   **Wave 2 complete: S2+S3+S4+S5+S6 all gates green. Next: S7 cross-cutting (W10).**
+- **2026-06-06** — **S7 ALL GATES GREEN — W10 closed.** Build workflow s7-cross-cutting (4 parallel agents,
+  disjoint file sets): A streamed-turn token plumbing (usage was already extracted into StreamChunk.usage —
+  dropped at 3 downstream seams, all fixed; COUNT-based streaming quota pinned by tripwire test), B
+  deleted-owner labels in course-card/header/reviews (my-review-editor adjudicated no-change: renders no
+  author name), C eslint 11→0 (honest EditorData union, no any-aliasing) + notifications poller 401 brake
+  (enabled-gate + userId-scoped key + refetchInterval/retry brakes), D dead RequireInstructor alias deleted +
+  Import-from-URL gated to admins (carry-forward confirmed real: API can_ingest_url is admin-only). Gates:
+  Codex CLEAN on the range; Gate-B 1 P1 — orchestrator-YIELDED turn_failed fell through to the worker's
+  SUCCESS path (turn marked COMPLETE + STATUS_OK row while the client saw failure) → fixed e61492d
+  (yielded_failure_code branch mirrors except-path semantics, NO double turn_failed emit, 4 new tests incl.
+  wire-event counting). Gate-B also adjudicated the discussions tombstone gap NOT-a-regression but
+  head-took it as defense-in-depth → cdc7fd3 (both discussion pages, red/green verified). Confirm round:
+  Codex P2 — the soft-failure branch skipped BYOK mark_credential_invalid → fixed b864d47 (orchestrator
+  stamps auth_failure verdict at the catch site where the exception object lives; worker mirrors the
+  except-path choreography incl. after-lease-release ordering; 3 new tests). Final confirm: CLEAN.
+  Curve: 1→1→0. Gate-C live (scripted persona auth): hand-tombstoned scratch user (degraded state — delete
+  choreography deliberately skipped) → catalog card, course header, review, discussion list+detail ALL
+  render localized labels, raw "common.deletedUser" key never paints; poller-401 brake live-proven
+  (cleared HttpOnly cookies mid-session, EXACTLY ONE 401 across 150s/2.5 poll windows, then silence);
+  Import-from-URL hidden for role=user, visible for admin. Streamed-turn live walk ADJUDICATED redundant
+  locally (noop provider tokens are 0 by design; 30-test worker battery pins the machinery; REAL token
+  verification pinned to the W12 prod walk per W11-W13-PLAN.md). Walk artifacts kept in dev DB
+  (tombstone.walk@lumen.test + "Tombstone Walk Course") as W11 fixtures. Suites: backend **1418** /
+  frontend **448**, eslint ZERO, tsc clean. **Next: W11 full local system test.**
 ---
 
 ## 6a. Verified RBAC inventory (ground truth, 2026-06-03)

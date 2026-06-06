@@ -5,8 +5,8 @@
 
 ## Where we are
 
-**Wave 2 closed** on branch `two-role-rebuild` — all six streams green; S7 cross-cutting (W10) is next
-(never auto-deployed; main merges at W12 only).
+**W10/S7 closed** on branch `two-role-rebuild` — all seven streams green; next W11 full local system
+test, then W12 merge→deploy→prod walk (never auto-deployed; main merges at W12 only).
 
 | Stream | Build | Merge | Gate A (Codex) | Gate B (Claude) | Gate C (live) |
 |---|---|---|---|---|---|
@@ -17,7 +17,7 @@
 | S3 goal intake→build | ✅ wave2-s3-build | ✅ (in-tree) | ✅ (4→2→0; final 2 P1s adjudicated, pinned in 0052) | ✅ | ✅ live-proven incl. encrypted-brief privacy |
 | S4 clone/remix | ✅ wave2-s4-build | ✅ (in-tree) | ✅ (5→3→2→2→0) | ✅ | ✅ live-proven incl. UI remix |
 | S6 admin/moderation | ✅ wave2-s6-build | ✅ (in-tree) | ✅ (4→1→1 adjudicated) | ✅ | ✅ live-proven incl. UI approve |
-| S7 cross-cutting | ⬜ W10 | | | | |
+| S7 cross-cutting | ✅ s7-cross-cutting | ✅ (in-tree) | ✅ (clean; confirm 1→1→0) | ✅ (1 P1 fixed) | ✅ live-proven (tombstone walk, 401 brake, admin gating) |
 
 ## Migration chain (single head required)
 
@@ -40,11 +40,13 @@ precedes the deferrable 0043 boundary; 0045 adds the moderation_events timestamp
   **403** half of the contract is the cooperative-cancel signal `account.access_revoked` raised by
   `account.assert_account_active` at streaming heartbeats + build/clone fences (S6.8). Tests:
   `test_auth_suspended_codes.py`, `test_cooperative_cancel.py`.
-- Ingest "Import from URL" button visible to non-admin (API refuses; UI polish) — S2/S6.
+- ~~Ingest "Import from URL" button visible to non-admin~~ — CLOSED at S7 (8e5abbe): gated to admins,
+  matching can_ingest_url; admin-with-flag-off residual 403 accepted (server is the authority).
 - `feature_byok_enabled` default OFF — flip decision belongs to W12 release planning. Prod flip
   REQUIRES setting `BYOK_MASTER_KEYS={"1":"<b64 32B>"}` in .env.production first (boot guard).
-- Streamed-turn `llm_calls` rows persist tokens=0 (usage tokens aren't plumbed through stream
-  events yet) — token-window quota for streaming is COUNT-based only; plumb usage at S7 if wanted.
+- ~~Streamed-turn `llm_calls` rows persist tokens=0~~ — CLOSED at S7 (c26379c + e61492d + b864d47):
+  real usage persisted on success; yielded turn_failed routes to the failure path incl. BYOK credential
+  invalidation; streaming quota stays COUNT-based (tripwire-pinned). Real-token live check = W12 prod walk.
 
 ## Standing process rules
 
