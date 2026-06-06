@@ -412,7 +412,7 @@ export const ar: Record<MessageKey, string> = {
   // Admin / users
   "adminUsers.cartouche": "المستخدمون",
   "adminUsers.title": "المستخدمون",
-  "adminUsers.subtitle": "رقّ المدرّسين، عطّل الحسابات.",
+  "adminUsers.subtitle": "امنح صلاحية المشرف أو اسحبها، وأوقف الحسابات أو أعد تفعيلها.",
   "adminUsers.searchPlaceholder": "ابحث بالبريد أو الاسم…",
   "adminUsers.recentCard": "الأحدث",
   "adminUsers.col.user": "المستخدم",

@@ -405,7 +405,7 @@ export const en = {
   // Admin / users — names in the ledger
   "adminUsers.cartouche": "Users",
   "adminUsers.title": "Users",
-  "adminUsers.subtitle": "Promote instructors, deactivate accounts.",
+  "adminUsers.subtitle": "Grant or revoke admin, suspend or reinstate accounts.",
   "adminUsers.searchPlaceholder": "Search email or name…",
   "adminUsers.recentCard": "Recent",
   "adminUsers.col.user": "User",
