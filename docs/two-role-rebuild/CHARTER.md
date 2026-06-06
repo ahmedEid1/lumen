@@ -459,6 +459,15 @@ its three gates are green:**
   the phase-guard CLI path, never blind upgrade-head across boundaries (this merge was the one valid
   stop-the-world exception, documented in c212b3c); ROTATE the Cloudflare EMBEDDING_OPENAI_API_KEY
   (surfaced in an operator transcript during diagnosis). **Next: W13 docs/CLAUDE.md/memory truth-up.**
+- **2026-06-06** — **W13 CLOSED — WATERFALL COMPLETE (W0→W13).** Docs truth-up b2b0f0d: CLAUDE.md
+  (two-role conventions, seeded-accounts truth, 5 new gotchas — every claim source-verified), README
+  three-role copy fixes, BACKLOG.md (2 P2 + 6 P3). Operator memory updated. Arc tally: 7 streams ALL
+  GATES GREEN, ~150 commits, suites 830→1421 / 380→468, 10 W11 findings + 3 CI-only classes + 2
+  deploy-time gates fixed-forward, full story live-verified on prod with the real LLM.
+- **2026-06-06** — **POST-SHIP: backlog burn-down opened** (user request). Targets: SMTP graceful-disable
+  (P2), elicitation time-budget extraction (P3), BYOK pristine-touch (P3), Instructor-studio copy (P3),
+  deletedUser key consolidation (P3), e2e-user prune CLI (P3). CF key rotation = user action (needs
+  Cloudflare account access; instructions to be handed off).
 ---
 
 ## 6a. Verified RBAC inventory (ground truth, 2026-06-03)
