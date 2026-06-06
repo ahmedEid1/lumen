@@ -215,7 +215,9 @@ async def test_brief_course_status_anonymous_401(client, db_session, make_user) 
     assert r.status_code == 401, r.text
 
 
-async def test_brief_course_status_non_owner_404(client, db_session, auth_headers, make_user) -> None:
+async def test_brief_course_status_non_owner_404(
+    client, db_session, auth_headers, make_user
+) -> None:
     """Another user's brief is existence-hidden (404)."""
     owner = await make_user(role=Role.instructor)
     await _ensure_personal_subject(db_session)
@@ -231,7 +233,9 @@ async def test_brief_course_status_non_owner_404(client, db_session, auth_header
     assert r.status_code == 404, r.text
 
 
-async def test_cancel_via_polled_shell_id_then_fence_aborts(db_session: AsyncSession, make_user) -> None:
+async def test_cancel_via_polled_shell_id_then_fence_aborts(
+    db_session: AsyncSession, make_user
+) -> None:
     """Cancel-mid-build via the polled shell id flips it to build_failed and the
     pipeline's per-lesson fence then aborts (Gate-B F1 + R-S10 end-to-end)."""
     from app.core.errors import AccessRevokedError
@@ -249,7 +253,9 @@ async def test_cancel_via_polled_shell_id_then_fence_aborts(db_session: AsyncSes
 
     # The build materializes the shell; the UI polls brief_course_status to get it.
     shell_id = await build_service._materialize_build_shell(user=user_obj, brief_id=brief.id)
-    polled = await build_service.brief_course_status(db_session, owner_id=user.id, brief_id=brief.id)
+    polled = await build_service.brief_course_status(
+        db_session, owner_id=user.id, brief_id=brief.id
+    )
     assert polled is not None and polled[0] == shell_id
 
     # Healthy fence before cancel.

@@ -334,8 +334,6 @@ async def _purge_learning_briefs(db: AsyncSession, user_id: str) -> None:
     one table this fix purges.
     """
     try:
-        await db.execute(
-            sa_delete(LearningBrief).where(LearningBrief.owner_id == user_id)
-        )
+        await db.execute(sa_delete(LearningBrief).where(LearningBrief.owner_id == user_id))
     except _OPTIONAL_STEP_ERRORS as exc:  # pragma: no cover — missing-table tolerance
         log.warning("delete_account_brief_purge_skipped", error=str(exc), user_id=user_id)

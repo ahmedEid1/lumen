@@ -170,14 +170,22 @@ def _happy_queue() -> list[str]:
     return [
         json.dumps(_OUTLINE),
         json.dumps(
-            {"scores": {"coverage": 5, "learning_arc": 5, "scope": 5}, "weak_spots": [], "rationale": "ok"}
+            {
+                "scores": {"coverage": 5, "learning_arc": 5, "scope": 5},
+                "weak_spots": [],
+                "rationale": "ok",
+            }
         ),
         _LESSON_DOC,
         _LESSON_DOC,
         _LESSON_DOC,
         _QUIZ_JSON,
         json.dumps(
-            {"scores": {"coverage": 4, "learning_arc": 4, "scope": 4}, "weak_spots": [], "rationale": "ok"}
+            {
+                "scores": {"coverage": 4, "learning_arc": 4, "scope": 4},
+                "weak_spots": [],
+                "rationale": "ok",
+            }
         ),
     ]
 
@@ -240,9 +248,7 @@ async def test_crash_mid_loop_leaves_unbuilt_rebuildable(
     monkeypatch.setattr(orch, "_draft_lesson_content", real)
     _install_provider(monkeypatch, _happy_queue())
     rebuild_user = await db_session.get(User, user_id)
-    result = await build_service.build_from_brief(
-        db_session, user=rebuild_user, brief_id=brief_id
-    )
+    result = await build_service.build_from_brief(db_session, user=rebuild_user, brief_id=brief_id)
     assert result.course_id == shell_id
     rebuilt = await db_session.get(Course, shell_id)
     await db_session.refresh(rebuilt)
@@ -337,9 +343,7 @@ async def test_outline_phase_commits_before_loop_starts(
             # outline-phase commit (real title + modules), proving phase 1 already
             # committed before the loop (no open parent-row write txn).
             async with get_sessionmaker()() as sess:
-                row = (
-                    await sess.execute(select(Course).where(Course.id == shell_id))
-                ).scalar_one()
+                row = (await sess.execute(select(Course).where(Course.id == shell_id))).scalar_one()
                 mods = (
                     (await sess.execute(select(Module).where(Module.course_id == shell_id)))
                     .scalars()
@@ -351,9 +355,7 @@ async def test_outline_phase_commits_before_loop_starts(
         return await real(*args, **kwargs)
 
     monkeypatch.setattr(orch, "_draft_lesson_content", _observe)
-    await orch.draft_course(
-        db_session, user=user, brief_id=brief.id, existing_course_id=shell_id
-    )
+    await orch.draft_course(db_session, user=user, brief_id=brief.id, existing_course_id=shell_id)
 
     assert observed["title"] == _OUTLINE["title"]  # outline UPDATE was committed
     assert observed["modules"] == len(_OUTLINE["modules"])  # skeleton committed

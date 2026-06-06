@@ -1644,18 +1644,12 @@ async def _persist_outline_shell(
         # Cancel-aware refill (P1#2): a shell already terminal-failed (cancel or a
         # prior fail-flip) must NOT be reset to draft — abort the build instead.
         if shell.status == CourseStatus.build_failed:
-            raise AccessRevokedError(
-                "This build was cancelled.", code="define.build_cancelled"
-            )
+            raise AccessRevokedError("This build was cancelled.", code="define.build_cancelled")
         # Drop stale modules from a prior partial attempt so the new outline is
         # clean (a re-run of a crashed draft shell). The module cascade removes
         # their lessons.
         stale = (
-            (
-                await own_db.execute(
-                    select(Module).where(Module.course_id == existing_course_id)
-                )
-            )
+            (await own_db.execute(select(Module).where(Module.course_id == existing_course_id)))
             .scalars()
             .all()
         )

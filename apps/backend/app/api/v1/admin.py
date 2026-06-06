@@ -238,11 +238,7 @@ async def list_users(
         base = base.where((User.email.ilike(like)) | (User.full_name.ilike(like)))
 
     total = await _scalar_count(db, select(func.count()).select_from(base.subquery()))
-    stmt = (
-        base.order_by(desc(User.created_at))
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
+    stmt = base.order_by(desc(User.created_at)).offset((page - 1) * page_size).limit(page_size)
     rows = (await db.execute(stmt)).scalars().all()
     items = [UserAdminOut.model_validate(u) for u in rows]
     return Page(items=items, total=total, page=page, page_size=page_size)

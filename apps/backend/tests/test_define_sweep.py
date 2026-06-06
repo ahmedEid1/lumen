@@ -99,9 +99,7 @@ async def _course(
         # (FR-DEFINE-14b "edited recently is left alone" / Gate-B F2), so a test of
         # the abandoned path must age updated_at as well.
         await db.execute(
-            update(Course)
-            .where(Course.id == course.id)
-            .values(created_at=old, updated_at=old)
+            update(Course).where(Course.id == course.id).values(created_at=old, updated_at=old)
         )
     await db.commit()
     await db.refresh(course)

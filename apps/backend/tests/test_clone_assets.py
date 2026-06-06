@@ -337,9 +337,7 @@ async def test_copy_clone_assets_missing_course_logs_error_non_success(db_sessio
     with capture_logs() as logs:
         summary = await media._copy_clone_assets_async("does-not-exist", db=db_session)
     assert summary == {"copied": 0, "failed": 0, "cancelled": False, "missing": True}
-    missing = [
-        e for e in logs if e.get("event") == "copy_clone_assets_course_missing"
-    ]
+    missing = [e for e in logs if e.get("event") == "copy_clone_assets_course_missing"]
     assert len(missing) == 1
     assert missing[0]["log_level"] == "error"
     assert missing[0]["course_id"] == "does-not-exist"
@@ -378,8 +376,6 @@ async def test_sweep_expired_idempotency_keys(db_session):
     reclaimed = await media._sweep_expired_idempotency_keys_async(db=db_session)
     await db_session.commit()
     assert reclaimed == 1
-    remaining = (
-        (await db_session.execute(select(IdempotencyKey.idempotency_key))).scalars().all()
-    )
+    remaining = (await db_session.execute(select(IdempotencyKey.idempotency_key))).scalars().all()
     assert "old" not in remaining
     assert "new" in remaining
