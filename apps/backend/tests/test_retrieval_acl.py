@@ -20,6 +20,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.course import CourseStatus, ModerationState, Visibility
 from app.services import embeddings_retrieval as er
 
+
+@pytest.fixture(autouse=True)
+def _noop_providers(monkeypatch):
+    """Force the noop embedding provider so query-time ``prov.embed`` never
+    imports ``sentence_transformers`` (absent in CI — torch is dev-image-only;
+    same dodge as test_tutor_idor.py). The chunk fixtures already use literal
+    vectors; ranking is irrelevant to these leak tests."""
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "noop")
+    monkeypatch.setenv("LLM_PROVIDER", "noop")
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+    yield
+    get_settings.cache_clear()  # type: ignore[attr-defined]
+
+
 # --------------------------------------------------------------------------
 # Structural
 # --------------------------------------------------------------------------
