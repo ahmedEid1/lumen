@@ -36,8 +36,16 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _quiz_course(client: AsyncClient, teacher: dict, subject_id: str) -> tuple[str, str]:
-    """Spin up a published course with one quiz lesson; return (course_id, quiz_lesson_id)."""
+async def _quiz_course(
+    client: AsyncClient, teacher: dict, subject_id: str, db: AsyncSession
+) -> tuple[str, str]:
+    """Spin up a publicly-listed course with one quiz lesson; return
+    (course_id, quiz_lesson_id).
+
+    S2 / ADR-0026: ``PATCH {status: "published"}`` is now a 422 and enrollment
+    requires ``is_publicly_listed`` (public + published + approved). Drive all
+    three axes via the DB session — mirroring S2's ``_mk_course`` helper.
+    """
     create = await client.post(
         "/api/v1/courses",
         json={"title": "FSRS Coverage", "subject_id": subject_id, "overview": "x"},
@@ -81,11 +89,20 @@ async def _quiz_course(client: AsyncClient, teacher: dict, subject_id: str) -> t
         json={"title": "Hello", "type": "text", "data": {"type": "text", "body_markdown": "x"}},
         headers=teacher,
     )
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=teacher,
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
+
+    await db.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
+    await db.commit()
     return course_id, quiz["id"]
 
 
@@ -327,7 +344,7 @@ async def test_quiz_submit_creates_review_card(
     teacher = await auth_headers(role=Role.instructor)
     student_headers = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, quiz_id = await _quiz_course(client, teacher, subject.id)
+    course_id, quiz_id = await _quiz_course(client, teacher, subject.id, db_session)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student_headers)
 
     r = await client.post(
@@ -351,7 +368,7 @@ async def test_grade_endpoint_updates_card(
     teacher = await auth_headers(role=Role.instructor)
     student_headers = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, quiz_id = await _quiz_course(client, teacher, subject.id)
+    course_id, quiz_id = await _quiz_course(client, teacher, subject.id, db_session)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student_headers)
     await client.post(
         f"/api/v1/me/progress/lessons/{quiz_id}/quiz",
@@ -380,7 +397,7 @@ async def test_grade_rejects_bad_rating(
     teacher = await auth_headers(role=Role.instructor)
     student_headers = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, quiz_id = await _quiz_course(client, teacher, subject.id)
+    course_id, quiz_id = await _quiz_course(client, teacher, subject.id, db_session)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student_headers)
     await client.post(
         f"/api/v1/me/progress/lessons/{quiz_id}/quiz",
@@ -407,7 +424,7 @@ async def test_grade_other_users_card_404(
     alice = await auth_headers(role=Role.student)
     bob = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, quiz_id = await _quiz_course(client, teacher, subject.id)
+    course_id, quiz_id = await _quiz_course(client, teacher, subject.id, db_session)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=alice)
     await client.post(
         f"/api/v1/me/progress/lessons/{quiz_id}/quiz",
@@ -429,7 +446,7 @@ async def test_stats_endpoint(client: AsyncClient, auth_headers, db_session: Asy
     teacher = await auth_headers(role=Role.instructor)
     student_headers = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, quiz_id = await _quiz_course(client, teacher, subject.id)
+    course_id, quiz_id = await _quiz_course(client, teacher, subject.id, db_session)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student_headers)
     await client.post(
         f"/api/v1/me/progress/lessons/{quiz_id}/quiz",

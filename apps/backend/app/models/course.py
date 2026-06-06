@@ -35,6 +35,44 @@ class CourseStatus(StrEnum):
     draft = "draft"
     published = "published"
     archived = "archived"
+    # S3.7 / FR-DEFINE-15 / ADR-0029 §2.2: a self-serve AI build that failed
+    # unrecoverably leaves the course row in this terminal-but-recoverable state
+    # rather than a silent half-course. ``build_failed`` is NOT listable, NOT
+    # enrollable, and excluded from the owner's cross-course RAG retrieval
+    # (``retrieval_acl_clause`` already references the string literal
+    # ``"build_failed"`` defensively — this enum value MUST match it exactly).
+    # Re-running the build for the same brief flips it back to ``draft``. Stored
+    # in the same ``String(20)`` column as the other statuses, so NO DDL/migration
+    # is required to add the value.
+    build_failed = "build_failed"
+
+
+class Visibility(StrEnum):
+    """Sharing intent — owner-controlled, orthogonal to ``status`` (ADR-0026 §1).
+
+    Default ``private``. A course is only ever publicly discoverable when
+    ``visibility==public`` AND ``status==published`` AND
+    ``moderation_state==approved`` (see ``app.services.visibility``). The
+    ``unlisted`` value is deferred (FR-VIS-20).
+    """
+
+    private = "private"
+    public = "public"
+
+
+class ModerationState(StrEnum):
+    """Admin/system authority axis — net-new, default ``none`` (ADR-0026 §1).
+
+    Never a value of ``status`` or ``visibility``. **Sticky**: never reset to
+    ``none`` on unpublish/archive (R-C2). ``none`` is NOT listable (R-C1′);
+    only ``approved`` lists.
+    """
+
+    none = "none"
+    pending_review = "pending_review"
+    approved = "approved"
+    rejected = "rejected"
+    delisted = "delisted"
 
 
 class Difficulty(StrEnum):
@@ -97,6 +135,37 @@ class Course(IdMixin, TimestampMixin, Base):
             "search_vector",
             postgresql_using="gin",
         ),
+        # The consolidated catalog/ACL index (ADR-0026 §3, design-spec §2.5
+        # consolidates ADR-0029's ix_courses_acl into this one by appending
+        # owner_id). Partial on live rows so soft-deleted courses never sit in
+        # the listing hot path. Migration 0033 builds it CONCURRENTLY; 0044
+        # rebuilds it with ``quarantined = false`` in the partial WHERE.
+        Index(
+            "ix_courses_listed",
+            "visibility",
+            "moderation_state",
+            "status",
+            "subject_id",
+            "owner_id",
+            # ``quarantined = false`` in the partial WHERE keeps the listing
+            # predicate index-covered after migration 0044 (DR-18-R2).
+            postgresql_where=text("deleted_at IS NULL AND quarantined = false"),
+        ),
+        # F3 (S6 gate): the admin moderation queue's "needs re-review" arm reads
+        # ``review_flagged_at IS NOT NULL``. Partial index keeps that scan small —
+        # only the handful of flagged-but-still-listed courses are indexed
+        # (migration 0047).
+        Index(
+            "ix_courses_review_flagged",
+            "review_flagged_at",
+            postgresql_where=text("review_flagged_at IS NOT NULL"),
+        ),
+        # Clone provenance lookups (ADR-0028 §"Index for clone read + lineage").
+        # ``ix_courses_origin_course_id`` serves FR-CLONE-24 ("who cloned this")
+        # and the S4.8 read-time ``origin_available`` re-resolution; the root
+        # index supports lineage analytics. Built CONCURRENTLY in migration 0048.
+        Index("ix_courses_origin_course_id", "origin_course_id"),
+        Index("ix_courses_root_origin", "root_origin_course_id"),
     )
 
     owner_id: Mapped[str] = mapped_column(
@@ -124,9 +193,78 @@ class Course(IdMixin, TimestampMixin, Base):
     status: Mapped[CourseStatus] = mapped_column(
         String(20), nullable=False, default=CourseStatus.draft, index=True
     )
+    # Sharing intent + admin authority (ADR-0026 §1) — same no-TypeDecorator
+    # String(20) pattern as ``status``, so reads return a plain str. Default
+    # private/none keeps the catalog behaviour identical post-backfill (every
+    # live-published course is backfilled to public+approved by migration 0033).
+    visibility: Mapped[Visibility] = mapped_column(
+        String(20),
+        nullable=False,
+        server_default=Visibility.private.value,
+        default=Visibility.private,
+    )
+    moderation_state: Mapped[ModerationState] = mapped_column(
+        String(20),
+        nullable=False,
+        server_default=ModerationState.none.value,
+        default=ModerationState.none,
+        index=True,
+    )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # S3.7 hardening (Codex confirm-round P1). The honest build-completion marker:
+    # stamped ONLY at the very end of a successful self-serve build pipeline. The
+    # shell-first build commits per-phase (outline phase commits BEFORE the lesson
+    # loop so the parent-row write lock is released — see build._is_successfully_built
+    # + authoring_orchestrator._persist_outline_shell), so a crashed/cancelled
+    # mid-build draft HAS modules yet is NOT a completed build. This column (NOT the
+    # ">=1 module" heuristic) is the replay/idempotency distinguisher: NULL ⇒
+    # re-buildable, NOT NULL ⇒ a real, replayable build. Orthogonal to status/
+    # visibility (a mid-build draft stays owner-visible with zero/partial chunks,
+    # never indexed until publish — no leak). Migration 0052.
+    build_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     is_featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Full-quarantine flag (DR-18-R2 / migration 0044). Set TRUE only by the
+    # admin hard-removal moderation action for reason ∈ {csam, illegal} (NOT
+    # severe_abuse); cleared only by admin. Single source of truth for the
+    # legally-sensitive case in BOTH the Python authorizer (can_view_course)
+    # AND the SQL clauses (publicly_listed_sql / retrieval_acl_clause) — a
+    # quarantined course is invisible everywhere, even to enrolled learners.
+    quarantined: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false"), default=False
+    )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # F3 (S6 gate / R-S11): an APPROVED course that accumulates enough OPEN user
+    # reports is flagged for admin re-review by stamping this timestamp — WITHOUT
+    # touching ``moderation_state`` (which stays ``approved`` so the course stays
+    # publicly listed; a weak signal must never auto-unlist a vetted course). The
+    # admin moderation queue surfaces flagged courses out-of-band; every admin
+    # transition (approve/reject/delist/relist/remove) clears it. Migration 0047.
+    review_flagged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # ----- Clone provenance (ADR-0028 §"Data model changes") -----
+    # Server-written ONCE at clone time, never client-writable (CourseCreate/
+    # CourseUpdate carry ``extra="forbid"`` — S4.5). All nullable: a from-scratch
+    # course has no origin. FKs are ``ondelete="SET NULL"`` so a hard admin purge
+    # of an origin course/owner nulls the pointer while the snapshot text persists
+    # (lineage survives; ADR-0028 §"Reconciliation note"). In normal self-serve
+    # account deletion (anonymize-in-place, ADR-0030) ``origin_owner_id`` stays
+    # valid pointing at the tombstoned user and the read-time serializer (DR-19)
+    # renders "a deleted user".
+    origin_course_id: Mapped[str | None] = mapped_column(
+        ForeignKey("courses.id", ondelete="SET NULL"), nullable=True
+    )
+    origin_owner_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    root_origin_course_id: Mapped[str | None] = mapped_column(
+        ForeignKey("courses.id", ondelete="SET NULL"), nullable=True
+    )
+    origin_title_snapshot: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    origin_owner_name_snapshot: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    cloned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Postgres GENERATED ALWAYS AS STORED tsvector over title + overview.
     # Read-only at the ORM level; populated and refreshed by the DB on
     # every insert/update. Search queries hit this column via the
@@ -211,6 +349,15 @@ class Enrollment(IdMixin, TimestampMixin, Base):
         ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Owner self-enrollment marker (R-M8' / FR-CLONE-16). True when the course
+    # owner enrolled in their own course (clone auto-enroll or ADR-0026 self-
+    # preview). ``_maybe_issue_certificate`` short-circuits on ``is_self`` so a
+    # self-learner never mints a certificate/badge. server_default keeps the
+    # ADD COLUMN instant (existing rows = false; no historical enrollment was a
+    # self-enroll). See migration 0048.
+    is_self: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false", default=False
+    )
     certificate_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Signed Open Badges 3.0 / W3C VC credential — populated at the
     # same instant ``certificate_id`` is minted, by

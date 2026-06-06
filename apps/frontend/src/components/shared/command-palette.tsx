@@ -16,6 +16,7 @@ import {
   Sparkles,
   Sun,
   User,
+  Wand2,
 } from "lucide-react";
 import {
   Dialog,
@@ -133,14 +134,16 @@ export function CommandPalette() {
     ];
     if (user) {
       items.push(
+        // S3.11 — the define→build→learn entry as a palette command (FR-DEFINE-09).
+        { id: "nav.define", label: t("palette.define"), href: "/learn/define", icon: Wand2 },
         { id: "nav.dashboard", label: t("nav.dashboard"), href: "/dashboard", icon: LayoutDashboard },
         { id: "nav.reviews", label: t("nav.reviews"), href: "/dashboard/reviews", icon: GraduationCap },
         { id: "nav.mastery", label: t("nav.mastery"), href: "/dashboard/mastery", icon: GraduationCap },
         { id: "nav.profile", label: t("nav.profile"), href: "/profile", icon: User },
       );
-      if (user.role === "instructor" || user.role === "admin") {
-        items.push({ id: "nav.studio", label: t("nav.studio"), href: "/studio", icon: Settings2 });
-      }
+      // S1.11: Studio is available to any authenticated user (authoring is
+      // ungated from the instructor role).
+      items.push({ id: "nav.studio", label: t("nav.studio"), href: "/studio", icon: Settings2 });
       if (user.role === "admin") {
         items.push({ id: "nav.admin", label: t("nav.admin"), href: "/admin", icon: Settings2 });
       }

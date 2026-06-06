@@ -1,0 +1,616 @@
+"""Admin-authority moderation transitions (ADR-0026 §4 / S6.2).
+
+S2 ships the **owner-intent** transitions (publish/unpublish/share/unshare/
+resubmit) in ``app/services/courses.py``. This module owns the **admin-
+authority** transitions — ``approve / reject / delist / relist / remove_course``
+— the only path that sets ``moderation_state == approved`` (which is what makes
+the visibility flag-flip meaningful) and the only path that quarantines or
+hard-removes a course.
+
+Each transition:
+
+* validates the legal source state (else ``ValidationAppError`` /
+  ``ConflictError``);
+* writes a ``ModerationEvent`` (durable history) **and** an ``AuditEvent``
+  (``admin.course.*``, with ip/ua threaded from the endpoint);
+* sets ``courses.quarantined`` for ``csam``/``illegal`` hard-removal
+  (DR-18-R2 — the single source of truth for the full-quarantine path);
+* best-effort bumps the catalog cache version + enqueues the public RAG
+  reindex on transition-to-listed (swallows broker errors, CLAUDE.md).
+
+Revocation on hard-removal is enforced at the **authorizer**, not by deleting
+enrollment rows: csam/illegal sets ``quarantined`` (``can_view_course`` returns
+False for everyone incl. owner); ``severe_abuse`` soft-deletes + records the
+reason, and ``can_view_course`` suppresses the enrollment-grandfather branch for
+a removed course while keeping the owner's view/edit (FR-MOD-08).
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
+
+from app.core.config import get_settings
+from app.core.errors import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    RateLimitedError,
+    ValidationAppError,
+)
+from app.core.logging import get_logger
+from app.models.course import Course, ModerationState, Visibility
+from app.repositories import audit as audit_repo
+from app.repositories import courses as courses_repo
+from app.repositories import moderation as moderation_repo
+from app.services import courses as courses_service
+from app.services import visibility as visibility_service
+from app.services.moderation_taxonomy import (
+    QUARANTINE_REASONS,
+    ReasonCode,
+    sanitize_note,
+)
+
+log = get_logger(__name__)
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.models.moderation import CourseReport
+    from app.models.user import User
+
+
+async def _load_course(db: AsyncSession, course_id: str) -> Course:
+    course = await courses_repo.get_course(db, course_id)
+    if not course:
+        raise NotFoundError("Course not found", code="course.not_found")
+    return course
+
+
+async def _record(
+    db: AsyncSession,
+    *,
+    course: Course,
+    actor: User,
+    action: str,
+    from_state: str,
+    to_state: str,
+    reason: ReasonCode | None,
+    note: str | None,
+    ip: str | None,
+    user_agent: str | None,
+) -> None:
+    """Write the paired ModerationEvent + AuditEvent for a transition."""
+    clean_note = sanitize_note(note)
+    await moderation_repo.record_event(
+        db,
+        course_id=course.id,
+        actor_id=actor.id,
+        from_state=from_state,
+        to_state=to_state,
+        reason_code=reason.value if reason else None,
+        note=clean_note,
+    )
+    data: dict = {}
+    if reason is not None:
+        data["reason"] = reason.value
+    if clean_note is not None:
+        data["note"] = clean_note
+    await audit_repo.record(
+        db,
+        actor_id=actor.id,
+        action=action,
+        target_type="course",
+        target_id=course.id,
+        ip_address=ip,
+        user_agent=user_agent,
+        data=data,
+    )
+
+
+async def approve_course(
+    db: AsyncSession,
+    *,
+    course_id: str,
+    actor: User,
+    note: str | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+) -> Course:
+    """Admin approves a pending_review course → ``approved`` (lists it).
+
+    Legal source: ``pending_review`` (FR-MOD-01). Bumps the catalog cache and
+    enqueues the public RAG reindex (transition-to-listed, FR-VIS-17).
+
+    Gate-C addendum (F3 follow-up): approve is ALSO the re-affirmation
+    action for an ``approved`` course carrying the report-accumulation
+    flag — the admin reviewed the reports and the course is fine. Without
+    this arm the flag was unclearable except destructively (re-approve
+    refused invalid_transition; reject/delist/remove were the only
+    flag-clearing paths). Re-affirmation clears the flag and writes an
+    advisory event with NO state change; approve on an approved-and-
+    UNflagged course remains an invalid transition.
+    """
+    course = await _load_course(db, course_id)
+    if course.moderation_state == ModerationState.approved and course.review_flagged_at is not None:
+        course.review_flagged_at = None
+        await _record(
+            db,
+            course=course,
+            actor=actor,
+            action="admin.course.flag_reaffirmed",
+            from_state=str(ModerationState.approved),
+            to_state=str(ModerationState.approved),
+            reason=None,
+            note=note,
+            ip=ip,
+            user_agent=user_agent,
+        )
+        return course
+    if course.moderation_state != ModerationState.pending_review:
+        raise ValidationAppError(
+            f"Cannot approve from {course.moderation_state}",
+            code="course.invalid_transition",
+        )
+    from_state = str(course.moderation_state)
+    course.moderation_state = ModerationState.approved
+    course.review_flagged_at = None  # F3: an admin decision clears the re-review flag
+    await _record(
+        db,
+        course=course,
+        actor=actor,
+        action="admin.course.approve",
+        from_state=from_state,
+        to_state=str(ModerationState.approved),
+        reason=None,
+        note=note,
+        ip=ip,
+        user_agent=user_agent,
+    )
+    await courses_service._bump_catalog_cache_version()
+    courses_service._schedule_embedding_index(course.id)
+    return course
+
+
+async def reject_course(
+    db: AsyncSession,
+    *,
+    course_id: str,
+    actor: User,
+    reason: ReasonCode | None = None,
+    note: str | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+) -> Course:
+    """Admin rejects a pending_review course → ``rejected`` + force-private
+    (FR-MOD-07). moderation_state stays sticky thereafter (R-C2)."""
+    course = await _load_course(db, course_id)
+    if course.moderation_state != ModerationState.pending_review:
+        raise ValidationAppError(
+            f"Cannot reject from {course.moderation_state}",
+            code="course.invalid_transition",
+        )
+    from_state = str(course.moderation_state)
+    course.moderation_state = ModerationState.rejected
+    course.visibility = Visibility.private
+    course.is_featured = False
+    course.review_flagged_at = None  # F3: an admin decision clears the re-review flag
+    await _record(
+        db,
+        course=course,
+        actor=actor,
+        action="admin.course.reject",
+        from_state=from_state,
+        to_state=str(ModerationState.rejected),
+        reason=reason,
+        note=note,
+        ip=ip,
+        user_agent=user_agent,
+    )
+    await courses_service._bump_catalog_cache_version()
+    return course
+
+
+async def delist_course(
+    db: AsyncSession,
+    *,
+    course_id: str,
+    actor: User,
+    reason: ReasonCode | None = None,
+    note: str | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+) -> Course:
+    """Admin delists an approved course → ``delisted`` + de-feature (FR-MOD-03).
+
+    NOT soft-deleted — the owner keeps their content; only public listing is
+    pulled. **Idempotent**: a second delist on an already-delisted course is a
+    no-op (no new event), so report-resolution double-fires don't spam history.
+    """
+    course = await _load_course(db, course_id)
+    if course.moderation_state == ModerationState.delisted:
+        # Idempotent — already delisted, write nothing.
+        return course
+    from_state = str(course.moderation_state)
+    course.moderation_state = ModerationState.delisted
+    course.is_featured = False
+    course.review_flagged_at = None  # F3: an admin decision clears the re-review flag
+    await _record(
+        db,
+        course=course,
+        actor=actor,
+        action="admin.course.delist",
+        from_state=from_state,
+        to_state=str(ModerationState.delisted),
+        reason=reason,
+        note=note,
+        ip=ip,
+        user_agent=user_agent,
+    )
+    await courses_service._bump_catalog_cache_version()
+    return course
+
+
+async def relist_course(
+    db: AsyncSession,
+    *,
+    course_id: str,
+    actor: User,
+    note: str | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+) -> Course:
+    """Admin relists a delisted course → ``approved`` (FR-MOD-04).
+
+    Only succeeds if the predicate *would* hold once approved — i.e. the course
+    is still public + published + live + not quarantined. Otherwise raises
+    ``ConflictError(course.not_listable)`` (e.g. the owner unshared/unpublished
+    it after the delist).
+    """
+    course = await _load_course(db, course_id)
+    if course.moderation_state != ModerationState.delisted:
+        raise ValidationAppError(
+            f"Cannot relist from {course.moderation_state}",
+            code="course.invalid_transition",
+        )
+    # Would approving make it listable? Check every non-moderation_state column
+    # of the predicate (visibility/status/deleted_at/quarantined).
+    course.moderation_state = ModerationState.approved
+    if not visibility_service.is_publicly_listed(course):
+        # Roll the in-memory change back and refuse.
+        course.moderation_state = ModerationState.delisted
+        raise ConflictError(
+            "Course is not currently listable (owner unshared/unpublished it)",
+            code="course.not_listable",
+        )
+    course.review_flagged_at = None  # F3: an admin decision clears the re-review flag
+    await _record(
+        db,
+        course=course,
+        actor=actor,
+        action="admin.course.relist",
+        from_state=str(ModerationState.delisted),
+        to_state=str(ModerationState.approved),
+        reason=None,
+        note=note,
+        ip=ip,
+        user_agent=user_agent,
+    )
+    await courses_service._bump_catalog_cache_version()
+    courses_service._schedule_embedding_index(course.id)
+    return course
+
+
+async def remove_course(
+    db: AsyncSession,
+    *,
+    course_id: str,
+    actor: User,
+    reason: ReasonCode,
+    note: str | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+) -> Course:
+    """Admin hard-removes a course (soft-delete + revoke enrolled access).
+
+    ``reason ∈ {csam, illegal}`` → ``quarantined = True`` (full lockout: even
+    the owner and enrolled learners lose view, R-C6′ / DR-18-R2).
+    ``severe_abuse`` → ``quarantined`` stays False; the course is soft-deleted
+    and the latest event records ``severe_abuse`` so the authorizer suppresses
+    the enrollment-grandfather branch while the owner keeps view/edit
+    (FR-MOD-08). Any taxonomy reason is accepted; only the quarantine set
+    flips the column.
+
+    The transition is itself idempotent on the soft-delete: re-removing an
+    already-deleted course still records the (possibly stronger) reason but does
+    not change ``deleted_at`` if already set.
+    """
+    course = await _load_course(db, course_id)
+    from_state = str(course.moderation_state)
+    if course.deleted_at is None:
+        course.deleted_at = datetime.now(UTC)
+    course.is_featured = False
+    course.review_flagged_at = None  # F3: an admin decision clears the re-review flag
+    if reason in QUARANTINE_REASONS:
+        course.quarantined = True
+    await _record(
+        db,
+        course=course,
+        actor=actor,
+        action="admin.course.remove",
+        from_state=from_state,
+        # remove does not change moderation_state itself (it is sticky); the
+        # event records the removal with deleted_at + quarantined as the effect.
+        to_state=str(course.moderation_state),
+        reason=reason,
+        note=note,
+        ip=ip,
+        user_agent=user_agent,
+    )
+    await courses_service._bump_catalog_cache_version()
+    return course
+
+
+# ---------------------------------------------------------------------------
+# User-filed reports (S6.3 / DR-20)
+# ---------------------------------------------------------------------------
+
+
+def _reporter_is_eligible(reporter: User) -> bool:
+    """DR-20 reporter eligibility: email-verified AND account-age ≥ threshold.
+
+    The anti-brigading control — a throwaway account can't mass-report. Layered
+    on top of the per-user ≤10/h ``@limiter`` cap and the per-course window cap.
+    """
+    if getattr(reporter, "email_verified_at", None) is None:
+        return False
+    created_at = getattr(reporter, "created_at", None)
+    if created_at is None:
+        return False
+    threshold = timedelta(days=get_settings().report_min_account_age_days)
+    return datetime.now(UTC) - created_at >= threshold
+
+
+async def report_course(
+    db: AsyncSession,
+    *,
+    course: Course,
+    reporter: User,
+    reason: ReasonCode,
+    note: str | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+) -> CourseReport:
+    """File (or coalesce) a user report against a publicly-listed course.
+
+    Preconditions enforced (in order, so the existence-hide 404 wins):
+
+    * the course must be **publicly listed** — else ``NotFoundError`` (existence-
+      hide, FR-MOD-11; reportability routes through ``is_publicly_listed``, never
+      a raw status check);
+    * the reporter must not be the owner — else ``ValidationAppError
+      (report.own_course)``;
+    * the reporter must be DR-20-eligible (verified + aged) — else
+      ``ForbiddenError(report.ineligible)``;
+    * the per-course rolling-window cap must not be exceeded — else
+      ``RateLimitedError(course.report_rate_limited)``.
+
+    On success: coalesces onto the reporter's existing OPEN report (updating its
+    reason/note) or inserts a new open row, runs ``note`` through
+    ``sanitize_note`` (FR-MOD-13), and writes a ``course.report`` audit
+    (actor=reporter, ip/ua).
+    """
+    if not visibility_service.is_publicly_listed(course):
+        # Existence-hide: a non-listed course is indistinguishable from a
+        # missing one to a non-owner (FR-MOD-11 / R-U1).
+        raise NotFoundError("Course not found", code="course.not_found")
+    if course.owner_id == reporter.id:
+        raise ValidationAppError("You cannot report your own course", code="report.own_course")
+    if not _reporter_is_eligible(reporter):
+        raise ForbiddenError(
+            "Your account is not yet eligible to file reports",
+            code="report.ineligible",
+        )
+
+    settings = get_settings()
+    clean_note = sanitize_note(note)
+
+    existing = await moderation_repo.get_open_report(
+        db, course_id=course.id, reporter_id=reporter.id
+    )
+    if existing is not None:
+        # Coalesce: update the reporter's open report rather than insert a
+        # duplicate (partial-unique backstop). This does NOT count against the
+        # per-course window — it is the same report being amended.
+        existing.reason = reason.value
+        existing.note = clean_note
+        await db.flush()
+        report = existing
+    else:
+        # Per-course brigading cap (DR-20) — only NEW reports count.
+        window_start = datetime.now(UTC) - timedelta(hours=settings.report_per_course_window_hours)
+        recent = await moderation_repo.count_reports_in_window(
+            db, course_id=course.id, since=window_start
+        )
+        if recent >= settings.report_per_course_window_max:
+            raise RateLimitedError(
+                "This course has received too many reports recently",
+                code="course.report_rate_limited",
+            )
+        report = await moderation_repo.create_report(
+            db,
+            course_id=course.id,
+            reporter_id=reporter.id,
+            reason=reason.value,
+            note=clean_note,
+        )
+
+    await audit_repo.record(
+        db,
+        actor_id=reporter.id,
+        action="course.report",
+        target_type="course",
+        target_id=course.id,
+        ip_address=ip,
+        user_agent=user_agent,
+        data={"reason": reason.value},
+    )
+
+    # R-S11 accumulation: when enough OPEN reports pile up, FLAG the course for
+    # admin re-review out-of-band. An APPROVED course is NEVER auto-delisted nor
+    # requeued to pending_review (both would pull a vetted course off the public
+    # listing — the exact R-S11 violation this denies); the admin makes the real
+    # call. A never-approved course (none/pending) is flagged the same way so the
+    # admin sees the accumulation, but it isn't listed anyway.
+    await _maybe_flag_for_review_on_accumulation(db, course=course)
+    return report
+
+
+async def _maybe_flag_for_review_on_accumulation(db: AsyncSession, *, course: Course) -> None:
+    """R-S11 (F3 S6 gate): flag an over-reported course for admin re-review.
+
+    Stamps ``review_flagged_at = now()`` — it does NOT touch ``moderation_state``.
+    An APPROVED course therefore STAYS approved → STAYS publicly listed
+    (``is_publicly_listed`` keys on ``moderation_state == approved``); the report
+    accumulation is a weak signal that must never auto-unlist a vetted course.
+    The admin moderation queue surfaces the flagged course out-of-band (the
+    ``review_flagged_at IS NOT NULL`` arm) so the admin re-confirms; any admin
+    transition (approve/reject/delist/relist/remove) clears the flag.
+
+    Idempotent: a course already flagged is not re-flagged (no event spam). The
+    advisory auto ``ModerationEvent`` keeps the audit trail — an adviSORY
+    'flagged' event with ``from_state == to_state == moderation_state`` and a
+    distinct ``classifier_signal``/reason marker, so it never corrupts the
+    state-machine event semantics (no real transition occurred).
+    """
+    if course.review_flagged_at is not None:
+        # Already flagged — don't re-stamp or re-emit (idempotent).
+        return
+    threshold = get_settings().report_requeue_threshold
+    open_count = await moderation_repo.count_open_reports(db, course_id=course.id)
+    if open_count < threshold:
+        return
+    state = str(course.moderation_state)
+    course.review_flagged_at = datetime.now(UTC)
+    # Advisory 'flagged' event: NOT a state transition (from==to==current state),
+    # marked auto_flag so the audit trail records the accumulation without the
+    # event-replay/R-M9 logic ever reading it as a real approve/reject/delist.
+    await moderation_repo.record_event(
+        db,
+        course_id=course.id,
+        actor_id=None,  # system/auto signal
+        from_state=state,
+        to_state=state,
+        reason_code="report_accumulation",
+        note=None,
+        classifier_signal={"auto_flag": True, "open_reports": open_count},
+    )
+    await courses_service._bump_catalog_cache_version()
+
+
+async def resolve_report(
+    db: AsyncSession,
+    *,
+    report_id: str,
+    actor: User,
+    action: str,
+    reason: ReasonCode | None = None,
+    note: str | None = None,
+    ip: str | None = None,
+    user_agent: str | None = None,
+) -> CourseReport:
+    """Resolve an open report, performing the linked moderation action atomically.
+
+    ``action`` ∈ {``dismiss``, ``delist``, ``remove``}. ``dismiss`` closes the
+    report with no course change; ``delist`` / ``remove`` delegate to the S6.2
+    transitions (which each write their own ModerationEvent + admin.course.*
+    audit). The report is marked ``actioned``/``dismissed`` with
+    ``resolved_by``/``resolved_at`` and gets ONE linked
+    ``admin.course.report_resolved`` audit — the whole thing runs in the
+    endpoint's single transaction (FR-MOD-12).
+    """
+    report = await moderation_repo.get_report(db, report_id)
+    if report is None:
+        raise NotFoundError("Report not found", code="report.not_found")
+
+    from app.models.moderation import ReportStatus
+
+    # F4 (S6 gate): only an OPEN report may be resolved. Without this guard a
+    # report already ``dismissed`` (or ``actioned``) could be re-resolved with
+    # ``remove`` and fire a fresh course removal — a destructive replay. Refuse a
+    # non-open report with 409 ``report.already_resolved`` before any action.
+    if report.status != ReportStatus.open.value:
+        raise ConflictError("This report has already been resolved", code="report.already_resolved")
+
+    if action == "dismiss":
+        report.status = ReportStatus.dismissed.value
+        await db.flush()
+        # Gate-C addendum (F3 follow-up): dismissing the LAST open report
+        # removes the accumulation signal's basis — clear the re-review
+        # flag so the course doesn't sit in the queue forever. delist /
+        # remove clear it through their own transitions.
+        #
+        # ADJUDICATED (Codex confirm round): the flag is deliberately STICKY
+        # until a human acts — it does NOT re-derive from the threshold, so
+        # dismissing one of three reports leaves the course flagged. The
+        # dismissing admin IS the requested human look (one re-affirm click
+        # or dismiss-to-zero finishes it), and a live-derived flag would be
+        # flappable by brigade-then-withdraw cycles. Pinned by
+        # test_flag_sticky_below_threshold.
+        remaining = await moderation_repo.count_open_reports(db, course_id=report.course_id)
+        if remaining == 0:
+            course = await _load_course(db, report.course_id)
+            if course.review_flagged_at is not None:
+                course.review_flagged_at = None
+                await db.flush()
+                log.info(
+                    "moderation_flag_cleared_on_last_dismiss",
+                    course_id=report.course_id,
+                    report_id=report.id,
+                )
+    elif action == "delist":
+        await delist_course(
+            db,
+            course_id=report.course_id,
+            actor=actor,
+            reason=reason,
+            note=note,
+            ip=ip,
+            user_agent=user_agent,
+        )
+        report.status = ReportStatus.actioned.value
+    elif action == "remove":
+        if reason is None:
+            raise ValidationAppError(
+                "A reason is required to remove a course", code="report.reason_required"
+            )
+        await remove_course(
+            db,
+            course_id=report.course_id,
+            actor=actor,
+            reason=reason,
+            note=note,
+            ip=ip,
+            user_agent=user_agent,
+        )
+        report.status = ReportStatus.actioned.value
+    else:
+        raise ValidationAppError(f"Unknown resolve action {action!r}", code="report.invalid_action")
+
+    report.resolved_by = actor.id
+    report.resolved_at = datetime.now(UTC)
+    await db.flush()
+
+    # ONE linked audit for the resolution itself (the moderation action wrote its
+    # own admin.course.* audit above) — single trail (FR-MOD-12).
+    await audit_repo.record(
+        db,
+        actor_id=actor.id,
+        action="admin.course.report_resolved",
+        target_type="course_report",
+        target_id=report.id,
+        ip_address=ip,
+        user_agent=user_agent,
+        data={"action": action, "course_id": report.course_id},
+    )
+    return report

@@ -58,9 +58,25 @@ async def test_preview_lesson_accessible_anonymously(
             headers=teacher,
         )
     ).json()
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    # S2.4: a free-preview lesson is only anonymously readable when its course
+    # is PUBLICLY LISTED (public + published + approved), not merely published.
+    # ``PATCH {status}`` is now a 422 and publishing alone keeps a course
+    # private, so drive all three axes via the DB session — mirroring S2's
+    # ``_mk_course`` helper.
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
+
+    await db_session.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
+    await db_session.commit()
 
     # clear the httpx cookie jar so "anonymous" requests
     # below aren't auto-authed by the teacher login cookie sticky
@@ -119,5 +135,68 @@ async def test_preview_hidden_on_draft_courses(
     assert anon.status_code == 401
 
     # Owner still sees it
+    owner = await client.get(f"/api/v1/courses/lessons/{preview['id']}", headers=teacher)
+    assert owner.status_code == 200
+
+
+async def test_preview_hidden_on_published_private_course(
+    client: AsyncClient, auth_headers, db_session
+) -> None:
+    """S2.4: a published-PRIVATE course's preview lesson must NOT leak to a
+    stranger — the gate keys on is_publicly_listed, not raw status==published.
+    """
+    from sqlalchemy import select, update
+
+    from app.models.course import Course, ModerationState, Visibility
+
+    teacher = await auth_headers(role=Role.instructor)
+    subject = await _make_subject(db_session)
+    create = await client.post(
+        "/api/v1/courses",
+        json={"title": "Private preview", "subject_id": subject.id, "overview": "x"},
+        headers=teacher,
+    )
+    course_id = create.json()["id"]
+    m = (
+        await client.post(
+            f"/api/v1/courses/{course_id}/modules", json={"title": "M"}, headers=teacher
+        )
+    ).json()
+    preview = (
+        await client.post(
+            f"/api/v1/courses/modules/{m['id']}/lessons",
+            json={
+                "title": "Preview",
+                "type": "text",
+                "is_preview": True,
+                "data": {"type": "text", "body_markdown": "x"},
+            },
+            headers=teacher,
+        )
+    ).json()
+    # Publish but keep it PRIVATE (status=published, visibility=private,
+    # moderation_state=none) — the published-private self-learn state.
+    await db_session.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status="published",
+            visibility=Visibility.private,
+            moderation_state=ModerationState.none,
+        )
+    )
+    await db_session.commit()
+    # sanity: it is NOT publicly listed
+    course = (await db_session.execute(select(Course).where(Course.id == course_id))).scalar_one()
+    from app.services import visibility as vis
+
+    assert vis.is_publicly_listed(course) is False
+
+    client.cookies.clear()
+    anon = await client.get(f"/api/v1/courses/lessons/{preview['id']}")
+    # published-private preview is NOT anonymously readable (no leak)
+    assert anon.status_code == 401
+
+    # Owner still sees it (self-learn)
     owner = await client.get(f"/api/v1/courses/lessons/{preview['id']}", headers=teacher)
     assert owner.status_code == 200

@@ -58,7 +58,22 @@ async def _publish(
     title: str,
     overview: str,
     seed_lesson,
+    db: AsyncSession,
 ) -> str:
+    """Create a course, seed a lesson, then publish AND publicly list it.
+
+    S2 / ADR-0026: lifecycle moved from ``PATCH {status}`` (now 422) to
+    ``POST /courses/{id}/publish``, and publishing alone keeps the course
+    PRIVATE. Catalog/search only surface courses matching ``is_publicly_listed``
+    (``visibility==public AND status==published AND moderation_state==approved``),
+    so we drive all three axes to the publicly-listed state directly via the DB
+    session — mirroring S2's own ``_mk_course`` helper (which seeds
+    status/visibility/moderation on the model rather than calling the endpoint).
+    """
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
+
     r = await client.post(
         "/api/v1/courses",
         json={"title": title, "subject_id": subject_id, "overview": overview},
@@ -66,9 +81,16 @@ async def _publish(
     )
     course_id = r.json()["id"]
     await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    await db.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
+    await db.commit()
     return course_id
 
 
@@ -86,6 +108,7 @@ async def test_title_hit_ranks_above_body_hit(
         "Web fundamentals",
         "An intro covering HTML, CSS, JavaScript and a touch of Python.",
         seed_lesson,
+        db_session,
     )
     title_hit = await _publish(
         client,
@@ -94,6 +117,7 @@ async def test_title_hit_ranks_above_body_hit(
         "Python for beginners",
         "Variables, loops, functions.",
         seed_lesson,
+        db_session,
     )
 
     r = await client.get("/api/v1/courses?q=python")
@@ -119,6 +143,7 @@ async def test_partial_word_still_matches_via_ilike_fallback(
         "JavaScript essentials",
         "Closures, promises, the event loop.",
         seed_lesson,
+        db_session,
     )
 
     r = await client.get("/api/v1/courses?q=java")
@@ -141,6 +166,7 @@ async def test_word_stem_matches_via_fts(
         "Running benchmarks",
         "Measuring throughput properly.",
         seed_lesson,
+        db_session,
     )
 
     r = await client.get("/api/v1/courses?q=run")
@@ -157,7 +183,7 @@ async def test_no_query_still_paginates_by_sort(
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
     for title in ("Alpha", "Bravo", "Charlie"):
-        await _publish(client, teacher, subject.id, title, "x", seed_lesson)
+        await _publish(client, teacher, subject.id, title, "x", seed_lesson, db_session)
     r = await client.get("/api/v1/courses?sort=title")
     assert r.status_code == 200
     titles = [i["title"] for i in r.json()["items"]]

@@ -42,18 +42,27 @@ export function CourseReviews({
         )}
         {reviews && reviews.length > 0 ? (
           <ul className="divide-y divide-border">
-            {reviews.map((r) => (
+            {reviews.map((r) => {
+              // S6.10 read-time anonymization (DR-19): a tombstoned reviewer's
+              // `full_name` arrives as the i18n KEY "common.deletedUser";
+              // resolve it here (mirrors origin-attribution.tsx, Gate-B B2) so
+              // t()'s flat var-replace doesn't paint the raw key.
+              const authorName =
+                r.author.full_name === "common.deletedUser"
+                  ? t("common.deletedUser")
+                  : r.author.full_name;
+              return (
               <li key={r.id} className="py-3 first:pt-0 last:pb-0">
                 <div className="flex items-center gap-2 text-sm">
                   <Avatar className="h-6 w-6 border border-border">
                     <AvatarImage
                       src={r.author.avatar_url ?? undefined}
-                      alt={r.author.full_name}
+                      alt={authorName}
                     />
-                    <AvatarFallback>{r.author.full_name.slice(0, 1)}</AvatarFallback>
+                    <AvatarFallback>{authorName.slice(0, 1)}</AvatarFallback>
                   </Avatar>
                   <span className="font-body font-medium text-foreground">
-                    {r.author.full_name}
+                    {authorName}
                   </span>
                   <span className="ms-auto inline-flex items-center gap-0.5">
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -73,7 +82,8 @@ export function CourseReviews({
                   <p className="mt-2 font-body text-sm text-muted-foreground">{r.body}</p>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         ) : (
           <p className="font-body text-sm text-muted-foreground">

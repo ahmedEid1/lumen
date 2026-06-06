@@ -40,6 +40,21 @@ export const en = {
   "course.progress": "Progress",
   "course.signInToEnroll": "Sign in to enroll",
   "course.discussionForum": "Discussion forum",
+
+  // Clone / remix (ADR-0028 · S4.11). The "Based on …" attribution is
+  // server-written and read-only — never editable-looking (FR-CLONE-10).
+  "clone.cta": "Make my own copy",
+  "clone.inProgress": "Creating your copy…",
+  "clone.success": "Your copy is ready — opening the editor",
+  "clone.basedOn": "Based on {title} by {author}",
+  "clone.basedOnUnavailable": "Based on a course that is no longer available",
+  "clone.viewSource": "View original",
+  "clone.badge": "Cloned",
+  "clone.signInToClone": "Sign in to make your own copy",
+  "clone.error.rateLimited": "You're cloning too fast — try again shortly.",
+  "clone.error.courseLimit": "You've reached your course limit.",
+  "clone.error.tooLarge": "This course is too large to clone.",
+  "clone.error.generic": "Couldn't create your copy. Please try again.",
   "course.whatYoullLearn": "What you'll learn",
   "course.lessonsCount": "{count} lessons",
   "course.lastUpdated": "last updated {date}",
@@ -370,11 +385,27 @@ export const en = {
   "adminCourses.empty": "No courses match.",
   "adminCourses.successToast": "Updated",
   "adminCourses.error": "Could not update",
+  // S6.11 — visibility / moderation badges + row moderation actions (FR-MOD-15).
+  "adminCourses.col.visibility": "Visibility",
+  "adminCourses.col.moderation": "Moderation",
+  "adminCourses.visibility.private": "Private",
+  "adminCourses.visibility.public": "Public",
+  "adminCourses.moderation.none": "—",
+  "adminCourses.moderation.pending_review": "Pending review",
+  "adminCourses.moderation.approved": "Approved",
+  "adminCourses.moderation.rejected": "Rejected",
+  "adminCourses.moderation.delisted": "Delisted",
+  "adminCourses.removed": "Removed",
+  "adminCourses.delist": "Delist",
+  "adminCourses.relist": "Relist",
+  "adminCourses.remove": "Remove",
+  "adminCourses.actionToast": "Moderation action applied.",
+  "adminCourses.actionError": "Could not apply that action.",
 
   // Admin / users — names in the ledger
   "adminUsers.cartouche": "Users",
   "adminUsers.title": "Users",
-  "adminUsers.subtitle": "Promote instructors, deactivate accounts.",
+  "adminUsers.subtitle": "Grant or revoke admin, suspend or reinstate accounts.",
   "adminUsers.searchPlaceholder": "Search email or name…",
   "adminUsers.recentCard": "Recent",
   "adminUsers.col.user": "User",
@@ -386,6 +417,9 @@ export const en = {
   "adminUsers.role.student": "student",
   "adminUsers.role.instructor": "instructor",
   "adminUsers.role.admin": "admin",
+  // S1.11 (two-role collapse): the canonical non-admin role label. The legacy
+  // student/instructor labels stay for display tolerance of un-collapsed rows.
+  "adminUsers.role.user": "user",
   "adminUsers.status.active": "active",
   "adminUsers.status.disabled": "disabled",
   "adminUsers.disable": "Disable",
@@ -393,6 +427,53 @@ export const en = {
   "adminUsers.empty": "No users.",
   "adminUsers.roleError": "Could not update role",
   "adminUsers.activeError": "Could not update",
+  // S6.11 — grant/revoke-admin toggle + suspend/reinstate (FR-ADMIN-01).
+  "adminUsers.grantAdmin": "Grant admin",
+  "adminUsers.revokeAdmin": "Revoke admin",
+  "adminUsers.suspend": "Suspend",
+  "adminUsers.reinstate": "Reinstate",
+  "adminUsers.col.status": "Status",
+  "adminUsers.status.suspended": "suspended",
+  "adminUsers.grantToast": "Admin granted.",
+  "adminUsers.revokeToast": "Admin revoked.",
+  "adminUsers.suspendToast": "User suspended.",
+  "adminUsers.reinstateToast": "User reinstated.",
+  "adminUsers.toggleError": "Could not update this user.",
+  "adminUsers.selfRowHint": "You cannot change your own admin status or suspend yourself.",
+  "adminUsers.confirmGrantTitle": "Grant admin?",
+  "adminUsers.confirmGrantBody":
+    "This user will gain full administrative access — user management and catalog moderation.",
+  "adminUsers.confirmRevokeTitle": "Revoke admin?",
+  "adminUsers.confirmRevokeBody":
+    "This user will lose administrative access. At least one active admin must always remain.",
+  "adminUsers.confirmSuspendTitle": "Suspend user?",
+  "adminUsers.confirmSuspendBody":
+    "The user is signed out everywhere and cannot log back in until reinstated. Their content stays.",
+  "adminUsers.confirm": "Confirm",
+  // Error-code copy surfaced inline (FR-ADMIN-08 graceful 403/422).
+  "user.lastAdmin": "You cannot remove the last active admin.",
+  "user.lastAdminActive": "You cannot suspend the last active admin.",
+  "user.deletedIrreversible": "This account is deleted and cannot be reinstated.",
+  "user.invalidRole": "Role must be 'user' or 'admin'.",
+  "auth.accountSuspended": "This account is suspended.",
+  "auth.accountDeleted": "This account has been deleted.",
+  "report.ownCourse": "You cannot report your own course.",
+  "report.ineligible": "Your account is not eligible to file reports yet.",
+  "report.rateLimited": "Too many reports — try again later.",
+  // W11 — user-side course report affordance (FR-MOD-11 / S6.3).
+  "report.cta": "Report",
+  "report.reported": "Reported",
+  "report.dialogTitle": "Report this course",
+  "report.dialogBody":
+    "Tell us what's wrong. Our moderators review every report — your name is never shown to the course owner.",
+  "report.reasonLabel": "Reason",
+  "report.reasonPlaceholder": "Choose a reason",
+  "report.detailsLabel": "Details (optional)",
+  "report.detailsPlaceholder": "Add anything that helps us understand the issue.",
+  "report.submit": "Submit report",
+  "report.submitting": "Submitting…",
+  "report.success": "Thanks — your report has been submitted.",
+  "report.error": "Couldn't submit your report. Please try again.",
 
   // Admin / audit
   "adminAudit.cartouche": "Audit",
@@ -441,8 +522,12 @@ export const en = {
   "admin.stat.users": "Users",
   "admin.stat.active": "Active",
   "admin.stat.instructors": "Instructors",
+  // S1.11 (two-role collapse): `instructors` is superseded by admins+authors.
+  "admin.stat.admins": "Admins",
+  "admin.stat.authors": "Authors",
   "admin.stat.courses": "Courses",
   "admin.stat.published": "Published",
+  "admin.stat.listed": "Listed",
   "admin.stat.drafts": "Drafts",
   "admin.stat.enrollments": "Enrollments",
   "admin.tile.subjects.title": "Subjects",
@@ -451,8 +536,10 @@ export const en = {
   "admin.tile.tags.body": "Curate the public tag list.",
   "admin.tile.courses.title": "Courses",
   "admin.tile.courses.body": "Oversee the catalog, set featured.",
+  "admin.tile.moderation.title": "Moderation",
+  "admin.tile.moderation.body": "Review courses awaiting approval to list.",
   "admin.tile.users.title": "Users",
-  "admin.tile.users.body": "Promote instructors, manage activity.",
+  "admin.tile.users.body": "Grant or revoke admin, suspend or reinstate accounts.",
   "admin.tile.audit.title": "Audit log",
   "admin.tile.audit.body": "Track sensitive admin actions.",
   "admin.tile.observability.title": "Observability",
@@ -492,6 +579,15 @@ export const en = {
   "studioEdit.publish.noLessons": "Add at least one lesson before publishing.",
   "studioEdit.publish.missingFields": "A title and overview are required to publish.",
   "studioEdit.publish.invalidTransition": "That status change isn't allowed from the current state.",
+  "studioEdit.archive": "Archive",
+  "studioEdit.restore": "Restore to draft",
+  "studioEdit.publishedToast": "Course published (private). Use Share to list it publicly.",
+  "studioEdit.unpublishedToast": "Course moved back to draft.",
+  "studioEdit.archivedToast": "Course archived.",
+  "studioEdit.restoredToast": "Course restored to draft.",
+  "studioEdit.shareToast": "Submitted for review.",
+  "studioEdit.unshareToast": "Course unshared (now private).",
+  "studioEdit.shareError": "Share toggle failed.",
   "studioEdit.analytics": "Analytics",
   "studioEdit.stat.enrollments": "Enrollments",
   "studioEdit.stat.completions": "Completions",
@@ -680,10 +776,17 @@ export const en = {
   "profile.export.toast": "Your data has been downloaded.",
   "profile.export.error": "Could not export your data.",
   "profile.section.delete": "Delete account",
-  "profile.section.deleteDesc": "This permanently deactivates your account.",
+  // S6.11 / ADR-0030 — anonymize-in-place copy. Deleting scrubs your personal
+  // data and signs you out everywhere; your authored courses are delisted.
+  "profile.section.deleteDesc":
+    "This permanently scrubs your personal data, signs you out everywhere, and delists any courses you own. It cannot be undone.",
   "profile.delete.button": "Delete my account",
   "profile.delete.confirmPlaceholder": "Confirm with your password",
   "profile.delete.confirm": "Yes, delete my account",
+  // Type-to-confirm gate (FR-A11Y-05): the user types DELETE to arm the button.
+  "profile.delete.typeLabel": "Type {word} to confirm",
+  "profile.delete.typeWord": "DELETE",
+  "profile.delete.typePlaceholder": "DELETE",
   "profile.toast.saved": "Profile updated",
   "profile.toast.saveError": "Could not save",
   "profile.toast.passwordChanged": "Password changed. Sign in again to refresh sessions.",
@@ -727,6 +830,91 @@ export const en = {
   "dashboard.continue": "Continue",
   "dashboard.certificate": "Certificate",
   "dashboard.openBadge": "Open Badge",
+  // S3.11 — define→build→learn entry CTA (FR-DEFINE-09).
+  "dashboard.define.cartouche": "Learn anything",
+  "dashboard.define.title": "Create a course to learn",
+  "dashboard.define.body":
+    "Describe what you want to learn. Lumen builds a private, self-paced course just for you.",
+  "dashboard.define.cta": "Create a course to learn",
+
+  // S3.11 — define → build → learn flow (FR-DEFINE-*).
+  "define.cartouche": "Define your goal",
+  "define.title": "Create a course to learn",
+  "define.subtitle":
+    "Tell us what you want to learn. We'll ask a few questions, then build a private course just for you.",
+  // Goal-intake chat
+  "define.chat.logLabel": "Goal clarification conversation",
+  "define.chat.intro":
+    "Start by describing what you want to learn — be as rough as you like. We'll refine it together.",
+  "define.chat.assistantLabel": "Lumen",
+  "define.chat.thinking": "Thinking…",
+  "define.chat.goalLabel": "What do you want to learn?",
+  "define.chat.goalPlaceholder": "e.g. I want to get good at React",
+  "define.chat.start": "Start",
+  "define.chat.replyLabel": "Your reply",
+  "define.chat.replyPlaceholder": "Type your answer…",
+  "define.chat.send": "Send",
+  "define.chat.review": "Review my brief",
+  "define.chat.turnsRemaining": "{n} questions left",
+  "define.chat.turnCap":
+    "We've gathered enough to get started. Review your brief and build your course.",
+  // Running brief preview
+  "define.brief.runningLabel": "Your brief so far",
+  "define.brief.level": "Level",
+  "define.brief.timeBudget": "Time budget",
+  "define.brief.sessions": "Sessions / week",
+  "define.brief.hours": "{n} hours",
+  // Levels
+  "define.level.beginner": "Beginner",
+  "define.level.intermediate": "Intermediate",
+  "define.level.advanced": "Advanced",
+  // Brief review
+  "define.review.cartouche": "Review",
+  "define.review.title": "Review your brief",
+  "define.review.subtitle":
+    "Tweak anything below, then build. Nothing happens until you confirm.",
+  "define.review.goalSummary": "Goal",
+  "define.review.level": "Level",
+  "define.review.levelUnset": "Not set",
+  "define.review.timeBudget": "Time budget (hours)",
+  "define.review.sessions": "Sessions / week",
+  "define.review.outcomes": "What you'll be able to do",
+  "define.review.estimate":
+    "Estimated course: about {modules} modules · {lessons} lessons.",
+  "define.review.privateNote":
+    "A private course will be created — only you can see it until you choose to share it.",
+  "define.review.build": "Build my course",
+  "define.review.back": "Back to questions",
+  // Build progress
+  "define.build.cartouche": "Building",
+  "define.build.title": "Building your course",
+  "define.build.doneTitle": "Your course is ready",
+  "define.build.failedTitle": "Build didn't finish",
+  "define.build.working":
+    "Researching, outlining, and drafting your lessons — this can take a moment.",
+  "define.build.timeline": "Build progress",
+  "define.build.timelinePending": "Starting the build…",
+  "define.build.doneBody":
+    "Built {modules} modules and {lessons} lessons. Your private course is ready to study.",
+  "define.build.startLearning": "Start learning",
+  "define.build.cancel": "Cancel build",
+  "define.build.failedHeading": "The build didn't complete",
+  "define.build.failedBody":
+    "Something went wrong while building your course. No partial course was kept. You can try again.",
+  "define.build.retry": "Try again",
+  // Normalized errors
+  "define.error.generic": "Something went wrong. Please try again.",
+  "define.error.turnCap":
+    "We've reached the question limit. Review your brief and build your course.",
+  "define.error.buildInFlight":
+    "A build is already running for this brief. Please wait for it to finish.",
+  "define.error.buildQuota":
+    "You've reached today's build limit. Please try again tomorrow.",
+  "define.error.buildFailed":
+    "The build didn't complete. No partial course was kept — you can try again.",
+  "define.error.briefFinalized": "This brief is already finalized.",
+  "define.error.sessionNotFound": "We couldn't find that conversation.",
+  "define.error.cancelled": "Build cancelled. No partial course was kept.",
 
   // Onboarding — first-login tour (Phase D3)
   "onboarding.welcome": "Welcome to Lumen",
@@ -878,6 +1066,8 @@ export const en = {
   "palette.theme.dark": "Switch to dark",
   "palette.theme.light": "Switch to light",
   "palette.openHint": "Open command palette",
+  // S3.11 — "Create a course to learn" command (FR-DEFINE-09).
+  "palette.define": "Create a course to learn",
   "common.save": "Save",
   "common.saving": "Saving…",
   "common.cancel": "Cancel",
@@ -885,6 +1075,10 @@ export const en = {
   "common.edit": "Edit",
   "common.notFound": "Not found",
   "common.tryAgain": "Try again",
+  // ADR-0030 §D5 / DR-19: single-sourced read-time anonymization label. The
+  // backend emits the KEY string ("common.deletedUser") in any author/owner
+  // name field whose underlying row is tombstoned; the frontend resolves it.
+  "common.deletedUser": "a deleted user",
   "common.language": "Language",
 
   // Demo-question chip rail (L22 — consumes useDemoQuestions library)
@@ -1068,6 +1262,121 @@ export const en = {
   "blog.subline": "Architecture decisions, prompt-iteration journals, and the failures that shaped what shipped.",
   "blog.empty.title": "No posts yet.",
   "blog.empty.body": "The first entries will trail the case study — design choices behind the agent tutor, the eval methodology, and the cost-latency math.",
+
+  // BYOK — bring-your-own-key model config (S5 / ADR-0027 §Frontend)
+  "byok.unavailable": "Bring-your-own-key is not available right now. Your tutor runs on the free platform model.",
+  "byok.title": "Your model",
+  "byok.subtitle": "Use your own AI provider and key instead of the free platform model.",
+  "byok.provider": "Provider",
+  "byok.model": "Model",
+  "byok.apiKey": "API key",
+  "byok.apiKey.writeOnly": "Stored encrypted. Never shown again.",
+  "byok.allowFallback": "Fall back to the free platform model if my key fails",
+  "byok.validate": "Validate",
+  "byok.status.valid": "Valid",
+  "byok.status.invalid": "Invalid key",
+  "byok.status.unvalidated": "Not validated",
+  "byok.status.needsAttention": "Needs attention",
+  "byok.enabled": "Enabled",
+  "byok.active": "Use for my requests",
+  "byok.delete": "Remove key",
+  "byok.save": "Save key",
+  "byok.empty": "No model key yet. Add one to use your own provider.",
+  "byok.savedToast": "Model key saved.",
+  "byok.deletedToast": "Model key removed.",
+  "byok.error.modelUnavailable": "That model is no longer available; using the platform model.",
+  "byok.error.providerError": "Your provider rejected the request. Check your key.",
+  "byok.error.rateLimited": "Too many validation attempts. Try again later.",
+  "byok.quota.exceeded": "You've reached your request limit for now.",
+
+  // Studio two-control publish + share (S2.12 / ADR-0026)
+  "studio.lifecycle.draft": "Draft",
+  "studio.lifecycle.published": "Published",
+  "studio.share.private": "Private",
+  "studio.share.public": "Public",
+  "studio.share.shareCta": "Share publicly",
+  "studio.share.unshareCta": "Make private",
+  "studio.share.disabledHint": "Publish the course before sharing it publicly.",
+  "studio.share.pendingReview": "Pending review",
+  "studio.share.approved": "Approved · listed publicly",
+  "studio.share.rejected": "Rejected — revise and resubmit",
+  "studio.share.delisted": "Delisted by an admin",
+
+  // Admin moderation queue (S2.12 — S6 ships the actions)
+  "adminModeration.cartouche": "Moderation",
+  "adminModeration.title": "Moderation queue",
+  "adminModeration.subtitle": "Courses awaiting review before they list publicly.",
+  "adminModeration.empty": "Nothing awaiting review.",
+  "adminModeration.col.course": "Course",
+  "adminModeration.col.owner": "Owner",
+  "adminModeration.col.submitted": "Submitted",
+  "adminModeration.approve": "Approve",
+  "adminModeration.reject": "Reject",
+  "adminModeration.delist": "Delist",
+  "adminModeration.relist": "Relist",
+  "adminModeration.remove": "Remove",
+  "adminModeration.confirmRemove": "Remove this course permanently?",
+  // F3 — queue-reason badges: an already-approved, still-listed course flagged
+  // by report accumulation vs a course awaiting first approval.
+  "adminModeration.reason.pending_review": "Awaiting review",
+  "adminModeration.reason.flagged": "Flagged — still listed",
+
+  // S6.11 — moderation actions, reports tab, reason picker (FR-MOD-15).
+  "adminModeration.tab.queue": "Review queue",
+  "adminModeration.tab.reports": "Reports",
+  "adminModeration.col.actions": "Actions",
+  "adminModeration.action.label": "Course action",
+  "adminModeration.approveToast": "Course approved and listed.",
+  "adminModeration.rejectToast": "Course rejected.",
+  "adminModeration.delistToast": "Course delisted.",
+  "adminModeration.relistToast": "Course relisted.",
+  "adminModeration.removeToast": "Course removed.",
+  "adminModeration.actionError": "Could not apply that action.",
+  "adminModeration.confirmRemoveTitle": "Remove course",
+  "adminModeration.confirmRemoveBody":
+    "This soft-deletes the course and revokes enrolled access. A reason is required. This cannot be undone from here.",
+  "adminModeration.reasonLabel": "Reason",
+  "adminModeration.reasonPlaceholder": "Select a reason",
+  "adminModeration.noteLabel": "Note (optional)",
+  "adminModeration.notePlaceholder": "Context for the audit trail",
+  "adminModeration.quarantineWarning":
+    "This reason fully quarantines the course — even the owner loses access.",
+  // Reports tab
+  "adminModeration.reports.empty": "No reports.",
+  "adminModeration.reports.col.course": "Course",
+  "adminModeration.reports.col.reason": "Reason",
+  "adminModeration.reports.col.reporter": "Reporter",
+  "adminModeration.reports.col.note": "Note",
+  "adminModeration.reports.col.status": "Status",
+  "adminModeration.reports.col.actions": "Actions",
+  "adminModeration.reports.resolve": "Resolve",
+  "adminModeration.reports.resolveTitle": "Resolve report",
+  "adminModeration.reports.resolveBody":
+    "Choose how to resolve this report. Delist and remove apply the moderation action in the same step.",
+  "adminModeration.reports.actionLabel": "Resolution",
+  "adminModeration.reports.action.dismiss": "Dismiss",
+  "adminModeration.reports.action.delist": "Delist course",
+  "adminModeration.reports.action.remove": "Remove course",
+  "adminModeration.reports.resolveToast": "Report resolved.",
+  "adminModeration.reports.resolveError": "Could not resolve the report.",
+  "adminModeration.reports.status.open": "open",
+  "adminModeration.reports.status.actioned": "actioned",
+  "adminModeration.reports.status.dismissed": "dismissed",
+  // Reason taxonomy labels (shared by moderation + suspend + report).
+  "reason.spam": "Spam",
+  "reason.abuse": "Abuse",
+  "reason.fraud": "Fraud",
+  "reason.tos_violation": "Terms-of-service violation",
+  "reason.copyright": "Copyright",
+  "reason.security": "Security",
+  "reason.illegal": "Illegal content",
+  "reason.csam": "CSAM",
+  "reason.severe_abuse": "Severe abuse",
+  "reason.other": "Other",
+
+  // New error-code copy (S2.12)
+  "course.notListable": "This course cannot be listed in its current state.",
+  "course.publishPublicForbidden": "You cannot publish publicly.",
 } as const;
 
 export type MessageKey = keyof typeof en;

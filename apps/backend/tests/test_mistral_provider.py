@@ -33,10 +33,10 @@ def test_get_provider_returns_mistral_when_configured(monkeypatch) -> None:
         p = get_provider()
         assert isinstance(p, MistralProvider)
         assert p._api_base == "https://api.mistral.ai/v1"
-        # Don't assert on _api_key value — it's redacted-by-design;
-        # just confirm it's non-empty (came from mistral_api_key,
-        # not the empty openai_api_key fallback).
-        assert p._api_key == "sk-mistral-test"
+        # The key is now SecretStr-wrapped (S5.6); read it via the
+        # redaction-aware accessor. Confirm it came from mistral_api_key,
+        # not the empty openai_api_key fallback.
+        assert p._key_value() == "sk-mistral-test"
 
 
 @pytest.mark.asyncio

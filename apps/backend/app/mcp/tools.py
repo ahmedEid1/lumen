@@ -59,6 +59,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import get_settings
 from app.core.errors import (
     ForbiddenError,
     NotFoundError,
@@ -320,7 +321,7 @@ async def list_courses(
     courses, _total = await courses_repo.search_courses(
         db,
         q=(filter or None),
-        only_published=True,
+        publicly_listed_only=True,
         page=1,
         page_size=limit,
     )
@@ -396,10 +397,14 @@ async def search_lesson_content(
         course_id=course.id,
         query=query,
         top_k=top_k,
+        viewer=principal.user_id,
         audit=True,
         audit_user_id=principal.user_id,
         audit_feature="mcp.search_lesson_content",
     )
+
+    from app.models.course import Course as _Course
+    from app.services.visibility import retrieval_acl_clause as _acl
 
     [query_vec] = _embed_provider().embed([query])
     distance = LessonChunk.embedding.cosine_distance(list(query_vec))
@@ -407,9 +412,13 @@ async def search_lesson_content(
         select(LessonChunk, distance.label("distance"))
         .join(Lesson, Lesson.id == LessonChunk.lesson_id)
         .join(Module, Module.id == Lesson.module_id)
+        # PR-22 / ADR-0029 §174: the second hand-rolled scored query gets the
+        # same central ACL clause so no raw course-id-only filter survives.
+        .join(_Course, _Course.id == Module.course_id)
         .where(
             Module.course_id == course.id,
             Lesson.deleted_at.is_(None),
+            _acl(principal.user_id),
         )
         .order_by(distance)
         .limit(top_k)
@@ -565,19 +574,21 @@ async def list_my_progress(db: AsyncSession, *, principal: Principal) -> list[Pr
     ]
 
 
-# ---------- Instructor-scoped writes ----------
+# ---------- Author-capability writes ----------
 
 
-def _require_instructor(principal: Principal) -> None:
-    """Refuse non-instructor principals on the writeable tools.
+def _require_author(principal: Principal) -> None:
+    """Refuse non-author principals on the writeable tools.
 
-    Mirrors :meth:`User.is_instructor_or_admin`. Pulled out so the
-    error code is consistent across the two writeable tools.
+    S1.6 / ADR-0025 §D5: the MCP write gate is the capability ``can_author``
+    (any active user; suspension is the single revocation axis, R-CAP), not
+    the instructor role. Pulled out so the error code is consistent across
+    the writeable tools.
     """
-    if not principal.is_instructor:
+    if not principal.can_author:
         raise ForbiddenError(
-            "Only instructors can create courses or ingest content",
-            code="mcp.writes.instructor_required",
+            "Author capability required to create courses or ingest content",
+            code="mcp.writes.author_required",
         )
 
 
@@ -640,7 +651,7 @@ async def create_course_draft(
     the public catalog until the instructor publishes it through
     the normal flow.
     """
-    _require_instructor(principal)
+    _require_author(principal)
     brief = (brief or "").strip()
     if not brief:
         raise ValidationAppError("Course brief must not be empty", code="ai.brief_empty")
@@ -726,7 +737,18 @@ async def ingest_url_to_draft(
     chunks the transcript) but cheap enough to run inline; the
     studio's REST endpoint does the same.
     """
-    _require_instructor(principal)
+    # S1.6 / DR-M12: URL ingest stays CLOSED post-collapse — admin-only AND
+    # the global `ingest_url_enabled` flag (default OFF). The role collapse
+    # does NOT open the SSRF surface (FR-SEC-02). `_require_author` first so a
+    # suspended principal is rejected with the consistent write-gate code.
+    _require_author(principal)
+    settings = get_settings()
+    if not (principal.can_use_mcp_authoring(settings) and principal.can_ingest_url(settings)):
+        raise ForbiddenError(
+            "URL ingest is admin-only and disabled by default",
+            code="mcp.writes.author_required",
+            details={"capability": "can_ingest_url"},
+        )
 
     url = (url or "").strip()
     if not url:
@@ -875,10 +897,13 @@ TOOL_SPECS: list[ToolSpec] = [
         name="create_course_draft",
         description=(
             "Generate a course outline from a one-paragraph brief and "
-            "persist it as a draft course owned by the calling instructor. "
-            "Lesson bodies are placeholders the instructor fills in via the studio."
+            "persist it as a draft course owned by the calling user. "
+            "Lesson bodies are placeholders the author fills in via the studio."
         ),
-        auth="instructor",
+        # S1.6 / ADR-0025 §D5: authoring is ungated from instructor to any
+        # active user. The dispatcher's `user` posture lets the principal
+        # through; `_require_author` re-checks `can_author` in the tool body.
+        auth="user",
     ),
     ToolSpec(
         name="ingest_url_to_draft",
@@ -887,7 +912,12 @@ TOOL_SPECS: list[ToolSpec] = [
             "Creates a fresh course when `course_id` is omitted, otherwise "
             "appends the ingest payload's modules + lessons to the existing course."
         ),
-        auth="instructor",
+        # DR-M12 / FR-SEC-02: URL ingest STAYS CLOSED post-collapse —
+        # admin-only at the dispatcher AND flag-gated (`ingest_url_enabled`,
+        # default OFF) in the tool body. The role collapse does NOT open the
+        # SSRF surface. Was `instructor`; under the collapse that would have
+        # resolved to any active user — the opposite of the intent.
+        auth="admin",
     ),
     ToolSpec(
         name="list_my_progress",

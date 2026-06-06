@@ -1,15 +1,30 @@
 import { api } from "@/lib/api/client";
 import type {
+  BriefCourseStatus,
+  BriefDraft,
+  BriefOut,
+  CourseAdminOut,
   CourseDetail,
   CourseListItem,
+  DraftFromBriefResponse,
   EnrollmentOut,
+  GoalTurnResponse,
   LessonOut,
+  LLMCredentialPublic,
+  LLMCredentialValidateResult,
+  LLMProviderRegistry,
+  ModerationQueueItem,
   ModuleOut,
   Page,
+  PlatformStats,
+  ReasonCode,
+  ReportOut,
+  ReportResolveAction,
   ReviewOut,
   SubjectOut,
   TagOut,
   TokenResponse,
+  UserAdminOut,
   UserOut,
 } from "@/lib/api/types";
 
@@ -65,6 +80,50 @@ export const Courses = {
     api<CourseDetail>(`/api/v1/courses/${id}`, { method: "PATCH", body: input, token }),
   remove: (id: string, token?: string) =>
     api<{ ok: true }>(`/api/v1/courses/${id}`, { method: "DELETE", token }),
+
+  // Two-control lifecycle + share model (S2.11 / ADR-0026). publish/unpublish
+  // are the lifecycle axis; share/unshare/resubmit are the (flag-gated)
+  // sharing axis — while FEATURE_PRIVATE_PUBLISH_ENABLED is off the share
+  // endpoints 404.
+  publish: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/publish`, { method: "POST", token }),
+  unpublish: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/unpublish`, { method: "POST", token }),
+  archive: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/archive`, { method: "POST", token }),
+  restore: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/restore`, { method: "POST", token }),
+  share: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/share`, { method: "POST", body: {}, token }),
+  unshare: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/unshare`, { method: "POST", body: {}, token }),
+  resubmit: (id: string, token?: string) =>
+    api<CourseDetail>(`/api/v1/courses/${id}/resubmit`, { method: "POST", body: {}, token }),
+  moderationQueue: (token?: string) =>
+    api<CourseListItem[]>("/api/v1/admin/courses/moderation-queue", { token }),
+
+  // S4.11 (ADR-0028 §API) — clone a publicly-listed course into a fresh
+  // private draft. Returns the new CourseListItem (201). Hand-written per DR-5.
+  // While CLONE_ENABLED is off server-side the endpoint existence-hides (404),
+  // surfaced as a toast — the same flag pattern as share/unshare.
+  clone: ({ key, token }: { key: string; token?: string }) =>
+    api<CourseListItem>(`/api/v1/courses/${encodeURIComponent(key)}/clone`, {
+      method: "POST",
+      token,
+    }),
+
+  // S6.3 — any authenticated user files a report against a publicly-listed
+  // course. `note` is sanitized server-side (FR-MOD-13).
+  report: (
+    id: string,
+    body: { reason: ReasonCode; note?: string | null },
+    token?: string,
+  ) =>
+    api<{ ok: true }>(`/api/v1/courses/${encodeURIComponent(id)}/report`, {
+      method: "POST",
+      body,
+      token,
+    }),
 
   createModule: (courseId: string, input: { title: string; description?: string }, token?: string) =>
     api<ModuleOut>(`/api/v1/courses/${courseId}/modules`, { method: "POST", body: input, token }),
@@ -130,6 +189,134 @@ export const Courses = {
     >(`/api/v1/courses/${courseId}/students`, { token }),
 };
 
+// ---------- Admin moderation + user management (S6) ----------
+
+/** Body for the moderation action endpoints (S6.4 `ModerationActionRequest`). */
+export interface ModerationActionBody {
+  reason?: ReasonCode | null;
+  note?: string | null;
+}
+
+/** The admin-authority moderation + user-lifecycle surface. Every method
+ * here routes through `RequireAdmin` on the backend (FR-ADMIN-08: the UI gate
+ * is defense-in-depth, the backend gate is authoritative). */
+export const Admin = {
+  // -- Moderation queue + report queue
+  moderationQueue: (token?: string) =>
+    api<ModerationQueueItem[]>("/api/v1/admin/courses/moderation-queue", { token }),
+  reports: (
+    params: { status?: string; reason?: string; course_id?: string; cursor?: string } = {},
+    token?: string,
+  ) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+    }
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<ReportOut[]>(`/api/v1/admin/reports${suffix}`, { token });
+  },
+
+  // -- Course moderation transitions (S6.2/S6.4)
+  approveCourse: (id: string, body: ModerationActionBody = {}, token?: string) =>
+    api<CourseAdminOut>(`/api/v1/admin/courses/${id}/approve`, {
+      method: "POST",
+      body,
+      token,
+    }),
+  rejectCourse: (id: string, body: ModerationActionBody = {}, token?: string) =>
+    api<CourseAdminOut>(`/api/v1/admin/courses/${id}/reject`, {
+      method: "POST",
+      body,
+      token,
+    }),
+  delistCourse: (id: string, body: ModerationActionBody = {}, token?: string) =>
+    api<CourseAdminOut>(`/api/v1/admin/courses/${id}/delist`, {
+      method: "POST",
+      body,
+      token,
+    }),
+  relistCourse: (id: string, body: ModerationActionBody = {}, token?: string) =>
+    api<CourseAdminOut>(`/api/v1/admin/courses/${id}/relist`, {
+      method: "POST",
+      body,
+      token,
+    }),
+  // `reason` is required (the backend 422s without it).
+  removeCourse: (
+    id: string,
+    body: { reason: ReasonCode; note?: string | null },
+    token?: string,
+  ) =>
+    api<CourseAdminOut>(`/api/v1/admin/courses/${id}/remove`, {
+      method: "POST",
+      body,
+      token,
+    }),
+
+  // -- Report resolution (S6.4): performs the linked moderation action
+  // atomically in one transaction.
+  resolveReport: (
+    id: string,
+    body: { action: ReportResolveAction; reason?: ReasonCode | null; note?: string | null },
+    token?: string,
+  ) =>
+    api<ReportOut>(`/api/v1/admin/reports/${id}/resolve`, {
+      method: "POST",
+      body,
+      token,
+    }),
+
+  // -- User management (S6.6/S6.7)
+  // Returns the repo-standard offset+page envelope `Page<UserAdminOut>`,
+  // mirroring `GET /api/v1/admin/users` in backend admin.py (`response_model=
+  // Page[UserAdminOut]`). The earlier bare-`UserAdminOut[]` + `limit` shape
+  // drifted from admin.py and painted empty rows on /admin/users (W11 F6).
+  users: (params: { q?: string; page?: number; page_size?: number } = {}, token?: string) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set("q", params.q);
+    if (params.page !== undefined) qs.set("page", String(params.page));
+    qs.set("page_size", String(params.page_size ?? 50));
+    return api<Page<UserAdminOut>>(`/api/v1/admin/users?${qs}`, { token });
+  },
+  setAdmin: (id: string, isAdmin: boolean, token?: string) =>
+    api<UserAdminOut>(`/api/v1/admin/users/${id}/admin`, {
+      method: "PATCH",
+      body: { is_admin: isAdmin },
+      token,
+    }),
+  suspendUser: (
+    id: string,
+    body: { reason: ReasonCode; note?: string | null },
+    token?: string,
+  ) =>
+    api<UserAdminOut>(`/api/v1/admin/users/${id}/suspend`, {
+      method: "PATCH",
+      body,
+      token,
+    }),
+  reinstateUser: (id: string, token?: string) =>
+    api<UserAdminOut>(`/api/v1/admin/users/${id}/reinstate`, {
+      method: "PATCH",
+      body: {},
+      token,
+    }),
+
+  // -- Platform stats (S6.9)
+  stats: (token?: string) => api<PlatformStats>("/api/v1/admin/stats", { token }),
+};
+
+// ---------- Users (self-service account) ----------
+export const Users = {
+  // S6.8 — anonymize-in-place account deletion. Requires the current
+  // password; on success the caller clears the query cache + hard-redirects.
+  deleteMe: (password: string, token?: string) =>
+    api<{ ok: true }>("/api/v1/users/me", {
+      method: "DELETE",
+      body: { password },
+      token,
+    }),
+};
+
 // ---------- Enrollments ----------
 export const Me = {
   enrollments: (token?: string) => api<EnrollmentOut[]>("/api/v1/me/enrollments", { token }),
@@ -167,6 +354,50 @@ export const Me = {
         token,
       }),
   },
+};
+
+// ---------- BYOK (S5) ----------
+
+/** Read-only allowlisted provider+model registry (no base_url/keys). */
+export const LLMProviders = {
+  list: (token?: string) => api<LLMProviderRegistry>("/api/v1/llm-providers", { token }),
+};
+
+/** Per-user BYOK credential CRUD + validate. The api_key is write-only;
+ * reads are always masked (LLMCredentialPublic carries last4 + status). */
+export const LLMCredentials = {
+  list: (token?: string) =>
+    api<LLMCredentialPublic[]>("/api/v1/me/llm-credentials", { token }),
+  upsert: (
+    provider: string,
+    body: { model: string; api_key: string; allow_platform_fallback?: boolean },
+    token?: string,
+  ) =>
+    api<LLMCredentialPublic>(`/api/v1/me/llm-credentials/${provider}`, {
+      method: "PUT",
+      body,
+      token,
+    }),
+  patch: (
+    provider: string,
+    body: { enabled?: boolean; is_active?: boolean; allow_platform_fallback?: boolean },
+    token?: string,
+  ) =>
+    api<LLMCredentialPublic>(`/api/v1/me/llm-credentials/${provider}`, {
+      method: "PATCH",
+      body,
+      token,
+    }),
+  remove: (provider: string, token?: string) =>
+    api<{ ok: true }>(`/api/v1/me/llm-credentials/${provider}`, {
+      method: "DELETE",
+      token,
+    }),
+  validate: (provider: string, token?: string) =>
+    api<LLMCredentialValidateResult>(`/api/v1/me/llm-credentials/${provider}/validate`, {
+      method: "POST",
+      token,
+    }),
 };
 
 // ---------- Mastery dashboard (Phase E7) ----------
@@ -422,6 +653,62 @@ export const AI = {
   draftTrace: (courseId: string, token?: string) =>
     api<DraftTraceResponse>(
       `/api/v1/studio/drafts/${encodeURIComponent(courseId)}/trace`,
+      { token },
+    ),
+};
+
+// ---------- S3: goal-intake → define → build (FR-DEFINE) ----------
+//
+// The learner-author entry (NOT `/studio`). `AI.draftCourse` above hits the
+// instructor `/studio/ai/draft-course` path and was a dead binding; the live
+// self-serve learner build is `Define.draftFromBrief` → `POST /ai/courses/draft`
+// (FR-DEFINE-05), which takes a finalized brief id rather than free-text. The
+// goal-intake conversation (start/turn/finalize) is bounded (6 turns, R-M10) and
+// metered BYOK-eligible server-side (ADR-0027 §4 / DR-8).
+export const Define = {
+  /** Open a bounded goal-intake conversation with a fuzzy goal (the ONLY
+   *  raw-goal input site; encrypted at rest server-side, FR-PRIV-01). */
+  startGoal: (goal: string, token?: string) =>
+    api<GoalTurnResponse>("/api/v1/ai/goal/start", {
+      method: "POST",
+      body: { goal },
+      token,
+    }),
+  /** Advance the conversation by one learner reply (FR-DEFINE-02/08). At the
+   *  cap the server returns 429 `define.turn_cap` (no LLM call). */
+  takeTurn: (sessionId: string, message: string, token?: string) =>
+    api<GoalTurnResponse>(
+      `/api/v1/ai/goal/${encodeURIComponent(sessionId)}/turn`,
+      { method: "POST", body: { message }, token },
+    ),
+  /** Freeze the brief into an immutable `BriefOut`, applying optional last-mile
+   *  `edits` once (FR-DEFINE-03). A second finalize → 422. */
+  finalize: (sessionId: string, edits?: BriefDraft, token?: string) =>
+    api<BriefOut>(
+      `/api/v1/ai/goal/${encodeURIComponent(sessionId)}/finalize`,
+      { method: "POST", body: { edits: edits ?? null }, token },
+    ),
+  /** Build a PRIVATE draft course from a finalized brief (FR-DEFINE-05/11). The
+   *  canonical learner build entry; idempotent on the brief id. */
+  draftFromBrief: (briefId: string, token?: string) =>
+    api<DraftFromBriefResponse>("/api/v1/ai/courses/draft", {
+      method: "POST",
+      body: { brief_id: briefId },
+      token,
+    }),
+  /** Cancel an in-flight / abandoned build (DR-1a / FR-DEFINE-14a). Owner-scoped
+   *  (404 existence-hide for non-owner); flips the course to `build_failed`. */
+  cancelBuild: (courseId: string, token?: string) =>
+    api<{ ok: true }>(
+      `/api/v1/me/courses/${encodeURIComponent(courseId)}/cancel-build`,
+      { method: "POST", token },
+    ),
+  /** The in-flight/built course a finalized brief produced (Gate-B F1). Polled
+   *  while building to obtain the cancel target + terminal state before the
+   *  synchronous build endpoint returns. 404 = shell not materialized yet. */
+  briefCourse: (briefId: string, token?: string) =>
+    api<BriefCourseStatus>(
+      `/api/v1/me/briefs/${encodeURIComponent(briefId)}/course`,
       { token },
     ),
 };

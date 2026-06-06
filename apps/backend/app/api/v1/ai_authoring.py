@@ -32,13 +32,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field
 
-from app.api.deps import CurrentUser, DBSession, RequireInstructor
+from app.api.deps import CurrentUser, DBSession, RequireAuthor
 from app.core.errors import ForbiddenError, NotFoundError
 from app.core.ratelimit import limiter
 from app.models.course import Course
 from app.repositories import courses as courses_repo
 from app.schemas.course import QuizQuestion
 from app.services import ai_authoring, authoring_orchestrator
+from app.services import byok as byok_service
 
 router = APIRouter()
 
@@ -167,7 +168,7 @@ class DraftTraceResponse(BaseModel):
 @limiter.limit("5/minute")
 async def generate_outline(
     payload: OutlineRequest,
-    user: RequireInstructor,
+    user: RequireAuthor,
     db: DBSession,
     request: Request,
     response: Response,
@@ -179,11 +180,13 @@ async def generate_outline(
     returned structure in the studio preview pane before posting it
     back to ``/ai/commit-outline``.
     """
+    ctx = await byok_service.resolve_context(db, user_id=user.id)
     return await ai_authoring.generate_outline(
         brief=payload.brief,
         target_modules=payload.target_modules,
         session=db,
         user_id=user.id,
+        ctx=ctx,
     )
 
 
@@ -191,7 +194,7 @@ async def generate_outline(
 @limiter.limit("5/minute")
 async def generate_lesson_body(
     payload: LessonBodyRequest,
-    user: RequireInstructor,
+    user: RequireAuthor,
     db: DBSession,
     request: Request,
     response: Response,
@@ -203,11 +206,13 @@ async def generate_lesson_body(
     the block editor with the returned doc; the instructor saves the
     lesson explicitly via ``PATCH /lessons/{id}`` from the editor.
     """
+    ctx = await byok_service.resolve_context(db, user_id=user.id)
     doc = await ai_authoring.generate_lesson_body(
         lesson_title=payload.lesson_title,
         course_context=payload.course_context,
         session=db,
         user_id=user.id,
+        ctx=ctx,
     )
     return LessonBodyResponse(blocks=doc)
 
@@ -216,7 +221,7 @@ async def generate_lesson_body(
 @limiter.limit("5/minute")
 async def generate_quiz(
     payload: QuizRequest,
-    user: RequireInstructor,
+    user: RequireAuthor,
     db: DBSession,
     request: Request,
     response: Response,
@@ -228,12 +233,14 @@ async def generate_quiz(
     question form with the returned items; the instructor saves the
     lesson explicitly via ``PATCH /lessons/{id}`` from the editor.
     """
+    ctx = await byok_service.resolve_context(db, user_id=user.id)
     questions = await ai_authoring.generate_quiz(
         lesson_title=payload.lesson_title,
         course_context=payload.course_context,
         n=payload.n,
         session=db,
         user_id=user.id,
+        ctx=ctx,
     )
     return QuizResponse(questions=questions)
 
@@ -246,7 +253,7 @@ async def generate_quiz(
 @limiter.limit("5/minute")
 async def commit_outline(
     payload: CommitOutlineRequest,
-    user: RequireInstructor,
+    user: RequireAuthor,
     db: DBSession,
     request: Request,
     response: Response,
@@ -307,7 +314,7 @@ def _commit_response(course: Course) -> CommitOutlineResponse:
 @limiter.limit("5/minute")
 async def draft_course(
     payload: DraftCourseRequest,
-    user: RequireInstructor,
+    user: RequireAuthor,
     db: DBSession,
     request: Request,
     response: Response,
@@ -325,11 +332,13 @@ async def draft_course(
     so 5/minute is already extremely generous; we don't add a
     separate tighter limit.
     """
-    result = await authoring_orchestrator.draft_course(
+    ctx = await byok_service.resolve_context(db, user_id=user.id)
+    result = await authoring_orchestrator.draft_course_from_text(
         db,
         user=user,
         brief=payload.brief,
         subject_slug=payload.subject_slug,
+        ctx=ctx,
     )
     return DraftCourseResponse(
         course_id=result.course_id,

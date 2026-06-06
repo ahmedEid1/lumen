@@ -102,7 +102,9 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _quiz_course(client: AsyncClient, teacher: dict, subject_id: str) -> tuple[str, str, str]:
+async def _quiz_course(
+    client: AsyncClient, teacher: dict, subject_id: str, publish_and_list_course
+) -> tuple[str, str, str]:
     create = await client.post(
         "/api/v1/courses",
         json={"title": "Quizzy", "subject_id": subject_id, "overview": "x"},
@@ -144,19 +146,17 @@ async def _quiz_course(client: AsyncClient, teacher: dict, subject_id: str) -> t
             headers=teacher,
         )
     ).json()
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
-    )
+    await publish_and_list_course(course_id, teacher)
     return course_id, lesson["id"], text_lesson["id"]
 
 
 async def test_quiz_endpoint_grades_and_marks_complete(
-    client: AsyncClient, auth_headers, db_session
+    client: AsyncClient, auth_headers, db_session, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, quiz_id, _ = await _quiz_course(client, teacher, subject.id)
+    course_id, quiz_id, _ = await _quiz_course(client, teacher, subject.id, publish_and_list_course)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 
     pass_attempt = await client.post(
@@ -173,12 +173,12 @@ async def test_quiz_endpoint_grades_and_marks_complete(
 
 
 async def test_quiz_endpoint_fails_below_threshold(
-    client: AsyncClient, auth_headers, db_session
+    client: AsyncClient, auth_headers, db_session, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, quiz_id, _ = await _quiz_course(client, teacher, subject.id)
+    course_id, quiz_id, _ = await _quiz_course(client, teacher, subject.id, publish_and_list_course)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 
     fail_attempt = await client.post(
@@ -194,12 +194,12 @@ async def test_quiz_endpoint_fails_below_threshold(
 
 
 async def test_quiz_endpoint_rejects_non_quiz_lesson(
-    client: AsyncClient, auth_headers, db_session
+    client: AsyncClient, auth_headers, db_session, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, _, text_id = await _quiz_course(client, teacher, subject.id)
+    course_id, _, text_id = await _quiz_course(client, teacher, subject.id, publish_and_list_course)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 
     r = await client.post(

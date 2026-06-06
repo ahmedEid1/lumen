@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,17 +24,73 @@ async def _instructor_login(client: AsyncClient, auth_headers) -> dict[str, str]
     return await auth_headers(role=Role.instructor)
 
 
-async def test_only_instructors_can_create_courses(
+async def test_user_role_can_create_course(
     client: AsyncClient, auth_headers, db_session: AsyncSession
 ) -> None:
+    # S1.4 / FR-RBAC-02: course creation is ungated from the instructor role.
+    # Any active user (here a `user`-role caller, formerly the `student` who
+    # used to get 403 `courses.forbidden`) can now create a course.
     subject = await _make_subject(db_session)
-    student = await auth_headers(role=Role.student)
+    headers = await auth_headers(role=Role.user)
     r = await client.post(
         "/api/v1/courses",
-        json={"title": "Bad", "subject_id": subject.id},
-        headers=student,
+        json={"title": "My First Course", "subject_id": subject.id, "overview": "x"},
+        headers=headers,
     )
-    assert r.status_code == 403
+    assert r.status_code == 201, r.text
+    assert r.json()["status"] == "draft"
+
+
+async def test_user_role_can_list_my_courses(client: AsyncClient, auth_headers) -> None:
+    # S1.4: `GET /courses/mine` is reachable by any active user.
+    headers = await auth_headers(role=Role.user)
+    r = await client.get("/api/v1/courses/mine", headers=headers)
+    assert r.status_code == 200, r.text
+    assert isinstance(r.json(), list)
+
+
+async def test_suspended_user_cannot_create_course(
+    client: AsyncClient, make_user, db_session: AsyncSession
+) -> None:
+    # S1.4 / FR-DEFINE-06: a suspended (is_active=False) user is denied.
+    # The token mints fine (the JWT claim is inert) but the live DB row is
+    # inactive — the capability layer / auth dep refuses the write. The
+    # foundation's `get_current_user_optional` drops an inactive row to 401
+    # `auth.required`; the capability predicate also denies (403
+    # `auth.capability`). Either way the door is shut — see the merge note in
+    # test_deps_capabilities.py::test_require_author_suspended_403_capability.
+    import uuid
+
+    from sqlalchemy import update
+
+    from app.core.security import create_access_token
+    from app.models.user import User
+
+    subject = await _make_subject(db_session)
+    email = f"suspended-{uuid.uuid4().hex[:8]}@lumen.test"
+    user = await make_user(email=email, role=Role.user)
+    await db_session.execute(update(User).where(User.id == user.id).values(is_active=False))
+    await db_session.commit()
+    token, _ = create_access_token(subject=user.id, role=str(Role.user))
+    r = await client.post(
+        "/api/v1/courses",
+        json={"title": "Should Fail", "subject_id": subject.id, "overview": "x"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code in (401, 403), r.text
+    assert r.json()["error"]["code"] in ("auth.required", "auth.capability")
+
+
+async def test_anonymous_cannot_create_course(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    subject = await _make_subject(db_session)
+    r = await client.post(
+        "/api/v1/courses",
+        json={"title": "Anon", "subject_id": subject.id, "overview": "x"},
+    )
+    assert r.status_code == 401
+    assert r.json()["error"]["code"] == "auth.required"
 
 
 async def test_instructor_creates_course_with_unique_slug(
@@ -65,7 +122,11 @@ async def test_instructor_creates_course_with_unique_slug(
 
 
 async def test_publish_and_list_in_catalog(
-    client: AsyncClient, auth_headers, seed_lesson, db_session: AsyncSession
+    client: AsyncClient,
+    auth_headers,
+    seed_lesson,
+    db_session: AsyncSession,
+    publish_and_list_course,
 ) -> None:
     subject = await _make_subject(db_session)
     headers = await _instructor_login(client, auth_headers)
@@ -82,11 +143,11 @@ async def test_publish_and_list_in_catalog(
     # instead of the no-lessons rejection.
     await seed_lesson(course_id, headers)
 
-    pub = await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=headers,
-    )
+    # S2 / ADR-0026: publish (POST /publish) keeps the course PRIVATE. A course
+    # only appears in the public catalog once it is publicly LISTED — public +
+    # approved + published. ``publish_and_list_course`` does the lifecycle
+    # publish then sets visibility/moderation so the catalog assertion holds.
+    pub = await publish_and_list_course(course_id, headers)
     assert pub.status_code == 200, pub.text
     assert pub.json()["status"] == "published"
     assert pub.json()["published_at"] is not None
@@ -144,7 +205,7 @@ async def test_modules_lessons_and_reorder(
 
 
 async def test_enrollment_and_progress(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     subject = await _make_subject(db_session)
     teacher = await auth_headers(role=Role.instructor)
@@ -171,9 +232,9 @@ async def test_enrollment_and_progress(
         )
     ).json()
 
-    pub = await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
-    )
+    # S2 / ADR-0026: a student can only enroll in a publicly-listed course
+    # (``can_enroll`` -> ``is_publicly_listed`` OR owner). Publish + list it.
+    pub = await publish_and_list_course(course_id, teacher)
     assert pub.status_code == 200
 
     # Enroll
@@ -194,7 +255,11 @@ async def test_enrollment_and_progress(
 
 
 async def test_review_requires_enrollment(
-    client: AsyncClient, auth_headers, seed_lesson, db_session: AsyncSession
+    client: AsyncClient,
+    auth_headers,
+    seed_lesson,
+    db_session: AsyncSession,
+    publish_and_list_course,
 ) -> None:
     subject = await _make_subject(db_session)
     teacher = await auth_headers(role=Role.instructor)
@@ -206,11 +271,10 @@ async def test_review_requires_enrollment(
         headers=teacher,
     )
     course_id = create.json()["id"]
-    # The publish-guard requires at least one lesson.
+    # The publish-guard requires at least one lesson; publish + list so the
+    # student can reach the (enrollment-gated) review endpoint at all.
     await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
-    )
+    await publish_and_list_course(course_id, teacher)
 
     r_fail = await client.put(
         f"/api/v1/courses/{course_id}/reviews",
@@ -228,3 +292,76 @@ async def test_review_requires_enrollment(
     )
     assert r_ok.status_code == 200
     assert r_ok.json()["rating"] == 4
+
+
+# ---------- S1.5 service-layer ungate + ownership/analytics re-checks ----------
+
+
+async def test_create_course_no_instructor_gate(make_user, db_session: AsyncSession) -> None:
+    # S1.5: the service no longer raises `courses.forbidden`; any active user
+    # creates a Course (the instructor business-gate at services/courses.py:69
+    # is removed).
+    from app.schemas.course import CourseCreate
+    from app.services import courses as courses_service
+
+    subject = await _make_subject(db_session)
+    user = await make_user(role=Role.user)
+    course = await courses_service.create_course(
+        db_session,
+        owner=user,
+        payload=CourseCreate(title="Ungated", subject_id=subject.id, overview="x"),
+    )
+    assert course.id
+    assert course.owner_id == user.id
+
+
+async def test_user_cannot_edit_other_users_course(make_user, db_session: AsyncSession) -> None:
+    # S1.5: ungating the *route* must not let user B edit user A's course —
+    # ownership stays enforced in the service (`_can_edit_course`).
+    from app.core.errors import ForbiddenError
+    from app.schemas.course import CourseCreate, CourseUpdate
+    from app.services import courses as courses_service
+
+    subject = await _make_subject(db_session)
+    user_a = await make_user(role=Role.user)
+    user_b = await make_user(role=Role.user)
+    course = await courses_service.create_course(
+        db_session,
+        owner=user_a,
+        payload=CourseCreate(title="A's course", subject_id=subject.id, overview="x"),
+    )
+    with pytest.raises(ForbiddenError):
+        await courses_service.update_course(
+            db_session,
+            course_id=course.id,
+            owner=user_b,
+            payload=CourseUpdate(title="Hijacked"),
+        )
+
+
+async def test_course_analytics_owner_only(make_user, db_session: AsyncSession) -> None:
+    # S1.5: analytics re-checks `cap.can_view_course_analytics` (owner-or-admin).
+    from app.core.errors import ForbiddenError
+    from app.schemas.course import CourseCreate
+    from app.services import analytics as analytics_service
+    from app.services import courses as courses_service
+
+    subject = await _make_subject(db_session)
+    owner = await make_user(role=Role.user)
+    other = await make_user(role=Role.user)
+    admin = await make_user(role=Role.admin)
+    course = await courses_service.create_course(
+        db_session,
+        owner=owner,
+        payload=CourseCreate(title="Stats", subject_id=subject.id, overview="x"),
+    )
+
+    # Owner can view.
+    data = await analytics_service.for_course(db_session, course_id=course.id, viewer=owner)
+    assert data.course_id == course.id
+    # Admin can view any.
+    data_admin = await analytics_service.for_course(db_session, course_id=course.id, viewer=admin)
+    assert data_admin.course_id == course.id
+    # A non-owner non-admin cannot.
+    with pytest.raises(ForbiddenError):
+        await analytics_service.for_course(db_session, course_id=course.id, viewer=other)

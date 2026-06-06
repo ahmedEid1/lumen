@@ -2028,6 +2028,185 @@ waves without external credentials.
   whenever `activeIndex` changes so the active card stays in view
   if page chrome grows.
 
+## [2.0.0-two-role] - 2026-06-06
+
+The two-role rebuild. Lumen stops being a three-role LMS where a small
+"instructor" caste authors for everyone else, and becomes a **learner-owned
+platform where every signed-in user can both author and learn.** The journey
+is now: **define** what you want to learn (a guided AI intake), let the AI
+**build** you a private course from that goal, then **learn** it with the
+tutor — and, if you want, **share** it to a moderated public catalog that
+anyone can **clone and remix** into their own copy. You can also bring your
+own AI provider key instead of the free platform model.
+
+This was built as a gated waterfall (requirements → design → 6 ADRs
+0025–0030 → implementation plan → seven build streams S1–S7) on the
+`two-role-rebuild` branch, ~120 commits, each stream cleared a Codex
+challenge, an independent Claude review, and a live in-browser walk before
+merging. Backend 1421 tests / frontend 468 tests green at close; WCAG 2.2 AA
+axe gate, en+ar i18n parity, and the eval harness all held. Design canon
+lives in `docs/two-role-rebuild/` and ADRs 0025–0030.
+
+> **Upgrade note — breaking changes below.** The role model changed
+> (`student`/`instructor` → `user`), publishing no longer lists a course
+> publicly on its own, and the dedicated instructor role is gone. See
+> **Breaking changes** for the migration and behavioural details.
+
+### Added
+
+- **Every user can author — "Studio for all" (Stream S1, ADR-0025).**
+  Authoring, Studio, AI course-drafting, and cloning are now capabilities
+  every active `user` holds by default, not gates locked to an instructor
+  caste. Authorization moved from blunt role checks to **capability-based
+  guards** in the service layer (`can_author`, `can_publish_public`,
+  `can_clone`, `can_ingest_url`, …), so the dangerous capabilities (public
+  publishing, URL ingest, MCP authoring) keep their own guards and quotas
+  while the everyday ones open up. Former students gained authoring
+  immediately on upgrade; every existing instructor course, enrollment,
+  certificate, discussion, and review was preserved.
+- **Define your goal → AI builds you a private course → learn it
+  (Stream S3, ADR-0026).** A new **guided goal intake** turns a fuzzy
+  "I want to learn …" into a structured learning brief: the AI asks a
+  bounded set of clarifying questions (level, time budget, prior knowledge,
+  target outcomes — capped at six turns), you review the brief, and on
+  finalize it feeds the authoring orchestrator to **build a course for you**.
+  AI-built courses are **private by default**. The build reports **honest
+  status** — a failed build says so plainly, keeps no half-finished partial,
+  and is **re-runnable** (the retry reuses the same in-flight course rather
+  than spawning duplicates) and **cancellable** mid-flight. You then learn
+  your own private draft directly, with the tutor, and without a self-issued
+  certificate.
+- **Public sharing with admin moderation (Streams S2 + S6, ADRs 0029/0030).**
+  Publishing a course makes it **published-but-private**; to reach the public
+  catalog you explicitly **share** it, which puts it into a
+  `pending_review` queue. An admin **approves** (it becomes publicly listed),
+  **rejects**, or later **delists** it — a proper moderation state machine
+  (`private → pending_review → public | rejected | delisted`) with an
+  immutable moderation audit trail. Courses can be **archived and restored**
+  with their moderation history intact. Catalog listing, lesson previews,
+  tutor retrieval, enrollment, search, and sitemap all route through a single
+  central authorizer (`is_publicly_listed`) — there are no more scattered
+  "is it published?" checks deciding visibility.
+- **Report a course, with a reason taxonomy (Stream S6).** Signed-in users
+  can **report** a listed course from a dialog backed by a fixed reason
+  taxonomy (spam, abuse, infringement, …). Reports are sanitized,
+  rate-limited / anti-abuse-gated (brand-new accounts can't report), coalesce
+  per (reporter, course), and land in the admin queue. A course crossing the
+  report threshold is **flagged for review without being auto-unlisted** — a
+  human decides — and admins get a non-destructive way to clear a flag.
+- **Clone & remix any listed course (Stream S4, ADR-0028).** A signed-in
+  active user can clone any publicly-listed course from the catalog card or
+  the course-detail sidebar into a fresh **private draft** they own, then
+  edit it independently. The new draft carries a structured,
+  **server-written and read-only** "Based on … by …" attribution (never
+  editable, so it can't be spoofed); if the source is later delisted or its
+  author deleted, the attribution degrades read-time to "no longer available"
+  with no link (the cloned content stays intact). Cloning is a **sanitized
+  export projection** — it copies only live lesson/quiz content and **never**
+  enrollments, progress, reviews, discussions, agent traces, signed file
+  URLs, soft-deleted lessons, or embeddings (embeddings rebuild lazily on
+  re-publish / first tutor turn). Clones are **idempotent** (a replayed
+  request returns the same copy, not a duplicate) and **quota-bounded**
+  (per-hour, owned-cap, max-lessons). Cloned courses show a "Cloned" badge in
+  Studio. Shipped behind `clone_enabled` (**default off**); while off the
+  endpoint existence-hides (404) and the CTA surfaces a graceful error.
+- **BYOK — bring your own AI provider key (Stream S5, ADR-0027).** Users can
+  configure their own LLM provider + key instead of the free platform model
+  (Groq Llama 3.3 70B), under `/profile/model`. An **allowlisted provider
+  registry** (OpenAI, Anthropic, Groq, Mistral) with **server-owned fixed
+  base URLs** closes the SSRF surface by construction — there is no
+  user-supplied base-url field anywhere. Keys are **envelope-encrypted**
+  (AES-256-GCM, versioned KEK) and stored write-only; reads are masked
+  (last-4 + status only) and the key is excluded from `/me/export`, admin
+  views, logs, traces, `llm_calls` rows, and the OpenAPI schema — decryption
+  happens **only** inside the dispatch path. Every user-initiated feature
+  (tutor, streaming tutor, AI authoring, learning-path build/replan)
+  dispatches on the user's key when configured; background jobs fall back to
+  the platform key. **Non-dollar request quotas** (a pre-dispatch DB count,
+  independent of cost) close the `$0`-BYOK bypass of the dollar guard. A
+  `validate` endpoint probes the key with anti-oracle caps and redacted
+  errors; admin cost rollups exclude BYOK rows from platform-$ and surface
+  BYOK adoption. Shipped behind `feature_byok_enabled` (**default off**)
+  until the master key (KEK) is confirmed on every API + worker process — a
+  boot guard refuses to start with stored credentials but no key. Rotate via
+  `python -m app.cli rotate-byok-master-key` (see
+  `docs/runbooks/byok-key-rotation.md`).
+- **Account lifecycle: suspension and full-scrub deletion (Stream S6,
+  ADR-0030).** Admins can **suspend and reinstate** a user (suspended users
+  get a distinct `auth.account_suspended` 401 after a correct password — no
+  enumeration oracle — and a cooperative cancel signal stops their in-flight
+  streaming / build / clone work). Users can **delete their account** from
+  the profile (password + typed `DELETE` confirmation), which runs a full
+  data scrub: email reset to a tombstone, name emptied, owned courses made
+  private and soft-deleted, BYOK credentials purged, sessions revoked, MCP
+  clients revoked, and — critically — **encrypted learning goals/briefs
+  hard-deleted**. A **last-admin invariant** (advisory-locked against races)
+  prevents demoting or deleting the only remaining admin.
+- **Streaming tutor cost/usage observability (Stream S7).** Streamed tutor
+  turns now record **real token usage** end-to-end (it was being dropped at
+  three downstream seams), so streamed turns are no longer invisible to cost
+  rollups and quotas; streaming quota stays request-COUNT-based and is pinned
+  by a tripwire test. A yielded mid-stream failure now routes to the failure
+  path (including BYOK credential invalidation) instead of being recorded as
+  a success.
+
+### Changed
+
+- **Course visibility is a separate axis from lifecycle.** `CourseStatus`
+  (draft/published) now means lifecycle only; a new `visibility`
+  (`private | public`) plus the moderation state govern sharing. AI-built and
+  cloned courses start private. (See **Breaking changes** for what this means
+  for the old "publish == public" behaviour.)
+- **Deleted-author content degrades gracefully.** Course cards, headers,
+  reviews, discussions, and clone attributions render a localized
+  "deleted user" label instead of a name when the author is gone, and never
+  paint a raw i18n key.
+- **Accessibility & i18n maintained throughout.** Every new surface
+  (goal intake, share/moderation, clone, BYOK settings, report dialog,
+  account-deletion dialog, admin user management) ships with **en + ar
+  parity** and clears the **WCAG 2.2 AA axe-core gate**; the notifications
+  poller now stops after a 401 instead of looping.
+
+### Breaking changes
+
+- **Roles collapsed to `user | admin`.** The `Role` enum's `student` and
+  `instructor` values are gone; both migrate to `user` (admin unchanged) via
+  a phased zero-downtime migration (widen the accepted set and JWT `role`
+  claim → backfill existing rows → drop the old values only after live
+  access tokens drain at the 15-minute TTL). API responses, JWT claims, seed
+  data, and the admin UI no longer use `student`/`instructor`. Any external
+  client that branched on those role strings must treat both as `user`.
+- **Publishing no longer lists a course publicly.** Previously a published
+  course appeared in the public catalog automatically. Now **publish keeps
+  the course private**, and reaching the public catalog requires an explicit
+  **share → admin approval** step. The `PATCH …{status}` path that flipped a
+  course straight to public no longer does so (it now returns `422`).
+  Operators flipping the public-sharing flag on for the first time should
+  expect previously-"published" courses to remain unlisted until shared and
+  approved.
+- **The dedicated instructor role and its gates are removed.** The
+  `RequireInstructor` dependency/alias is deleted; author routes gate on
+  capability (`RequireAuthor`) and ownership instead. The "Import from URL"
+  ingest affordance is now admin-gated to match its server capability
+  (`can_ingest_url`), not exposed to every author.
+
+### Security
+
+- **BYOK key material never leaves the dispatch path in the clear** —
+  envelope-encrypted at rest, masked on read, excluded from exports / admin
+  views / logs / traces / `llm_calls` / OpenAPI, proven by tests.
+- **SSRF closed by construction** for BYOK (no user base-url; fixed
+  allowlisted endpoints) and hardened for URL ingest before it was opened to
+  authors (private-IP/loopback/link-local blocking, DNS pinning, size/time
+  caps, MIME validation, per-user quotas).
+- **Untrusted authored/cloned content is treated as hostile prompt input** —
+  no tool/network actions are taken from model output; the off-default
+  adversarial rail (ADR-0024) stays off on the live tutor path.
+- **Audit + anti-abuse.** Immutable audit events for
+  publish/share/moderation/clone/role-change/BYOK
+  create-update-delete-validate/account-deletion; anti-enumeration on
+  suspended/deleted auth; rate-limited, anti-abuse-gated reporting.
+
 ## [1.1.0-agentic] - 2026-05-22
 
 Phase H (production-grade hardening) + Phase I (agentic-AI signature

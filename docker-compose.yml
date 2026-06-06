@@ -44,6 +44,22 @@ x-api-env: &api-env
   # could never turn streaming on). Defaults off; flip with
   # ``FEATURE_TUTOR_STREAMING=true`` in the env.
   FEATURE_TUTOR_STREAMING: ${FEATURE_TUTOR_STREAMING:-false}
+  # BYOK (S5) — flag + versioned KEK map pass-through. Same lesson as
+  # FEATURE_TUTOR_STREAMING above: without these the flag can never be
+  # flipped in a real environment (S5 Gate-C finding). With the map left
+  # at the JSON-empty default, dev derives a clearly-dev-only KEK from
+  # SECRET_KEY; production REFUSES an empty/derived KEK at boot
+  # (prod_guards + secrets_crypto).
+  FEATURE_BYOK_ENABLED: ${FEATURE_BYOK_ENABLED:-false}
+  BYOK_MASTER_KEYS: ${BYOK_MASTER_KEYS:-{}}
+  BYOK_MASTER_KEY_VERSION: ${BYOK_MASTER_KEY_VERSION:-1}
+  BYOK_ALLOW_DERIVED_KEK: ${BYOK_ALLOW_DERIVED_KEK:-false}
+  # S2 sharing axis (R-S8' step-4): OFF until the operator flips it.
+  # Same pass-through lesson as FEATURE_BYOK_ENABLED above (S2 Gate-C).
+  FEATURE_PRIVATE_PUBLISH_ENABLED: ${FEATURE_PRIVATE_PUBLISH_ENABLED:-false}
+  # S4 clone/remix master gate (ADR-0028): OFF until migrations 0048/0049 are
+  # fleet-confirmed + the authorizer image is rolled. Same pass-through lesson.
+  CLONE_ENABLED: ${CLONE_ENABLED:-false}
   # Per-IP login rate limit. Default 10 (matches Settings + prod). The
   # e2e workflow raises it: the parallel chromium+webkit Playwright
   # suite logs in many times from one runner IP and tripped the cap.

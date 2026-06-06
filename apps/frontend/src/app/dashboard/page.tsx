@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
@@ -88,12 +88,11 @@ export default function DashboardPage() {
 
   return (
     <div className="container mx-auto px-6 py-14 sm:py-20">
-      {user.role === "student" && (
-        <OnboardingTour
-          steps={learnerSteps(t)}
-          storageKey="lumen.onboarding.learner.dismissed"
-        />
-      )}
+      {/* S1.11: the dashboard is the learn surface for every user (the
+          two-role model merges learner + author). Show the learner tour to
+          any authenticated user, not just the legacy `student` role. */}
+      <OnboardingTour steps={learnerSteps(t)} storageKey="lumen.onboarding.learner.dismissed" />
+
       <header className="mb-12 flex flex-col gap-3">
         <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
           {t("dashboard.cartouche")}
@@ -103,6 +102,31 @@ export default function DashboardPage() {
         </h1>
         <p className="font-body text-sm text-muted-foreground">{t("dashboard.subtitle")}</p>
       </header>
+
+      {/* S3.11 — the canonical define→build→learn entry (FR-DEFINE-09). Opens
+          the goal-intake flow at /learn/define WITHOUT navigating to /studio. */}
+      <Link
+        href="/learn/define"
+        data-testid="dashboard-define-cta"
+        className="surface group mb-12 flex items-center justify-between gap-4 p-5 transition-colors duration-[160ms] hover:border-foreground/30"
+      >
+        <div className="flex flex-col gap-1">
+          <span className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+            <Sparkles className="h-3.5 w-3.5" aria-hidden />
+            {t("dashboard.define.cartouche")}
+          </span>
+          <span className="font-display text-lg leading-tight tracking-tight text-foreground">
+            {t("dashboard.define.title")}
+          </span>
+          <span className="font-body text-sm text-muted-foreground">
+            {t("dashboard.define.body")}
+          </span>
+        </div>
+        <ArrowRight
+          className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-[160ms] group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5"
+          aria-hidden
+        />
+      </Link>
 
       <section className="mb-14">
         <div className="mb-5 flex items-baseline justify-between gap-3">

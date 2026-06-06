@@ -20,9 +20,12 @@ from app.api.v1 import (
     discussions,
     enrollments,
     eval_public,
+    goal_intake,
     health,
     learner_traces,
     learning_path,
+    llm_credentials,
+    llm_providers,
     mastery,
     notifications,
     reviews,
@@ -102,6 +105,10 @@ api_router.include_router(tutor_streaming.router, tags=["tutor-streaming"])
 # generation. All four endpoints share the ``/studio/ai`` prefix and
 # the per-user 5/minute rate limit declared inside the module.
 api_router.include_router(ai_authoring.router, prefix="/studio", tags=["studio-ai"])
+# S3.4 — Goal-intake (define) endpoints. Learner-facing, so mounted under
+# ``/api/v1/ai`` (the module declares ``/ai/goal/*`` paths), NOT ``/studio``
+# (FR-DEFINE-09). RequireAuthor + slowapi + metered via call_logged.
+api_router.include_router(goal_intake.router, tags=["goal-intake"])
 # L20.5 — Public runtime-flags read endpoint. Anon-readable so the
 # frontend can probe before sign-in. Currently reads from Settings;
 # L21-Sec adds a Redis-backed override layer for live flag-flips.
@@ -109,3 +116,11 @@ api_router.include_router(runtime_flags.router, tags=["runtime-flags"])
 # L20.6 — Curated demo-question library. Anon-readable; consumed by
 # the L22 chip rail above the tutor composer + the L25 eval suite.
 api_router.include_router(demo_questions.router, tags=["demo-questions"])
+# S5 (BYOK) — read-only allowlisted provider+model registry. Mounted with
+# no extra prefix → /api/v1/llm-providers. Authenticated; exposes no
+# base_url/keys.
+api_router.include_router(llm_providers.router, tags=["llm-providers"])
+# S5 (BYOK) — per-user credential CRUD + validate under /api/v1/me/llm-credentials.
+# Write-only key, masked reads, anti-oracle validate caps. Module paths
+# already carry /me, so no extra prefix here.
+api_router.include_router(llm_credentials.router, tags=["llm-credentials"])

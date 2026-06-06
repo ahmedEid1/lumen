@@ -69,6 +69,7 @@ from app.models.tutor_conversation import (
 from app.models.tutor_turn_job import TURN_STATUS_COMPLETE, TURN_STATUS_FAILED, TURN_STATUS_RUNNING
 from app.repositories import courses as courses_repo
 from app.schemas.common import Page
+from app.services import byok as byok_service
 from app.services import tutor as tutor_service
 from app.services.tutor_turn_service import create_turn, mark_terminal
 
@@ -537,6 +538,10 @@ async def post_message(
         # agent's per-turn reasoning. The H1 cost meter is wired
         # internally; we pass ``user.id`` so calls attribute to the
         # learner.
+        # S5.12/DR-8: resolve the foreground BYOK context for the acting
+        # user; the orchestrator threads it through every LLM call so a
+        # user-initiated tutor turn runs on the user's key end-to-end.
+        ctx = await byok_service.resolve_context(db, user_id=user.id)
         result, orch = await tutor_service.ask_with_trace(
             db,
             course=course,
@@ -544,6 +549,7 @@ async def post_message(
             conversation_history=history,
             user_id=user.id,
             feature="tutor.multi_agent",
+            ctx=ctx,
         )
     except Exception:
         # Any failure between reserve_cost and the assistant-message

@@ -148,6 +148,8 @@ async def run(
     step_index: int = 0,
     parent_trace_id: str | None = None,
     parent_call_id: str | None = None,
+    provider: llm_service.LLMProvider | None = None,
+    billing_mode: str = "platform",
 ) -> QuizGenResult:
     """Generate one MCQ for ``topic`` grounded in ``context``.
 
@@ -155,8 +157,12 @@ async def run(
     retriever's serialised chunks). If it's empty the LLM is told
     explicitly to lean on the topic alone — the result will be lower
     quality but still in the schema.
+
+    S5.12: inherits the parent orchestrator's BYOK ``provider`` +
+    ``billing_mode`` when passed; otherwise uses the platform provider.
     """
-    provider = llm_service.get_provider()
+    if provider is None:
+        provider = llm_service.get_provider()
     user_prompt = (
         f"TOPIC:\n{topic.strip() or '(no topic)'}\n\n"
         f"CONTEXT (lesson excerpts):\n{context.strip() or '(no context — use the topic alone)'}\n\n"
@@ -176,6 +182,7 @@ async def run(
             feature=FEATURE,
             session=db,
             temperature=0.4,
+            billing_mode=billing_mode,
         )
     except Exception as exc:
         kind = type(exc).__name__
@@ -246,6 +253,7 @@ async def run(
             feature=FEATURE,
             session=db,
             temperature=0.4,
+            billing_mode=billing_mode,
         )
     except Exception as exc:
         kind = type(exc).__name__

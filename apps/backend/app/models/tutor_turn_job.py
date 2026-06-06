@@ -89,6 +89,16 @@ class TutorTurnJob(IdMixin, TimestampMixin, Base):
     )
     reservation_ip_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
+    # S5.5 — the foreground-locus token carried to the streaming worker
+    # (R-S1''). The worker re-resolves + decrypts the key from DB inside
+    # ``byok.build_provider``; the turn row carries ONLY this id, never the
+    # key (FR-BYOK-26). ON DELETE SET NULL so a removed credential never
+    # orphans turn / audit history — the turn row survives with
+    # ``credential_id IS NULL``.
+    credential_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_llm_credentials.id", ondelete="SET NULL"), nullable=True
+    )
+
     user: Mapped[User] = relationship()
 
 

@@ -26,11 +26,34 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.tutor_turn_job import (
+    TERMINAL_TURN_STATUSES,
     TURN_STATUS_PENDING,
     TutorTurnJob,
 )
 
 log = get_logger(__name__)
+
+
+async def count_active_turns_in_window(
+    db: AsyncSession, *, user_id: str, window_seconds: int
+) -> int:
+    """COUNT the user's non-terminal turns created in the window.
+
+    Gate-A fix: BYOK streamed turns skip the platform dollar reservation,
+    so the enqueue path enforces the non-dollar BYOK request windows
+    instead — terminal turns are visible to that count through their
+    ``llm_calls`` rows (written by the worker at the terminal transition);
+    this counts the in-flight remainder so an enqueue burst can't
+    undercount. Index-covered by ``(user_id, created_at DESC)``.
+    """
+    from sqlalchemy import func, select
+
+    stmt = select(func.count(TutorTurnJob.id)).where(
+        TutorTurnJob.user_id == user_id,
+        TutorTurnJob.status.notin_(TERMINAL_TURN_STATUSES),
+        TutorTurnJob.created_at > func.now() - func.make_interval(0, 0, 0, 0, 0, 0, window_seconds),
+    )
+    return int((await db.execute(stmt)).scalar_one() or 0)
 
 
 async def create_turn(
@@ -43,6 +66,7 @@ async def create_turn(
     prompt_template_hash: str | None = None,
     user_message: str | None = None,
     course_id: str | None = None,
+    credential_id: str | None = None,
     enqueue_task: bool = True,
 ) -> TutorTurnJob:
     """Insert a new turn row.
@@ -65,6 +89,9 @@ async def create_turn(
         reserved_cost_usd=reserved_cost_usd,
         reservation_ip_key=reservation_ip_key,
         prompt_template_hash=prompt_template_hash,
+        # S5.12/R-S1'': the foreground-resolved credential id carried to the
+        # worker (never the key — FR-BYOK-26).
+        credential_id=credential_id,
     )
     db.add(turn)
     await db.flush()
@@ -159,6 +186,58 @@ async def mark_terminal(
             """
         ),
         {"id": turn_id, "status": status, "error_code": error_code},
+    )
+    return (result.rowcount or 0) > 0
+
+
+async def abort_pending(db: AsyncSession, *, turn_id: str, error_code: str) -> bool:
+    """Atomic pending→aborted transition (confirm-round-2 fix).
+
+    Returns ``True`` iff THIS statement moved the row out of ``pending`` —
+    the caller then owns the concurrency-slot release, because no worker
+    ever claimed the turn (``claim_pending_turn`` requires
+    ``status='pending'``) and none ever will. ``False`` means the row was
+    already claimed or terminal: for a claimed turn the worker's
+    ``finally`` owns the slot, and releasing from the API as well would
+    double-decrement the Redis counter (the cap-bypass race Codex caught
+    in the prior shape, which read the ORM status before mark_terminal).
+    """
+    result = await db.execute(
+        text(
+            """
+            UPDATE tutor_turn_jobs
+            SET status = 'aborted',
+                error_code = :error_code,
+                reserved_cost_usd = 0,
+                updated_at = NOW()
+            WHERE id = :id
+              AND status = 'pending'
+            """
+        ),
+        {"id": turn_id, "error_code": error_code},
+    )
+    return (result.rowcount or 0) > 0
+
+
+async def set_reserved_cost(db: AsyncSession, *, turn_id: str, reserved_cost_usd) -> bool:
+    """Record a reservation taken AFTER enqueue (confirm-round fix).
+
+    A BYOK turn enqueues with ``reserved_cost_usd = 0``; when the worker
+    discovers it must fall back to platform it reserves cost itself and
+    stamps the row here so the cancel path and the sweep release the
+    truth. Refuses terminal rows (same guard shape as ``mark_terminal``).
+    """
+    result = await db.execute(
+        text(
+            """
+            UPDATE tutor_turn_jobs
+            SET reserved_cost_usd = :reserved,
+                updated_at = NOW()
+            WHERE id = :id
+              AND status NOT IN ('complete', 'failed', 'aborted')
+            """
+        ),
+        {"id": turn_id, "reserved": reserved_cost_usd},
     )
     return (result.rowcount or 0) > 0
 

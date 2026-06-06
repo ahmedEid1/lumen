@@ -30,7 +30,21 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _published(client: AsyncClient, teacher: dict, subject_id: str, seed_lesson) -> str:
+async def _published(
+    client: AsyncClient, teacher: dict, subject_id: str, seed_lesson, db_session: AsyncSession
+) -> str:
+    """Create + seed + publish (status=published, kept PRIVATE).
+
+    S2.11: the publish lifecycle moved off ``PATCH {status}`` to
+    ``POST /courses/{id}/publish``. We drive ``status`` to ``published`` via the
+    DB session — mirroring S2's ``_mk_course`` helper — rather than the HTTP
+    endpoint, so these ETag tests verify ETag behaviour on a genuinely
+    published-but-private course (publishing alone keeps it private under S2).
+    """
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus
+
     create = await client.post(
         "/api/v1/courses",
         json={"title": "ETag", "subject_id": subject_id, "overview": "x"},
@@ -38,11 +52,29 @@ async def _published(client: AsyncClient, teacher: dict, subject_id: str, seed_l
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=teacher,
+    await db_session.execute(
+        update(Course).where(Course.id == course_id).values(status=CourseStatus.published)
     )
+    await db_session.commit()
+    return course_id
+
+
+async def _publish_and_list(
+    client: AsyncClient, teacher: dict, subject_id: str, seed_lesson, db_session: AsyncSession
+) -> str:
+    """Published AND publicly listed (public+approved) so anon-view + enroll
+    work — publishing alone now keeps a course private (S2)."""
+    from sqlalchemy import update
+
+    from app.models.course import Course, ModerationState, Visibility
+
+    course_id = await _published(client, teacher, subject_id, seed_lesson, db_session)
+    await db_session.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(visibility=Visibility.public, moderation_state=ModerationState.approved)
+    )
+    await db_session.commit()
     return course_id
 
 
@@ -51,7 +83,7 @@ async def test_first_request_returns_etag(
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    course_id = await _published(client, teacher, subject.id, seed_lesson)
+    course_id = await _published(client, teacher, subject.id, seed_lesson, db_session)
 
     r = await client.get(f"/api/v1/courses/{course_id}")
     assert r.status_code == 200
@@ -66,7 +98,7 @@ async def test_matching_if_none_match_returns_304_no_body(
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    course_id = await _published(client, teacher, subject.id, seed_lesson)
+    course_id = await _published(client, teacher, subject.id, seed_lesson, db_session)
 
     first = await client.get(f"/api/v1/courses/{course_id}")
     etag = first.headers["etag"]
@@ -82,7 +114,7 @@ async def test_etag_changes_when_course_changes(
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    course_id = await _published(client, teacher, subject.id, seed_lesson)
+    course_id = await _published(client, teacher, subject.id, seed_lesson, db_session)
 
     first = await client.get(f"/api/v1/courses/{course_id}")
     first_etag = first.headers["etag"]
@@ -109,12 +141,40 @@ async def test_etag_differs_for_enrolled_vs_anonymous(
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _published(client, teacher, subject.id, seed_lesson)
+    course_id = await _publish_and_list(client, teacher, subject.id, seed_lesson, db_session)
 
     anon = await client.get(f"/api/v1/courses/{course_id}")
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     authed = await client.get(f"/api/v1/courses/{course_id}", headers=student)
     assert anon.headers["etag"] != authed.headers["etag"]
+
+
+async def test_etag_changes_when_visibility_moderation_changes(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+) -> None:
+    """S2.12: the detail ETag folds visibility/moderation_state so a
+    share/approve/delist forces cache revalidation (owner view)."""
+    from sqlalchemy import update
+
+    from app.models.course import Course, ModerationState, Visibility
+
+    teacher = await auth_headers(role=Role.instructor)
+    subject = await _make_subject(db_session)
+    course_id = await _published(client, teacher, subject.id, seed_lesson, db_session)
+
+    first = (await client.get(f"/api/v1/courses/{course_id}", headers=teacher)).headers["etag"]
+
+    # Flip to public+approved → ETag must change even though title/updated_at
+    # may be untouched at this granularity.
+    await db_session.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(visibility=Visibility.public, moderation_state=ModerationState.approved)
+    )
+    await db_session.commit()
+
+    second = (await client.get(f"/api/v1/courses/{course_id}", headers=teacher)).headers["etag"]
+    assert second != first
 
 
 async def test_cache_control_private_for_authed_public_for_anon(
@@ -127,7 +187,9 @@ async def test_cache_control_private_for_authed_public_for_anon(
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _published(client, teacher, subject.id, seed_lesson)
+    # Must be publicly listed so the anonymous GET below is a 200 (a
+    # published-private course 404s to anon — S2).
+    course_id = await _publish_and_list(client, teacher, subject.id, seed_lesson, db_session)
 
     # auth_headers's `POST /auth/login` sets cookies on
     # the shared httpx client jar; without clearing, the "anonymous"
@@ -151,7 +213,7 @@ async def test_304_response_also_carries_cache_control_and_vary(
     them still needs Cache-Control + Vary to handle it correctly."""
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    course_id = await _published(client, teacher, subject.id, seed_lesson)
+    course_id = await _published(client, teacher, subject.id, seed_lesson, db_session)
 
     first = await client.get(f"/api/v1/courses/{course_id}")
     etag = first.headers["etag"]
@@ -166,7 +228,7 @@ async def test_mismatched_if_none_match_returns_full_body(
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
-    course_id = await _published(client, teacher, subject.id, seed_lesson)
+    course_id = await _published(client, teacher, subject.id, seed_lesson, db_session)
 
     r = await client.get(
         f"/api/v1/courses/{course_id}",

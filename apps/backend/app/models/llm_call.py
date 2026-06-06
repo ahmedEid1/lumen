@@ -78,6 +78,16 @@ STATUS_OK = "ok"
 STATUS_ERROR = "error"
 STATUS_THROTTLED = "throttled"
 STATUS_BUDGET_EXCEEDED = "budget_exceeded"
+# S5.4 — the non-dollar request/job quota sentinel (DR-11/16). Persisted
+# (provider NOT invoked) when the pre-dispatch DB COUNT guard trips, so the
+# admin surface sees the block the same way it sees a budget trip.
+STATUS_QUOTA_EXCEEDED = "quota_exceeded"
+
+# S5.4 — per-row billing attribution (FR-BYOK-27). ``platform`` rows count
+# against the platform dollar aggregates; ``byok`` rows are excluded from
+# platform-$ (the user pays their provider directly).
+BILLING_PLATFORM = "platform"
+BILLING_BYOK = "byok"
 
 
 class LLMCall(IdMixin, Base):
@@ -119,15 +129,24 @@ class LLMCall(IdMixin, Base):
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False)
     error_kind: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # S5.4 — billing attribution. PG17 fast-default 'platform' so old-fleet
+    # INSERTs during a rolling deploy fill correctly (pre-deploy traffic is
+    # all platform). FR-BYOK-27.
+    billing_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=BILLING_PLATFORM, server_default="platform"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
 
 __all__ = [
+    "BILLING_BYOK",
+    "BILLING_PLATFORM",
     "STATUS_BUDGET_EXCEEDED",
     "STATUS_ERROR",
     "STATUS_OK",
+    "STATUS_QUOTA_EXCEEDED",
     "STATUS_THROTTLED",
     "SYSTEM_USER_ID",
     "LLMCall",

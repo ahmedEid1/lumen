@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import RefreshToken, Role, User
@@ -10,6 +11,20 @@ from app.models.user import RefreshToken, Role, User
 
 async def get_by_id(db: AsyncSession, user_id: str) -> User | None:
     return await db.get(User, user_id)
+
+
+async def count_active_admins(db: AsyncSession, *, excluding: str | None = None) -> int:
+    """Count users who are an *active* admin (``role==admin AND is_active``).
+
+    The last-admin invariant (FR-ADMIN-03) computes the count against the
+    target's *prospective* new state: pass ``excluding=target.id`` to ask "how
+    many active admins would remain if this user no longer counted?". A tombstone
+    (``is_active=False``) is excluded automatically.
+    """
+    stmt = select(func.count(User.id)).where(User.role == Role.admin, User.is_active.is_(True))
+    if excluding is not None:
+        stmt = stmt.where(User.id != excluding)
+    return int((await db.execute(stmt)).scalar_one())
 
 
 async def get_by_email(db: AsyncSession, email: str) -> User | None:
@@ -23,7 +38,7 @@ async def create(
     email: str,
     password_hash: str,
     full_name: str,
-    role: Role = Role.student,
+    role: Role = Role.user,  # S1.8: default to the canonical `user` role
 ) -> User:
     user = User(email=email, password_hash=password_hash, full_name=full_name, role=role)
     db.add(user)
@@ -90,3 +105,23 @@ async def revoke_all_refresh_tokens(db: AsyncSession, user_id: str) -> None:
         .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
         .values(revoked_at=datetime.now(UTC))
     )
+
+
+async def purge_refresh_tokens(db: AsyncSession, user_id: str) -> None:
+    """Hard-delete every refresh token for a user (ADR-0030 §D2 step 5).
+
+    Account deletion is terminal: revocation alone leaves hashed rows; this
+    removes the residue so no session material survives the tombstone. Used by
+    ``account.delete_account`` after ``revoke_all_refresh_tokens``.
+    """
+    await db.execute(sa_delete(RefreshToken).where(RefreshToken.user_id == user_id))
+
+
+async def mark_deleted(db: AsyncSession, user: User) -> None:
+    """Set the ``deleted_at`` tombstone marker (ADR-0030 §D2 step 3).
+
+    The single discriminator between a *suspended* account (``deleted_at IS
+    NULL``) and a *deleted* one (``deleted_at IS NOT NULL``); both share
+    ``is_active=False``.
+    """
+    user.deleted_at = datetime.now(UTC)

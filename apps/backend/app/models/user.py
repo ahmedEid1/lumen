@@ -17,8 +17,15 @@ if TYPE_CHECKING:
 
 
 class Role(StrEnum):
+    # Two-role collapse (ADR-0025 §D1). Phase A widens the set to tolerate
+    # both the legacy ``student``/``instructor`` rows (until 0031 backfills
+    # them to ``user``) and the new canonical ``user``. ``student`` and
+    # ``instructor`` are removed in the evidence-gated Phase-D cut (S1.13);
+    # keep them here so legacy rows load and stale request bodies don't crash
+    # deserialization during the transition window (R-C5).
     student = "student"
     instructor = "instructor"
+    user = "user"
     admin = "admin"
 
 
@@ -33,9 +40,16 @@ class User(IdMixin, TimestampMixin, Base):
     full_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     bio: Mapped[str | None] = mapped_column(String(1000), nullable=True)
-    role: Mapped[Role] = mapped_column(String(20), nullable=False, default=Role.student, index=True)
+    # S1.8: the ORM-side default flips to `user` here; the DB `server_default`
+    # flip is migration 0032 (Phase C). Both land in the narrowed-enum release.
+    role: Mapped[Role] = mapped_column(String(20), nullable=False, default=Role.user, index=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # ADR-0030 §D1 / Migration 0030. Tombstone marker that distinguishes a
+    # *deleted* (anonymize-in-place) account from a *suspended* one — both
+    # share ``is_active=False``; the single discriminator is ``deleted_at IS
+    # NOT NULL``. Nullable, no default; set only by ``delete_account``.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     failed_login_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -55,7 +69,16 @@ class User(IdMixin, TimestampMixin, Base):
     courses_owned: Mapped[list[Course]] = relationship(
         back_populates="owner",
         foreign_keys="Course.owner_id",
-        cascade="all, delete-orphan",
+        # DR-6-R2 / ADR-0030 D1: ``save-update`` (NOT ``all, delete-orphan``).
+        # Courses are user-visible content with their own soft-delete and a
+        # deliberate ``Course.owner_id ondelete="RESTRICT"`` FK; orphan-
+        # deleting them on a parent-collection mutation contradicts that
+        # RESTRICT and would silently destroy courses (+ other users'
+        # enrollments/reviews via their CASCADE FKs). Self-serve deletion is
+        # anonymize-in-place and never ``session.delete(user)``; RESTRICT
+        # remains the DB-level backstop. This is the ONE load-bearing cascade
+        # change (DR-6-R2 supersedes the "change all three" over-correction).
+        cascade="save-update",
     )
     enrollments: Mapped[list[Enrollment]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

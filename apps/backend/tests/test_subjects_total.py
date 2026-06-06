@@ -4,6 +4,15 @@ Before iteration 30 ``list_subjects`` outer-joined Course with
 ``status == published`` only — a soft-deleted course retains its
 ``status`` until reaped, so it kept inflating the badge on the catalog
 subject tile.
+
+S2 / ADR-0026: ``list_subjects`` now counts only PUBLICLY-LISTED courses
+(``_publicly_listed_sql`` = public + approved + published + not-deleted) — the
+subject-tile badge mirrors the public catalog. So a course only counts once it
+is published AND listed; ``_publish`` uses ``publish_and_list_course`` to reach
+that state. ``PATCH {status}`` is gone (FR-VIS-08); ``archived`` has no
+owner-facing HTTP transition, so the archive step is driven against the
+service-layer state machine (which force-privates the course, dropping it from
+the count exactly as a real archive would).
 """
 
 from __future__ import annotations
@@ -13,7 +22,7 @@ import uuid
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.course import Subject
+from app.models.course import CourseStatus, Subject
 from app.models.user import Role
 
 
@@ -26,7 +35,12 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _publish(
-    client: AsyncClient, teacher: dict, subject_id: str, title: str, seed_lesson
+    client: AsyncClient,
+    teacher: dict,
+    subject_id: str,
+    title: str,
+    seed_lesson,
+    publish_and_list_course,
 ) -> str:
     create = await client.post(
         "/api/v1/courses",
@@ -35,8 +49,19 @@ async def _publish(
     )
     cid = create.json()["id"]
     await seed_lesson(cid, teacher)
-    await client.patch(f"/api/v1/courses/{cid}", json={"status": "published"}, headers=teacher)
+    # Publish AND publicly list so the course counts toward total_courses.
+    await publish_and_list_course(cid, teacher)
     return cid
+
+
+async def _archive_course(db: AsyncSession, course_id: str) -> None:
+    """Archive via the service-layer state machine (no owner-facing HTTP route)."""
+    from app.repositories import courses as courses_repo
+    from app.services import courses as courses_service
+
+    course = await courses_repo.get_course(db, course_id)
+    await courses_service._transition_status(db, course, CourseStatus.archived)
+    await db.commit()
 
 
 async def _total_for(client: AsyncClient, subject_id: str) -> int:
@@ -47,13 +72,17 @@ async def _total_for(client: AsyncClient, subject_id: str) -> int:
 
 
 async def test_total_drops_when_a_published_course_is_soft_deleted(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
 
-    a = await _publish(client, teacher, subject.id, "A", seed_lesson)
-    b = await _publish(client, teacher, subject.id, "B", seed_lesson)
+    a = await _publish(client, teacher, subject.id, "A", seed_lesson, publish_and_list_course)
+    b = await _publish(client, teacher, subject.id, "B", seed_lesson, publish_and_list_course)
     assert await _total_for(client, subject.id) == 2
 
     deleted = await client.delete(f"/api/v1/courses/{a}", headers=teacher)
@@ -67,7 +96,11 @@ async def test_total_drops_when_a_published_course_is_soft_deleted(
 
 
 async def test_draft_and_archived_dont_count_either(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     subject = await _make_subject(db_session)
@@ -80,8 +113,12 @@ async def test_draft_and_archived_dont_count_either(
     )
     assert create.status_code == 201
 
-    # Archived course (transitioned via published → archived) shouldn't count
-    archived = await _publish(client, teacher, subject.id, "Was published", seed_lesson)
-    await client.patch(f"/api/v1/courses/{archived}", json={"status": "archived"}, headers=teacher)
+    # A published+listed course (counts) then transitioned published → archived
+    # (force-private) must drop back out of the count.
+    archived = await _publish(
+        client, teacher, subject.id, "Was published", seed_lesson, publish_and_list_course
+    )
+    assert await _total_for(client, subject.id) == 1
+    await _archive_course(db_session, archived)
 
     assert await _total_for(client, subject.id) == 0

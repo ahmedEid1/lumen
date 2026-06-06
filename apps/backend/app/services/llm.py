@@ -56,7 +56,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
 
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -197,17 +197,28 @@ class AnthropicProvider:
         api_base: str | None = None,
         max_tokens: int = 1024,
     ) -> None:
-        self._api_key = api_key
+        # S5.6: wrap the key in SecretStr so it never lands in a repr/log
+        # by accident. The redacting __repr__/__str__ below is the explicit
+        # guard; SecretStr is the structural one.
+        self._api_key = SecretStr(api_key)
         self._model = model
         self._api_base = api_base
         self._max_tokens = max_tokens
         self._client: object | None = None
 
+    def _key_value(self) -> str:
+        return self._api_key.get_secret_value()
+
+    def __repr__(self) -> str:
+        return f"AnthropicProvider(model={self._model!r})"
+
+    __str__ = __repr__
+
     def _get_client(self) -> object:
         if self._client is None:
             from anthropic import Anthropic  # type: ignore[import-not-found]
 
-            kwargs: dict[str, object] = {"api_key": self._api_key}
+            kwargs: dict[str, object] = {"api_key": self._key_value()}
             if self._api_base:
                 kwargs["base_url"] = self._api_base
             self._client = Anthropic(**kwargs)
@@ -218,7 +229,7 @@ class AnthropicProvider:
         messages: list[ChatMessage],
         temperature: float = 0.2,
     ) -> ChatResponse:
-        if not self._api_key:
+        if not self._key_value():
             raise RuntimeError("Anthropic provider selected but ANTHROPIC_API_KEY is unset")
 
         # The Messages API takes ``system`` as a top-level parameter;
@@ -309,17 +320,26 @@ class OpenAIProvider:
         api_base: str | None = None,
         max_tokens: int = 1024,
     ) -> None:
-        self._api_key = api_key
+        # S5.6: SecretStr-wrapped key + redacting repr/str (see Anthropic).
+        self._api_key = SecretStr(api_key)
         self._model = model
         self._api_base = api_base
         self._max_tokens = max_tokens
         self._client: object | None = None
 
+    def _key_value(self) -> str:
+        return self._api_key.get_secret_value()
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(model={self._model!r})"
+
+    __str__ = __repr__
+
     def _get_client(self) -> object:
         if self._client is None:
             from openai import OpenAI  # type: ignore[import-not-found]
 
-            kwargs: dict[str, object] = {"api_key": self._api_key}
+            kwargs: dict[str, object] = {"api_key": self._key_value()}
             if self._api_base:
                 kwargs["base_url"] = self._api_base
             self._client = OpenAI(**kwargs)
@@ -330,7 +350,7 @@ class OpenAIProvider:
         messages: list[ChatMessage],
         temperature: float = 0.2,
     ) -> ChatResponse:
-        if not self._api_key:
+        if not self._key_value():
             raise RuntimeError("OpenAI provider selected but OPENAI_API_KEY is unset")
 
         client = self._get_client()
@@ -475,6 +495,37 @@ class MistralProvider(OpenAIProvider):
     name: str = "mistral"
 
 
+def build_provider_from_spec(spec: object, *, api_key: str, model: str) -> LLMProvider:
+    """Build a BYOK provider from an allowlisted registry spec (S5.6, DR-17).
+
+    ``spec`` is an ``app.services.llm_providers.ProviderSpec``. The base URL
+    comes **only** from ``spec.base_url`` — there is deliberately no
+    ``api_base`` parameter, so user input can never reach the vendor SDK's
+    ``base_url`` (the SSRF lockdown). ``spec.transport`` selects the concrete
+    provider class.
+
+    The only caller is ``app.services.byok.build_provider`` (the sole decrypt
+    site) and the credential validate probe; both pass a freshly-decrypted
+    key that lives no longer than the returned request-scoped provider.
+    """
+    transport = getattr(spec, "transport", "openai")
+    base_url = spec.base_url
+    if transport == "anthropic":
+        return AnthropicProvider(
+            api_key=api_key,
+            model=model,
+            api_base=base_url,
+            max_tokens=get_settings().llm_max_tokens,
+        )
+    # "openai" transport covers OpenAI, Groq and Mistral (all OpenAI-compatible).
+    return OpenAIProvider(
+        api_key=api_key,
+        model=model,
+        api_base=base_url,
+        max_tokens=get_settings().llm_max_tokens,
+    )
+
+
 def get_provider() -> LLMProvider:
     """Return the configured tutor LLM provider.
 
@@ -527,5 +578,6 @@ __all__ = [
     "MistralProvider",
     "NoopProvider",
     "OpenAIProvider",
+    "build_provider_from_spec",
     "get_provider",
 ]

@@ -215,22 +215,37 @@ async def test_draft_course_smoke(
     assert body["final_score"]["mean"] == 4.0
 
 
-async def test_draft_course_requires_instructor(
+async def test_draft_course_denied_for_suspended_user(
     client: AsyncClient,
-    auth_headers,
+    make_user,
     db_session: AsyncSession,
     monkeypatch,
 ) -> None:
-    """A student trying to draft → 403; no LLM call lands."""
+    """S1 role-collapse update: any ACTIVE user may draft (the old
+    403-for-student contract is obsolete — ADR-0025). The preserved intent of
+    this test is that an authz denial short-circuits BEFORE any LLM call:
+    a SUSPENDED user is denied (401/403 per the foundation contract) and the
+    provider is never invoked."""
+    import uuid
+
+    from sqlalchemy import update
+
+    from app.core.security import create_access_token
+    from app.models.user import User
+
     subject = await _make_subject(db_session)
-    headers = await auth_headers(role=Role.student)
-    prov = _install_provider(monkeypatch, [])
+    prov = _install_provider(monkeypatch, [])  # provider must never be called
+    user = await make_user(email=f"sus-{uuid.uuid4().hex[:8]}@lumen.test", role=Role.user)
+    await db_session.execute(update(User).where(User.id == user.id).values(is_active=False))
+    await db_session.commit()
+    token, _ = create_access_token(subject=user.id, role=str(Role.user))
+
     r = await client.post(
         "/api/v1/studio/ai/draft-course",
         json={"brief": "Teach FastAPI.", "subject_slug": subject.slug},
-        headers=headers,
+        headers={"Authorization": f"Bearer {token}"},
     )
-    assert r.status_code == 403, r.text
+    assert r.status_code in (401, 403), r.text
     assert prov.calls == []
 
 

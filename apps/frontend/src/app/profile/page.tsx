@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AlertTriangle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import { SessionsCard } from "@/components/shared/sessions-card";
 import { api } from "@/lib/api/client";
 import {
   Me,
+  Users,
   type NotificationDispatch,
   type NotificationKind,
 } from "@/lib/api/endpoints";
@@ -67,6 +69,7 @@ const DISPATCH_OPTIONS: NotificationDispatch[] = [
 export default function ProfilePage() {
   const { user, ready, refresh, logout } = useAuth();
   const router = useRouter();
+  const qc = useQueryClient();
   const t = useT();
   const [fullName, setFullName] = useState("");
   const [bio, setBio] = useState("");
@@ -83,6 +86,10 @@ export default function ProfilePage() {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deletePwd, setDeletePwd] = useState("");
+  // Type-to-confirm gate (S6.11 / FR-A11Y-05): the user must type the confirm
+  // word AND supply their password before the destructive button arms.
+  const [deleteWord, setDeleteWord] = useState("");
+  const [deleting, setDeleting] = useState(false);
   // Delete-confirmation Dialog is controlled (no <DialogTrigger>) —
   // restore focus to the "Delete account" button on close (WCAG 2.4.3).
   const onDeleteCloseAutoFocus = useReturnFocus(confirmDelete);
@@ -212,13 +219,21 @@ export default function ProfilePage() {
   }
 
   async function deleteAccount() {
+    setDeleting(true);
     try {
-      await api("/api/v1/users/me", { method: "DELETE", body: { password: deletePwd } });
+      // S6.8 anonymize-in-place: scrub PII, purge sessions, delist owned
+      // courses, all in one transaction server-side.
+      await Users.deleteMe(deletePwd);
       toast.success(t("profile.toast.deleted"));
+      // Wipe every cached query so no stale authed data lingers, tear down the
+      // session, then hard-redirect home (a full navigation, not a client push,
+      // so the app boots fresh as an anonymous visitor).
+      qc.clear();
       await logout();
-      router.push("/");
+      window.location.assign("/");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("profile.toast.deleteError"));
+      setDeleting(false);
     }
   }
 
@@ -496,7 +511,10 @@ export default function ProfilePage() {
         open={confirmDelete}
         onOpenChange={(o) => {
           setConfirmDelete(o);
-          if (!o) setDeletePwd("");
+          if (!o) {
+            setDeletePwd("");
+            setDeleteWord("");
+          }
         }}
       >
         <DialogContent
@@ -511,19 +529,38 @@ export default function ProfilePage() {
               {t("profile.section.deleteDesc")}
             </DialogDescription>
           </DialogHeader>
-          <Input
-            type="password"
-            placeholder={t("profile.delete.confirmPlaceholder")}
-            value={deletePwd}
-            onChange={(e) => setDeletePwd(e.target.value)}
-            aria-label={t("profile.delete.confirmPlaceholder")}
-          />
+          <div className="space-y-3">
+            <Input
+              type="password"
+              placeholder={t("profile.delete.confirmPlaceholder")}
+              value={deletePwd}
+              onChange={(e) => setDeletePwd(e.target.value)}
+              autoComplete="current-password"
+              aria-label={t("profile.delete.confirmPlaceholder")}
+            />
+            <div className="space-y-1.5">
+              <label htmlFor="delete-confirm-word" className="font-body text-sm font-medium">
+                {t("profile.delete.typeLabel", { word: t("profile.delete.typeWord") })}
+              </label>
+              <Input
+                id="delete-confirm-word"
+                value={deleteWord}
+                onChange={(e) => setDeleteWord(e.target.value)}
+                placeholder={t("profile.delete.typePlaceholder")}
+                aria-label={t("profile.delete.typeLabel", {
+                  word: t("profile.delete.typeWord"),
+                })}
+                autoComplete="off"
+              />
+            </div>
+          </div>
           <DialogFooter>
             <Button
               variant="ghost"
               onClick={() => {
                 setConfirmDelete(false);
                 setDeletePwd("");
+                setDeleteWord("");
               }}
             >
               {t("common.cancel")}
@@ -531,7 +568,9 @@ export default function ProfilePage() {
             <Button
               variant="destructive"
               onClick={deleteAccount}
-              disabled={!deletePwd}
+              disabled={
+                !deletePwd || deleteWord !== t("profile.delete.typeWord") || deleting
+              }
             >
               {t("profile.delete.confirm")}
             </Button>

@@ -190,6 +190,51 @@ def _reset_rate_limiter():
     yield
 
 
+@pytest.fixture(autouse=True, scope="module")
+def _reset_redis_cost_buckets():
+    """Clear the Lua-managed Redis cost/concurrency accumulators per module.
+
+    The in-memory limiter reset above never touched the
+    ``cost:ip:*``/``cost:user:*``/``concurrent:*`` keys (24h TTL), so
+    serial multi-file runs (``-n 0``) accumulated per-IP tutor spend until
+    POST /tutor/turns started 429ing on ``tutor.ip_cap`` (S2 merge-gate
+    finding; ``--dist=loadfile`` masked it through per-worker isolation).
+    Module-scoped: a single file's own budget arithmetic is unchanged.
+
+    Skipped under xdist: workers share the dev Redis, so one worker's
+    module-setup deleting ``cost:*`` raced another worker's in-flight
+    TTL assertions (test_cost_scripts) — and loadfile worker isolation
+    already bounds the accumulation this fixture exists to clear.
+    """
+    import os
+
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        yield
+        return
+
+    import contextlib
+
+    import redis as redis_sync
+
+    from app.core.config import get_settings
+
+    # Redis-down: suppressed — the tests that need it will fail loudly on
+    # their own; this fixture is best-effort hygiene.
+    with contextlib.suppress(Exception):
+        r = redis_sync.Redis.from_url(get_settings().redis_url)
+        for pattern in (
+            "cost:ip:*",
+            "cost:user:*",
+            "cost:global*",
+            "concurrent:user:*",
+            "llm:concurrency:*",
+        ):
+            for key in r.scan_iter(pattern, count=500):
+                r.delete(key)
+        r.close()
+    yield
+
+
 @pytest_asyncio.fixture
 async def client(app) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)
@@ -224,7 +269,12 @@ async def make_user(db_session: AsyncSession):
         *,
         email: str | None = None,
         password: str = "Password!1234",
-        role: Role = Role.student,
+        # S1.12: the role-collapse default is the canonical `user`. Explicit
+        # `role=Role.instructor`/`Role.student` overrides still work — the enum
+        # stays wide through Phase A, so the legacy-tolerance tests (S1.6 MCP
+        # legacy-instructor principal, role-collapse migration seeds) keep
+        # planting legacy rows on demand.
+        role: Role = Role.user,
         full_name: str = "Test User",
     ) -> User:
         user = User(
@@ -272,8 +322,59 @@ async def seed_lesson(client: AsyncClient):
 
 
 @pytest_asyncio.fixture
+async def publish_course(client: AsyncClient):
+    """Publish a course via the S2 lifecycle endpoint (POST /publish).
+
+    S2 / ADR-0026 (FR-VIS-08) removed ``status`` from ``CourseUpdate`` —
+    ``PATCH {status: "published"}`` is now a 422. Lifecycle moved to
+    ``POST /courses/{id}/publish``. Publishing keeps a course PRIVATE
+    (published-private self-learn); it does NOT list it publicly. Most legacy
+    tests published via PATCH; call this instead. Returns the publish response.
+    """
+
+    async def _publish(course_id: str, headers: dict):
+        r = await client.post(f"/api/v1/courses/{course_id}/publish", headers=headers)
+        assert r.status_code == 200, r.text
+        return r
+
+    return _publish
+
+
+@pytest_asyncio.fixture
+async def publish_and_list_course(client: AsyncClient, db_session: AsyncSession):
+    """Publish a course AND make it publicly listed (catalog/enroll/search tests).
+
+    S2 / ADR-0026: a course is publicly listed only when
+    ``visibility == public AND status == published AND moderation_state ==
+    approved AND deleted_at IS NULL`` (the ``is_publicly_listed`` predicate).
+    Publishing alone leaves it private. The owner-facing /share endpoint sets
+    ``pending_review``; the admin /approve action belongs to S6 (not yet built),
+    so tests set ``public + approved`` directly via the DB session — the same
+    pattern S2's own tests use. Use this for any test that needs the course to
+    be enrollable, searchable, or visible in the catalog.
+    """
+
+    async def _publish_and_list(course_id: str, headers: dict):
+        from sqlalchemy import update
+
+        from app.models.course import Course, ModerationState, Visibility
+
+        r = await client.post(f"/api/v1/courses/{course_id}/publish", headers=headers)
+        assert r.status_code == 200, r.text
+        await db_session.execute(
+            update(Course)
+            .where(Course.id == course_id)
+            .values(visibility=Visibility.public, moderation_state=ModerationState.approved)
+        )
+        await db_session.commit()
+        return r
+
+    return _publish_and_list
+
+
+@pytest_asyncio.fixture
 async def auth_headers(client: AsyncClient, make_user):
-    async def _login(*, role: Role = Role.student) -> dict[str, str]:
+    async def _login(*, role: Role = Role.user) -> dict[str, str]:
         email = f"login-{uuid.uuid4().hex[:8]}@lumen.test"
         password = "Password!1234"
         await make_user(email=email, password=password, role=role)

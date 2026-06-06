@@ -45,6 +45,7 @@ from typing import Any
 from rich.console import Console
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.core.security import hash_password
 from app.db.base import get_sessionmaker
 from app.models.course import (
@@ -372,8 +373,8 @@ ASYNC_FASTAPI_MODULES: list[dict[str, Any]] = [
                     "FastAPI resolves the dependency graph per request and "
                     "passes the results into your handler as keyword arguments.\n\n"
                     "Lumen uses this for `DBSession` (yields an AsyncSession), "
-                    "`CurrentUser` (decodes the JWT), and the role guards "
-                    "(`RequireInstructor`, `RequireAdmin`)."
+                    "`CurrentUser` (decodes the JWT), capability guards like "
+                    "`RequireAuthor`, and the admin guard `RequireAdmin`."
                 ),
             },
         ],
@@ -448,7 +449,7 @@ async def _build_course(
         overview=overview,
         learning_outcomes=learning_outcomes,
         difficulty=difficulty,
-        status=CourseStatus.published,
+        status=CourseStatus.published,  # noqa: published-check — seed write
         published_at=datetime.now(UTC),
         is_featured=True,
     )
@@ -518,6 +519,18 @@ async def run() -> None:
             lookup={"slug": "data-science"},
             defaults={"title": "Data Science"},
         )
+        # S3.5 / FR-DEFINE-12: the reserved Personal/Self-directed subject the
+        # self-serve build attaches to when the learner's suggested subject
+        # matches no live admin-curated Subject (escape from
+        # ``authoring.subject_not_found``). Idempotent on re-run; mirrors the
+        # 0051 migration's ON CONFLICT seed so a seeded-but-unmigrated or
+        # migrated-but-unseeded DB both converge to exactly one row.
+        await _get_or_create(
+            db,
+            Subject,
+            lookup={"slug": get_settings().personal_subject_slug},
+            defaults={"title": "Personal / Self-directed"},
+        )
 
         tag_data: list[tuple[str, str]] = [
             ("Beginner", "beginner"),
@@ -534,14 +547,15 @@ async def run() -> None:
             tag, _ = await _get_or_create(db, Tag, lookup={"slug": slug}, defaults={"name": name})
             tags[slug] = tag
 
-        # Reuse the base-seed instructor if it exists, otherwise create
-        # a demo-specific one so the seed is self-contained.
+        # Reuse the base-seed author if it exists, otherwise create a
+        # demo-specific one so the seed is self-contained. S1.8: seeded as
+        # the canonical `user` role (every user can author + learn).
         instructor = await _ensure_user(
             db,
             email="teacher@lumen.test",
             full_name="Tareq Hassan",
             password="Teach!2026",
-            role=Role.instructor,
+            role=Role.user,
         )
 
         demo_student = await _ensure_user(
@@ -549,7 +563,7 @@ async def run() -> None:
             email="demo@lumen.test",
             full_name="Demo Learner",
             password="Demo!2026",
-            role=Role.student,
+            role=Role.user,
         )
 
         intro_python = await _build_course(

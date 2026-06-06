@@ -5,8 +5,9 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models.course import CourseStatus, Difficulty, LessonType
+from app.models.course import CourseStatus, Difficulty, LessonType, ModerationState, Visibility
 from app.schemas.user import UserPublic
+from app.services.moderation_taxonomy import ReasonCode
 
 # ----- Subjects / Tags -----
 
@@ -183,6 +184,12 @@ def _validate_learning_outcomes(items: list[str] | None) -> list[str] | None:
 
 
 class CourseCreate(BaseModel):
+    # ``extra="forbid"`` (S4.5 / ADR-0028 §API): provenance (``origin_*``) and
+    # every other server-owned column is never client-writable, so a stray
+    # ``origin_course_id``/``is_featured`` in the body is a 422, not silently
+    # ignored — no attribution spoofing through extra keys (FR-CLONE-09/10).
+    model_config = ConfigDict(extra="forbid")
+
     title: str = Field(min_length=1, max_length=200)
     subject_id: str
     overview: str = Field(default="", max_length=10_000)
@@ -201,19 +208,98 @@ class CourseCreate(BaseModel):
 
 
 class CourseUpdate(BaseModel):
+    # ``status`` is intentionally REMOVED (S2.11 / FR-VIS-08): PATCH no longer
+    # publishes. Lifecycle moved to POST /courses/{id}/publish|unpublish and
+    # sharing to /share|/unshare|/resubmit. ``extra="forbid"`` so a stray
+    # ``status`` in the body is a 422, not silently ignored.
+    model_config = ConfigDict(extra="forbid")
+
     title: str | None = Field(default=None, min_length=1, max_length=200)
     subject_id: str | None = None
     overview: str | None = Field(default=None, max_length=10_000)
     difficulty: Difficulty | None = None
     tag_ids: list[str] | None = Field(default=None, max_length=20)
     cover_url: str | None = Field(default=None, max_length=500)
-    status: CourseStatus | None = None
     learning_outcomes: list[str] | None = Field(default=None, max_length=12)
 
     @field_validator("learning_outcomes")
     @classmethod
     def _learning_outcomes(cls, v: list[str] | None) -> list[str] | None:
         return _validate_learning_outcomes(v)
+
+
+class ReportRequest(BaseModel):
+    """User-filed course report body (S6.3 / FR-MOD-11).
+
+    ``note`` is free text that is run through ``sanitize_note`` (S6.1) before
+    persist — inert and length-capped — so the admin queue can echo it safely.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: ReasonCode
+    note: str | None = Field(default=None, max_length=5000)
+
+
+class CourseOrigin(BaseModel):
+    """Structured clone provenance (ADR-0028 §Schemas / FR-CLONE-10).
+
+    Serialized from the immutable snapshot columns on a cloned course, kept
+    separate from the editable title/overview so attribution cannot be spoofed.
+    ``origin_owner_name`` is the snapshot by default; S4.8 overrides it at read
+    time with the localized deleted-user label when the origin owner is
+    tombstoned (DR-19). ``origin_available`` is computed read-time (S4.8) by
+    re-resolving ``origin_course_id`` through ``is_publicly_listed`` — default
+    ``False`` here so a builder that doesn't pass it suppresses the source link.
+    """
+
+    origin_course_id: str | None = None
+    origin_title: str | None = None  # from origin_title_snapshot
+    origin_owner_name: str | None = None  # from origin_owner_name_snapshot
+    origin_owner_id: str | None = None
+    cloned_at: datetime | None = None
+    origin_available: bool = False  # computed: origin live + publicly listed (S4.8)
+
+
+class CourseClonesItem(BaseModel):
+    """One row of the origin-owner "who cloned this" list (FR-CLONE-24)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    title: str
+    owner_name: str
+    cloned_at: datetime | None = None
+
+
+def build_course_origin(
+    course: Any,
+    *,
+    origin_available: bool = False,
+    origin_owner_name: str | None = None,
+) -> CourseOrigin | None:
+    """Build the ``CourseOrigin`` for a course, or ``None`` if it is not a clone.
+
+    A course is a clone iff ``origin_course_id`` is set. Maps the snapshot
+    columns onto the structured object. ``origin_available`` and an override
+    ``origin_owner_name`` (the read-time deleted-user label) are supplied by the
+    S4.8 read-time resolver; left at their defaults the builder serializes the
+    raw snapshot with no source link.
+    """
+    if getattr(course, "origin_course_id", None) is None:
+        return None
+    return CourseOrigin(
+        origin_course_id=course.origin_course_id,
+        origin_title=course.origin_title_snapshot,
+        origin_owner_name=(
+            origin_owner_name
+            if origin_owner_name is not None
+            else course.origin_owner_name_snapshot
+        ),
+        origin_owner_id=course.origin_owner_id,
+        cloned_at=course.cloned_at,
+        origin_available=origin_available,
+    )
 
 
 class CourseListItem(BaseModel):
@@ -226,6 +312,12 @@ class CourseListItem(BaseModel):
     difficulty: Difficulty
     cover_url: str | None = None
     status: CourseStatus
+    # Read-only sharing intent (S2.11 / ADR-0026). Always exposed — it is the
+    # owner-controlled "private vs public" axis a viewer may legitimately see.
+    visibility: Visibility = Visibility.private
+    # Internal moderation churn — REDACTED for non-owner/non-admin (FR-VIS-21):
+    # the builder only populates it for the owner/admin; None otherwise.
+    moderation_state: ModerationState | None = None
     is_featured: bool
     published_at: datetime | None = None
     created_at: datetime
@@ -235,16 +327,42 @@ class CourseListItem(BaseModel):
     modules_count: int = 0
     enrollments_count: int = 0
     avg_rating: float | None = None
+    # Clone provenance (ADR-0028 / FR-CLONE-09/10). ``origin`` is the structured
+    # "Based on …" attribution (None for a from-scratch course); ``is_clone`` is
+    # the studio "Cloned" badge flag. Both are populated by the response builder
+    # from the snapshot columns (origin via ``build_course_origin``).
+    origin: CourseOrigin | None = None
+    is_clone: bool = False
 
 
 class CourseDetail(CourseListItem):
     modules: list[ModuleOut] = Field(default_factory=list)
     is_enrolled: bool = False
     progress_pct: float = 0.0
+    # Derived (read-only): the canonical R-C1′ predicate result.
+    is_publicly_listed: bool = False
+    # Owner-only capability hint (None for non-owner/non-admin viewers).
+    can_publish_public: bool | None = None
     # "What you'll learn" bullet list. Empty list means the
     # instructor hasn't filled it in — the detail page hides the
     # section in that case.
     learning_outcomes: list[str] = Field(default_factory=list)
+
+
+class ShareRequest(BaseModel):
+    """Body for POST /courses/{id}/share. No fields today (reserved for an
+    optional note); kept explicit so the endpoint has a stable request shape."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ModerationActionRequest(BaseModel):
+    """Body for the admin moderation actions (S6 consumes; S2 ships the shape)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = Field(default=None, max_length=40)
+    note: str | None = Field(default=None, max_length=2_000)
 
 
 # ----- Enrollment & progress -----

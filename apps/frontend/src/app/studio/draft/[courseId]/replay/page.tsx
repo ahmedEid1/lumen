@@ -44,22 +44,21 @@ export default function DraftReplayPage({
 
   useEffect(() => {
     if (!ready) return;
+    // S1.11: the draft replay is open to any authenticated user.
     if (!user) {
       router.replace(`/login?next=/studio/draft/${courseId}/replay`);
-    } else if (user.role === "student") {
-      router.replace("/dashboard");
     }
   }, [ready, user, router, courseId]);
 
   const replayQ = useQuery({
     queryKey: ["draft-replay", courseId],
     queryFn: () => Traces.draftReplay(courseId),
-    enabled: !!user && user.role !== "student",
+    enabled: !!user,
   });
   const courseQ = useQuery({
     queryKey: qk.course(courseId),
     queryFn: () => Courses.get(courseId),
-    enabled: !!user && user.role !== "student",
+    enabled: !!user,
   });
 
   const publish = useMutation({
@@ -74,7 +73,7 @@ export default function DraftReplayPage({
     },
   });
 
-  if (!ready || !user || user.role === "student") return null;
+  if (!ready || !user) return null;
 
   if (replayQ.isLoading || courseQ.isLoading) {
     return (

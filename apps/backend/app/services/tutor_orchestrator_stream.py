@@ -44,6 +44,7 @@ from collections.abc import AsyncIterator
 from typing import TypedDict
 
 from app.core.logging import get_logger
+from app.services import byok as byok_service
 from app.services.llm import ChatMessage
 from app.services.llm_stream import stream_chat
 from app.services.tutor_subagents.retriever import RetrieverChunk
@@ -108,6 +109,7 @@ async def orchestrate_stream(
     course_id: str | None = None,
     retrieved_chunks: list[RetrieverChunk] | None = None,
     retrieval_latency_ms: int | None = None,
+    byok_dispatch: dict[str, str] | None = None,
 ) -> AsyncIterator[StreamEvent]:
     """Yield a stream of events for a tutor turn.
 
@@ -167,10 +169,18 @@ async def orchestrate_stream(
     # 3. Real synthesiser via the streaming LLM client.
     messages = _build_synth_messages(user_message, retrieved_chunks)
     total_cost_usd = 0.0
+    # S7: carry the provider's reported token usage off the terminal chunk so
+    # the worker can persist it on the streamed turn's llm_calls row. Defaults
+    # to 0 so a stream that dies before the usage chunk records honest zeros
+    # (the provider billed nothing we can observe).
+    prompt_tokens = 0
+    completion_tokens = 0
     try:
-        async for chunk in stream_chat(messages):
+        async for chunk in stream_chat(messages, byok_dispatch=byok_dispatch):
             if chunk.done:
                 total_cost_usd = float(chunk.usage.get("cost_usd", 0.0) or 0.0)
+                prompt_tokens = int(chunk.usage.get("prompt_tokens", 0) or 0)
+                completion_tokens = int(chunk.usage.get("completion_tokens", 0) or 0)
                 break
             if chunk.delta:
                 if first_token_ms is None:
@@ -178,16 +188,32 @@ async def orchestrate_stream(
                 yield {"event": "synth_chunk", "data": {"delta": chunk.delta}}
     except NotImplementedError as exc:
         log.warning("orchestrate_stream_provider_unsupported", error=str(exc))
+        # An unsupported-provider sentinel is never an auth-class failure; the
+        # worker's soft-failure handler keys off this flag to mirror the
+        # raised-path BYOK credential-invalidation choreography (S7).
         yield {
             "event": "turn_failed",
-            "data": {"error_code": "tutor.streaming_unsupported_provider"},
+            "data": {
+                "error_code": "tutor.streaming_unsupported_provider",
+                "auth_failure": False,
+            },
         }
         return
     except Exception as exc:
         log.exception("orchestrate_stream_synth_failed")
+        # We own the exception OBJECT here, so we classify auth-class (401/403)
+        # at the catch site using the SAME predicate the worker's raised-path
+        # except block uses (byok.is_auth_error). The worker's soft-failure
+        # branch reads ``auth_failure`` to decide whether to mark the BYOK
+        # credential invalid — on a soft-yield it can't re-inspect the
+        # exception, so the verdict must ride the event (S7, backward-compatible
+        # extra key for the SSE consumer).
         yield {
             "event": "turn_failed",
-            "data": {"error_code": f"tutor.runtime: {type(exc).__name__}"},
+            "data": {
+                "error_code": f"tutor.runtime: {type(exc).__name__}",
+                "auth_failure": byok_service.is_auth_error(exc),
+            },
         }
         return
 
@@ -198,6 +224,8 @@ async def orchestrate_stream(
         "data": {
             "message_id": None,
             "cost_usd": total_cost_usd,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
             "first_token_ms": first_token_ms,
             "total_ms": total_ms,
         },

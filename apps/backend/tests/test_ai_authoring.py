@@ -249,21 +249,52 @@ async def test_outline_endpoint_returns_json(
     assert len(body["modules"]) == 2
 
 
-async def test_outline_endpoint_requires_instructor(
+async def test_user_role_can_call_ai_outline(
     client: AsyncClient,
     auth_headers,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    student = await auth_headers(role=Role.student)
-    # Provider must never be called — the role guard rejects first.
-    _install(monkeypatch, [])
+    # S1.4 / FR-RBAC-02: AI authoring is ungated from instructor to any active
+    # user. A `user`-role caller reaches the handler (formerly 403).
+    headers = await auth_headers(role=Role.user)
+    _install(monkeypatch, [json.dumps(_VALID_OUTLINE)])
+
+    r = await client.post(
+        "/api/v1/studio/ai/outline",
+        json={"brief": "Teach FastAPI to absolute beginners.", "target_modules": 4},
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+
+
+async def test_ai_outline_denied_for_suspended_user(
+    client: AsyncClient,
+    make_user,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # S1.4: a suspended user is denied (401/403) and the provider is never
+    # invoked. Token mints (inert claim) but the live row is inactive.
+    import uuid
+
+    from sqlalchemy import update
+
+    from app.core.security import create_access_token
+    from app.models.user import User
+
+    _install(monkeypatch, [])  # provider must never be called
+    user = await make_user(email=f"sus-{uuid.uuid4().hex[:8]}@lumen.test", role=Role.user)
+    await db_session.execute(update(User).where(User.id == user.id).values(is_active=False))
+    await db_session.commit()
+    token, _ = create_access_token(subject=user.id, role=str(Role.user))
 
     r = await client.post(
         "/api/v1/studio/ai/outline",
         json={"brief": "Teach FastAPI."},
-        headers=student,
+        headers={"Authorization": f"Bearer {token}"},
     )
-    assert r.status_code == 403, r.text
+    assert r.status_code in (401, 403), r.text
+    assert r.json()["error"]["code"] in ("auth.required", "auth.capability")
 
 
 async def test_lesson_body_endpoint_returns_blocks(

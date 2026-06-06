@@ -36,7 +36,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _published_course(
-    client: AsyncClient, teacher: dict, subject_id: str, seed_lesson
+    client: AsyncClient, teacher: dict, subject_id: str, seed_lesson, publish_and_list_course
 ) -> str:
     create = await client.post(
         "/api/v1/courses",
@@ -45,22 +45,24 @@ async def _published_course(
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=teacher,
-    )
+    await publish_and_list_course(course_id, teacher)
     return course_id
 
 
 async def test_two_users_share_ip_but_not_bucket(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
+    publish_and_list_course,
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     noisy = await auth_headers(role=Role.student)
     quiet = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _published_course(client, teacher, subject.id, seed_lesson)
+    course_id = await _published_course(
+        client, teacher, subject.id, seed_lesson, publish_and_list_course
+    )
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=noisy)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=quiet)
 

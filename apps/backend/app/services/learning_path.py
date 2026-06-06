@@ -62,14 +62,15 @@ from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import get_settings
 from app.core.errors import AppError, ForbiddenError, NotFoundError
 from app.core.logging import get_logger
 from app.models.agent_trace import TRACE_STATUS_ERROR, TRACE_STATUS_OK
-from app.models.course import Course, CourseStatus, Lesson, Module
+from app.models.course import Course, Lesson, Module
 from app.models.learning_path import (
     NEXT_ACTION_KIND_REVIEW_DUE_CARDS,
     NEXT_ACTION_KIND_START_LESSON,
@@ -83,12 +84,15 @@ from app.models.learning_path import (
 )
 from app.models.lesson_chunk import LessonChunk
 from app.services import agent_tracer
+from app.services import byok as byok_service
 from app.services import fsrs as fsrs_service
 from app.services import llm as llm_service
 from app.services import mastery as mastery_service
+from app.services.byok import PLATFORM_CONTEXT, LLMContext
 from app.services.embeddings import EmbeddingProvider
 from app.services.embeddings import get_provider as get_embedding_provider
 from app.services.llm_call_log import call_logged
+from app.services.visibility import retrieval_acl_clause
 
 log = get_logger(__name__)
 
@@ -272,6 +276,7 @@ async def build_path(
     *,
     user_id: str,
     goal: str,
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> LearningPath:
     """Run the agent, persist the result. Archives any prior active path.
 
@@ -303,7 +308,9 @@ async def build_path(
         step_index=0,
         payload={"goal_head": goal[:120]},
     )
-    catalog = await _condense_catalog(db, goal, top_k=DEFAULT_TOP_K_CATALOG)
+    catalog = await _condense_catalog(
+        db, goal, top_k=DEFAULT_TOP_K_CATALOG, requesting_user_id=user_id
+    )
     await agent_tracer.record_step(
         db,
         user_id=user_id,
@@ -347,6 +354,7 @@ async def build_path(
         system=_SYSTEM_PROMPT,
         user=user_prompt,
         candidate_slugs={c.slug for c in catalog},
+        ctx=ctx,
     )
     await agent_tracer.record_step(
         db,
@@ -420,20 +428,26 @@ async def build_path(
     return await _load_path_with_steps(db, path.id)
 
 
-async def replan_for_user(db: AsyncSession, *, user_id: str) -> LearningPath | None:
+async def replan_for_user(
+    db: AsyncSession, *, user_id: str, ctx: LLMContext = PLATFORM_CONTEXT
+) -> LearningPath | None:
     """Re-run the build for a user's active path, archives the old one.
 
     Returns ``None`` if the user has no active path (the monthly
     beat job filters by ``replanned_at`` before calling this, but
     the function is robust to being called against any user).
+
+    S5.12/R-S1'': the locus is decided by the *caller*. The API
+    ``/me/learning-path/replan`` handler passes a foreground (BYOK) ctx; the
+    monthly beat passes the default ``PLATFORM_CONTEXT``. Same function.
     """
     current = await get_active_path(db, user_id=user_id)
     if current is None:
         return None
     goal = current.goal
     # ``build_path`` archives the old path internally, so we just
-    # call it again with the same goal.
-    return await build_path(db, user_id=user_id, goal=goal)
+    # call it again with the same goal — carrying the caller's ctx.
+    return await build_path(db, user_id=user_id, goal=goal, ctx=ctx)
 
 
 async def mark_step_complete(
@@ -497,7 +511,7 @@ async def get_today_action(db: AsyncSession, *, user_id: str) -> dict[str, Any] 
     kind = action.get("kind") or NEXT_ACTION_KIND_START_LESSON
     lesson_id: str | None = None
     if course_slug and kind == NEXT_ACTION_KIND_START_LESSON:
-        lesson_id = await _first_lesson_for_slug(db, slug=course_slug)
+        lesson_id = await _first_lesson_for_slug(db, slug=course_slug, requesting_user_id=user_id)
     return {
         "course_slug": course_slug,
         "kind": kind,
@@ -509,12 +523,31 @@ async def get_today_action(db: AsyncSession, *, user_id: str) -> dict[str, Any] 
 # ---------- Catalog condensation ----------
 
 
+async def _set_catalog_ef_search(db: AsyncSession) -> None:
+    """Raise ``hnsw.ef_search`` for the upcoming cross-course vector SELECT.
+
+    ADR-0029 D5.2: the cross-catalog ACL clause can discard most candidates
+    before reaching ``top_k`` ("filtered-out recall"), so we widen the HNSW
+    search frontier via ``Settings.rag_hnsw_ef_search_catalog`` on this
+    transaction only. ``SET LOCAL`` is scoped to the active transaction and is
+    a no-op (with a server warning) outside one, so we open a transaction first
+    if the session isn't already in one. The value is a validated ``int`` from
+    settings, so interpolating it into the statement is injection-safe (the GUC
+    setter does not accept bind parameters).
+    """
+    if not db.in_transaction():
+        await db.begin()
+    ef = int(get_settings().rag_hnsw_ef_search_catalog)
+    await db.execute(text(f"SET LOCAL hnsw.ef_search = {ef}"))
+
+
 async def _condense_catalog(
     db: AsyncSession,
     goal: str,
     *,
     top_k: int = DEFAULT_TOP_K_CATALOG,
     embedding_provider: EmbeddingProvider | None = None,
+    requesting_user_id: str | None = None,
 ) -> list[CourseDigest]:
     """Top-K courses ranked by chunk similarity to the goal.
 
@@ -533,6 +566,12 @@ async def _condense_catalog(
     prov = embedding_provider or get_embedding_provider()
     [query_vec] = prov.embed([goal])
 
+    # ADR-0029 D5.2: widen the HNSW search frontier on the cross-course path so
+    # post-filter recall holds when the ACL clause discards most private
+    # candidates. SET LOCAL is transaction-scoped, so ensure a live transaction
+    # first (the autocommit case would silently no-op the GUC).
+    await _set_catalog_ef_search(db)
+
     distance_col = LessonChunk.embedding.cosine_distance(query_vec).label("distance")
     stmt = (
         select(
@@ -548,8 +587,10 @@ async def _condense_catalog(
         .join(Module, Module.id == Lesson.module_id)
         .join(Course, Course.id == Module.course_id)
         .where(
-            Course.status == CourseStatus.published,
-            Course.deleted_at.is_(None),
+            # Cross-course retrieval ACL (S2.7 / ADR-0029 §D2, R-S12): publicly
+            # listed OR the requesting user's own live, non-failed courses.
+            # Never leaks another user's private course.
+            retrieval_acl_clause(requesting_user_id),
             Lesson.deleted_at.is_(None),
         )
         .order_by(distance_col)
@@ -579,7 +620,7 @@ async def _condense_catalog(
     # back to the most-recently-published live courses so the
     # agent has *something* to pick from.
     if not by_course:
-        return await _fallback_recent_published(db, top_k)
+        return await _fallback_recent_published(db, top_k, requesting_user_id=requesting_user_id)
 
     # Re-rank by hit count + add the count for the prompt.
     digests = sorted(
@@ -599,20 +640,20 @@ async def _condense_catalog(
     return digests[:top_k]
 
 
-async def _fallback_recent_published(db: AsyncSession, top_k: int) -> list[CourseDigest]:
+async def _fallback_recent_published(
+    db: AsyncSession, top_k: int, *, requesting_user_id: str | None = None
+) -> list[CourseDigest]:
     """Last-resort candidate list when no chunks have been embedded.
 
     Dev environments where ``embeddings_ingest`` hasn't run on the
     seeded courses, and brand-new catalogs in the first hour after
-    deploy, both hit this path. We return the most-recent live
-    published courses so the agent isn't reaching for nothing.
+    deploy, both hit this path. We return the most-recent live courses
+    the requester may see (publicly listed OR their own — S2.7) so the
+    agent isn't reaching for nothing.
     """
     stmt = (
         select(Course)
-        .where(
-            Course.status == CourseStatus.published,
-            Course.deleted_at.is_(None),
-        )
+        .where(retrieval_acl_clause(requesting_user_id))
         .order_by(Course.published_at.desc().nullslast(), Course.created_at.desc())
         .limit(top_k)
     )
@@ -747,14 +788,18 @@ async def _chat_with_retry(
     system: str,
     user: str,
     candidate_slugs: set[str],
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> tuple[_Plan, str]:
     """One LLM call, validate, retry once on failure.
 
     Each turn lands a metered ``llm_calls`` row via ``call_logged``
     and one ``agent_traces`` row via ``record_step``. Two failures
     raise the clean ``learning_path.llm_invalid_output`` error.
+
+    S5.12/DR-8: BYOK for a foreground build/replan (the API handler passes
+    a foreground ctx); platform for the monthly beat (PLATFORM_CONTEXT).
     """
-    provider = llm_service.get_provider()
+    provider, billing_mode = await byok_service.build_provider(db, ctx)
     messages = [
         llm_service.ChatMessage(role="system", content=system),
         llm_service.ChatMessage(role="user", content=user),
@@ -776,6 +821,7 @@ async def _chat_with_retry(
         feature=FEATURE,
         session=db,
         temperature=0.2,
+        billing_mode=billing_mode,
     )
     raw = response.text
     plan, err = _try_parse(raw, candidate_slugs=candidate_slugs)
@@ -814,6 +860,7 @@ async def _chat_with_retry(
         feature=FEATURE,
         session=db,
         temperature=0.2,
+        billing_mode=billing_mode,
     )
     raw2 = response2.text
     plan, err2 = _try_parse(raw2, candidate_slugs=candidate_slugs)
@@ -915,13 +962,16 @@ async def _load_path_with_steps(db: AsyncSession, path_id: str) -> LearningPath:
     return (await db.execute(stmt)).scalar_one()
 
 
-async def _first_lesson_for_slug(db: AsyncSession, *, slug: str) -> str | None:
+async def _first_lesson_for_slug(
+    db: AsyncSession, *, slug: str, requesting_user_id: str | None = None
+) -> str | None:
     """Return the first live lesson id in the course (or ``None``).
 
     Used by ``get_today_action`` to deep-link "start lesson" into a
     specific lesson rather than dumping the learner on the course
     detail page. Picks the lowest-order lesson in the lowest-order
-    module; that's the natural "begin here" pick.
+    module; that's the natural "begin here" pick. The course must be
+    visible to the requester (publicly listed OR their own — S2.7).
     """
     stmt = (
         select(Lesson.id)
@@ -929,8 +979,7 @@ async def _first_lesson_for_slug(db: AsyncSession, *, slug: str) -> str | None:
         .join(Course, Course.id == Module.course_id)
         .where(
             Course.slug == slug,
-            Course.deleted_at.is_(None),
-            Course.status == CourseStatus.published,
+            retrieval_acl_clause(requesting_user_id),
             Lesson.deleted_at.is_(None),
         )
         .order_by(Module.order.asc(), Lesson.order.asc())

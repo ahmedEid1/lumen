@@ -36,8 +36,10 @@ from app.models.course import (
     Difficulty,
     Lesson,
     LessonType,
+    ModerationState,
     Module,
     Subject,
+    Visibility,
 )
 from app.models.learning_path import (
     PATH_STATUS_ACTIVE,
@@ -132,6 +134,13 @@ async def _seed_published_course(
         overview=overview,
         difficulty=Difficulty.beginner,
         status=CourseStatus.published,
+        # S2 / ADR-0026: a course is only publicly listed (catalog,
+        # condense, retrieval ACL) when it is public + published +
+        # moderation-approved. ``_condense_catalog`` and the retrieval
+        # ACL now route through ``is_publicly_listed``; seed the two
+        # net-new axes so these helpers see the course.
+        visibility=Visibility.public,
+        moderation_state=ModerationState.approved,
     )
     db.add(course)
     await db.flush()
@@ -257,6 +266,43 @@ async def test_condense_catalog_falls_back_when_no_chunks(
     assert course.slug in slugs
 
 
+async def test_condense_catalog_sets_ef_search(
+    db_session: AsyncSession, make_user, monkeypatch
+) -> None:
+    """ADR-0029 D5.2: the cross-course path issues SET LOCAL hnsw.ef_search on
+    its transaction before the vector SELECT (recall guard). Captured via a
+    db.execute spy — we assert the statement is issued, not the recall."""
+    from sqlalchemy.sql.elements import TextClause
+
+    teacher = await make_user(role=Role.instructor)
+    course = await _seed_published_course(
+        db_session,
+        owner_id=teacher.id,
+        title="EF Search",
+        slug=f"ef-search-{uuid.uuid4().hex[:6]}",
+        overview="ef search probe",
+        lesson_bodies=["text"],
+    )
+    await ingest_course(db_session, course.id)
+
+    seen: list[str] = []
+    real_execute = db_session.execute
+
+    async def _spy(statement, *args, **kwargs):
+        if isinstance(statement, TextClause):
+            seen.append(str(statement))
+        return await real_execute(statement, *args, **kwargs)
+
+    monkeypatch.setattr(db_session, "execute", _spy)
+    await learning_path_service._condense_catalog(
+        db_session, "build something", top_k=5, requesting_user_id=teacher.id
+    )
+    ef = get_settings().rag_hnsw_ef_search_catalog
+    assert any("hnsw.ef_search" in s and str(ef) in s for s in seen), (
+        f"expected SET LOCAL hnsw.ef_search = {ef}; saw {seen}"
+    )
+
+
 # ---------- build_path ----------
 
 
@@ -376,8 +422,11 @@ async def test_build_path_drops_unresolved_slug(
 
     original = learning_path_service._condense_catalog
 
-    async def _augmented(db, goal, *, top_k=20, embedding_provider=None):
-        real = await original(db, goal, top_k=top_k)
+    async def _augmented(db, goal, *, top_k=20, embedding_provider=None, requesting_user_id=None):
+        # S2 / ADR-0029: ``_condense_catalog`` now takes ``requesting_user_id``
+        # so the retrieval ACL can include the caller's own live courses.
+        # Mirror the real signature and forward it through.
+        real = await original(db, goal, top_k=top_k, requesting_user_id=requesting_user_id)
         return [
             *real,
             CourseDigest(

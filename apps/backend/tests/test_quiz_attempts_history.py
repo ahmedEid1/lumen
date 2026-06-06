@@ -27,7 +27,9 @@ async def _make_subject(db: AsyncSession) -> Subject:
     return s
 
 
-async def _quiz_lesson(client: AsyncClient, teacher: dict, subject_id: str) -> tuple[str, str]:
+async def _quiz_lesson(
+    client: AsyncClient, teacher: dict, subject_id: str, publish_and_list_course
+) -> tuple[str, str]:
     create = await client.post(
         "/api/v1/courses",
         json={"title": "Q", "subject_id": subject_id, "overview": "x"},
@@ -67,21 +69,17 @@ async def _quiz_lesson(client: AsyncClient, teacher: dict, subject_id: str) -> t
             headers=teacher,
         )
     ).json()
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=teacher,
-    )
+    await publish_and_list_course(course_id, teacher)
     return course_id, lesson["id"]
 
 
 async def test_each_submission_records_a_new_attempt_row(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, lesson_id = await _quiz_lesson(client, teacher, subject.id)
+    course_id, lesson_id = await _quiz_lesson(client, teacher, subject.id, publish_and_list_course)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
 
     # Three submissions: fail, fail, pass — every one persists.
@@ -113,13 +111,13 @@ async def test_each_submission_records_a_new_attempt_row(
 
 
 async def test_listing_returns_newest_first_for_owner_only(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     me = await auth_headers(role=Role.student)
     other = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, lesson_id = await _quiz_lesson(client, teacher, subject.id)
+    course_id, lesson_id = await _quiz_lesson(client, teacher, subject.id, publish_and_list_course)
 
     # Both students attempt the quiz.
     for headers in (me, other):
@@ -151,12 +149,12 @@ async def test_listing_returns_newest_first_for_owner_only(
 
 
 async def test_attempts_empty_when_never_enrolled(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     visitor = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    _course_id, lesson_id = await _quiz_lesson(client, teacher, subject.id)
+    _course_id, lesson_id = await _quiz_lesson(client, teacher, subject.id, publish_and_list_course)
 
     r = await client.get(
         f"/api/v1/me/progress/lessons/{lesson_id}/quiz/attempts",

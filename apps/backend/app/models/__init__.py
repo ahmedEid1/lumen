@@ -11,18 +11,23 @@ from app.models.course import (
     Lesson,
     LessonProgress,
     LessonType,
+    ModerationState,
     Module,
     Review,
     Subject,
     Tag,
+    Visibility,
     course_tags,
 )
 from app.models.course_draft_trace import CourseDraftTrace
 from app.models.discussion import Discussion, DiscussionReply
+from app.models.idempotency import IdempotencyKey
+from app.models.learning_brief import LearningBrief
 from app.models.learning_path import LearningPath, LearningPathStep
 from app.models.lesson_chunk import EMBEDDING_DIM, LessonChunk
 from app.models.llm_call import LLMCall
 from app.models.mcp_client import MCPClient
+from app.models.moderation import CourseReport, ModerationEvent, ReportStatus
 from app.models.notification import Notification, NotificationKind
 from app.models.quiz_attempt import QuizAttempt
 from app.models.retrieval_audit import RetrievalAudit
@@ -43,6 +48,14 @@ from app.models.tutor_turn_job import (
     TutorTurnJob,
 )
 from app.models.user import RefreshToken, Role, User
+from app.models.user_llm_credential import (
+    VALIDATION_ERROR,
+    VALIDATION_INVALID,
+    VALIDATION_NEEDS_ATTENTION,
+    VALIDATION_UNVALIDATED,
+    VALIDATION_VALID,
+    UserLLMCredential,
+)
 
 __all__ = [
     "EMBEDDING_DIM",
@@ -53,17 +66,25 @@ __all__ = [
     "TURN_STATUS_PENDING",
     "TURN_STATUS_RUNNING",
     "TURN_STATUS_STREAMING",
+    "VALIDATION_ERROR",
+    "VALIDATION_INVALID",
+    "VALIDATION_NEEDS_ATTENTION",
+    "VALIDATION_UNVALIDATED",
+    "VALIDATION_VALID",
     "AgentTrace",
     "Asset",
     "AuditEvent",
     "Course",
     "CourseDraftTrace",
+    "CourseReport",
     "CourseStatus",
     "Difficulty",
     "Discussion",
     "DiscussionReply",
     "Enrollment",
+    "IdempotencyKey",
     "LLMCall",
+    "LearningBrief",
     "LearningPath",
     "LearningPathStep",
     "Lesson",
@@ -71,11 +92,14 @@ __all__ = [
     "LessonProgress",
     "LessonType",
     "MCPClient",
+    "ModerationEvent",
+    "ModerationState",
     "Module",
     "Notification",
     "NotificationKind",
     "QuizAttempt",
     "RefreshToken",
+    "ReportStatus",
     "RetrievalAudit",
     "Review",
     "ReviewCard",
@@ -88,5 +112,7 @@ __all__ = [
     "TutorMessageRole",
     "TutorTurnJob",
     "User",
+    "UserLLMCredential",
+    "Visibility",
     "course_tags",
 ]

@@ -42,7 +42,9 @@ export default function NewCoursePage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (ready && (!user || user.role === "student")) router.replace("/login?next=/studio/new");
+    // S1.11: course creation is open to any authenticated user; only
+    // anonymous visitors are bounced to login.
+    if (ready && !user) router.replace("/login?next=/studio/new");
   }, [ready, user, router]);
 
   useEffect(() => {

@@ -32,11 +32,12 @@ import os
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.course import Course, CourseStatus, Lesson, Module
+from app.models.course import Course, Lesson, Module
 from app.models.lesson_chunk import LessonChunk
 from app.services.embeddings import (
     EmbeddingProvider,
@@ -44,6 +45,7 @@ from app.services.embeddings import (
 from app.services.embeddings import (
     get_provider as get_embedding_provider,
 )
+from app.services.visibility import retrieval_acl_clause
 
 log = get_logger(__name__)
 
@@ -193,12 +195,28 @@ async def _fetch_web_snippets(
     return snippets, ""
 
 
+async def _set_catalog_ef_search(db: AsyncSession) -> None:
+    """Raise ``hnsw.ef_search`` for the upcoming cross-catalog vector SELECT.
+
+    ADR-0029 D5.2 — see ``learning_path._set_catalog_ef_search`` for the full
+    rationale. ``SET LOCAL`` is transaction-scoped (a no-op outside one), so we
+    ensure a live transaction first. The value is a validated ``int`` from
+    settings, so interpolating it is injection-safe (the GUC setter takes no
+    bind parameters).
+    """
+    if not db.in_transaction():
+        await db.begin()
+    ef = int(get_settings().rag_hnsw_ef_search_catalog)
+    await db.execute(text(f"SET LOCAL hnsw.ef_search = {ef}"))
+
+
 async def _fetch_catalog_neighbours(
     db: AsyncSession,
     *,
     brief: str,
     top_k: int,
     embedding_provider: EmbeddingProvider | None = None,
+    requesting_user_id: str | None = None,
 ) -> list[ResearchCatalogNeighbour]:
     """Top-K live catalog courses ranked by chunk similarity to the brief.
 
@@ -231,6 +249,11 @@ async def _fetch_catalog_neighbours(
         )
         return []
 
+    # ADR-0029 D5.2: widen the HNSW search frontier on this cross-catalog path
+    # so post-filter recall holds when the ACL clause discards most private
+    # candidates (mirrors learning_path._condense_catalog).
+    await _set_catalog_ef_search(db)
+
     distance_col = LessonChunk.embedding.cosine_distance(query_vec).label("distance")
     stmt = (
         select(
@@ -243,8 +266,10 @@ async def _fetch_catalog_neighbours(
         .join(Module, Module.id == Lesson.module_id)
         .join(Course, Course.id == Module.course_id)
         .where(
-            Course.status == CourseStatus.published,
-            Course.deleted_at.is_(None),
+            # Cross-catalog ACL (S2.7 / ADR-0029 §D2): only publicly-listed
+            # courses + the requesting author's own — never another user's
+            # private course leaks into the authoring research bundle.
+            retrieval_acl_clause(requesting_user_id),
             Lesson.deleted_at.is_(None),
         )
         .order_by(distance_col)
@@ -268,9 +293,11 @@ async def _fetch_catalog_neighbours(
 
     if not by_course:
         # Fallback: the catalog hasn't been embedded yet, but it
-        # might still have published courses. Return the freshest
+        # might still have visible courses. Return the freshest
         # live ones so the outliner has *something* labelled.
-        return await _fallback_recent_published(db, top_k=top_k)
+        return await _fallback_recent_published(
+            db, top_k=top_k, requesting_user_id=requesting_user_id
+        )
 
     # Re-rank by hit count.
     ranked = sorted(
@@ -281,15 +308,12 @@ async def _fetch_catalog_neighbours(
 
 
 async def _fallback_recent_published(
-    db: AsyncSession, *, top_k: int
+    db: AsyncSession, *, top_k: int, requesting_user_id: str | None = None
 ) -> list[ResearchCatalogNeighbour]:
     """Last-resort neighbour list when no chunks have been embedded."""
     stmt = (
         select(Course.slug, Course.title)
-        .where(
-            Course.status == CourseStatus.published,
-            Course.deleted_at.is_(None),
-        )
+        .where(retrieval_acl_clause(requesting_user_id))
         .order_by(Course.published_at.desc().nullslast(), Course.created_at.desc())
         .limit(top_k)
     )
@@ -304,6 +328,7 @@ async def run_researcher(
     web_max_results: int = DEFAULT_WEB_SNIPPETS,
     catalog_max_results: int = DEFAULT_CATALOG_NEIGHBOURS,
     embedding_provider: EmbeddingProvider | None = None,
+    requesting_user_id: str | None = None,
 ) -> ResearchBundle:
     """Build a context bundle for the outliner from web + catalog.
 
@@ -324,6 +349,7 @@ async def run_researcher(
         brief=brief,
         top_k=catalog_max_results,
         embedding_provider=embedding_provider,
+        requesting_user_id=requesting_user_id,
     )
     (web_snippets, web_note), catalog = await asyncio.gather(web_task, catalog_task)
 

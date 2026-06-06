@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Annotated
 
 import jwt
 from fastapi import Cookie, Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.errors import ForbiddenError, UnauthorizedError
 from app.core.security import decode_token
 from app.db.session import get_db
 from app.models.user import Role, User
 from app.repositories import users as users_repo
+from app.services import capabilities as cap
 
 DBSession = Annotated[AsyncSession, Depends(get_db)]
 
@@ -72,8 +75,47 @@ def require_role(*roles: Role):
     return _dep
 
 
-RequireInstructor = Annotated[User, Depends(require_role(Role.instructor, Role.admin))]
 RequireAdmin = Annotated[User, Depends(require_role(Role.admin))]
+
+
+def RequireCapability(predicate: Callable[..., bool], *, name: str | None = None):
+    """Build a dependency that enforces a capability predicate.
+
+    ADR-0025 §D3. The wrapped ``predicate`` is one of the pure functions in
+    ``app.services.capabilities``. Predicates come in two arities —
+    ``fn(user)`` (e.g. ``can_author``) and ``fn(user, settings)`` (e.g.
+    ``can_ingest_url`` / ``can_use_mcp_authoring``) — both are supported;
+    the factory passes the global ``Settings`` when the predicate needs it.
+
+    Denial uses the standard ``{error:{code,message,details,request_id}}``
+    envelope with ``code="auth.capability"`` and ``details.capability=<name>``.
+    Anonymous callers are rejected upstream by ``get_current_user`` with
+    ``401 auth.required``; a suspended/inactive user is dropped by
+    ``get_current_user_optional`` (also 401), and the predicate denies in any
+    case — both paths leave the door shut.
+    """
+    import inspect
+
+    cap_name = name or getattr(predicate, "__name__", "capability")
+    # Predicates that need Settings as a second positional argument.
+    needs_settings = len(inspect.signature(predicate).parameters) >= 2
+
+    async def _dep(user: CurrentUser) -> User:
+        granted = predicate(user, get_settings()) if needs_settings else predicate(user)
+        if not granted:
+            raise ForbiddenError(
+                "Capability required",
+                code="auth.capability",
+                details={"capability": cap_name},
+            )
+        return user
+
+    return Depends(_dep)
+
+
+RequireAuthor = Annotated[User, RequireCapability(cap.can_author, name="can_author")]
+RequireClone = Annotated[User, RequireCapability(cap.can_clone, name="can_clone")]
+RequireIngestUrl = Annotated[User, RequireCapability(cap.can_ingest_url, name="can_ingest_url")]
 
 
 def client_ip(request: Request) -> str | None:

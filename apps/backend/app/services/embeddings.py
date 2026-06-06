@@ -50,6 +50,10 @@ class EmbeddingProvider(Protocol):
     """
 
     dim: int
+    # Stable identifier of the model that produced a vector, stamped onto each
+    # ``LessonChunk`` (ADR-0029 §D6 / FR-EMBED-03) so a platform model change
+    # doesn't mass-invalidate and drift detection can compare recorded vs current.
+    model_id: str
 
     def embed(self, texts: list[str]) -> list[list[float]]: ...
 
@@ -73,6 +77,10 @@ class LocalEmbeddingProvider:
     def __init__(self, model_name: str) -> None:
         self._model_name = model_name
         self._model: object | None = None
+
+    @property
+    def model_id(self) -> str:
+        return self._model_name
 
     def _load(self) -> object:
         if self._model is None:
@@ -128,6 +136,10 @@ class OpenAIEmbeddingProvider:
         self._api_base = api_base.rstrip("/")
         self._timeout = timeout_seconds
 
+    @property
+    def model_id(self) -> str:
+        return self._model
+
     def embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
@@ -180,6 +192,7 @@ class NoopEmbeddingProvider:
     """
 
     dim: int = EMBEDDING_DIM
+    model_id: str = "noop-stub"
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:

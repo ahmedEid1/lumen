@@ -5,6 +5,9 @@ import { Award, Layers, Star, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { CloneButton } from "@/components/course/clone-button";
+import { ReportButton } from "@/components/course/report-button";
+import { useCapabilities } from "@/lib/auth/capabilities";
 import type { CourseDetail } from "@/lib/api/types";
 import { useT } from "@/lib/i18n/provider";
 
@@ -33,6 +36,7 @@ export function CourseSidebar({
   onDownloadCert?: () => void;
 }) {
   const t = useT();
+  const { canClone } = useCapabilities();
   const totalLessons = course.modules.reduce((n, m) => n + m.lessons.length, 0);
   return (
     <aside className="space-y-4">
@@ -92,6 +96,17 @@ export function CourseSidebar({
                   : t("course.signInToEnroll")}
             </Button>
           )}
+
+          {/* Clone CTA next to Enroll (ADR-0028 / FR-CLONE-25). Hides itself
+              unless the course is publicly listed; `is_publicly_listed` is the
+              authoritative predicate (folds in moderation state). */}
+          <CloneButton course={course} canClone={canClone} listed={course.is_publicly_listed} />
+
+          {/* Report affordance (W11 · FR-MOD-11 / S6.3). A quiet ghost trigger
+              for signed-in viewers who are NOT the owner; hidden for anonymous
+              + owner. The server is the authority on eligibility/rate limits —
+              this only hides a door the viewer can't use. */}
+          <ReportButton course={course} user={user} />
 
           {course.progress_pct === 100 && onDownloadCert && (
             <button

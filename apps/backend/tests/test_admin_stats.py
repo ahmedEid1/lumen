@@ -20,39 +20,71 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def test_stats_requires_admin(client: AsyncClient, auth_headers) -> None:
-    h = await auth_headers(role=Role.student)
+    h = await auth_headers(role=Role.user)
     r = await client.get("/api/v1/admin/stats", headers=h)
     assert r.status_code == 403
 
 
-async def test_stats_reflect_seeded_state(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+async def test_platform_stats_reports_admins_and_authors(
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    seed_lesson,
 ) -> None:
+    # S1.8 / FR-ADMIN-05: the `instructors` stat is replaced by `admins`
+    # (admin-role users) + `authors` (distinct owners of a live course).
     admin = await auth_headers(role=Role.admin)
-    teacher = await auth_headers(role=Role.instructor)
-    student = await auth_headers(role=Role.student)
+    # The author here is deliberately a plain `user` (not an instructor) to
+    # prove `authors` counts distinct owners of a *live* course, not a role.
+    author = await auth_headers(role=Role.user)
+    learner = await auth_headers(role=Role.user)
     subject = await _make_subject(db_session)
 
     create = await client.post(
         "/api/v1/courses",
         json={"title": "S", "subject_id": subject.id, "overview": "x"},
-        headers=teacher,
+        headers=author,
     )
     course_id = create.json()["id"]
-    await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    await seed_lesson(course_id, author)
+    # S2 / ADR-0026: the publish lifecycle (POST /publish) is gated to
+    # instructor/admin, and publishing keeps a course PRIVATE anyway
+    # (published-private self-learn). This test's author is a plain `user`,
+    # so we set the full publicly-listed state directly on the row — the
+    # `is_publicly_listed` predicate is `status==published AND
+    # visibility==public AND moderation_state==approved`. This drives both
+    # `courses_published` (lifecycle count, incl. private) and
+    # `courses_listed` (publicly-visible count, S2.8). The /share +
+    # admin /approve endpoints that would do this over HTTP land in S2.11 / S6.
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
+
+    await db_session.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
-    await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
+    await db_session.commit()
+    await client.post(f"/api/v1/me/enrollments/{course_id}", headers=learner)
 
     r = await client.get("/api/v1/admin/stats", headers=admin)
     assert r.status_code == 200
     body = r.json()
-    # We don't pin exact counts (auth_headers + make_user fixtures create users
-    # opportunistically across tests), but the relationships should hold.
+    # The legacy `instructors` field is gone; admins/authors are present.
+    assert "instructors" not in body
+    assert "admins" in body and "authors" in body
+    # We don't pin exact counts (fixtures create users across tests), but
+    # the relationships hold: at least one admin, at least one author.
     assert body["users"] >= 3
     assert body["active_users"] >= 3
-    assert body["instructors"] >= 2  # teacher + admin
+    assert body["admins"] >= 1
+    assert body["authors"] >= 1
     assert body["courses_total"] >= 1
-    assert body["courses_published"] >= 1
+    assert body["courses_published"] >= 1  # lifecycle count (incl. private)
+    assert body["courses_listed"] >= 1  # publicly-listed count (S2.8)
     assert body["enrollments"] >= 1

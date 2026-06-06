@@ -84,6 +84,20 @@ x-api-env: &api-env
   # lands inert; the operator flips via `flip-flag.yml`. Default
   # `false` mirrors `Settings.feature_tutor_streaming`.
   FEATURE_TUTOR_STREAMING: ${FEATURE_TUTOR_STREAMING:-false}
+  # BYOK (S5) — flag + versioned KEK map. Ships inert (flag false); the
+  # operator flips via .env.production ONLY after setting BYOK_MASTER_KEYS
+  # to a real {"1":"<base64 32-byte key>"} map — production refuses an
+  # empty/derived KEK at boot once credentials exist (PR-19 guard).
+  FEATURE_BYOK_ENABLED: ${FEATURE_BYOK_ENABLED:-false}
+  BYOK_MASTER_KEYS: ${BYOK_MASTER_KEYS:-{}}
+  BYOK_MASTER_KEY_VERSION: ${BYOK_MASTER_KEY_VERSION:-1}
+  BYOK_ALLOW_DERIVED_KEK: ${BYOK_ALLOW_DERIVED_KEK:-false}
+  # S2 sharing axis (R-S8' step-4): OFF until the operator flips it.
+  # Same pass-through lesson as FEATURE_BYOK_ENABLED above (S2 Gate-C).
+  FEATURE_PRIVATE_PUBLISH_ENABLED: ${FEATURE_PRIVATE_PUBLISH_ENABLED:-false}
+  # S4 clone/remix master gate (ADR-0028): OFF until migrations 0048/0049 are
+  # fleet-confirmed + the authorizer image is rolled. Same pass-through lesson.
+  CLONE_ENABLED: ${CLONE_ENABLED:-false}
   # L33 — tutor cost-cap + concurrency knobs. Defaults match
   # Settings; operators tune via .env.production without a code
   # change. All microcent integers (USD * 1e6).

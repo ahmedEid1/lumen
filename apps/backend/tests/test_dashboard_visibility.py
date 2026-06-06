@@ -30,8 +30,25 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _enrolled(
-    client: AsyncClient, teacher: dict, student: dict, subject_id: str, title: str, seed_lesson
+    client: AsyncClient,
+    teacher: dict,
+    student: dict,
+    subject_id: str,
+    title: str,
+    seed_lesson,
+    db: AsyncSession,
 ) -> str:
+    """Create a course, seed a lesson, make it publicly listed, then enroll.
+
+    S2 / ADR-0026: ``PATCH {status: "published"}`` is now a 422 and publishing
+    alone keeps a course private. Enrollment requires ``is_publicly_listed``
+    (``visibility==public AND status==published AND moderation_state==approved``),
+    so drive all three axes via the DB session — mirroring S2's ``_mk_course``.
+    """
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
+
     create = await client.post(
         "/api/v1/courses",
         json={"title": title, "subject_id": subject_id, "overview": "x"},
@@ -39,10 +56,18 @@ async def _enrolled(
     )
     course_id = create.json()["id"]
     await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    await db.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
-    await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
+    await db.commit()
+    enroll = await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
+    assert enroll.status_code in (200, 201), enroll.text
     return course_id
 
 
@@ -53,8 +78,12 @@ async def test_soft_deleted_courses_drop_off_the_dashboard(
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
 
-    keep_id = await _enrolled(client, teacher, student, subject.id, "Keeps", seed_lesson)
-    drop_id = await _enrolled(client, teacher, student, subject.id, "Drops", seed_lesson)
+    keep_id = await _enrolled(
+        client, teacher, student, subject.id, "Keeps", seed_lesson, db_session
+    )
+    drop_id = await _enrolled(
+        client, teacher, student, subject.id, "Drops", seed_lesson, db_session
+    )
 
     before = await client.get("/api/v1/me/enrollments", headers=student)
     ids_before = {e["course"]["id"] for e in before.json()}
@@ -77,9 +106,23 @@ async def test_archived_courses_still_appear_on_dashboard(
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id = await _enrolled(client, teacher, student, subject.id, "Archived", seed_lesson)
+    course_id = await _enrolled(
+        client, teacher, student, subject.id, "Archived", seed_lesson, db_session
+    )
 
-    await client.patch(f"/api/v1/courses/{course_id}", json={"status": "archived"}, headers=teacher)
+    # S2 / ADR-0026: ``PATCH {status: "archived"}`` is now a 422 (status is no
+    # longer accepted on CourseUpdate). The archive *lifecycle* transition is
+    # not yet exposed as an HTTP endpoint, so flip the status on the row
+    # directly — the intent here is that an ARCHIVED course still surfaces on an
+    # enrolled learner's dashboard (archive != soft-delete).
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus
+
+    await db_session.execute(
+        update(Course).where(Course.id == course_id).values(status=CourseStatus.archived)
+    )
+    await db_session.commit()
 
     listing = await client.get("/api/v1/me/enrollments", headers=student)
     ids = {e["course"]["id"] for e in listing.json()}

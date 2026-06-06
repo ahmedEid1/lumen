@@ -13,6 +13,8 @@ secret length, loopback DATABASE_URL, OpenAI base URL warning).
 
 from __future__ import annotations
 
+import base64
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -30,12 +32,21 @@ from app.core.prod_guards import (
 )
 
 
+def _real_kek_map():
+    """A versioned KEK map (version 1) carrying a real base64 32-byte key."""
+    return {1: SimpleNamespace(get_secret_value=lambda: base64.b64encode(os.urandom(32)).decode())}
+
+
 def _prod_settings(**overrides):
     """Return a SimpleNamespace shaped like a production Settings instance.
 
     Defaults are deliberately *safe* so a test can flip exactly one
     field to red and verify the guard catches that one thing. The
     real Settings's ``is_prod`` property is duck-typed here as a bool.
+
+    A real BYOK KEK is part of a safe production baseline (S7-pre.6 / DR-7):
+    the KEK guard runs unconditionally, so the baseline carries one and
+    ``test_byok_boot_guard.py`` owns the KEK-specific red paths.
     """
     base = {
         "is_prod": True,
@@ -46,6 +57,8 @@ def _prod_settings(**overrides):
         "jwt_secret": "b" * 64,
         "database_url": "postgresql+asyncpg://user:pw@db-prod.example.com:5432/lumen",
         "openai_api_base": "https://api.groq.com/openai/v1",
+        "byok_master_keys": _real_kek_map(),
+        "byok_master_key_version": 1,
     }
     base.update(overrides)
     return SimpleNamespace(**base)

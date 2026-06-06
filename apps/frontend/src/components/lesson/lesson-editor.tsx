@@ -19,7 +19,13 @@ import { Switch } from "@/components/ui/switch";
 import { AI, Courses } from "@/lib/api/endpoints";
 import type { LessonOut, LessonType, TextLessonData } from "@/lib/api/types";
 import { BlockEditor } from "@/components/lesson/block-editor";
-import { resolveTextLessonDoc, type BlockDoc, isBlockDoc, emptyDoc } from "@/lib/lesson/blocks";
+import {
+  resolveTextLessonDoc,
+  blocksToMarkdown,
+  type BlockDoc,
+  isBlockDoc,
+  emptyDoc,
+} from "@/lib/lesson/blocks";
 import { useT } from "@/lib/i18n/provider";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
@@ -30,6 +36,28 @@ type QuizQuestion = {
   kind: "single" | "multiple" | "short";
   choices: QuizChoice[];
   answer_keys: string[];
+};
+
+/**
+ * The editor's working copy of `lesson.data`. Unlike the wire DTOs (one strict
+ * shape per lesson type) the editor keeps a single mutable record across the
+ * lifetime of one open lesson, so every type-specific field is optional here —
+ * only the branch matching the current `type` is read/written. `normalizeData`
+ * seeds the relevant fields per type; `save` strips the discriminant before it
+ * hits the API. This replaces the previous `any` working state.
+ */
+type EditorData = {
+  blocks?: BlockDoc;
+  url?: string;
+  asset_key?: string | null;
+  captions_url?: string | null;
+  captions_label?: string;
+  captions_lang?: string;
+  alt?: string;
+  filename?: string;
+  pass_score?: number;
+  questions?: QuizQuestion[];
+  type?: LessonType;
 };
 
 type Props = {
@@ -62,7 +90,7 @@ export function LessonEditor({
   const [duration, setDuration] = useState(lesson?.duration_seconds ?? 0);
   const [isPreview, setIsPreview] = useState<boolean>(lesson?.is_preview ?? false);
   const initial = useMemo(() => normalizeData(type, lesson?.data ?? {}), [type, lesson]);
-  const [data, setData] = useState<any>(initial);
+  const [data, setData] = useState<EditorData>(initial);
   const [aiBusy, setAiBusy] = useState(false);
 
   async function draftBodyWithAi() {
@@ -77,7 +105,7 @@ export function LessonEditor({
         course_context: courseTitle ?? "",
       });
       const blocks = isBlockDoc(res.blocks) ? res.blocks : emptyDoc();
-      setData((prev: any) => ({ ...prev, blocks }));
+      setData((prev) => ({ ...prev, blocks }));
       toast.success(t("lessonEdit.ai.bodyDraftedToast"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("lessonEdit.ai.error"));
@@ -98,7 +126,7 @@ export function LessonEditor({
         course_context: courseTitle ?? "",
         n: 4,
       });
-      setData((prev: any) => ({
+      setData((prev) => ({
         ...prev,
         questions: res.questions,
       }));
@@ -117,7 +145,7 @@ export function LessonEditor({
         duration_seconds: duration || undefined,
         type,
         is_preview: isPreview,
-        data: { type, ...stripType(data) },
+        data: buildDataPayload(type, data),
       };
       if (lesson) {
         await Courses.patchLesson(lesson.id, {
@@ -373,7 +401,13 @@ export function LessonEditor({
   );
 }
 
-function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => void }) {
+function QuizEditor({
+  data,
+  onChange,
+}: {
+  data: EditorData;
+  onChange: (next: EditorData) => void;
+}) {
   const t = useT();
   const questions: QuizQuestion[] = data.questions ?? [];
   const passScore: number = data.pass_score ?? 60;
@@ -556,9 +590,11 @@ function QuizEditor({ data, onChange }: { data: any; onChange: (next: any) => vo
   );
 }
 
-function normalizeData(type: LessonType, raw: any): any {
-  const copy = { ...raw };
+function normalizeData(type: LessonType, raw: Record<string, unknown>): EditorData {
+  const copy: Record<string, unknown> = { ...raw };
   delete copy.type;
+  const str = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);
+  const strOrNull = (v: unknown): string | null => (typeof v === "string" ? v : null);
   switch (type) {
     case "text":
       // Promote whichever shape arrived from the wire into the new
@@ -572,25 +608,55 @@ function normalizeData(type: LessonType, raw: any): any {
       return { blocks: resolveTextLessonDoc(copy as TextLessonData) };
     case "video":
       return {
-        url: copy.url ?? "",
-        asset_key: copy.asset_key ?? null,
-        captions_url: copy.captions_url ?? null,
-        captions_label: copy.captions_label ?? "English",
-        captions_lang: copy.captions_lang ?? "en",
+        url: str(copy.url),
+        asset_key: strOrNull(copy.asset_key),
+        captions_url: strOrNull(copy.captions_url),
+        captions_label: str(copy.captions_label, "English"),
+        captions_lang: str(copy.captions_lang, "en"),
       };
     case "image":
-      return { asset_key: copy.asset_key ?? "", alt: copy.alt ?? "" };
+      return { asset_key: str(copy.asset_key), alt: str(copy.alt) };
     case "file":
-      return { asset_key: copy.asset_key ?? "", filename: copy.filename ?? "" };
+      return { asset_key: str(copy.asset_key), filename: str(copy.filename) };
     case "quiz":
       return {
-        pass_score: copy.pass_score ?? 60,
-        questions: Array.isArray(copy.questions) ? copy.questions : [],
+        pass_score: typeof copy.pass_score === "number" ? copy.pass_score : 60,
+        questions: Array.isArray(copy.questions) ? (copy.questions as QuizQuestion[]) : [],
       };
   }
 }
 
-function stripType(obj: any) {
+function stripType(obj: EditorData): Omit<EditorData, "type"> {
   const { type: _type, ...rest } = obj;
   return rest;
+}
+
+/**
+ * Build the wire `data` payload from the editor's working state.
+ *
+ * For `text` lessons this re-attaches `body_markdown` alongside
+ * `blocks`. The backend `TextLessonData` schema *requires*
+ * `body_markdown` (min_length=1) — it's the canonical flat text
+ * projection consumed by RAG chunking + Postgres full-text search —
+ * and the same discriminated union validates both the create
+ * (`LessonCreate.data`) and edit (`LessonUpdate.data`) paths, so
+ * BOTH would 422 without it. `blocks` stays the structured source of
+ * truth the player reads; `body_markdown` is derived from it on every
+ * save so the search/RAG projection never drifts.
+ *
+ * The block doc always has at least one (empty) paragraph, so a
+ * lesson the instructor left blank would serialize to "" and still
+ * 422. We guard that with a single-space fallback so an empty-bodied
+ * text lesson can be saved as a stub (the instructor fills it in
+ * later) — same forgiving behaviour the editor had before the block
+ * migration, when an empty `body_markdown` string was accepted.
+ */
+function buildDataPayload(type: LessonType, data: EditorData): Record<string, unknown> {
+  const base = { type, ...stripType(data) };
+  if (type === "text") {
+    const doc = isBlockDoc(data.blocks) ? data.blocks : emptyDoc();
+    const md = blocksToMarkdown(doc);
+    return { ...base, body_markdown: md.length > 0 ? md : " " };
+  }
+  return base;
 }

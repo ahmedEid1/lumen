@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
+from decimal import Decimal
 
 import redis.asyncio as redis
 from celery.utils.log import get_task_logger
@@ -36,15 +37,20 @@ from app.core.cost_scripts import (
     USD_TO_MICROCENTS,
     reconcile_cost,
     release_concurrency,
+    reserve_cost,
 )
 from app.db.base import make_worker_engine
 from app.models.course import Course
+from app.models.llm_call import BILLING_BYOK, BILLING_PLATFORM, STATUS_ERROR, STATUS_OK
 from app.models.tutor_turn_job import TURN_STATUS_COMPLETE, TURN_STATUS_FAILED
+from app.services import account as account_service
+from app.services import byok as byok_service
+from app.services.llm_call_log import record_streamed_turn_row
 from app.services.redis_streams import emit_event, set_stream_ttl
 from app.services.tutor_orchestrator_stream import orchestrate_stream
 from app.services.tutor_subagents.retriever import RetrieverChunk
 from app.services.tutor_subagents.retriever import run as run_retriever
-from app.services.tutor_turn_service import claim_pending_turn, mark_terminal
+from app.services.tutor_turn_service import claim_pending_turn, mark_terminal, set_reserved_cost
 from app.workers.celery_app import celery
 
 log = get_task_logger(__name__)
@@ -63,6 +69,26 @@ def run_turn(self, turn_id: str) -> None:
     ADR-0017). The async work happens inside the body.
     """
     asyncio.run(_run_turn_async(turn_id))
+
+
+class PlatformFallbackCapError(RuntimeError):
+    """A BYOK turn fell back to platform in the worker but the platform
+    cost reservation refused (confirm-round fix). Fails the turn via the
+    generic handler — error_code ``tutor.runtime: PlatformFallbackCapError``."""
+
+
+def _stream_provider_name(byok_dispatch: dict[str, str] | None) -> str:
+    """Provider label for the streamed turn's llm_calls row."""
+    if byok_dispatch:
+        return byok_dispatch.get("transport", "byok")
+    return str(getattr(get_settings(), "llm_provider", "platform") or "platform")
+
+
+def _stream_model_name(byok_dispatch: dict[str, str] | None) -> str:
+    """Model label for the streamed turn's llm_calls row."""
+    if byok_dispatch:
+        return byok_dispatch.get("model", "unknown")
+    return str(getattr(get_settings(), "llm_model", "") or "unknown")
 
 
 async def _run_turn_async(turn_id: str) -> None:
@@ -87,6 +113,17 @@ async def _run_turn_async(turn_id: str) -> None:
     reserved_microcents: int = 0
     reservation_ip_key: str | None = None
     actual_cost_microcents: int = 0
+    credential_id: str | None = None
+    byok_dispatch: dict[str, str] | None = None
+    final_cost_usd: float = 0.0
+    final_total_ms: int = 0
+    # S7 — provider-reported token usage carried off the terminal
+    # turn_complete event. Stays 0 if the stream dies before the usage chunk
+    # arrives (failure/abort) so the persisted row claims only what the
+    # provider actually billed. Observability/cost only — streaming quota
+    # stays COUNT-based (see record_streamed_turn_row's QUOTA INVARIANT note).
+    final_prompt_tokens: int = 0
+    final_completion_tokens: int = 0
 
     try:
         async with Session() as db:
@@ -99,10 +136,62 @@ async def _run_turn_async(turn_id: str) -> None:
             course_id = turn.course_id
             user_message_content = turn.user_message or ""
             reservation_ip_key = turn.reservation_ip_key
+            credential_id = turn.credential_id
             # The row stores USD as Decimal; convert back to the
             # integer microcent shape the reconcile Lua expects.
             reserved_microcents = int(turn.reserved_cost_usd * USD_TO_MICROCENTS)
             await db.commit()
+
+        # S5.12/R-S1'': re-resolve + decrypt the user's BYOK key IN THE WORKER
+        # from the carried credential_id (never the key bytes — FR-BYOK-26).
+        # Returns None for the platform path (no cred / flag off / consented
+        # drift-fallback). NOT wrapped in suppress (Gate-A fix): a
+        # no-consent drift raises ByokModelUnavailableError, which must FAIL
+        # the turn via the generic handler below — swallowing it silently
+        # dispatched the turn on the platform model against the user's
+        # explicit allow_platform_fallback=False.
+        if credential_id:
+            async with Session() as db:
+                byok_dispatch = await byok_service.stream_dispatch_for_turn(
+                    db, credential_id=credential_id, user_id=user_id
+                )
+                # _handle_drift may have flushed needs_attention — persist it.
+                await db.commit()
+
+            if byok_dispatch is None:
+                # Confirm-round fix: the enqueue path skipped the platform
+                # dollar reservation because this turn resolved BYOK — but
+                # the credential fell back to platform here (consented
+                # drift / disabled / flag flipped between enqueue and run).
+                # The dispatch below WILL spend platform dollars, so
+                # reserve them now, worker-side; a refusal fails the turn
+                # exactly like the API-side cap errors. The row's
+                # reserved_cost_usd is updated so the cancel path and the
+                # sweep see the truth, and reserved_microcents feeds the
+                # finally-reconcile as usual.
+                settings_now = get_settings()
+                reserve_ok, reserve_tag = await reserve_cost(
+                    redis_client,
+                    user_key=f"cost:user:{user_id}",
+                    ip_key=f"cost:ip:{reservation_ip_key or 'unknown'}",
+                    global_key="cost:global",
+                    estimate_microcents=settings_now.tutor_estimate_microcents,
+                    max_user_microcents=settings_now.tutor_cap_user_microcents,
+                    max_ip_microcents=settings_now.tutor_cap_ip_microcents,
+                    max_global_microcents=settings_now.tutor_cap_global_microcents,
+                )
+                if not reserve_ok:
+                    raise PlatformFallbackCapError(
+                        f"platform fallback rejected by cost reservation: {reserve_tag}"
+                    )
+                reserved_microcents = int(settings_now.tutor_estimate_microcents)
+                async with Session() as db:
+                    await set_reserved_cost(
+                        db,
+                        turn_id=turn_id,
+                        reserved_cost_usd=Decimal(reserved_microcents) / Decimal(USD_TO_MICROCENTS),
+                    )
+                    await db.commit()
 
         # L32 — pgvector retrieval. Best-effort: a retrieval failure
         # degrades to "no course context" but doesn't fail the turn.
@@ -136,27 +225,146 @@ async def _run_turn_async(turn_id: str) -> None:
         # orchestrator yields events; we relay each to Redis.
         # L33 — intercept turn_complete to capture the real cost
         # so the finally block can reconcile the reservation.
-        async for ev in orchestrate_stream(
-            turn_id=turn_id,
-            user_id=user_id,
-            user_message=user_message_content,
-            course_id=course_id,
-            retrieved_chunks=retrieved_chunks or None,
-            retrieval_latency_ms=retrieval_latency_ms,
-        ):
-            if ev["event"] == "turn_complete":
-                cost_usd = float(ev["data"].get("cost_usd", 0.0) or 0.0)
-                actual_cost_microcents = int(cost_usd * USD_TO_MICROCENTS)
-            await emit_event(
-                redis_client,
+        # R-S10 cooperative cancellation (ADR-0030 §D4): one heartbeat session
+        # for the whole stream — each event tick re-reads is_active through it
+        # (assert_account_active issues a fresh SELECT so it sees a flip
+        # committed by another transaction). One session, not one-per-event.
+        #
+        # S7 (Gate-B P1): the orchestrator catches a stream_chat failure,
+        # YIELDS a ``turn_failed`` event, then returns normally (soft-yield,
+        # no raise — e.g. an unsupported provider or a synth exception it
+        # chose to surface as an event). Without intercepting it here the loop
+        # would forward the event, exit cleanly, and fall through to the
+        # SUCCESS block below — DB says complete while the client saw failure.
+        # We capture the yielded failure and branch to the failure handler
+        # AFTER the loop. The event was ALREADY forwarded by emit_event in
+        # this loop, so the post-loop handler must NOT re-emit turn_failed
+        # (the except block below would — avoid the double SSE event).
+        yielded_failure_code: str | None = None
+        # S7 (P2): the orchestrator owns the exception object at its catch
+        # sites and stamps an ``auth_failure`` verdict (same byok.is_auth_error
+        # predicate the raised-path except block uses) onto the turn_failed
+        # event. We carry it here so the soft-failure branch can mirror the
+        # except path's BYOK credential-invalidation choreography — on a
+        # soft-yield the worker can't re-inspect the original exception.
+        yielded_auth_failure: bool = False
+        async with Session() as hb_db:
+            async for ev in orchestrate_stream(
                 turn_id=turn_id,
-                event=ev["event"],
-                data=ev["data"],
-            )
+                user_id=user_id,
+                user_message=user_message_content,
+                course_id=course_id,
+                retrieved_chunks=retrieved_chunks or None,
+                retrieval_latency_ms=retrieval_latency_ms,
+                byok_dispatch=byok_dispatch,
+            ):
+                # If the user was suspended/deleted mid-stream, assert_account_
+                # active raises account.access_revoked and we stop emitting /
+                # close the stream rather than running the turn to completion.
+                if user_id:
+                    await account_service.assert_account_active(hb_db, user_id)
+                if ev["event"] == "turn_complete":
+                    cost_usd = float(ev["data"].get("cost_usd", 0.0) or 0.0)
+                    actual_cost_microcents = int(cost_usd * USD_TO_MICROCENTS)
+                    final_cost_usd = cost_usd
+                    final_total_ms = int(float(ev["data"].get("total_ms", 0) or 0))
+                    # S7 — provider usage off the terminal chunk for the
+                    # llm_calls row (observability/cost only; quota stays
+                    # COUNT-based).
+                    final_prompt_tokens = int(ev["data"].get("prompt_tokens", 0) or 0)
+                    final_completion_tokens = int(ev["data"].get("completion_tokens", 0) or 0)
+                elif ev["event"] == "turn_failed":
+                    # Orchestrator soft-yield: capture the error_code so the
+                    # post-loop failure handler can persist it on the job row.
+                    # We still emit below (the SSE consumer needs the event) —
+                    # the handler then skips its own re-emit to avoid a double
+                    # event on the wire.
+                    yielded_failure_code = str(
+                        ev["data"].get("error_code") or "tutor.runtime: unknown"
+                    )
+                    yielded_auth_failure = bool(ev["data"].get("auth_failure", False))
+                await emit_event(
+                    redis_client,
+                    turn_id=turn_id,
+                    event=ev["event"],
+                    data=ev["data"],
+                )
 
-        # Terminal DB transition + stream TTL.
+        if yielded_failure_code is not None:
+            # FAILURE path for a yielded (not raised) turn_failed. Mirrors the
+            # except-block semantics — mark_terminal FAILED + STATUS_ERROR row
+            # with 0 tokens — but does NOT re-emit turn_failed (the loop above
+            # already forwarded it to Redis). Mirrors the except path's
+            # best-effort suppress so a DB-down state doesn't mask the failure.
+            #
+            # S7 (P2): an auth-class failure that the orchestrator SURFACED AS A
+            # YIELDED EVENT (rather than raising) still has to invalidate the
+            # BYOK credential — otherwise the bad key keeps getting dispatched on
+            # the user's next turns. The orchestrator owns the exception object
+            # at its catch site and stamped ``auth_failure`` on the event; we
+            # mirror the raised-path except block's choreography here: invalidate
+            # FIRST (same relative position the except block uses), only when the
+            # turn actually dispatched on BYOK (``byok_dispatch``) — a PLATFORM
+            # dispatch never touches a user credential even on a 401. The next
+            # turn then resolves to platform (items 1/5) and the banner carries
+            # the one-time notice. Best-effort by design (suppress-wrapped).
+            if yielded_auth_failure and byok_dispatch and credential_id is not None:
+                with contextlib.suppress(Exception):
+                    async with Session() as db:
+                        await byok_service.mark_credential_invalid(db, credential_id)
+                        await db.commit()
+            with contextlib.suppress(Exception):
+                async with Session() as db:
+                    await mark_terminal(
+                        db,
+                        turn_id=turn_id,
+                        status=TURN_STATUS_FAILED,
+                        error_code=yielded_failure_code,
+                    )
+                    if user_id is not None:
+                        # Failed turns count toward the request windows too —
+                        # a failing key must not grant unmetered retries.
+                        # error_kind mirrors the except path's class-name
+                        # shape: strip the "tutor.runtime: " prefix when the
+                        # orchestrator wrapped an exception class name into the
+                        # code, else keep the bare code (e.g. the unsupported-
+                        # provider sentinel).
+                        error_kind = yielded_failure_code.split("tutor.runtime: ", 1)[-1]
+                        await record_streamed_turn_row(
+                            db,
+                            user_id=user_id,
+                            provider=_stream_provider_name(byok_dispatch),
+                            model=_stream_model_name(byok_dispatch),
+                            cost_usd=0.0,
+                            latency_ms=0,
+                            status=STATUS_ERROR,
+                            error_kind=error_kind,
+                            billing_mode=BILLING_BYOK if byok_dispatch else BILLING_PLATFORM,
+                        )
+                    await db.commit()
+            with contextlib.suppress(Exception):
+                await set_stream_ttl(redis_client, turn_id=turn_id)
+            return
+
+        # Terminal DB transition + stream TTL. The llm_calls row makes the
+        # streamed turn visible to the non-dollar request windows and the
+        # admin billing_mode rollup (Gate-B fix / ADR-0027 §Consequences —
+        # streamed turns previously wrote no row at all).
         async with Session() as db:
             await mark_terminal(db, turn_id=turn_id, status=TURN_STATUS_COMPLETE)
+            await record_streamed_turn_row(
+                db,
+                user_id=user_id,
+                provider=_stream_provider_name(byok_dispatch),
+                model=_stream_model_name(byok_dispatch),
+                cost_usd=final_cost_usd,
+                latency_ms=final_total_ms,
+                status=STATUS_OK,
+                error_kind=None,
+                billing_mode=BILLING_BYOK if byok_dispatch else BILLING_PLATFORM,
+                prompt_tokens=final_prompt_tokens,
+                completion_tokens=final_completion_tokens,
+            )
             await db.commit()
 
         with contextlib.suppress(Exception):
@@ -164,6 +372,15 @@ async def _run_turn_async(turn_id: str) -> None:
 
     except Exception as exc:
         log.exception("tutor_turn_failed", extra={"turn_id": turn_id})
+        # ADR-0027 §4 item 3, streaming arm (Gate-B fix): an auth-class
+        # provider failure on a BYOK stream marks the credential invalid;
+        # the user's next turn resolves to platform (items 1/5) and the
+        # credential banner carries the notice. Best-effort by design.
+        if credential_id is not None and byok_service.is_auth_error(exc):
+            with contextlib.suppress(Exception):
+                async with Session() as db:
+                    await byok_service.mark_credential_invalid(db, credential_id)
+                    await db.commit()
         # Best-effort: mark the row failed + emit a turn_failed event.
         # Both wrapped in suppress so a DB-down or Redis-down state
         # doesn't trip another exception during cleanup.
@@ -175,6 +392,20 @@ async def _run_turn_async(turn_id: str) -> None:
                     status=TURN_STATUS_FAILED,
                     error_code=f"tutor.runtime: {type(exc).__name__}",
                 )
+                if user_id is not None:
+                    # Failed turns count toward the request windows too —
+                    # a failing key must not grant unmetered retries.
+                    await record_streamed_turn_row(
+                        db,
+                        user_id=user_id,
+                        provider=_stream_provider_name(byok_dispatch),
+                        model=_stream_model_name(byok_dispatch),
+                        cost_usd=0.0,
+                        latency_ms=0,
+                        status=STATUS_ERROR,
+                        error_kind=type(exc).__name__,
+                        billing_mode=BILLING_BYOK if byok_dispatch else BILLING_PLATFORM,
+                    )
                 await db.commit()
         with contextlib.suppress(Exception):
             await emit_event(

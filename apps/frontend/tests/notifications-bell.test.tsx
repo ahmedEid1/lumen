@@ -4,6 +4,22 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NotificationsBell } from "@/components/shared/notifications-bell";
 import * as apiClient from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
+
+// The bell gates its poller on the auth-state signal (`useAuth().user`).
+// A signed-in user keeps the existing behaviours working; the 401 test
+// below relies on this user being present so the query is `enabled`.
+vi.mock("@/lib/auth/store", () => ({
+  useAuth: () => ({
+    user: { id: "u1", full_name: "Test Learner", role: "user" },
+    token: "tok",
+    ready: true,
+    login: vi.fn(),
+    register: vi.fn(),
+    logout: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
 
 function renderWithClient(ui: React.ReactNode) {
   const client = new QueryClient({
@@ -138,5 +154,38 @@ describe("NotificationsBell", () => {
     await user.click(await screen.findByRole("button", { name: /notifications/i }));
     await screen.findByText("Welcome to FastAPI");
     expect(screen.queryByText(/most recent/i)).toBeNull();
+  });
+
+  it("stops polling after a 401 (expired session) instead of looping forever", async () => {
+    vi.useFakeTimers();
+    try {
+      // Every fetch of the notifications list 401s — the session lapsed
+      // while the bell stayed mounted.
+      apiSpy.mockRejectedValue(
+        new ApiError({ status: 401, message: "Unauthorized", code: "unauthorized" }) as never,
+      );
+
+      renderWithClient(<NotificationsBell />);
+
+      // Let the initial fetch run and reject.
+      await vi.waitFor(() => {
+        expect(apiSpy).toHaveBeenCalledWith("/api/v1/me/notifications");
+      });
+      const callsAfterFirstFetch = apiSpy.mock.calls.filter(
+        ([path]) => path === "/api/v1/me/notifications",
+      ).length;
+
+      // Advance well past several 60s poll intervals. If the poller were
+      // still armed it would re-hit the endpoint each minute; the 401
+      // brake must keep the count flat.
+      await vi.advanceTimersByTimeAsync(60_000 * 5);
+
+      const callsAfterWaiting = apiSpy.mock.calls.filter(
+        ([path]) => path === "/api/v1/me/notifications",
+      ).length;
+      expect(callsAfterWaiting).toBe(callsAfterFirstFetch);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

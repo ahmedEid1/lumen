@@ -49,12 +49,22 @@ async def _enrolled_with_progress(
     subject_id: str,
     title: str,
     seed_lesson,
+    db: AsyncSession,
     *,
     completed_lessons: int,
     extra_lessons: int = 0,
 ) -> str:
     """Create + publish a course with ``1 + extra_lessons`` lessons; mark
-    ``completed_lessons`` of them complete for ``student``."""
+    ``completed_lessons`` of them complete for ``student``.
+
+    S2 / ADR-0026: ``PATCH {status: "published"}`` is now a 422 and enrollment
+    requires ``is_publicly_listed`` (public + published + approved). Drive all
+    three axes via the DB session — mirroring S2's ``_mk_course`` helper.
+    """
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
+
     create = await client.post(
         "/api/v1/courses",
         json={"title": title, "subject_id": subject_id, "overview": "x"},
@@ -71,10 +81,18 @@ async def _enrolled_with_progress(
     lesson_ids = [await seed_lesson(course_id, teacher)]
     for _ in range(extra_lessons):
         lesson_ids.append(await seed_lesson(course_id, teacher))
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=teacher
+    await db.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
-    await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
+    await db.commit()
+    enroll = await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
+    assert enroll.status_code in (200, 201), enroll.text
     for lid in lesson_ids[:completed_lessons]:
         await client.post(
             f"/api/v1/me/progress/lessons/{lid}",
@@ -109,6 +127,7 @@ async def test_dashboard_progress_is_batched(
             subject.id,
             f"C{i}",
             seed_lesson,
+            db_session,
             completed_lessons=completed,
             extra_lessons=1,  # 2 lessons total per course
         )

@@ -26,8 +26,10 @@ from app.models.course import (
     Difficulty,
     Lesson,
     LessonType,
+    ModerationState,
     Module,
     Subject,
+    Visibility,
 )
 from app.models.lesson_chunk import LessonChunk
 from app.models.retrieval_audit import RetrievalAudit
@@ -69,7 +71,14 @@ async def _seed_course(db: AsyncSession, *, suffix: str) -> str:
         slug=f"audit-test-{suffix}",
         overview="overview",
         difficulty=Difficulty.beginner,
-        status=CourseStatus.draft,
+        # S2 / ADR-0029: ``find_relevant_chunks`` now ANDs the retrieval ACL.
+        # These audit tests call it without a ``viewer`` (→ None → publicly
+        # listed only), so the course must be public + published +
+        # moderation-approved for its chunks to be retrievable. The audit
+        # behaviour under test is orthogonal to visibility.
+        status=CourseStatus.published,
+        visibility=Visibility.public,
+        moderation_state=ModerationState.approved,
     )
     module = Module(id=f"mod_{suffix}", course_id=course.id, title="Module 1", order=0)
     db.add_all([owner, subject, course, module])

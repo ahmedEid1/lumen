@@ -40,8 +40,18 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _publish_one_lesson_course(
-    client: AsyncClient, teacher: dict, subject_id: str, seed_lesson
+    client: AsyncClient, teacher: dict, subject_id: str, seed_lesson, db: AsyncSession
 ) -> tuple[str, str]:
+    """Create + seed a one-lesson course and make it publicly listed.
+
+    S2 / ADR-0026: ``PATCH {status: "published"}`` is now a 422 and enrollment
+    requires ``is_publicly_listed`` (public + published + approved). Drive all
+    three axes via the DB session — mirroring S2's ``_mk_course`` helper.
+    """
+    from sqlalchemy import update
+
+    from app.models.course import Course, CourseStatus, ModerationState, Visibility
+
     create = await client.post(
         "/api/v1/courses",
         json={"title": "Done!", "subject_id": subject_id, "overview": "x"},
@@ -49,11 +59,16 @@ async def _publish_one_lesson_course(
     )
     course_id = create.json()["id"]
     lesson_id = await seed_lesson(course_id, teacher)
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=teacher,
+    await db.execute(
+        update(Course)
+        .where(Course.id == course_id)
+        .values(
+            status=CourseStatus.published,
+            visibility=Visibility.public,
+            moderation_state=ModerationState.approved,
+        )
     )
+    await db.commit()
     return course_id, lesson_id
 
 
@@ -64,7 +79,7 @@ async def test_unenroll_blocked_after_completion(
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
     course_id, lesson_id = await _publish_one_lesson_course(
-        client, teacher, subject.id, seed_lesson
+        client, teacher, subject.id, seed_lesson, db_session
     )
 
     # Enroll and finish the (single) lesson — earns the certificate.
@@ -99,7 +114,9 @@ async def test_mid_progress_unenroll_still_works(
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, _ = await _publish_one_lesson_course(client, teacher, subject.id, seed_lesson)
+    course_id, _ = await _publish_one_lesson_course(
+        client, teacher, subject.id, seed_lesson, db_session
+    )
 
     # Enroll but don't complete.
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
@@ -125,7 +142,9 @@ async def test_unenroll_when_never_enrolled_is_idempotent_ok(
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    course_id, _ = await _publish_one_lesson_course(client, teacher, subject.id, seed_lesson)
+    course_id, _ = await _publish_one_lesson_course(
+        client, teacher, subject.id, seed_lesson, db_session
+    )
 
     drop = await client.delete(f"/api/v1/me/enrollments/{course_id}", headers=student)
     assert drop.status_code == 200

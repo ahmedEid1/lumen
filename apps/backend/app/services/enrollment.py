@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.core.ids import new_id
 from app.core.logging import get_logger
-from app.models.course import Course, CourseStatus, Enrollment, Lesson, LessonProgress
+from app.models.course import Course, Enrollment, Lesson, LessonProgress
 from app.models.notification import NotificationKind
 from app.models.quiz_attempt import QuizAttempt
 from app.models.user import User
@@ -18,6 +18,7 @@ from app.repositories import courses as courses_repo
 from app.repositories import notifications as notifications_repo
 from app.services import badges as badges_service
 from app.services import fsrs as fsrs_service
+from app.services import visibility as visibility_service
 
 log = get_logger(__name__)
 
@@ -57,6 +58,12 @@ async def _maybe_issue_certificate(
     private key is in the request path, and a future key rotation
     would also invalidate already-shipped credentials.
     """
+    # R-M8' / FR-CLONE-16: a self-enrollment (clone owner self-learn, ADR-0026
+    # self-preview) never mints a certificate/badge/notification — completing
+    # your own course is not an achievement. The single guard here covers BOTH
+    # call sites (record_quiz_attempt + mark_lesson).
+    if enrollment.is_self:
+        return
     if total and done == total and not enrollment.completed_at:
         enrollment.completed_at = datetime.now(UTC)
         enrollment.certificate_id = f"cert_{new_id()}"
@@ -88,8 +95,20 @@ async def _maybe_issue_certificate(
 
 
 async def enroll(db: AsyncSession, *, user: User, course: Course) -> Enrollment:
-    if course.status != CourseStatus.published:
-        raise ForbiddenError("Course is not available", code="enrollment.not_available")
+    # Enrollment gate routes through the central authorizer (S2.6 / ADR-0026
+    # §3): a publicly-listed course OR the owner self-preview. A
+    # published-PRIVATE course is not enrollable by a stranger.
+    can, reason = await visibility_service.can_enroll(db, course, user)
+    if not can:
+        raise ForbiddenError("Course is not available", code=reason or "enrollment.not_available")
+    # S3.9 / R-M8': the owner enrolling in their OWN course (e.g. self-learn on a
+    # private/draft AI build, FR-LEARN-01) is a self-enrollment — route it through
+    # ``enroll_self`` so it is marked ``is_self=True`` and never mints a
+    # certificate/badge (completing your own course is not an achievement). A
+    # genuine learner (non-owner) on a publicly-listed course gets the normal,
+    # cert-eligible enrollment + the welcome notification below.
+    if course.owner_id == user.id:
+        return await enroll_self(db, user=user, course=course)
     existing = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
     if existing:
         return existing
@@ -104,6 +123,32 @@ async def enroll(db: AsyncSession, *, user: User, course: Course) -> Enrollment:
         body="You're all set. Open your dashboard to start learning.",
         data={"course_id": course.id},
     )
+    return enrollment
+
+
+async def enroll_self(db: AsyncSession, *, user: User, course: Course) -> Enrollment:
+    """Owner self-enroll that bypasses the publicly-listed gate (FR-CLONE-16).
+
+    A fresh clone is ``draft`` + ``private``, so its owner cannot self-enroll
+    through :func:`enroll` (which rejects non-publicly-listed courses). The owner
+    branch of ADR-0026's ``can_learn_in_course`` authorizes learning in your own
+    course, so this helper enrolls them directly with ``is_self=True`` — which in
+    turn suppresses certificate/badge minting in :func:`_maybe_issue_certificate`
+    (R-M8'). Idempotent on ``uq_enrollments_user_course``; skips the "Welcome"
+    notification (the owner already knows their own course exists). Shared with S3
+    owner self-learn.
+
+    The caller is responsible for having authorized ``user`` as the course owner
+    (clone_course sets ``course.owner_id = caller.id`` before calling this).
+    """
+    existing = await courses_repo.get_enrollment(db, user_id=user.id, course_id=course.id)
+    if existing:
+        # Idempotent: if a prior (e.g. learner) enrollment exists, return it. We
+        # do not silently flip an existing non-self enrollment to self.
+        return existing
+    enrollment = Enrollment(user_id=user.id, course_id=course.id, is_self=True)
+    db.add(enrollment)
+    await db.flush()
     return enrollment
 
 

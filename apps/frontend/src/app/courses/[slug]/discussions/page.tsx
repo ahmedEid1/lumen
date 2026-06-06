@@ -52,6 +52,16 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
 
+  // S7 Gate-B F2: a tombstoned author serializes through UserPublic with
+  // `full_name` set to the i18n KEY "common.deletedUser" (not null), so a
+  // bare `author?.full_name ?? t(...)` fallback only catches author === null
+  // and would paint the raw key. Resolve BOTH cases to the localized label
+  // (mirrors course-card.tsx). Keep the existing discussions.deletedUser key.
+  const authorName = (author: Thread["author"]) =>
+    !author || author.full_name === "common.deletedUser"
+      ? t("discussions.deletedUser")
+      : author.full_name;
+
   const courseQ = useQuery({
     queryKey: ["course", "by-slug", slug],
     queryFn: () => api<CourseDetail>(`/api/v1/courses/${slug}`),
@@ -174,10 +184,10 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
                     <Avatar className="h-8 w-8 border border-border">
                       <AvatarImage
                         src={thread.author?.avatar_url ?? undefined}
-                        alt={thread.author?.full_name ?? ""}
+                        alt={authorName(thread.author)}
                       />
                       <AvatarFallback>
-                        {(thread.author?.full_name ?? "?").slice(0, 1).toUpperCase()}
+                        {authorName(thread.author).slice(0, 1).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
@@ -185,7 +195,7 @@ export default function DiscussionsPage({ params }: { params: Promise<{ slug: st
                         {thread.title}
                       </p>
                       <p className="font-body text-xs text-muted-foreground">
-                        {thread.author?.full_name ?? t("discussions.deletedUser")} ·{" "}
+                        {authorName(thread.author)} ·{" "}
                         {formatRelative(thread.last_activity_at)}
                       </p>
                     </div>

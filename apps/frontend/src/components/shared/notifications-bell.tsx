@@ -10,9 +10,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { api } from "@/lib/api/client";
+import { api, ApiError } from "@/lib/api/client";
 import { qk } from "@/lib/query/keys";
 import { formatRelative } from "@/lib/utils";
+import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 
 type Notification = {
@@ -59,10 +60,36 @@ export function NotificationsBell() {
   const qc = useQueryClient();
   const router = useRouter();
   const t = useT();
+  const { user } = useAuth();
+  // The bell only mounts for a signed-in user, but the session can lapse
+  // while it stays mounted (the access cookie expires; the auth store's
+  // `user` hasn't been refreshed yet). Without a brake the 60s poller then
+  // hammers `/me/notifications` with 401s forever. So: tie polling to the
+  // auth-state signal the rest of the app uses (`user`), and once a 401 is
+  // observed, freeze the poller until the auth identity changes again.
+  // `user?.id` is the dependency — a fresh login (or account switch) flips
+  // it and re-arms the query; a plain re-render does not.
+  const userId = user?.id ?? null;
   const q = useQuery({
-    queryKey: qk.notifications,
+    // Scope the cache (and its error state) to the current identity. On a
+    // fresh login `userId` changes, so the query gets a clean entry instead
+    // of inheriting the previous session's stuck 401. The notification
+    // mutations invalidate by the `qk.notifications` prefix, which still
+    // matches this longer key (TanStack prefix-matches by default).
+    queryKey: [...qk.notifications, userId],
     queryFn: () => api<Notification[]>("/api/v1/me/notifications"),
-    refetchInterval: 60_000,
+    // Don't even fire when signed out (store says no user).
+    enabled: !!userId,
+    // Stop on the first 401: react-query keeps the last error on
+    // `query.state.error`, so returning `false` here halts the interval.
+    refetchInterval: (query) =>
+      query.state.error instanceof ApiError && query.state.error.status === 401
+        ? false
+        : 60_000,
+    // A 401 is an auth-state problem, not a transient one — retrying it
+    // immediately would just re-trip the loop we're trying to stop.
+    retry: (failureCount, error) =>
+      error instanceof ApiError && error.status === 401 ? false : failureCount < 2,
   });
 
   const markRead = useMutation({

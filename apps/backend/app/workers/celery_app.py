@@ -6,10 +6,14 @@ from datetime import timedelta
 
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import worker_process_init
 
 from app.core.config import get_settings
+from app.core.logging import configure_logging, get_logger, install_value_redaction
+from app.core.prod_guards import assert_byok_kek_present
 
 _s = get_settings()
+_log = get_logger(__name__)
 
 celery = Celery(
     "lumen",
@@ -33,6 +37,9 @@ celery = Celery(
         # empty table / no-orphan state.
         "app.workers.tasks.tutor_streaming",
         "app.workers.tasks.tutor_sweep",
+        # S3.10 — define-and-build orphan/unfinalized sweeps. Idempotent against
+        # an empty/no-orphan state; the beat entries below run unconditionally.
+        "app.workers.tasks.define_sweep",
     ],
 )
 
@@ -53,6 +60,14 @@ celery.conf.beat_schedule = {
     "sweep-unclaimed-assets": {
         "task": "app.workers.tasks.media.sweep_unclaimed_assets",
         "schedule": crontab(hour="3", minute="0"),
+    },
+    # S4 gate (Codex-C2 / Gate-B B3) — reclaim idempotency-key rows past their
+    # 24h replay TTL. Hourly is plenty: the table only grows with clone
+    # mutations and the delete is index-assisted (ix_idempotency_keys_created_at)
+    # + idempotent against an empty/no-expired state.
+    "sweep-expired-idempotency-keys": {
+        "task": "app.workers.tasks.media.sweep_expired_idempotency_keys",
+        "schedule": crontab(minute="0"),
     },
     # Phase D4 — bundle yesterday's ``digest_daily`` notifications into
     # one summary email per user. 07:00 UTC is early enough to land in
@@ -89,4 +104,47 @@ celery.conf.beat_schedule = {
         "task": "tutor.cleanup_orphan_streams.v1",
         "schedule": timedelta(minutes=5),
     },
+    # S3.10 (DR-1b) — daily off-peak define-and-build cleanup. 04:30 UTC sits
+    # alongside the existing 3-4am sweeps; both tasks are idempotent so the exact
+    # tick is a soft target. They reap >30d (default) abandoned build drafts +
+    # un-finalized briefs (FR-DEFINE-14b).
+    "define-sweep-orphaned-build-drafts": {
+        "task": "define.sweep_orphaned_build_drafts.v1",
+        "schedule": crontab(hour="4", minute="30"),
+    },
+    "define-sweep-unfinalized-briefs": {
+        "task": "define.sweep_unfinalized_briefs.v1",
+        "schedule": crontab(hour="4", minute="35"),
+    },
 }
+
+
+def _on_worker_process_init() -> None:
+    """Worker boot guard (S7-pre.6 / DR-7, R-S3).
+
+    Runs in every forked worker process. It (1) installs the value-level
+    redaction filter so worker structlog/exception sinks scrub secrets the
+    same way the API does (R-S1′f / R-U3), and (2) runs the BYOK KEK boot
+    guard so the worker — which is part of the KEK trust boundary, since the
+    streaming tutor decrypts there — refuses to boot in production, or
+    whenever an encrypted credential/brief row exists, without a real KEK.
+
+    Raising here aborts the worker process boot (correct: a worker that
+    cannot decrypt stored secrets must not silently run).
+    """
+    # Gate-B robustness fix: configure structlog EXPLICITLY before installing
+    # the redaction processor. Without this, install_value_redaction() relies
+    # on structlog's *default* processor list happening to end in a renderer —
+    # true today, but a silent-breakage trap if worker logging ever diverges.
+    configure_logging()
+    install_value_redaction()
+    problems: list[str] = []
+    assert_byok_kek_present(get_settings(), problems)
+    if problems:
+        _log.error("worker_boot_guard_failed", problems=problems)
+        raise RuntimeError("Celery worker boot guard refused to start: " + "; ".join(problems))
+
+
+@worker_process_init.connect
+def _worker_process_init_handler(**_kwargs) -> None:  # pragma: no cover - signal shim
+    _on_worker_process_init()

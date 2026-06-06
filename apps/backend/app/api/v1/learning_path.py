@@ -34,6 +34,7 @@ from app.api.deps import CurrentUser, DBSession
 from app.core.errors import NotFoundError
 from app.core.ratelimit import limiter
 from app.models.learning_path import LearningPath, LearningPathStep
+from app.services import byok as byok_service
 from app.services import learning_path as learning_path_service
 
 router = APIRouter()
@@ -178,7 +179,8 @@ async def build_learning_path(
     LLM provider and may take several seconds; the rate-limit shape
     is deliberately tight to discourage hammering the agent.
     """
-    path = await learning_path_service.build_path(db, user_id=user.id, goal=payload.goal)
+    ctx = await byok_service.resolve_context(db, user_id=user.id)
+    path = await learning_path_service.build_path(db, user_id=user.id, goal=payload.goal, ctx=ctx)
     return _path_out(path)
 
 
@@ -268,7 +270,8 @@ async def manual_replan(
     cost. Returns the new active path on success; 404 when the
     learner has no active path to re-plan.
     """
-    path = await learning_path_service.replan_for_user(db, user_id=user.id)
+    ctx = await byok_service.resolve_context(db, user_id=user.id)
+    path = await learning_path_service.replan_for_user(db, user_id=user.id, ctx=ctx)
     if path is None:
         raise NotFoundError(
             "No active learning path to re-plan.",

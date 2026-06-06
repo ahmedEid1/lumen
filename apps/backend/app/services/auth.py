@@ -8,7 +8,13 @@ from typing import TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.errors import ConflictError, ForbiddenError, UnauthorizedError
+from app.core.errors import (
+    AccountDeletedError,
+    AccountSuspendedError,
+    ConflictError,
+    ForbiddenError,
+    UnauthorizedError,
+)
 from app.core.logging import get_logger
 from app.core.security import (
     TokenPair,
@@ -55,7 +61,9 @@ async def register(
         email=str(payload.email),
         password_hash=hash_password(payload.password),
         full_name=payload.full_name,
-        role=Role.student,
+        # S1.8: new signups default to the canonical `user` role (every active
+        # user can author + learn; admin is granted explicitly).
+        role=Role.user,
     )
     await audit_repo.record(
         db,
@@ -69,6 +77,21 @@ async def register(
     return user
 
 
+def _raise_inactive(user: User) -> None:
+    """ADR-0030 §D3 — surface the precise inactive-account code.
+
+    Suspended (``is_active=False AND deleted_at IS NULL``) →
+    ``auth.account_suspended``; tombstoned (``deleted_at IS NOT NULL``) →
+    ``auth.account_deleted``. Both are 401 (``UnauthorizedError`` subclasses),
+    replacing the generic ``auth.inactive``. Called ONLY after a successful
+    password verify, so it never leaks whether an arbitrary email is suspended to
+    a caller who doesn't hold the credential.
+    """
+    if user.deleted_at is not None:
+        raise AccountDeletedError("This account has been deleted", code="auth.account_deleted")
+    raise AccountSuspendedError("Your account has been suspended", code="auth.account_suspended")
+
+
 async def authenticate(
     db: AsyncSession,
     payload: LoginRequest,
@@ -77,7 +100,7 @@ async def authenticate(
     user_agent: str | None = None,
 ) -> tuple[User, TokenPair]:
     user = await users_repo.get_by_email(db, str(payload.email))
-    if not user or not user.is_active:
+    if not user:
         # Run a dummy verify so the wire-time latency for "no such email" and
         # "wrong password" is dominated by the same Argon2 work — denying an
         # attacker the timing side-channel that would otherwise reveal which
@@ -90,6 +113,12 @@ async def authenticate(
     if not verify_password(payload.password, user.password_hash):
         await users_repo.update_login_failure(db, user)
         raise UnauthorizedError("Invalid credentials", code="auth.invalid_credentials")
+
+    # Password is correct — only now do we disclose suspended/deleted (ADR-0030
+    # §D3). Branching before the verify would leak account-state to an attacker
+    # who doesn't hold the credential; branching after keeps the existence-hide.
+    if not user.is_active:
+        _raise_inactive(user)
 
     await users_repo.update_login_success(db, user)
     tokens, _ = await _issue_tokens_returning(db, user, ip=ip, user_agent=user_agent)
@@ -171,8 +200,13 @@ async def rotate_refresh(
         raise UnauthorizedError("Refresh token expired", code="auth.refresh_expired")
 
     user = await users_repo.get_by_id(db, stored.user_id)
-    if not user or not user.is_active:
+    if not user:
         raise UnauthorizedError("Account is not active", code="auth.inactive")
+    if not user.is_active:
+        # The caller proved possession of a live refresh token, so disclosing
+        # suspended-vs-deleted is safe here (ADR-0030 §D3). Replaces the generic
+        # auth.inactive with the precise code the frontend renders.
+        _raise_inactive(user)
 
     tokens, replacement = await _issue_tokens_returning(db, user, ip=ip, user_agent=user_agent)
     await users_repo.revoke_refresh_token(db, stored, replaced_by_id=replacement.id)

@@ -17,6 +17,7 @@ import { Courses } from "@/lib/api/endpoints";
 import type { CourseListItem, CourseStatus } from "@/lib/api/types";
 import { qk } from "@/lib/query/keys";
 import { useAuth } from "@/lib/auth/store";
+import { useCapabilities } from "@/lib/auth/capabilities";
 import { useT, useTN } from "@/lib/i18n/provider";
 import { instructorSteps } from "@/lib/onboarding/steps";
 import type { MessageKey } from "@/lib/i18n/messages/en";
@@ -44,6 +45,7 @@ const FILTERS: { value: FilterValue; labelKey: MessageKey }[] = [
 
 export default function StudioPage() {
   const { user, ready } = useAuth();
+  const { isAdmin } = useCapabilities();
   const router = useRouter();
   const t = useT();
   const tn = useTN();
@@ -54,8 +56,9 @@ export default function StudioPage() {
 
   useEffect(() => {
     if (!ready) return;
+    // S1.11: Studio is open to any authenticated user (authoring is ungated
+    // from the instructor role). Only anonymous visitors are redirected.
     if (!user) router.replace("/login?next=/studio");
-    else if (user.role === "student") router.replace("/dashboard");
   }, [ready, user, router]);
 
   const counts = useMemo(() => {
@@ -67,16 +70,14 @@ export default function StudioPage() {
     return c;
   }, [mine.data]);
 
-  if (!ready || !user || user.role === "student") return null;
+  if (!ready || !user) return null;
 
   return (
     <div className="container mx-auto px-6 py-14">
-      {(user.role === "instructor" || user.role === "admin") && (
-        <OnboardingTour
-          steps={instructorSteps(t)}
-          storageKey="lumen.onboarding.instructor.dismissed"
-        />
-      )}
+      <OnboardingTour
+        steps={instructorSteps(t)}
+        storageKey="lumen.onboarding.instructor.dismissed"
+      />
       <header className="mb-10 flex flex-col gap-3">
         <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
           {t("studio.cartouche")}
@@ -92,9 +93,18 @@ export default function StudioPage() {
             <Button variant="outline" onClick={() => setAiOpen(true)}>
               <Sparkles className="me-2 h-4 w-4" /> {t("studio.aiOutline.button")}
             </Button>
-            <Button variant="outline" onClick={() => setImportOpen(true)}>
-              <Download className="me-2 h-4 w-4" /> {t("studio.import.button")}
-            </Button>
+            {/* URL ingest is admin-only AND flag-gated server-side
+                (`can_ingest_url`: active && admin && ingest_url_enabled, default
+                OFF — closed by construction until SSRF hardening, R-M12). The
+                flag isn't exposed client-side, so we gate visibility on the
+                identity half of the rule (`isAdmin`). This hides the button from
+                the non-admins who could never use it; the residual flag-off case
+                only ever shows an admin a control whose API 403s. */}
+            {isAdmin && (
+              <Button variant="outline" onClick={() => setImportOpen(true)}>
+                <Download className="me-2 h-4 w-4" /> {t("studio.import.button")}
+              </Button>
+            )}
             <Link href="/studio/new">
               <Button>
                 <Plus className="me-2 h-4 w-4" /> {t("studio.newCourse")}
@@ -225,6 +235,7 @@ function CourseListView({
                 {t(`course.status.${c.status}` as MessageKey)}
               </Badge>
               <Badge variant="outline">{c.subject.title}</Badge>
+              {c.is_clone && <Badge variant="muted">{t("clone.badge")}</Badge>}
             </div>
           </div>
           <div className="hidden shrink-0 items-center gap-6 font-mono text-xs tabular-nums text-muted-foreground sm:flex">

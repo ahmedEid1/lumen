@@ -45,7 +45,7 @@ async def _make_subject(db: AsyncSession) -> Subject:
 
 
 async def _enroll_in_quiz_course(
-    client: AsyncClient, headers_t: dict, headers_s: dict, subject_id: str
+    client: AsyncClient, headers_t: dict, headers_s: dict, subject_id: str, publish_and_list_course
 ) -> str:
     create = await client.post(
         "/api/v1/courses",
@@ -65,20 +65,20 @@ async def _enroll_in_quiz_course(
             headers=headers_t,
         )
     ).json()
-    await client.patch(
-        f"/api/v1/courses/{course_id}", json={"status": "published"}, headers=headers_t
-    )
+    await publish_and_list_course(course_id, headers_t)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=headers_s)
     return lesson["id"]
 
 
 async def test_quiz_retake_failure_does_not_clear_pass(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    quiz_id = await _enroll_in_quiz_course(client, teacher, student, subject.id)
+    quiz_id = await _enroll_in_quiz_course(
+        client, teacher, student, subject.id, publish_and_list_course
+    )
 
     first = await client.post(
         f"/api/v1/me/progress/lessons/{quiz_id}/quiz",
@@ -108,12 +108,14 @@ async def test_quiz_retake_failure_does_not_clear_pass(
 
 
 async def test_quiz_retake_records_latest_score_on_pass(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     teacher = await auth_headers(role=Role.instructor)
     student = await auth_headers(role=Role.student)
     subject = await _make_subject(db_session)
-    quiz_id = await _enroll_in_quiz_course(client, teacher, student, subject.id)
+    quiz_id = await _enroll_in_quiz_course(
+        client, teacher, student, subject.id, publish_and_list_course
+    )
 
     fail = await client.post(
         f"/api/v1/me/progress/lessons/{quiz_id}/quiz",

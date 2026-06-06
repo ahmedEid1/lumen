@@ -13,14 +13,40 @@
  * so reading the latest message and pulling ``?token=`` out is enough.
  *
  * Defaults:
- *   - MAILPIT_BASE_URL defaults to http://localhost:8025 (host mapping
- *     from docker-compose.yml). In CI we keep the same mapping; if the
- *     host name ever changes we override via the env var.
+ *   - MAILPIT_BASE_URL, when set, always wins (CI / bespoke topologies
+ *     override via the env var).
+ *   - Otherwise we infer from where the rest of the suite is pointed.
+ *     W11: when this spec runs *inside* the e2e container
+ *     (`docker compose --profile e2e run`), `localhost` is the e2e
+ *     container itself, not the mailpit service — so the old
+ *     `http://localhost:8025` fallback hit ECONNREFUSED and auth.spec
+ *     failed at `clearMailpit` on both chromium and webkit before it
+ *     ever touched a form. The compose e2e service injects
+ *     `E2E_BASE_URL`/`E2E_API_BASE_URL` as docker-network hostnames
+ *     (`http://web:3000`, `http://api:8000`) but does NOT inject
+ *     `MAILPIT_BASE_URL`. Detect that in-container case (E2E_BASE_URL
+ *     present and not pointing at localhost) and reach mailpit at its
+ *     docker-network name `http://mail:8025` (compose service is
+ *     `mail`, REST API on 8025). Host-side runs against the published
+ *     port keep the `http://localhost:8025` mapping.
  *   - The poll loop is generous (10s, every 250ms) because Celery
  *     dispatch hops through Redis and Mailpit's ingest is async.
  */
 
-const DEFAULT_BASE = process.env.MAILPIT_BASE_URL ?? "http://localhost:8025";
+function inferMailpitBase(): string {
+  const explicit = process.env.MAILPIT_BASE_URL;
+  if (explicit) return explicit;
+  // In-container signal: the e2e compose service sets E2E_BASE_URL to a
+  // docker-network hostname (e.g. http://web:3000). When that's present
+  // and isn't localhost, we're inside the docker network and must use
+  // the mailpit service name rather than localhost.
+  const e2eBase = process.env.E2E_BASE_URL ?? "";
+  const inContainer =
+    e2eBase !== "" && !/^https?:\/\/(localhost|127\.0\.0\.1)\b/i.test(e2eBase);
+  return inContainer ? "http://mail:8025" : "http://localhost:8025";
+}
+
+const DEFAULT_BASE = inferMailpitBase();
 
 interface MailpitMessageSummary {
   ID: string;

@@ -48,6 +48,7 @@ from app.core.logging import get_logger
 from app.models.course import Course
 from app.models.lesson_chunk import LessonChunk
 from app.models.llm_call import SYSTEM_USER_ID
+from app.services.byok import PLATFORM_CONTEXT, LLMContext
 from app.services.embeddings_retrieval import find_relevant_chunks
 from app.services.llm import LLMProvider
 
@@ -232,6 +233,7 @@ async def ask(
     top_k: int = DEFAULT_TOP_K,
     user_id: str | None = None,
     feature: str = "tutor",
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> TutorAnswer:
     """Answer ``user_message`` against ``course``'s content with citations.
 
@@ -273,7 +275,9 @@ async def ask(
     # Empty-retrieval cost guard — kept here (not deferred into the
     # orchestrator) so a question against an unembedded course doesn't
     # burn a planner round-trip before refusing.
-    chunks = await find_relevant_chunks(db, course_id=course.id, query=user_message, top_k=top_k)
+    chunks = await find_relevant_chunks(
+        db, course_id=course.id, query=user_message, top_k=top_k, viewer=user_id
+    )
     if not chunks:
         log.info(
             "tutor_refusal_no_retrieval",
@@ -294,6 +298,7 @@ async def ask(
         question=user_message,
         conversation_history=conversation_history,
         feature=feature if feature != "tutor" else "tutor.multi_agent",
+        ctx=ctx,
     )
 
     if result.refused:
@@ -347,6 +352,7 @@ async def ask_with_trace(
     conversation_history: list[dict[str, Any]] | None = None,
     user_id: str | None = None,
     feature: str = "tutor.multi_agent",
+    ctx: LLMContext = PLATFORM_CONTEXT,
 ) -> tuple[TutorAnswer, OrchestratorResult]:
     """Run the multi-agent orchestrator and project both shapes.
 
@@ -390,7 +396,7 @@ async def ask_with_trace(
         )
 
     chunks = await find_relevant_chunks(
-        db, course_id=course.id, query=user_message, top_k=DEFAULT_TOP_K
+        db, course_id=course.id, query=user_message, top_k=DEFAULT_TOP_K, viewer=user_id
     )
     if not chunks:
         log.info(
@@ -416,6 +422,7 @@ async def ask_with_trace(
         question=user_message,
         conversation_history=conversation_history,
         feature=feature,
+        ctx=ctx,
     )
 
     if orch_result.refused:

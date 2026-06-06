@@ -172,7 +172,7 @@ async def test_with_chunks_synth_prompt_carries_citation_contract() -> None:
     # after recording the call.
     captured: dict = {}
 
-    async def _fake_stream_chat(messages):
+    async def _fake_stream_chat(messages, byok_dispatch=None):  # S5: new kwarg
         captured["messages"] = messages
         # Emit one synth chunk + a terminal so the orchestrator's
         # post-loop "turn_complete" branch fires.
@@ -207,6 +207,115 @@ async def test_with_chunks_synth_prompt_carries_citation_contract() -> None:
     assert msgs[1].content == "What's hoisting?"
 
 
+# ---------------------------------------------------------------------
+# S7 — token usage from the terminal stream chunk lands on turn_complete
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_turn_complete_carries_provider_token_usage() -> None:
+    """S7: when the provider's terminal chunk reports prompt/completion
+    tokens, orchestrate_stream surfaces them on the turn_complete event so
+    the worker can persist them on the streamed turn's llm_calls row."""
+
+    async def _fake_stream_chat(messages, byok_dispatch=None):
+        del messages, byok_dispatch
+        from app.services.llm_stream import StreamChunk
+
+        yield StreamChunk(delta="answer", done=False)
+        yield StreamChunk(
+            delta="",
+            done=True,
+            usage={"prompt_tokens": 137, "completion_tokens": 42, "cost_usd": 0.0009},
+        )
+
+    with patch(
+        "app.services.tutor_orchestrator_stream.stream_chat",
+        _fake_stream_chat,
+    ):
+        last = None
+        async for ev in orchestrate_stream(
+            turn_id="t_usage",
+            user_id="u_usage",
+            user_message="hi",
+            course_id=None,
+            retrieved_chunks=None,
+        ):
+            last = ev
+
+    assert last is not None
+    assert last["event"] == "turn_complete"
+    assert last["data"]["prompt_tokens"] == 137
+    assert last["data"]["completion_tokens"] == 42
+    assert last["data"]["cost_usd"] == pytest.approx(0.0009)
+
+
+@pytest.mark.asyncio
+async def test_turn_complete_tokens_zero_when_no_usage_chunk() -> None:
+    """S7: a terminal chunk that omits token counts (older provider /
+    partial usage payload) yields honest zeros — we claim only what the
+    provider actually reported."""
+
+    async def _fake_stream_chat(messages, byok_dispatch=None):
+        del messages, byok_dispatch
+        from app.services.llm_stream import StreamChunk
+
+        yield StreamChunk(delta="answer", done=False)
+        # done chunk with no token fields (only cost).
+        yield StreamChunk(delta="", done=True, usage={"cost_usd": 0.0})
+
+    with patch(
+        "app.services.tutor_orchestrator_stream.stream_chat",
+        _fake_stream_chat,
+    ):
+        last = None
+        async for ev in orchestrate_stream(
+            turn_id="t_nousage",
+            user_id="u_nousage",
+            user_message="hi",
+            course_id=None,
+            retrieved_chunks=None,
+        ):
+            last = ev
+
+    assert last is not None
+    assert last["event"] == "turn_complete"
+    assert last["data"]["prompt_tokens"] == 0
+    assert last["data"]["completion_tokens"] == 0
+
+
+@pytest.mark.asyncio
+async def test_stream_dies_before_usage_chunk_emits_turn_failed_not_complete() -> None:
+    """S7: a stream that raises before the terminal usage chunk arrives
+    produces a turn_failed terminal (no turn_complete), so no token usage
+    is ever surfaced — the worker records honest zeros for the aborted turn."""
+
+    async def _fake_stream_chat(messages, byok_dispatch=None):
+        del messages, byok_dispatch
+        from app.services.llm_stream import StreamChunk
+
+        yield StreamChunk(delta="partial", done=False)
+        raise RuntimeError("connection dropped mid-stream")
+
+    with patch(
+        "app.services.tutor_orchestrator_stream.stream_chat",
+        _fake_stream_chat,
+    ):
+        events = []
+        async for ev in orchestrate_stream(
+            turn_id="t_die",
+            user_id="u_die",
+            user_message="hi",
+            course_id=None,
+            retrieved_chunks=None,
+        ):
+            events.append(ev)
+
+    event_names = [e["event"] for e in events]
+    assert "turn_complete" not in event_names
+    assert event_names[-1] == "turn_failed"
+
+
 @pytest.mark.asyncio
 async def test_no_chunks_synth_prompt_omits_citation_contract() -> None:
     """When no chunks are present we must NOT advertise [L:<id>] in
@@ -214,7 +323,7 @@ async def test_no_chunks_synth_prompt_omits_citation_contract() -> None:
     fabricate citation ids, poisoning the eval suite."""
     captured: dict = {}
 
-    async def _fake_stream_chat(messages):
+    async def _fake_stream_chat(messages, byok_dispatch=None):  # S5: new kwarg
         captured["messages"] = messages
         from app.services.llm_stream import StreamChunk
 

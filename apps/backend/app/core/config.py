@@ -55,6 +55,33 @@ class Settings(BaseSettings):
     refresh_token_ttl_seconds: int = 60 * 60 * 24 * 14
     password_reset_ttl_seconds: int = 1800
 
+    # ---------- BYOK envelope-encryption KEK (S7-pre / ADR-0027 §2) ----------
+    # Versioned server master keys (KEK) that wrap each credential's
+    # per-secret DEK. The map is ``{version:int -> base64(32-byte key)}``
+    # and ``byok_master_key_version`` selects the *active* version used to
+    # wrap new secrets; older versions are retained so already-stored
+    # blobs (which carry their wrapping version in the header) keep
+    # decrypting through a rotation (FR-BYOK-10/11/12, R-S2/R-S3).
+    #
+    # Accept either real JSON (``BYOK_MASTER_KEYS={"1":"<b64>"}``) or the
+    # pydantic-settings default-empty case. When the map is empty AND
+    # ``ENV != production`` the crypto module falls back to a clearly
+    # dev-only KEK derived from ``secret_key`` (mirrors badges_keys.py).
+    # In production an empty/derived KEK is a hard refusal — see
+    # ``app.core.secrets_crypto`` + the boot guard in ``prod_guards.py``.
+    byok_master_keys: dict[int, SecretStr] = Field(default_factory=dict)
+    byok_master_key_version: int = 1
+
+    # ---------- Capability flags (S7-pre / ADR-0025 §D2, R-CAP) ----------
+    # ``ingest_url_enabled`` gates the URL-import capability. It stays
+    # CLOSED (admin-only AND this flag) until the SSRF-hardening ADR lands
+    # (R-M12, FR-SEC-02, charter decision 7) — the collapse to two roles
+    # does NOT auto-open it. ``mcp_authoring_enabled`` replaces the old
+    # is_instructor MCP gate: authoring is available to every active user
+    # by default (FR-RBAC-08, FR-ADMIN-06).
+    ingest_url_enabled: bool = False
+    mcp_authoring_enabled: bool = True
+
     # ---------- DB ----------
     database_url: str = "postgresql+asyncpg://lumen:lumen@db:5432/lumen"
     database_url_sync: str = "postgresql+psycopg://lumen:lumen@db:5432/lumen"
@@ -134,6 +161,19 @@ class Settings(BaseSettings):
     embedding_openai_api_key: SecretStr | None = None
     embedding_openai_api_base: str | None = None
 
+    # ---------- RAG retrieval ACL + index freshness (ADR-0029 / PR-22) ----------
+    # Cross-course HNSW ``ef_search`` (D5.2 / PR-4): on the cross-catalog path
+    # the ACL clause can discard most private candidates before reaching
+    # ``top_k`` (the "filtered-out recall" problem), so we widen the search
+    # frontier there. Per-course retrieval keeps the pgvector default.
+    rag_hnsw_ef_search_catalog: int = 100
+    # Inline-index fallback bound (R-U2′ / D8): when a viewable course has live
+    # lessons but zero chunks, the tutor triggers inline top-N indexing within
+    # this staleness window so it never permanently refuses (FR-EMBED-02).
+    index_max_staleness_s: int = 60
+    index_inline_top_n: int = 5
+    index_inline_timeout_s: int = 8
+
     # ---------- LLM (Phase E1 RAG tutor + E2 authoring assistant) ----------
     # Provider selector for ``app.services.llm`` — drives both the
     # RAG tutor (Phase E1) and the AI-assisted authoring service
@@ -175,6 +215,40 @@ class Settings(BaseSettings):
     # billing meter. Bump in ``.env`` for power users / production.
     llm_user_budget_24h_usd: Decimal = Decimal("1.00")
 
+    # ---------- BYOK (S5 / ADR-0027) ----------
+    # Master gate. Ships OFF: the data model + code can deploy inert and be
+    # enabled only after the KEK is confirmed present on every API + worker
+    # process fleet-wide (R-S2/R-S3, boot guard in prod_guards). Mirrors the
+    # feature_tutor_streaming env-backed pattern. When OFF: credential
+    # write/resolve paths are inert and resolution is always platform.
+    feature_byok_enabled: bool = False
+
+    # Allow storing/validating a real BYOK key under a *derived* (dev-only)
+    # KEK. Dev/test escape hatch — never set true in production (a derived
+    # KEK there is a hard boot refusal anyway).
+    byok_allow_derived_kek: bool = False
+
+    # ---------- Non-dollar request/job quotas (DR-11/16, R-M7'/R-G1) ----------
+    # Pre-dispatch DB COUNT(*) of llm_calls per user per window, independent
+    # of dollars — this is what closes the $0-BYOK bypass (a free-priced BYOK
+    # model still counts). Over-limit → status="quota_exceeded" row + a
+    # RateLimitError, provider NOT invoked. Defaults are runaway-loop
+    # trip-wires, generous for normal use.
+    llm_user_request_quota_24h: int = 500
+    llm_user_request_quota_1h: int = 120
+    # BYOK users get higher request ceilings (they pay their own provider),
+    # but keep the same concurrency/retry/timeout caps. The resolver picks
+    # the window limits by billing_mode.
+    byok_requests_24h: int = 2000
+    byok_tokens_24h: int = 5_000_000  # post-dispatch dimension; informational here
+    platform_requests_24h: int = 500
+    # Redis concurrency lease (best-effort; Redis-down → fail-open, the DB
+    # COUNT is the hard guard). TTL = provider timeout + buffer so a crashed
+    # process's slot auto-expires.
+    llm_max_concurrent: int = 4
+    llm_max_retries: int = 2
+    llm_provider_timeout_s: int = 60
+
     # ---------- Content ingest (Phase E3) ----------
     # Optional Notion integration token. When unset, the Notion
     # extractor refuses with a clean 422 ("set NOTION_TOKEN") rather
@@ -200,6 +274,105 @@ class Settings(BaseSettings):
     # L21b's flag-flip PR; until then the existing non-streaming POST
     # /tutor/conversations/{id}/messages path stays canonical.
     feature_tutor_streaming: bool = False
+
+    # ``feature_private_publish_enabled`` (DR-13/DR-22 / S2.11) — gates the
+    # visibility WRITE axis (the /share, /unshare, /resubmit endpoints). The
+    # authorizer + columns ship first (backfilled → behaviour identical); this
+    # flag flips to true only AFTER the authorizer-bearing image is fleet-
+    # confirmed and the grep-guard is green (R-S8′ step 4). While OFF, the
+    # sharing endpoints 404 — so no non-default visibility can be written and
+    # there is no leak window. Env: FEATURE_PRIVATE_PUBLISH_ENABLED.
+    feature_private_publish_enabled: bool = False
+
+    # ---------- S4 — Clone/remix (ADR-0028 / FR-CLONE-18, R-S7/R-G1) ----------
+    # ``clone_enabled`` is the master gate (DR-13 pattern, mirrors
+    # ``feature_private_publish_enabled``). Ships OFF: the model + code deploy
+    # inert and the endpoint 404s (``clone.disabled`` — existence-hide, no
+    # feature-probe) until migrations 0048/0049 are fleet-confirmed and the
+    # authorizer image is rolled (ADR-0028 §"Migrations"). Env: CLONE_ENABLED.
+    clone_enabled: bool = False
+    # Non-dollar amplification quotas (R-S7 / R-G1): a clone is platform
+    # compute/storage, not an LLM call, so it NEVER rides the 24h-dollar guard.
+    # Per-user rate window (DB COUNT over recent ``course.cloned`` audit rows so
+    # it survives worker restarts; slowapi is the in-memory fast first line).
+    clone_per_hour: int = 20
+    clone_per_day: int = 100
+    # Live-owned-course cap — bounds clone-of-clone amplification (no max depth
+    # in v1; the cap + window are the practical bound, ADR-0028 §"Open risks").
+    clone_owned_cap: int = 200
+    # Source-size ceiling, enforced in the projection (S4.3) and surfaced as
+    # ``clone.source_too_large`` 413/422 at the endpoint.
+    clone_max_lessons: int = 500
+    clone_max_data_bytes: int = 25 * 1024 * 1024  # 25 MB of projected lesson data
+    # Inline asset-copy budget. ``0`` = always async (the default): asset
+    # re-homing rides the lazy ``copy_clone_assets`` Celery task (S4.9, R-S7).
+    clone_asset_inline_max: int = 0
+
+    # ---------- S3 — Goal intake / define-and-build (FR-DEFINE-*, R-M10/R-G1) ----------
+    # The reserved Subject the self-serve build attaches to when the learner's
+    # suggested subject matches no live admin-curated Subject (FR-DEFINE-12) —
+    # the escape from ``authoring.subject_not_found``. Seeded idempotently by
+    # migration 0051 + the demo seed; ``Subject.slug`` is unique. Env:
+    # PERSONAL_SUBJECT_SLUG.
+    personal_subject_slug: str = "personal-self-directed"
+    # Bounded elicitation: the assistant asks at most this many clarification
+    # turns per goal-intake conversation before forcing convergence (R-M10 /
+    # FR-DEFINE-02). The (cap+1)th turn raises ``define.turn_cap`` and makes NO
+    # LLM call. Env: DEFINE_ELICITATION_MAX_TURNS.
+    define_elicitation_max_turns: int = 6
+    # Per-user session quota: at most this many goal-intake sessions may be
+    # *started* within the rolling window (R-M10 / R-G1). A non-dollar DB COUNT
+    # backstop (a brief row is created per session). Env:
+    # DEFINE_ELICITATION_SESSIONS_24H.
+    define_elicitation_sessions_24h: int = 20
+    # The rolling window (hours) the session quota counts over.
+    define_elicitation_session_window_hours: int = 24
+    # Per-user concurrent self-serve build cap (FR-DEFINE-13). A second
+    # in-flight build by the same user → ``define.build_in_flight`` (409). The
+    # hard backstop is a Postgres advisory lock keyed on the user (try-acquire);
+    # default 1 means strictly serial builds per user. Env: DEFINE_BUILD_CONCURRENCY.
+    define_build_concurrency: int = 1
+    # Per-user daily build quota (FR-DEFINE-13). Non-dollar DB COUNT over
+    # ``course.built`` audit rows in the trailing window — a $0 BYOK build still
+    # counts (DR-11). N+1 in-window → ``define.build_quota`` (429). Quota is
+    # consumed only on a successful build START, never on a validation rejection.
+    # Env: DEFINE_BUILD_QUOTA_24H.
+    define_build_quota_24h: int = 10
+    # The rolling window (hours) the build quota counts over.
+    define_build_window_hours: int = 24
+    # DR-1b retention: an orphaned ``build_failed``/never-opened build draft older
+    # than this is soft-deleted by ``sweep_orphaned_build_drafts``; an
+    # un-finalized brief older than this is reaped by ``sweep_unfinalized_briefs``.
+    # Env: ORPHAN_BUILD_DRAFT_RETENTION_DAYS / UNFINALIZED_BRIEF_RETENTION_DAYS.
+    orphan_build_draft_retention_days: int = 30
+    unfinalized_brief_retention_days: int = 30
+
+    # ---------- S6.6 — Legacy /role write policy (FR-ADMIN-02) ----------
+    # During the role-collapse migration window the ``/admin/users/{id}/role``
+    # endpoint NORMALIZES a stale ``student``/``instructor`` write to ``user``
+    # (applied + audited as ``{requested, applied}``) so old clients don't 422
+    # mid-rollout. After Phase D — once every client speaks the two-role model —
+    # flip this ON and a legacy value is rejected with ``user.invalid_role``.
+    # Env: STRICT_LEGACY_ROLE_REJECTION.
+    strict_legacy_role_rejection: bool = False
+
+    # ---------- S6.3 — Course-report brigading controls (DR-20) ----------
+    # Reporter eligibility: an account must be at least this many days old
+    # (AND email-verified) to file a course report. Layered on top of the
+    # per-user ≤10/h @limiter cap, this is the anti-brigading control — a
+    # throwaway account can't be spun up to mass-report a course.
+    report_min_account_age_days: int = 3
+    # Per-course brigading cap: at most this many reports may be filed against a
+    # single course within the rolling window before further reports are 429'd
+    # (course.report_rate_limited). Distinct from the per-user @limiter cap.
+    report_per_course_window_max: int = 5
+    # The rolling window (hours) the per-course cap counts over.
+    report_per_course_window_hours: int = 24
+    # R-S11 accumulation threshold: when this many OPEN reports accumulate on a
+    # course, an APPROVED course is requeued to pending_review for admin
+    # confirmation (NEVER auto-delisted); a never-approved (none/pending) course
+    # may auto-requeue to pending_review. The admin confirms the actual action.
+    report_requeue_threshold: int = 3
 
     # ---------- L33 — Tutor cost caps & concurrency ----------
     # Per-turn estimate the POST handler reserves up-front. The

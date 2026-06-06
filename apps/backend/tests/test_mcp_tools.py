@@ -33,8 +33,10 @@ from app.models.course import (
     Enrollment,
     Lesson,
     LessonType,
+    ModerationState,
     Module,
     Subject,
+    Visibility,
 )
 from app.models.review_card import ReviewCard, ReviewCardState
 from app.models.user import Role, User
@@ -82,11 +84,20 @@ async def _seed_published_course(
     lessons: list[tuple[str, str]] | None = None,
     title_suffix: str | None = None,
 ) -> Course:
-    """Persist a Subject + Course + Module + N text lessons, all published.
+    """Persist a Subject + Course + Module + N text lessons, publicly listed.
 
     ``lessons`` is a list of ``(title, body)`` tuples; defaults to one
     placeholder lesson so the publish-time minimum-content guard
     passes without callers needing to know about it.
+
+    S2 / ADR-0026: ``status==published`` alone keeps a course PRIVATE
+    (published-private self-learn). For the course to appear in
+    ``list_courses`` / the public catalog it must satisfy the
+    ``is_publicly_listed`` predicate — ``visibility==public`` AND
+    ``status==published`` AND ``moderation_state==approved``. We seed
+    those directly here (the /share + admin /approve endpoints live on
+    the HTTP path) so the MCP catalog tools see the course, mirroring
+    how S2's own service-level tests seed visibility.
     """
     suffix = title_suffix or uuid.uuid4().hex[:6]
     subject = Subject(title=f"Subj {suffix}", slug=f"subj-{suffix}")
@@ -101,6 +112,8 @@ async def _seed_published_course(
         overview="MCP test course overview",
         difficulty=Difficulty.beginner,
         status=CourseStatus.published,
+        visibility=Visibility.public,
+        moderation_state=ModerationState.approved,
         published_at=datetime.now(UTC),
     )
     db.add(course)
@@ -429,20 +442,71 @@ async def test_list_my_progress_returns_enrolled_courses(
 
 
 @pytest.mark.asyncio
-async def test_create_course_draft_requires_instructor(db_session: AsyncSession, make_user) -> None:
+async def test_create_course_draft_denies_suspended_principal(
+    db_session: AsyncSession, make_user
+) -> None:
+    # S1.6 / ADR-0025 §D5: the MCP write gate is `can_author` (any active
+    # user), not the instructor role — so the only denial axis is suspension.
     from app.core.errors import ForbiddenError
 
-    student = await make_user(role=Role.student)
-    # Seed a subject so the fallback path has something to pick.
+    suspended = await make_user(role=Role.user)
+    suspended.is_active = False
     db_session.add(Subject(title="Programming", slug="programming"))
     await db_session.commit()
 
-    with pytest.raises(ForbiddenError):
+    with pytest.raises(ForbiddenError) as exc:
         await mcp_tools.create_course_draft(
             db_session,
-            principal=_principal_for(student),
+            principal=_principal_for(suspended),
             brief="Teach Python basics",
         )
+    assert exc.value.code == "mcp.writes.author_required"
+
+
+@pytest.mark.asyncio
+async def test_create_course_draft_allows_user_role_principal(
+    db_session: AsyncSession, make_user, monkeypatch
+) -> None:
+    # S1.6: a plain `user`-role principal (formerly denied as non-instructor)
+    # can now create a draft. Script a minimal outline so the test is
+    # network-free (same pattern as the persist test below).
+    import json as _json
+
+    from app.services import llm as _llm_module
+
+    user = await make_user(role=Role.user)
+    db_session.add(Subject(title="Programming", slug="programming"))
+    await db_session.commit()
+
+    minimal_outline = {
+        "title": "Intro to Python",
+        "overview": "A friendly intro.",
+        "modules": [{"title": "Setup", "lessons": [{"title": "Install", "type": "text"}]}],
+    }
+
+    class _OneShotProvider:
+        name = "scripted-outline"
+
+        async def chat(self, messages, temperature: float = 0.2) -> str:
+            del messages, temperature
+            return _json.dumps(minimal_outline)
+
+        async def chat_with_usage(self, messages, temperature: float = 0.2):
+            text = await self.chat(messages, temperature=temperature)
+            return _llm_module.ChatResponse(
+                text=text, prompt_tokens=32, completion_tokens=32, model="scripted-outline"
+            )
+
+    monkeypatch.setattr(_llm_module, "get_provider", lambda: _OneShotProvider())
+
+    result = await mcp_tools.create_course_draft(
+        db_session,
+        principal=_principal_for(user),
+        brief="Teach Python basics to absolute beginners",
+        subject_slug="programming",
+    )
+    assert result.course_id
+    assert result.modules_created >= 1
 
 
 @pytest.mark.asyncio

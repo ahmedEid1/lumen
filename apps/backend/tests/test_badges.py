@@ -202,7 +202,7 @@ async def test_credentials_endpoint_is_rate_limited(client: AsyncClient) -> None
 
 
 async def test_credential_minted_on_lesson_completion(
-    client: AsyncClient, auth_headers, db_session: AsyncSession
+    client: AsyncClient, auth_headers, db_session: AsyncSession, publish_and_list_course
 ) -> None:
     """The full happy path: complete a course → enrollment row has
     both ``certificate_id`` and a valid ``badge_credential``."""
@@ -236,11 +236,7 @@ async def test_credential_minted_on_lesson_completion(
             headers=teacher,
         )
     ).json()
-    await client.patch(
-        f"/api/v1/courses/{course_id}",
-        json={"status": "published"},
-        headers=teacher,
-    )
+    await publish_and_list_course(course_id, teacher)
     await client.post(f"/api/v1/me/enrollments/{course_id}", headers=student)
     await client.post(
         f"/api/v1/me/progress/lessons/{lesson['id']}",
