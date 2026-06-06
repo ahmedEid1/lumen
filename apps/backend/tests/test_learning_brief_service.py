@@ -393,3 +393,200 @@ async def test_estimate_counts_bands():
     assert svc.estimate_counts(None)[0] == 4  # default to mid
     # Monotonic non-decreasing across bands (low <= mid <= high).
     assert svc.estimate_counts(3)[0] <= svc.estimate_counts(12)[0] <= svc.estimate_counts(30)[0]
+
+
+# --------------------------------------------------------------------------- #
+# parse_time_budget — deterministic fallback parser (prod 2026-06-06 fix)
+# --------------------------------------------------------------------------- #
+#
+# Arabic-numeral edge ("٥") is intentionally NOT covered: the codebase has no
+# Arabic-numeral / digit-folding handling anywhere (no isdigit/٠-٩ normaliser in
+# app/), so the parser is ASCII-digit only by design. Documented, not supported.
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_hours", "expected_sessions"),
+    [
+        # rate × duration → total (a month = 4 weeks).
+        ("5 hours a week for 4 weeks", 20, None),
+        ("5h/week over a month", 20, None),
+        ("2 hours per week for 6 weeks", 12, None),
+        ("2h/week over a month", 8, None),
+        ("3 hrs each week for 2 months", 24, None),
+        # rate × duration in DAYS.
+        ("1 hour a day for 30 days", 30, None),
+        ("2 hours a day for 10 days", 20, None),
+        # explicit total.
+        ("20 hours total", 20, None),
+        ("about 20 hours", 20, None),
+        ("20 hours over a month", 20, None),
+        ("I can do roughly 8 hrs", 8, None),
+        # BARE weekly rate, no duration → no total (schema has no session length).
+        ("about 5 hours a week", None, None),
+        ("5h/week", None, None),
+        ("a couple hours a week", None, None),  # no leading number → nothing
+        # sessions per week (count, not hours).
+        ("3 sessions a week", None, 3),
+        ("I can study 2 times per week", None, 2),
+        ("3x per week", None, 3),
+        # compound: total AND sessions in one sentence.
+        ("20 hours total, 3 sessions a week", 20, 3),
+        ("5 hours a week for 4 weeks, 2 sessions a week", 20, 2),
+        # nothing extractable.
+        ("I want to get better at React", None, None),
+        ("", None, None),
+        (None, None, None),
+        # bounds: absurd totals are rejected (schema is 1..2000).
+        ("9999 hours total", None, None),
+    ],
+)
+async def test_parse_time_budget_table(text, expected_hours, expected_sessions):
+    hours, sessions = svc.parse_time_budget(text)
+    assert hours == expected_hours
+    assert sessions == expected_sessions
+
+
+async def test_parse_time_budget_never_raises_on_garbage():
+    # Pathological inputs must degrade to (None, None), never raise.
+    for junk in ("hours hours hours", "for for for weeks", "....", "h/week/week"):
+        assert svc.parse_time_budget(junk) == (None, None)
+
+
+# --------------------------------------------------------------------------- #
+# Fallback wiring — fills only where the LLM left a gap, never overwrites
+# --------------------------------------------------------------------------- #
+
+
+async def test_take_turn_fallback_fills_time_budget_when_llm_misses(
+    db_session, make_user, monkeypatch
+):
+    """The weak-extractor repro: the LLM returns no time_budget, but the learner
+    clearly stated "20 hours total over 4 weeks" — the deterministic fallback
+    fills it so convergence isn't blocked and the turn isn't burned re-asking."""
+    _install_provider(
+        monkeypatch,
+        [
+            _reply("What's your level?"),
+            # LLM captured everything EXCEPT the time budget this turn.
+            _reply(
+                "Got it.",
+                level="beginner",
+                prior_knowledge="none",
+                desired_outcomes=["Build a CLI"],
+            ),
+        ],
+    )
+    user = await make_user()
+    brief, _ = await svc.start_session(db_session, user=user, goal="learn go")
+    await db_session.commit()
+
+    brief, _msg, converged = await svc.take_turn(
+        db_session,
+        user=user,
+        session_id=brief.id,
+        message="I'm a beginner, no experience, 20 hours total over 4 weeks, build a CLI",
+    )
+    await db_session.commit()
+    assert brief.time_budget_hours == 20  # filled by the regex fallback
+    assert converged is True  # all four required fields now present
+
+
+async def test_fallback_never_overwrites_llm_value(db_session, make_user, monkeypatch):
+    """The LLM is authoritative: a fallback parse must NOT clobber an LLM-extracted
+    time_budget_hours even when the reply text also contains a parseable number."""
+    _install_provider(
+        monkeypatch,
+        [
+            _reply("hi"),
+            _reply("ok", time_budget_hours=50),  # LLM says 50 ...
+        ],
+    )
+    user = await make_user()
+    brief, _ = await svc.start_session(db_session, user=user, goal="learn rust")
+    await db_session.commit()
+
+    brief, _msg, _c = await svc.take_turn(
+        db_session,
+        user=user,
+        session_id=brief.id,
+        message="10 hours total",  # ... text says 10 — must be ignored
+    )
+    await db_session.commit()
+    assert brief.time_budget_hours == 50  # LLM value preserved
+
+
+async def test_start_session_fallback_reads_opening_goal(db_session, make_user, monkeypatch):
+    """A budget stated in the opening goal is back-filled when the LLM misses it."""
+    _install_provider(monkeypatch, [_reply("What's your level?")])  # LLM extracts nothing
+    user = await make_user()
+
+    brief, _ = await svc.start_session(
+        db_session, user=user, goal="Learn Rust in about 30 hours total"
+    )
+    await db_session.commit()
+    assert brief.time_budget_hours == 30
+
+
+async def test_bare_weekly_rate_does_not_fill_total(db_session, make_user, monkeypatch):
+    """A bare 'N hours a week' (no duration) must NOT invent a total — convergence
+    should keep asking. This is the prod repro that re-asked the same question 3x;
+    we still don't fabricate a total (no session length in the schema), but we no
+    longer LOSE a genuine total/duration when it arrives."""
+    _install_provider(
+        monkeypatch,
+        [
+            _reply("hi"),
+            _reply("ok", level="beginner", prior_knowledge="none", desired_outcomes=["x"]),
+        ],
+    )
+    user = await make_user()
+    brief, _ = await svc.start_session(db_session, user=user, goal="learn go")
+    await db_session.commit()
+
+    brief, _msg, converged = await svc.take_turn(
+        db_session, user=user, session_id=brief.id, message="about 5 hours a week"
+    )
+    await db_session.commit()
+    assert brief.time_budget_hours is None  # no total invented
+    assert converged is False  # still missing the budget → keep asking
+
+
+# --------------------------------------------------------------------------- #
+# Prompt-content pins (grep-style): the extractor instructions exist + no re-ask
+# --------------------------------------------------------------------------- #
+
+
+async def test_system_prompt_pins_rate_times_duration_instruction():
+    prompt = svc._SYSTEM_PROMPT
+    # The rate × duration derivation instruction must be present (the core fix).
+    assert "N*M" in prompt
+    assert "for M weeks" in prompt
+    # Compound-sentence extraction instruction present.
+    assert "COMPOUND" in prompt
+    # Bare-rate handling: don't invent a total, ask for the duration.
+    assert "BARE weekly rate" in prompt
+
+
+async def test_user_prompt_tells_model_which_fields_filled_and_missing(
+    db_session, make_user, monkeypatch
+):
+    """No-re-ask layer: the per-turn prompt must list filled fields ('do not
+    re-ask') and the still-missing set ('ask about these')."""
+    prov = _install_provider(
+        monkeypatch,
+        [_reply("start", level="beginner"), _reply("next")],
+    )
+    user = await make_user()
+    brief, _ = await svc.start_session(db_session, user=user, goal="learn go")
+    await db_session.commit()
+
+    await svc.take_turn(db_session, user=user, session_id=brief.id, message="more")
+    await db_session.commit()
+
+    # Inspect the user message of the SECOND turn (after level was filled).
+    second_turn_msgs = prov.calls[-1]
+    user_msg = next(m.content for m in second_turn_msgs if m.role == "user")
+    assert "do not re-ask these" in user_msg
+    assert "level" in user_msg  # already-known level is surfaced
+    assert "Still missing (ask about these):" in user_msg
+    assert "time_budget_hours" in user_msg  # an actually-missing field is named

@@ -33,6 +33,7 @@ Design invariants:
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 
 import structlog
@@ -69,6 +70,7 @@ __all__ = [
     "estimate_counts",
     "finalize",
     "is_converged",
+    "parse_time_budget",
     "start_session",
     "take_turn",
     "to_draft",
@@ -119,7 +121,22 @@ _SYSTEM_PROMPT = (
     "'beginner'|'intermediate'|'advanced', prior_knowledge?: string, "
     "time_budget_hours?: int, sessions_per_week?: int, desired_outcomes?: "
     "[string], format_prefs?: object, language?: string, suggested_subject?: "
-    "string}. Put only the fields you learned THIS turn (plus assistant_message)."
+    "string}. Put only the fields you learned THIS turn (plus assistant_message).\n\n"
+    "EXTRACTING THE TIME BUDGET (important — do not re-ask once you can derive it):\n"
+    "- time_budget_hours is the TOTAL hours, not a weekly rate. When the learner "
+    "gives a RATE times a DURATION, MULTIPLY them: 'N hours a week for M weeks' => "
+    "time_budget_hours = N*M (e.g. '5 hours a week for 4 weeks' => 20; '2h/week over "
+    "a month' => 8, treating a month as 4 weeks). 'N hours a day for M days' => N*M.\n"
+    "- When the learner states a total directly ('20 hours total', 'about 20 hours', "
+    "'20 hours over a month'), set time_budget_hours = that total.\n"
+    "- A BARE weekly rate with NO duration ('about 5 hours a week') does NOT give you "
+    "a total. Record sessions_per_week if they mention a session/day count, set "
+    "time_budget_hours = null, and ask ONLY for how many weeks (or the total hours) "
+    "so you can finish the budget. Never re-ask the rate they already gave.\n"
+    "- COMPOUND replies often answer several fields at once ('I'm a beginner with no "
+    "Python, I have about 20 hours total over a month, and I want to build a CLI'): "
+    "pull EVERY field present (level, prior_knowledge, time_budget_hours, "
+    "desired_outcomes, ...) from one sentence — don't stop at the first."
 )
 
 
@@ -296,6 +313,155 @@ def _parse_update(raw: str) -> _BriefUpdate:
 
 
 # --------------------------------------------------------------------------- #
+# Deterministic time-budget fallback parser
+# --------------------------------------------------------------------------- #
+#
+# A weak LLM extractor burns clarification turns when it fails to capture
+# ``time_budget_hours`` from compound / rate×duration phrasing (prod 2026-06-06:
+# the user said "About 5 hours a week" twice and "20 hours total over 4 weeks"
+# before it stuck, and the tutor re-asked 3x). This pure regex pass recognises the
+# common hour patterns and fills ``time_budget_hours`` / ``sessions_per_week``
+# ONLY where the LLM left them null — it never overwrites an LLM-extracted value,
+# so the model stays authoritative and the fallback is a safety net, not a rival.
+#
+# Schema note: there is NO per-session hour length anywhere on the brief
+# (``sessions_per_week`` is a *count* of sessions, not hours). So a BARE weekly
+# rate ("5 hours a week") with no duration is deliberately NOT turned into a total
+# — we cannot derive one without inventing a session length the schema can't hold.
+# Convergence keeps asking for the total in that case (matches the prompt).
+#
+# Arabic-numeral edge ("٥"): the codebase has no Arabic-numeral / digit-folding
+# handling anywhere (no ``isdigit``/``٠-٩`` normalisation in app/), and the goal
+# text never round-trips through a number normaliser, so this parser stays
+# ASCII-digit only by design. See the test module's note.
+
+# A bare integer or simple decimal, e.g. "5", "2.5".
+_NUM = r"\d+(?:\.\d+)?"
+# Duration units → multiplier into weeks (a month is treated as 4 weeks, matching
+# the prompt). Used only to scale a weekly rate into a total.
+_WEEKS_PER_UNIT: dict[str, float] = {
+    "week": 1.0,
+    "wk": 1.0,
+    "month": 4.0,
+    "mo": 4.0,
+}
+
+# A duration count: a literal number, or the word "a"/"an" meaning 1
+# ("over a month" => 1 month). Captured as group; "a"/"an" → None → treated as 1.
+_DUR = rf"(?:({_NUM})|an?\b)"
+
+# "N hours a week for M weeks" / "N h/week over a month" → total = N * (M * weeks/unit).
+_RATE_TIMES_DURATION = re.compile(
+    rf"({_NUM})\s*(?:hours?|hrs?|h)\b"
+    r"(?:\s*(?:per|a|/|each|every))?\s*(?:week|wk)\b"
+    rf".*?(?:for|over|across|during|in)\s*(?:about\s*|around\s*|~\s*)?{_DUR}\s*"
+    r"(weeks?|wks?|months?|mos?)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# "N hours a day for M days" → total = N * M.
+_HOURS_PER_DAY_FOR_DAYS = re.compile(
+    rf"({_NUM})\s*(?:hours?|hrs?|h)\b"
+    r"(?:\s*(?:per|a|/|each|every))?\s*day\b"
+    rf".*?(?:for|over|across|during|in)\s*(?:about\s*|around\s*|~\s*)?{_DUR}\s*days?\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# An explicit TOTAL: "20 hours total", "20 hours over a month", "about 20 hours".
+# Excludes a trailing weekly/daily rate word so it never fires on a bare rate.
+_TOTAL_HOURS = re.compile(
+    rf"({_NUM})\s*(?:hours?|hrs?|h)\b"
+    r"(?!\s*(?:per|a|/|each|every)?\s*(?:week|wk|day))",
+    re.IGNORECASE,
+)
+
+# "3 sessions a week", "twice/2 times a week", "3x per week".
+_SESSIONS_PER_WEEK = re.compile(
+    rf"({_NUM})\s*(?:sessions?|times?|x)\b\s*(?:per|a|/|each|every)?\s*(?:week|wk)\b",
+    re.IGNORECASE,
+)
+
+
+def _to_int_hours(value: float) -> int | None:
+    """Round a derived hour total to a positive int inside the schema bounds."""
+    hours = round(value)
+    if hours < 1 or hours > 2_000:
+        return None
+    return hours
+
+
+def parse_time_budget(text: str | None) -> tuple[int | None, int | None]:
+    """Best-effort ``(time_budget_hours, sessions_per_week)`` from free text.
+
+    Pure function (no I/O) used as a deterministic fallback when the LLM extractor
+    misses a budget the learner clearly stated. Recognises, in priority order:
+
+    * ``"N hours a week for M weeks"`` / ``"N h/week over M months"`` → ``N*M`` total
+      (a month = 4 weeks);
+    * ``"N hours a day for M days"`` → ``N*M`` total;
+    * an explicit total (``"20 hours total"``, ``"20 hours over a month"``,
+      ``"about 20 hours"``);
+    * ``sessions_per_week`` from ``"3 sessions a week"`` / ``"twice a week"`` style.
+
+    A BARE weekly/daily rate with no duration yields ``time_budget_hours = None``
+    (the schema has no session length to multiply by) — only the
+    ``sessions_per_week`` count is returned in that case. Returns ``(None, None)``
+    when nothing matches. NEVER raises.
+    """
+    if not text:
+        return (None, None)
+    total: int | None = None
+
+    m = _RATE_TIMES_DURATION.search(text)
+    if m:
+        rate = float(m.group(1))
+        duration = float(m.group(2)) if m.group(2) else 1.0  # "a month" => 1
+        unit = m.group(3).rstrip("s").lower()
+        weeks = duration * _WEEKS_PER_UNIT.get(unit, 1.0)
+        total = _to_int_hours(rate * weeks)
+
+    if total is None:
+        m = _HOURS_PER_DAY_FOR_DAYS.search(text)
+        if m:
+            days = float(m.group(2)) if m.group(2) else 1.0
+            total = _to_int_hours(float(m.group(1)) * days)
+
+    if total is None:
+        m = _TOTAL_HOURS.search(text)
+        if m:
+            total = _to_int_hours(float(m.group(1)))
+
+    sessions: int | None = None
+    ms = _SESSIONS_PER_WEEK.search(text)
+    if ms:
+        n = round(float(ms.group(1)))
+        if 1 <= n <= 21:
+            sessions = n
+
+    return (total, sessions)
+
+
+def _apply_time_budget_fallback(update: _BriefUpdate, *, text: str | None) -> None:
+    """Fill ``time_budget_hours`` / ``sessions_per_week`` from ``text`` IFF the LLM
+    left them null. Mutates ``update`` in place; never overwrites an LLM value."""
+    if text is None:
+        return
+    if update.time_budget_hours is not None and update.sessions_per_week is not None:
+        return
+    hours, sessions = parse_time_budget(text)
+    if update.time_budget_hours is None and hours is not None:
+        update.time_budget_hours = hours
+        log.info(
+            "goal_elicitation_time_budget_fallback", feature=_FEATURE, field="time_budget_hours"
+        )
+    if update.sessions_per_week is None and sessions is not None:
+        update.sessions_per_week = sessions
+        log.info(
+            "goal_elicitation_time_budget_fallback", feature=_FEATURE, field="sessions_per_week"
+        )
+
+
+# --------------------------------------------------------------------------- #
 # Public service API
 # --------------------------------------------------------------------------- #
 
@@ -330,6 +496,9 @@ async def start_session(
     update = await _call_model(
         db, user_id=user.id, brief=brief, goal_text=goal, message=None, ctx=ctx
     )
+    # The opening goal may already state a budget ("…in 20 hours total over a
+    # month"); back-fill from it only where the LLM missed it.
+    _apply_time_budget_fallback(update, text=goal)
     _apply_updates(brief, update)
     brief.turns_used = 1
     await db.flush()
@@ -374,6 +543,10 @@ async def take_turn(
     update = await _call_model(
         db, user_id=user.id, brief=brief, goal_text=_decrypt_goal(brief), message=message, ctx=ctx
     )
+    # Back-fill the budget from the learner's reply only where the LLM missed it
+    # — the deterministic safety net that keeps a weak extractor from burning
+    # turns re-asking a budget the learner already stated (prod 2026-06-06).
+    _apply_time_budget_fallback(update, text=message)
     _apply_updates(brief, update)
     brief.turns_used += 1
     await db.flush()
