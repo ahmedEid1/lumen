@@ -8,8 +8,9 @@
  * badge (never a full key); and the NeedsAttentionBanner shows on
  * needs_attention/invalid.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { CredentialForm } from "@/components/byok/CredentialForm";
@@ -53,6 +54,24 @@ describe("CredentialForm", () => {
         name: "Fall back to the free platform model if my key fails",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("enables Save after a provider change + key fill without touching the model select (C1)", async () => {
+    // Live-observed P3: switching provider auto-selects the new provider's
+    // first/only model, but Radix Select fires onValueChange("") for the
+    // orphaned previous value and clobbered the controlled default, leaving
+    // Save dishonestly disabled until the model select was explicitly touched.
+    const user = userEvent.setup();
+    renderWithClient(<CredentialForm providers={PROVIDERS} />);
+
+    // Pick Groq (single model: llama-3.3-70b-versatile).
+    await user.click(screen.getByRole("combobox", { name: "Provider" }));
+    await user.click(await screen.findByRole("option", { name: "Groq" }));
+
+    // Fill the key but never open/touch the model select.
+    await user.type(screen.getByPlaceholderText("sk-…"), "sk-test-key");
+
+    expect(screen.getByRole("button", { name: "Save key" })).not.toBeDisabled();
   });
 
   it("has NO base_url / url / endpoint field anywhere", () => {

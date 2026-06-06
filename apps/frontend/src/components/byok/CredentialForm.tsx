@@ -34,6 +34,16 @@ export function CredentialForm({ providers }: { providers: LLMProvider[] }) {
     setModel(next?.models[0] ?? "");
   };
 
+  // When the provider switches, the previously-selected model item unmounts
+  // and Radix Select fires onValueChange("") for the now-orphaned value —
+  // which would clobber the first/only model we just default-selected and
+  // leave Save dishonestly disabled (C1). There is no empty model option a
+  // real user can pick, so an empty callback is always that stale reset:
+  // ignore it and keep the controlled default.
+  const onModelChange = (m: string) => {
+    if (m) setModel(m);
+  };
+
   const save = useMutation({
     mutationFn: () =>
       LLMCredentials.upsert(
@@ -64,7 +74,7 @@ export function CredentialForm({ providers }: { providers: LLMProvider[] }) {
         provider={provider}
         model={model}
         onProviderChange={onProviderChange}
-        onModelChange={setModel}
+        onModelChange={onModelChange}
       />
 
       <label className="grid gap-1.5 text-sm">
@@ -76,7 +86,7 @@ export function CredentialForm({ providers }: { providers: LLMProvider[] }) {
           placeholder="sk-…"
           aria-label={t("byok.apiKey")}
         />
-        <span className="text-xs text-muted-foreground">{t("byok.apiKey.writeOnly")}</span>
+        <span className="text-muted-foreground text-xs">{t("byok.apiKey.writeOnly")}</span>
       </label>
 
       <label className="flex items-center justify-between gap-3 text-sm">
