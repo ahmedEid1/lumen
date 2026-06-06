@@ -6,8 +6,8 @@
  * KEY ``"common.deletedUser"`` (a string, NOT null). The discussion pages
  * historically only handled ``author === null``, so a tombstoned (non-null)
  * author would paint the literal key. These specs lock in that BOTH the
- * list and the thread-detail surfaces resolve the tombstone to the
- * localized ``discussions.deletedUser`` label and never leak the raw key.
+ * list and the thread-detail surfaces resolve the tombstone to the shared
+ * localized ``common.deletedUser`` label and never leak the raw key.
  */
 
 import { Suspense } from "react";
@@ -88,7 +88,7 @@ describe("Discussions list — tombstoned author (S7 F2)", () => {
     );
 
     expect(await screen.findByText("Big-O analysis")).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(en["discussions.deletedUser"]))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(en["common.deletedUser"]))).toBeInTheDocument();
     // The raw i18n key must never reach the DOM.
     expect(screen.queryByText(new RegExp(TOMBSTONE))).not.toBeInTheDocument();
   });
@@ -124,9 +124,9 @@ describe("Thread detail — tombstoned author (S7 F2)", () => {
     );
 
     expect(await screen.findByText("Big-O analysis")).toBeInTheDocument();
-    // Two surfaces (opening post + reply) both show the localized label.
+    // Two surfaces (opening post + reply) both show the shared localized label.
     await waitFor(() =>
-      expect(screen.getAllByText(en["discussions.deletedUser"]).length).toBe(2),
+      expect(screen.getAllByText(en["common.deletedUser"]).length).toBe(2),
     );
     expect(screen.queryByText(new RegExp(TOMBSTONE))).not.toBeInTheDocument();
   });

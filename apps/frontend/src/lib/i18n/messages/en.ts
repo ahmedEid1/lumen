@@ -299,7 +299,6 @@ export const en = {
   "discussions.threadCountOne": "{n} thread",
   "discussions.empty": "No threads yet. Start the conversation above.",
   "discussions.emptyAnon": "No threads yet. Sign in to start the conversation.",
-  "discussions.deletedUser": "Deleted user",
 
   // Error / Not-found pages
   "errorPage.cartouche": "Error",

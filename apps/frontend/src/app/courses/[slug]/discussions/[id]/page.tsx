@@ -65,11 +65,12 @@ export default function ThreadPage({
   // S7 Gate-B F2: a tombstoned author serializes through UserPublic with
   // `full_name` set to the i18n KEY "common.deletedUser" (not null), so a
   // bare `author?.full_name ?? t(...)` fallback only catches author === null
-  // and would paint the raw key. Resolve BOTH cases to the localized label
-  // (mirrors course-card.tsx). Keep the existing discussions.deletedUser key.
+  // and would paint the raw key. Resolve BOTH cases to the shared localized
+  // label (mirrors course-card.tsx). "a deleted user · 4m ago" reads fine
+  // in this lowercase muted meta row — no capitalize transform needed.
   const authorName = (author: Author) =>
     !author || author.full_name === "common.deletedUser"
-      ? t("discussions.deletedUser")
+      ? t("common.deletedUser")
       : author.full_name;
 
   const threadQ = useQuery({
