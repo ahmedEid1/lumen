@@ -631,10 +631,10 @@ export const en = {
   "studioNew.successToast": "Course created",
   "studioNew.error": "Could not create course",
 
-  // Studio root — instructor studio
+  // Studio root — authoring workspace (everyone authors in the two-role model)
   "studio.cartouche": "Studio",
   "studio.filterAria": "Filter courses by status",
-  "studio.title": "Instructor studio",
+  "studio.title": "Studio",
   "studio.subtitle": "Manage your courses and content.",
   "studio.newCourse": "New course",
   "studio.filter.all": "All",

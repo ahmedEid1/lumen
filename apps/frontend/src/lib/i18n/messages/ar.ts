@@ -637,10 +637,10 @@ export const ar: Record<MessageKey, string> = {
   "studioNew.successToast": "تم إنشاء الدورة",
   "studioNew.error": "تعذّر إنشاء الدورة",
 
-  // Studio root — ورشة المدرّس
+  // Studio root — الاستوديو (everyone authors in the two-role model)
   "studio.cartouche": "الاستوديو",
   "studio.filterAria": "تصفية الدورات حسب الحالة",
-  "studio.title": "ورشة المدرّس",
+  "studio.title": "الاستوديو",
   "studio.subtitle": "أدر دوراتك ومحتواها.",
   "studio.newCourse": "دورة جديدة",
   "studio.filter.all": "الكل",
