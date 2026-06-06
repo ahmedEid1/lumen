@@ -267,11 +267,16 @@ export const Admin = {
     }),
 
   // -- User management (S6.6/S6.7)
-  users: (params: { q?: string; limit?: number } = {}, token?: string) => {
+  // Returns the repo-standard offset+page envelope `Page<UserAdminOut>`,
+  // mirroring `GET /api/v1/admin/users` in backend admin.py (`response_model=
+  // Page[UserAdminOut]`). The earlier bare-`UserAdminOut[]` + `limit` shape
+  // drifted from admin.py and painted empty rows on /admin/users (W11 F6).
+  users: (params: { q?: string; page?: number; page_size?: number } = {}, token?: string) => {
     const qs = new URLSearchParams();
-    qs.set("limit", String(params.limit ?? 200));
     if (params.q) qs.set("q", params.q);
-    return api<UserAdminOut[]>(`/api/v1/admin/users?${qs}`, { token });
+    if (params.page !== undefined) qs.set("page", String(params.page));
+    qs.set("page_size", String(params.page_size ?? 50));
+    return api<Page<UserAdminOut>>(`/api/v1/admin/users?${qs}`, { token });
   },
   setAdmin: (id: string, isAdmin: boolean, token?: string) =>
     api<UserAdminOut>(`/api/v1/admin/users/${id}/admin`, {

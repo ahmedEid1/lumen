@@ -73,7 +73,11 @@ export default function AdminUsersPage() {
     onError: (e: Error) => toast.error(e?.message ?? t("adminUsers.toggleError")),
   });
 
-  const rows = usersQ.data ?? [];
+  // `Admin.users` returns the offset+page envelope `Page<UserAdminOut>`
+  // (mirrors backend admin.py `response_model=Page[UserAdminOut]`); the rows
+  // live under `.items`. Reading `usersQ.data` directly here painted empty
+  // rows when the wire shape became an envelope (W11 F6).
+  const rows = usersQ.data?.items ?? [];
 
   return (
     <div className="container mx-auto max-w-6xl px-6 py-14">

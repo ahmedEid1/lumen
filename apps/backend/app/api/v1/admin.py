@@ -20,7 +20,7 @@ from app.models.user import Role, User
 from app.repositories import audit as audit_repo
 from app.repositories import courses as courses_repo
 from app.repositories import moderation as moderation_repo
-from app.schemas.common import OkResponse
+from app.schemas.common import OkResponse, Page
 from app.schemas.course import CourseListItem, SubjectOut, TagOut
 from app.services import admin_users as admin_users_service
 from app.services import moderation as moderation_service
@@ -215,19 +215,37 @@ class UserActiveUpdate(BaseModel):
     is_active: bool
 
 
-@router.get("/users", response_model=list[UserAdminOut])
+@router.get("/users", response_model=Page[UserAdminOut])
 async def list_users(
     _: RequireAdmin,
     db: DBSession,
     q: str | None = Query(default=None, max_length=200),
-    limit: int = Query(default=50, ge=1, le=200),
-) -> list[UserAdminOut]:
-    stmt = select(User).order_by(desc(User.created_at)).limit(limit)
+    page: int = Query(default=1, ge=1, le=10_000),
+    page_size: int = Query(default=50, ge=1, le=100),
+) -> Page[UserAdminOut]:
+    """List users for the admin console (FR-ADMIN-01).
+
+    Returns the repo-standard offset+page envelope (``Page[UserAdminOut]``,
+    see ``Page`` in ``app.schemas.common``) — same shape the catalog list uses.
+    The previous bare-``list`` + ``limit`` shape drifted from that convention
+    and from the frontend hook, which painted empty rows (W11 F6). The
+    ``order_by(created_at desc)`` is stable for pagination; ``q`` filters
+    email/full_name and is applied to both the count and the page slice.
+    """
+    base = select(User)
     if q:
         like = f"%{q}%"
-        stmt = stmt.where((User.email.ilike(like)) | (User.full_name.ilike(like)))
+        base = base.where((User.email.ilike(like)) | (User.full_name.ilike(like)))
+
+    total = await _scalar_count(db, select(func.count()).select_from(base.subquery()))
+    stmt = (
+        base.order_by(desc(User.created_at))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
     rows = (await db.execute(stmt)).scalars().all()
-    return [UserAdminOut.model_validate(u) for u in rows]
+    items = [UserAdminOut.model_validate(u) for u in rows]
+    return Page(items=items, total=total, page=page, page_size=page_size)
 
 
 @router.patch("/users/{user_id}/role", response_model=UserAdminOut)

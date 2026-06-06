@@ -17,7 +17,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { en } from "@/lib/i18n/messages/en";
 import * as endpoints from "@/lib/api/endpoints";
-import type { UserAdminOut } from "@/lib/api/types";
+import type { Page, UserAdminOut } from "@/lib/api/types";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -66,8 +66,18 @@ const OTHER_USER: UserAdminOut = {
   last_login_at: null,
 };
 
+// CONTRACT PIN (W11 F6): this mock MUST mirror the REAL wire shape of
+// `GET /api/v1/admin/users` as defined in backend admin.py — i.e. the
+// offset+page envelope `Page<UserAdminOut>` (`{ items, total, page, page_size }`),
+// NOT a bare array. The previous bare-array mock masked the contract drift and
+// let the page paint empty rows in the live walk. If admin.py's response_model
+// changes, update this fixture to match.
+function usersPage(items: UserAdminOut[]): Page<UserAdminOut> {
+  return { items, total: items.length, page: 1, page_size: 50 };
+}
+
 beforeEach(() => {
-  vi.spyOn(endpoints.Admin, "users").mockResolvedValue([SELF, OTHER_USER]);
+  vi.spyOn(endpoints.Admin, "users").mockResolvedValue(usersPage([SELF, OTHER_USER]));
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -80,6 +90,20 @@ function rowFor(name: string) {
 }
 
 describe("AdminUsersPage toggle (S6.11)", () => {
+  it("renders a populated row per user from the Page envelope (W11 F6 regression)", async () => {
+    renderPage();
+    // Both users' identifying cells paint — the empty-rows bug returned blank
+    // cells while the envelope `.items` were silently dropped.
+    await waitFor(() => expect(screen.getByText("Me Admin")).toBeInTheDocument());
+    expect(screen.getByText("admin@lumen.test")).toBeInTheDocument();
+    expect(screen.getByText("Learner Two")).toBeInTheDocument();
+    expect(screen.getByText("learner@lumen.test")).toBeInTheDocument();
+    // The cells render real content, not blanks: each row exposes its actions.
+    const other = rowFor("Learner Two");
+    expect(other.getByRole("button", { name: en["adminUsers.grantAdmin"] })).toBeInTheDocument();
+    expect(other.getByRole("button", { name: en["adminUsers.suspend"] })).toBeInTheDocument();
+  });
+
   it("disables the current admin's own-row grant/revoke + suspend controls", async () => {
     renderPage();
     await waitFor(() => expect(screen.getByText("Me Admin")).toBeInTheDocument());
