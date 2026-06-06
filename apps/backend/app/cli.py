@@ -20,9 +20,11 @@ from app.models.course import (
     Enrollment,
     Lesson,
     LessonType,
+    ModerationState,
     Module,
     Subject,
     Tag,
+    Visibility,
 )
 from app.models.user import Role, User
 
@@ -185,6 +187,14 @@ async def _seed() -> None:
                 difficulty=Difficulty.beginner,
                 cover_url=None,
                 status=CourseStatus.published,  # noqa: published-check — seed write
+                # Seed the FULL publicly-listed state (R-C1′ /
+                # app.services.visibility.is_publicly_listed): a fresh stack has
+                # no S2 backfill migration to upgrade legacy rows, so the seed
+                # must mirror what moderation.approve_course writes — visibility
+                # public + moderation_state approved — or the course is
+                # existence-hidden from the anonymous catalog (404).
+                visibility=Visibility.public,
+                moderation_state=ModerationState.approved,
                 published_at=datetime.now(UTC),
                 is_featured=True,
             )

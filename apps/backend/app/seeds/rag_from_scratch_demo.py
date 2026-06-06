@@ -25,9 +25,11 @@ from app.models.course import (
     Difficulty,
     Lesson,
     LessonType,
+    ModerationState,
     Module,
     Subject,
     Tag,
+    Visibility,
 )
 from app.models.user import User
 
@@ -345,6 +347,13 @@ async def apply(
         ],
         difficulty=Difficulty.intermediate,
         status=CourseStatus.published,  # noqa: published-check — seed write
+        # Seed the FULL publicly-listed state (R-C1′ /
+        # app.services.visibility.is_publicly_listed) — mirrors
+        # moderation.approve_course (visibility public + moderation_state
+        # approved). Without it a fresh stack (no S2 backfill migration)
+        # existence-hides this published course (404).
+        visibility=Visibility.public,
+        moderation_state=ModerationState.approved,
         published_at=datetime.now(UTC),
         is_featured=True,
     )

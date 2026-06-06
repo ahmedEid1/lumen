@@ -63,9 +63,11 @@ from app.models.course import (
     Lesson,
     LessonProgress,
     LessonType,
+    ModerationState,
     Module,
     Subject,
     Tag,
+    Visibility,
 )
 from app.models.course_draft_trace import (
     DRAFT_STATUS_OK,
@@ -268,6 +270,13 @@ async def _ensure_course(
         difficulty=spec["difficulty"],
         cover_url=_cover(spec["slug"]),
         status=CourseStatus.published,  # noqa: published-check — seed write
+        # Seed the FULL publicly-listed state (R-C1′ /
+        # app.services.visibility.is_publicly_listed) — mirrors
+        # moderation.approve_course (visibility public + moderation_state
+        # approved). Without it a fresh stack (no S2 backfill migration)
+        # existence-hides these published catalog courses (404).
+        visibility=Visibility.public,
+        moderation_state=ModerationState.approved,
         published_at=datetime.now(UTC),
         is_featured=False,
     )
@@ -1108,6 +1117,19 @@ async def _enrich_fastapi_course(db: AsyncSession) -> Course | None:
             "Wire AsyncSession through Depends without leaking sessions",
             "Ship a first endpoint with OpenAPI documented for free",
         ]
+    # Upgrade path: a dev DB seeded by an older base seed has this course at
+    # status=published but visibility=private / moderation_state=none (the
+    # column defaults), which existence-hides it on a stack lacking the S2
+    # backfill migration. Promote it to the FULL publicly-listed state (R-C1′)
+    # ONLY while it still sits at those defaults, so an admin's intentional
+    # unlist/private is never clobbered.
+    if (
+        course.status == CourseStatus.published  # noqa: published-check — seed write
+        and course.visibility == Visibility.private
+        and course.moderation_state == ModerationState.none
+    ):
+        course.visibility = Visibility.public
+        course.moderation_state = ModerationState.approved
     return course
 
 
