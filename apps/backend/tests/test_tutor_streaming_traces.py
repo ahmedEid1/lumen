@@ -26,8 +26,10 @@ Contract under test (mirrors the non-streaming vocabulary so
 
 DB-backed like test_tutor_streaming_message_persistence.py: the worker's
 ``make_worker_engine`` resolves to the transient test DB; only the
-Redis/cost seams are patched. ``run_retriever`` runs REAL against an
-(empty) course — it records its trace row regardless of hit count.
+Redis/cost seams are patched. ``run_retriever`` is stubbed — real
+retrieval embeds the query, which raises (suppressed) on runners with
+no embedding credentials and silently drops the retriever drill-down
+row; the retriever's own behaviour has its own test coverage.
 """
 
 from __future__ import annotations
@@ -52,6 +54,7 @@ from app.models.course import (
 from app.models.llm_call import LLMCall
 from app.models.tutor_conversation import TutorConversation
 from app.services import learner_traces as learner_traces_service
+from app.services.tutor_subagents.retriever import RetrieverChunk, RetrieverResult
 from app.services.tutor_turn_service import create_turn
 from app.workers.tasks import tutor_streaming
 
@@ -115,6 +118,25 @@ async def _seed_turn(db_session: AsyncSession, make_user) -> tuple[str, str, str
     return turn.id, conv.id, course.id, user.id
 
 
+def _stub_retriever(monkeypatch) -> None:
+    """Deterministic retrieval: one chunk, one citation, a note."""
+    chunk = RetrieverChunk(
+        lesson_id="lsn_trace_1",
+        lesson_title="Tracing 101",
+        text="Retrieval bounds the citation universe by construction.",
+        score=0.0,
+    )
+    monkeypatch.setattr(
+        tutor_streaming,
+        "run_retriever",
+        AsyncMock(
+            return_value=RetrieverResult(
+                chunks=[chunk], citations=["lsn_trace_1"], note="found 1 chunk(s)"
+            )
+        ),
+    )
+
+
 def _stub_stream_factory():
     async def _stub_stream(**_kw):
         yield {"event": "planner_start", "data": {"model": "stub-model", "route": "stream"}}
@@ -139,6 +161,7 @@ async def test_streamed_turn_records_multi_agent_trace_steps(
     db_session: AsyncSession, make_user, monkeypatch
 ) -> None:
     turn_id, _conv_id, _course_id, user_id = await _seed_turn(db_session, make_user)
+    _stub_retriever(monkeypatch)
     monkeypatch.setattr(tutor_streaming, "orchestrate_stream", _stub_stream_factory())
     emitted: list[dict] = []
     _patch_redis_seams(monkeypatch, emitted)
@@ -177,6 +200,7 @@ async def test_streamed_success_llm_row_is_multi_agent_synth(
     db_session: AsyncSession, make_user, monkeypatch
 ) -> None:
     turn_id, _conv_id, _course_id, user_id = await _seed_turn(db_session, make_user)
+    _stub_retriever(monkeypatch)
     monkeypatch.setattr(tutor_streaming, "orchestrate_stream", _stub_stream_factory())
     emitted: list[dict] = []
     _patch_redis_seams(monkeypatch, emitted)
@@ -246,6 +270,7 @@ async def test_drilldown_service_returns_streamed_timeline_and_totals(
     fetch_tutor_turn_trace must surface the streamed turn's steps and
     real totals once the worker stamps the multi_agent namespace."""
     turn_id, conv_id, _course_id, user_id = await _seed_turn(db_session, make_user)
+    _stub_retriever(monkeypatch)
     monkeypatch.setattr(tutor_streaming, "orchestrate_stream", _stub_stream_factory())
     emitted: list[dict] = []
     _patch_redis_seams(monkeypatch, emitted)
