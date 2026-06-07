@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Notifications are now feature-complete: delete, clear, mark-unread,
+  a full inbox page, and an accurate badge.** Per-row kebab actions
+  (delete, read/unread toggle) on an accessible row (real
+  button/anchor + sibling menu — no more mouse-only clickable `<li>`);
+  "Clear read" bulk action behind a confirm dialog (`POST /clear`,
+  default scope spares unread rows); a cursor-paged `/notifications`
+  inbox (`GET /inbox`, keyset `(created_at, id)`) with an All/Unread
+  server-side filter and "Load older" — history past the bell's
+  newest-50 cap is finally reachable; the bell badge now polls a cheap
+  `GET /unread-count` (typed, partial-index-backed, accurate past 50)
+  and fetches the list only while open; optimistic updates with
+  rollback across all notification caches; per-kind icons with a
+  distinct warning tone for `security.*`/`account.*`; a polite SR live
+  region announces new arrivals; en+ar throughout. A daily retention
+  prune (read rows older than `NOTIFICATION_RETENTION_DAYS`, default
+  90d) finally bounds the table. ADR-0031 records the decisions
+  (hard-delete, security rows deletable — the audit log is the system
+  of record, digest stamped via race-tolerant UPDATE).
+
+### Fixed
+
+- **The notification prefs form is now driven by the server's kind
+  list** — `course_cloned` had been firing in prod while the hardcoded
+  form list silently hid it from the prefs UI (and its deep link was
+  dead in the bell; both fixed, future kinds degrade gracefully).
+
 ### Changed
 
 - **README redesigned around fresh production evidence.** New hook +

@@ -27,6 +27,7 @@ import type {
   UserAdminOut,
   UserOut,
 } from "@/lib/api/types";
+import type { NotificationInboxPage } from "@/lib/notifications";
 
 // ---------- Auth ----------
 export const Auth = {
@@ -343,6 +344,34 @@ export const Me = {
       method: "POST",
       token,
     }),
+  // Notifications batch — cheap badge count (accurate past the bare list's
+  // newest-50 cap), cursor-paged inbox, and the management mutations.
+  notificationUnreadCount: (token?: string) =>
+    api<{ unread_count: number }>("/api/v1/me/notifications/unread-count", { token }),
+  notificationsInbox: (
+    params: { cursor?: string | null; limit?: number; unread?: boolean },
+    token?: string,
+  ) => {
+    const q = new URLSearchParams();
+    if (params.cursor) q.set("cursor", params.cursor);
+    if (params.limit) q.set("limit", String(params.limit));
+    if (params.unread) q.set("unread", "true");
+    const qs = q.toString();
+    return api<NotificationInboxPage>(
+      `/api/v1/me/notifications/inbox${qs ? `?${qs}` : ""}`,
+      { token },
+    );
+  },
+  deleteNotification: (id: string, token?: string) =>
+    api<{ ok: true }>(`/api/v1/me/notifications/${id}`, { method: "DELETE", token }),
+  markNotificationUnread: (id: string, token?: string) =>
+    api<{ ok: true }>(`/api/v1/me/notifications/${id}/unread`, { method: "POST", token }),
+  clearNotifications: (scope: "read" | "all" = "read", token?: string) =>
+    api<{ ok: true; deleted: number }>("/api/v1/me/notifications/clear", {
+      method: "POST",
+      body: { scope },
+      token,
+    }),
   // Phase D4 — per-kind notification dispatch prefs.
   notificationPrefs: {
     get: (token?: string) =>
@@ -455,7 +484,10 @@ export type NotificationKind =
   | "review_received"
   | "chat_mention"
   | "security"
-  | "discussion_reply";
+  | "discussion_reply"
+  // FR-CLONE-19 — fires to the origin owner on clone; was missing here,
+  // which silently dropped it from the prefs form (P2.8 drift fix).
+  | "course_cloned";
 
 export type NotificationDispatch =
   | "off"

@@ -40,6 +40,9 @@ celery = Celery(
         # S3.10 — define-and-build orphan/unfinalized sweeps. Idempotent against
         # an empty/no-orphan state; the beat entries below run unconditionally.
         "app.workers.tasks.define_sweep",
+        # Notifications batch — daily retention prune of read rows older
+        # than NOTIFICATION_RETENTION_DAYS (90d default). Idempotent.
+        "app.workers.tasks.notifications_prune",
     ],
 )
 
@@ -115,6 +118,15 @@ celery.conf.beat_schedule = {
     "define-sweep-unfinalized-briefs": {
         "task": "define.sweep_unfinalized_briefs.v1",
         "schedule": crontab(hour="4", minute="35"),
+    },
+    # Notifications batch — retention prune of READ rows older than
+    # NOTIFICATION_RETENTION_DAYS (unread rows are never pruned; digest-
+    # pending rows are unread by definition, so no digest race exists).
+    # 03:30 UTC sits in the existing off-peak sweep window, safely before
+    # the 07:00 digest tick.
+    "prune-notifications": {
+        "task": "app.workers.tasks.notifications_prune.prune_notifications",
+        "schedule": crontab(hour="3", minute="30"),
     },
 }
 

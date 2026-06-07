@@ -356,6 +356,13 @@ class Settings(BaseSettings):
     orphan_build_draft_retention_days: int = 30
     unfinalized_brief_retention_days: int = 30
 
+    # Notifications retention: a READ notification older than this is
+    # hard-deleted by the daily ``prune_notifications`` beat task. Unread
+    # rows are kept regardless of age (they may still be actionable, and
+    # digest-pending rows are by definition unread — the prune can never
+    # race the 07:00 digest). Env: NOTIFICATION_RETENTION_DAYS.
+    notification_retention_days: int = 90
+
     # ---------- S6.6 — Legacy /role write policy (FR-ADMIN-02) ----------
     # During the role-collapse migration window the ``/admin/users/{id}/role``
     # endpoint NORMALIZES a stale ``student``/``instructor`` write to ``user``

@@ -215,6 +215,28 @@ test.describe("WCAG 2.2 AA — authenticated routes", () => {
     await expectNoAxeViolations(page);
   });
 
+  // Notifications batch — the inbox page and the bell popover (open) are
+  // axe-gated because the rows are the project's first list with embedded
+  // per-row menus: a real button/anchor nav control + sibling kebab, never
+  // actions nested in a clickable container (nested-interactive is exactly
+  // the class of violation axe would flag here).
+  test("notifications inbox page", async ({ page }) => {
+    await signIn(page, "student@lumen.test", "Learn!2026");
+    await page.goto("/notifications");
+    await expect(
+      page.getByRole("heading", { name: /Notifications/i }),
+    ).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    await expectNoAxeViolations(page);
+  });
+
+  test("notifications bell popover (open)", async ({ page }) => {
+    await signIn(page, "student@lumen.test", "Learn!2026");
+    await page.getByRole("button", { name: /notifications/i }).click();
+    await expect(page.getByRole("link", { name: /view all/i })).toBeVisible();
+    await expectNoAxeViolations(page);
+  });
+
   test("instructor studio", async ({ page }) => {
     await signIn(page, "teacher@lumen.test", "Teach!2026");
     await page.goto("/studio");

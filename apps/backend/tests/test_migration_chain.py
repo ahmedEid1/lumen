@@ -144,7 +144,10 @@ def test_release_window_phase_a_revisions_precede_first_gated_boundary(script_di
     while the code that references its schema ships immediately."""
     from app.db.migration_phase_guard import is_phase_gated
 
-    _RELEASE_ANCHOR = "0033"
+    # Post-2.0.0 window: the 0033…0043 two-role chain shipped to prod in the
+    # 2.0.0 stop-the-world deploy (c212b3c), so the window re-anchors at the
+    # first post-release revision (0053, notifications batch).
+    _RELEASE_ANCHOR = "0053"
     ordered = list(reversed(list(script_dir.walk_revisions())))  # base → head
     revs = [s.revision for s in ordered]
     window = ordered[revs.index(_RELEASE_ANCHOR) :]

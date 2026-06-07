@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, String
+from sqlalchemy import DateTime, ForeignKey, Index, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,7 +32,19 @@ class NotificationKind(StrEnum):
 
 class Notification(IdMixin, TimestampMixin, Base):
     __tablename__ = "notifications"
-    __table_args__ = (Index("ix_notifications_user_id_created", "user_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_notifications_user_id_created", "user_id", "created_at"),
+        # 0053 — partial unread index. The badge COUNT and the inbox
+        # ``unread=true`` filter both predicate on ``read_at IS NULL``; a
+        # partial index is tiny (unread rows only) and exactly matches that
+        # predicate. NOT a return of the full ``(user_id, read_at)`` index
+        # 0008 deliberately dropped — back then nothing filtered on read_at.
+        Index(
+            "ix_notifications_user_unread",
+            "user_id",
+            postgresql_where=text("read_at IS NULL"),
+        ),
+    )
 
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     kind: Mapped[NotificationKind] = mapped_column(String(40), nullable=False)

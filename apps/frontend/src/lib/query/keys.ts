@@ -14,6 +14,13 @@ export const qk = {
   enrollments: ["me", "enrollments"] as const,
   myCourses: ["me", "my-courses"] as const,
   notifications: ["me", "notifications"] as const,
+  // Notifications batch — the badge COUNT (60s poll) and the cursor-paged
+  // inbox live under the same ["me","notifications"] prefix so the existing
+  // prefix-invalidation on any notification mutation catches all three
+  // caches (bare list, count, inbox) in one call. Callers append the
+  // viewer id (and the inbox its unread-filter) to scope per identity.
+  notificationsCount: ["me", "notifications", "count"] as const,
+  notificationsInbox: ["me", "notifications", "inbox"] as const,
   reviewsQueue: ["me", "reviews", "queue"] as const,
   reviewsStats: ["me", "reviews", "stats"] as const,
   mastery: ["me", "mastery"] as const,

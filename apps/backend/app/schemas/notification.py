@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class NotificationOut(BaseModel):
@@ -26,3 +26,37 @@ class NotificationOut(BaseModel):
     data: dict[str, Any]
     created_at: datetime
     read_at: datetime | None = None
+
+
+class MarkAllReadResult(BaseModel):
+    """Typed replacement for the old ``response_model=dict`` on read-all.
+
+    Wire payload is unchanged (``{ok, marked_read}``) — this only gives the
+    OpenAPI contract (and the generated TS client) a real named shape.
+    """
+
+    ok: bool = True
+    marked_read: int
+
+
+class ClearRequest(BaseModel):
+    """Bulk-clear scope. ``read`` (default) deletes only rows already read;
+    ``all`` is the explicit opt-in that also destroys unread rows."""
+
+    scope: Literal["read", "all"] = "read"
+
+
+class ClearResult(BaseModel):
+    ok: bool = True
+    deleted: int
+
+
+class UnreadCountOut(BaseModel):
+    """Cheap badge payload — one COUNT, no row hydration.
+
+    The bell polls this every 60s instead of pulling 50 full rows; it is
+    also the only badge source that stays accurate past the newest-50 cap
+    of the bare list endpoint.
+    """
+
+    unread_count: int = Field(ge=0)

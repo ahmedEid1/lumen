@@ -21,7 +21,7 @@ import asyncio
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -124,9 +124,17 @@ async def _run_digests(db: AsyncSession) -> int:
             # Leave rows un-stamped so the next run retries.
             continue
 
-        for n in pending:
-            n.digested_at = now
-        await db.flush()
+        # Statement-level UPDATE rather than ORM attribute mutation: the
+        # user can now hard-delete a notification (delete/clear endpoints)
+        # between our SELECT and this stamp, and an ORM flush over a
+        # vanished row raises StaleDataError — an UPDATE that matches 0
+        # rows is simply a no-op for that row. Last writer wins, both
+        # paths stay best-effort (no cross-transaction locking).
+        await db.execute(
+            update(Notification)
+            .where(Notification.id.in_([n.id for n in pending]))
+            .values(digested_at=now)
+        )
         sent += 1
         log.info(
             "digest_sent",

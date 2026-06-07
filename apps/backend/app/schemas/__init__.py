@@ -26,11 +26,19 @@ from app.schemas.course import (
     SubjectOut,
     TagOut,
 )
-from app.schemas.notification import NotificationOut
+from app.schemas.notification import (
+    ClearRequest,
+    ClearResult,
+    MarkAllReadResult,
+    NotificationOut,
+    UnreadCountOut,
+)
 from app.schemas.upload import PresignRequest, PresignResponse
 from app.schemas.user import UserOut, UserPublic, UserUpdate
 
 __all__ = [
+    "ClearRequest",
+    "ClearResult",
     "CourseCreate",
     "CourseDetail",
     "CourseListItem",
@@ -44,6 +52,7 @@ __all__ = [
     "LessonOut",
     "LessonUpdate",
     "LoginRequest",
+    "MarkAllReadResult",
     "ModuleCreate",
     "ModuleOut",
     "ModuleUpdate",
@@ -62,6 +71,7 @@ __all__ = [
     "SubjectOut",
     "TagOut",
     "TokenResponse",
+    "UnreadCountOut",
     "UserOut",
     "UserPublic",
     "UserUpdate",

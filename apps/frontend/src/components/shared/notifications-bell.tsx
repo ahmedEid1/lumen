@@ -1,116 +1,108 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { api, ApiError } from "@/lib/api/client";
+import { Me } from "@/lib/api/endpoints";
+import { type NotificationItem } from "@/lib/notifications";
+import {
+  NotificationRow,
+  useNotificationActions,
+} from "@/components/shared/notification-row";
 import { qk } from "@/lib/query/keys";
-import { formatRelative } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 
-type Notification = {
-  id: string;
-  kind: string;
-  title: string;
-  body: string;
-  data: Record<string, unknown>;
-  created_at: string;
-  read_at: string | null;
-};
-
 // Mirrors the backend cap in notifications_repo.list_for_user (limit=50).
-// The endpoint exposes no paging param, so when the list is full there may
-// be older notifications the bell can't reach — surface that instead of
-// truncating silently. (A paginated "view all" + coalescing of repeated
-// security alarms are tracked as propose-only in docs/qa-loop/STATUS.md.)
+// The popover shows the newest 50; everything older is reachable on the
+// /notifications inbox page (cursor-paged), linked from the footer.
 const NOTIF_CAP = 50;
-
-/** Map a notification to a deep-link URL using its kind + data payload. */
-function targetHref(n: Notification): string | null {
-  const d = n.data || {};
-  switch (n.kind) {
-    case "enrolled":
-    case "lesson_available":
-      return d.course_id ? `/courses/${d.course_id}` : null;
-    case "certificate_ready":
-      return d.course_id ? `/courses/${d.course_id}` : null;
-    case "review_received":
-      return d.course_id
-        ? `/courses/${d.course_id}#reviews`
-        : null;
-    case "discussion_reply":
-      return d.discussion_id && d.course_id
-        ? `/courses/${d.course_id}/discussions/${d.discussion_id}`
-        : null;
-    default:
-      return null;
-  }
-}
 
 export function NotificationsBell() {
   const [open, setOpen] = useState(false);
-  const qc = useQueryClient();
+  const [confirmClear, setConfirmClear] = useState(false);
   const router = useRouter();
   const t = useT();
   const { user } = useAuth();
   // The bell only mounts for a signed-in user, but the session can lapse
   // while it stays mounted (the access cookie expires; the auth store's
   // `user` hasn't been refreshed yet). Without a brake the 60s poller then
-  // hammers `/me/notifications` with 401s forever. So: tie polling to the
-  // auth-state signal the rest of the app uses (`user`), and once a 401 is
-  // observed, freeze the poller until the auth identity changes again.
-  // `user?.id` is the dependency — a fresh login (or account switch) flips
-  // it and re-arms the query; a plain re-render does not.
+  // hammers the API with 401s forever. So: tie polling to the auth-state
+  // signal the rest of the app uses (`user`), and once a 401 is observed,
+  // freeze the poller until the auth identity changes again. `user?.id` is
+  // the dependency — a fresh login (or account switch) flips it and re-arms
+  // the query; a plain re-render does not.
   const userId = user?.id ?? null;
-  const q = useQuery({
-    // Scope the cache (and its error state) to the current identity. On a
-    // fresh login `userId` changes, so the query gets a clean entry instead
-    // of inheriting the previous session's stuck 401. The notification
-    // mutations invalidate by the `qk.notifications` prefix, which still
-    // matches this longer key (TanStack prefix-matches by default).
-    queryKey: [...qk.notifications, userId],
-    queryFn: () => api<Notification[]>("/api/v1/me/notifications"),
-    // Don't even fire when signed out (store says no user).
+
+  // Badge: ONE cheap COUNT every 60s — accurate past the 50-row list cap
+  // and far lighter than hydrating 50 full rows per tick (the pre-batch
+  // behaviour). Cache scoped to the identity so a fresh login gets a clean
+  // entry instead of inheriting a stuck 401.
+  const countQ = useQuery({
+    queryKey: [...qk.notificationsCount, userId],
+    queryFn: () => Me.notificationUnreadCount(),
     enabled: !!userId,
-    // Stop on the first 401: react-query keeps the last error on
-    // `query.state.error`, so returning `false` here halts the interval.
     refetchInterval: (query) =>
       query.state.error instanceof ApiError && query.state.error.status === 401
         ? false
         : 60_000,
-    // A 401 is an auth-state problem, not a transient one — retrying it
-    // immediately would just re-trip the loop we're trying to stop.
     retry: (failureCount, error) =>
       error instanceof ApiError && error.status === 401 ? false : failureCount < 2,
   });
 
-  const markRead = useMutation({
-    mutationFn: (id: string) => api(`/api/v1/me/notifications/${id}/read`, { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.notifications }),
+  // The full list is only fetched while the popover is open — the badge no
+  // longer depends on it. The notification mutations invalidate by the
+  // `qk.notifications` prefix, which matches this longer key.
+  const listQ = useQuery({
+    queryKey: [...qk.notifications, userId],
+    queryFn: () => api<NotificationItem[]>("/api/v1/me/notifications"),
+    enabled: !!userId && open,
+    retry: (failureCount, error) =>
+      error instanceof ApiError && error.status === 401 ? false : failureCount < 2,
   });
 
-  const markAllRead = useMutation({
-    mutationFn: () =>
-      api<{ ok: true; marked_read: number }>(
-        "/api/v1/me/notifications/read-all",
-        { method: "POST" },
-      ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.notifications }),
-  });
+  const actions = useNotificationActions(userId);
 
-  const unread = (q.data ?? []).filter((n) => !n.read_at).length;
-  const atCap = (q.data?.length ?? 0) >= NOTIF_CAP;
+  const unread = countQ.data?.unread_count ?? 0;
+  const items = listQ.data ?? [];
+  const readCount = items.filter((n) => n.read_at).length;
+  const atCap = items.length >= NOTIF_CAP;
+
+  // Polite SR announcement when new notifications arrive between polls.
+  // Diffed against the previous count (never announces on first load), so
+  // a steady poll stays silent.
+  const prevUnread = useRef<number | null>(null);
+  const [announce, setAnnounce] = useState("");
+  useEffect(() => {
+    if (countQ.data == null) return;
+    const current = countQ.data.unread_count;
+    if (prevUnread.current !== null && current > prevUnread.current) {
+      setAnnounce(t("notif.newAnnounce", { n: current - prevUnread.current }));
+    }
+    prevUnread.current = current;
+  }, [countQ.data, t]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
+      <span aria-live="polite" aria-atomic="true" className="sr-only">
+        {announce}
+      </span>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
@@ -128,65 +120,105 @@ export function NotificationsBell() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-80 overflow-hidden p-0"
-      >
-        <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
+      <PopoverContent align="end" className="w-80 overflow-hidden p-0">
+        <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2">
           <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
             {t("notif.title")}
           </span>
-          {unread > 0 && (
-            <button
-              type="button"
-              onClick={() => markAllRead.mutate()}
-              disabled={markAllRead.isPending}
-              className="font-body text-xs text-muted-foreground transition-colors duration-base hover:text-foreground disabled:opacity-50"
-            >
-              {markAllRead.isPending ? t("notif.marking") : t("notif.markAllRead")}
-            </button>
-          )}
+          <span className="flex items-center gap-3">
+            {unread > 0 && (
+              <button
+                type="button"
+                onClick={() => actions.markAllRead.mutate()}
+                disabled={actions.markAllRead.isPending}
+                className="font-body text-xs text-muted-foreground transition-colors duration-base hover:text-foreground disabled:opacity-50"
+              >
+                {actions.markAllRead.isPending ? t("notif.marking") : t("notif.markAllRead")}
+              </button>
+            )}
+            {readCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setConfirmClear(true)}
+                disabled={actions.clearRead.isPending}
+                className="font-body text-xs text-muted-foreground transition-colors duration-base hover:text-foreground disabled:opacity-50"
+              >
+                {t("notif.clearRead")}
+              </button>
+            )}
+          </span>
         </div>
         <ul className="max-h-96 overflow-y-auto font-body">
-          {q.data?.length ? (
-            q.data.map((n) => {
-              const href = targetHref(n);
-              return (
-                <li
-                  key={n.id}
-                  className={`flex flex-col gap-1 border-b border-border px-3 py-2.5 text-sm last:border-0 transition-colors duration-base ${
-                    href ? "cursor-pointer hover:bg-muted/40" : ""
-                  } ${!n.read_at ? "bg-muted/30" : ""}`}
-                  onClick={() => {
-                    if (!n.read_at) markRead.mutate(n.id);
-                    if (href) {
-                      setOpen(false);
-                      router.push(href);
-                    }
-                  }}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <strong className="truncate font-medium text-foreground">{n.title}</strong>
-                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                      {formatRelative(n.created_at)}
-                    </span>
-                  </div>
-                  {n.body && <p className="text-xs text-muted-foreground">{n.body}</p>}
-                </li>
-              );
-            })
+          {listQ.isLoading ? (
+            <li className="px-3 py-8 text-center font-body text-sm text-muted-foreground">
+              {t("common.loading")}
+            </li>
+          ) : listQ.isError ? (
+            <li className="flex flex-col items-center gap-2 px-3 py-8 text-center font-body text-sm text-muted-foreground">
+              {t("notif.errorBody")}
+              <button
+                type="button"
+                onClick={() => listQ.refetch()}
+                className="font-body text-xs text-primary transition-colors duration-base hover:text-primary/80"
+              >
+                {t("notif.retry")}
+              </button>
+            </li>
+          ) : items.length ? (
+            items.map((n) => (
+              <NotificationRow
+                key={n.id}
+                n={n}
+                actions={actions}
+                onNavigate={(href) => {
+                  setOpen(false);
+                  router.push(href);
+                }}
+              />
+            ))
           ) : (
             <li className="px-3 py-8 text-center font-body text-sm text-muted-foreground">
               {t("notif.empty")}
             </li>
           )}
         </ul>
-        {atCap && (
-          <p className="border-t border-border bg-muted/40 px-3 py-2 text-center font-mono text-[11px] text-muted-foreground">
-            {t("notif.capNote", { n: NOTIF_CAP })}
-          </p>
-        )}
+        <p className="border-t border-border bg-muted/40 px-3 py-2 text-center">
+          <Link
+            href="/notifications"
+            onClick={() => setOpen(false)}
+            className="font-body text-xs text-muted-foreground transition-colors duration-base hover:text-foreground"
+          >
+            {atCap ? t("notif.viewAllCap", { n: NOTIF_CAP }) : t("notif.viewAll")}
+          </Link>
+        </p>
       </PopoverContent>
+
+      <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("notif.clearConfirm.title")}</DialogTitle>
+            <DialogDescription>{t("notif.clearConfirm.body")}</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfirmClear(false)}>
+              {t("notif.clearConfirm.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                actions.clearRead.mutate(undefined, {
+                  onSettled: () => setConfirmClear(false),
+                });
+              }}
+              disabled={actions.clearRead.isPending}
+            >
+              {actions.clearRead.isPending
+                ? t("notif.clearConfirm.clearing")
+                : t("notif.clearConfirm.confirm")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Popover>
   );
 }

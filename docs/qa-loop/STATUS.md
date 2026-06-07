@@ -1397,7 +1397,12 @@ local e2e-test artifacts, not prod):**
   security-alarm path, risk of hiding signal, needs owner sign-off even with a
   count badge; (2) a paginated "view all" page — needs a backend offset/cursor
   on `GET /me/notifications` (a deliberate feature, same call as admin-users
-  pagination). Also noted: the unread BADGE counts only the fetched ≤50, so it
+  pagination). **→ RESOLVED 2026-06-07 (notifications batch, ADR-0031):**
+  (2) shipped as the cursor-paged `/notifications` inbox (`GET /inbox`) +
+  view-all footer link replacing the cap note; the badge now polls a true
+  `GET /unread-count` (accurate past 50); delete/clear/mark-unread landed
+  alongside. (1) coalescing remains propose-only — still an owner call.
+  Also noted: the unread BADGE counts only the fetched ≤50, so it
   undercounts when >50 unread — fixing needs a backend unread-count endpoint
   (deferred).
 - LOW — `/learn/[slug]` + `/courses/[slug]/preview/[lessonId]` default page

@@ -38,6 +38,11 @@ import { useAuth } from "@/lib/auth/store";
 import { useT } from "@/lib/i18n/provider";
 import { useReturnFocus } from "@/lib/a11y/use-return-focus";
 
+// Fallback + display-order only — the rendered form is driven by the keys
+// `GET /prefs` returns (which materialises the full backend enum), so a new
+// backend kind can never silently drop out of the form again (the P2.8
+// drift: `course_cloned` fired in prod for months while this hardcoded
+// list hid it from the prefs UI).
 const NOTIFICATION_KINDS: NotificationKind[] = [
   "enrolled",
   "lesson_available",
@@ -46,6 +51,7 @@ const NOTIFICATION_KINDS: NotificationKind[] = [
   "chat_mention",
   "security",
   "discussion_reply",
+  "course_cloned",
 ];
 
 const DISPATCH_OPTIONS: NotificationDispatch[] = [
@@ -54,6 +60,15 @@ const DISPATCH_OPTIONS: NotificationDispatch[] = [
   "email_immediate",
   "digest_daily",
 ];
+
+/** i18n label for a kind, falling back to the raw kind string for a server
+ * kind that doesn't have a translation yet (t() echoes the key when the
+ * entry is missing — render something honest rather than the raw key). */
+function kindLabel(t: ReturnType<typeof useT>, kind: string): string {
+  const key = `prefs.notifications.kind.${kind}`;
+  const label = t(key as Parameters<typeof t>[0]);
+  return label === key ? kind.replaceAll("_", " ") : label;
+}
 
 /**
  * Profile — Workbench repaint.
@@ -425,7 +440,16 @@ export default function ProfilePage() {
           ) : (
             <>
               <div className="divide-y divide-border rounded-md border border-border">
-                {NOTIFICATION_KINDS.map((kind) => (
+                {(Object.keys(notifPrefs) as NotificationKind[])
+                  .sort((a, b) => {
+                    // Canonical order first; server kinds we don't know yet
+                    // (future enum additions) sort to the end instead of
+                    // disappearing.
+                    const ia = NOTIFICATION_KINDS.indexOf(a);
+                    const ib = NOTIFICATION_KINDS.indexOf(b);
+                    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+                  })
+                  .map((kind) => (
                   <div
                     key={kind}
                     className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
@@ -434,7 +458,7 @@ export default function ProfilePage() {
                       htmlFor={`pref-${kind}`}
                       className="font-body text-sm font-medium"
                     >
-                      {t(`prefs.notifications.kind.${kind}`)}
+                      {kindLabel(t, kind)}
                     </label>
                     <Select
                       value={notifPrefs[kind] ?? "in_app"}
