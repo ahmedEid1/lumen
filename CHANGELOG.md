@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Prod worker/beat no longer report permanently "(unhealthy)".** Both
+  celery containers inherited the api image's Dockerfile HEALTHCHECK
+  (an HTTP probe against :8000) and could never pass it while
+  processing jobs fine — a lying healthcheck that would have masked a
+  real worker failure. The worker now probes with a node-scoped
+  `celery inspect ping` (60s interval); beat disables the inherited
+  probe outright (a scheduler answers no inspect — honest absence over
+  permanent red; its liveness shows in the sweep tasks it enqueues).
+
 - **Streamed turns now carry full trace depth and the tutor panel
   restores thread history on reopen** (the two follow-ups the
   persistence fix left open). The learner trace drill-down filters

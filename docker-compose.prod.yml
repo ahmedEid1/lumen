@@ -231,6 +231,23 @@ services:
       - "worker"
       - "--loglevel=INFO"
       - "--concurrency=${CELERY_CONCURRENCY:-4}"
+    # The api image's Dockerfile HEALTHCHECK probes :8000/health/live —
+    # a celery container runs no HTTP server, so worker + beat sat
+    # permanently "(unhealthy)" while processing jobs fine (observed on
+    # prod 2026-06-06/07). A lying healthcheck is worse than none: a
+    # REAL worker failure would look identical. Override with a celery
+    # ping scoped to this node; 60s interval keeps the per-probe python
+    # fork negligible on the t4g.small.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.workers.celery_app.celery inspect ping -d celery@$$(hostname) --timeout 10 | grep -q pong",
+        ]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
 
   beat:
     image: ghcr.io/ahmedeid1/lumen-api:${IMAGE_TAG:-latest}
@@ -239,6 +256,13 @@ services:
     depends_on:
       api: { condition: service_started }
     command: ["celery", "-A", "app.workers.celery_app.celery", "beat", "--loglevel=INFO"]
+    # Beat exposes nothing pingable (it's a scheduler, not a worker —
+    # `celery inspect` never answers from beat). Disable the inherited
+    # HTTP probe: an honest "no healthcheck" beats a permanently red
+    # one. Beat liveness is observable via the sweep tasks it enqueues
+    # (tutor.sweep_dead_turns every 10s in the worker logs).
+    healthcheck:
+      disable: true
 
   web:
     image: ghcr.io/ahmedeid1/lumen-web:${IMAGE_TAG:-latest}
