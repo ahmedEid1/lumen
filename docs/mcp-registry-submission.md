@@ -1,6 +1,13 @@
 # Submitting Lumen to the public MCP registry
 
-**Audience:** the operator (Ahmed) running the registry publication once. **Status:** packet prepared, not yet submitted. **Schema version:** `https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json`. **Registry endpoint:** `https://registry.modelcontextprotocol.io`.
+> **Superseded 2026-06-07:** publishing now runs through GitHub Actions OIDC —
+> `gh workflow run mcp-publish.yml` (see [`.github/workflows/mcp-publish.yml`](../.github/workflows/mcp-publish.yml)).
+> No device flow, no local CLI. Bump `version` in `registry_metadata.json`, push, dispatch the workflow;
+> it schema-validates, publishes, and verifies the registry serves the new version. The 2.0.0 record went
+> live this way. The procedure below is retained for reference (note: `mcp-publisher` ≥1.7 expects a
+> `server.json` path argument or cwd file — the §4 syntax predates that).
+
+**Audience:** the operator (Ahmed) running the registry publication once. **Status:** superseded by the OIDC workflow (above). **Schema version:** `https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json`. **Registry endpoint:** `https://registry.modelcontextprotocol.io`.
 
 The metadata document lives at [`apps/backend/app/mcp/registry_metadata.json`](../apps/backend/app/mcp/registry_metadata.json). It is schema-valid as of commit time (verified locally with `ajv` against the live schema). This guide is the one-shot runbook: install the publisher, authenticate, push, verify, swap the README badge.
 
