@@ -42,8 +42,29 @@ jobs:
       # pgvector), redis (Celery broker), and the api container. We
       # skip web / s3 / mail to keep the runner footprint small —
       # the eval calls services directly and doesn't need them.
+      #
+      # Docker Hub pulls flake on shared runners (a registry timeout
+      # killed the 2026-06-06 run on a docs-only commit before any
+      # eval code executed; the redesign's arm64 builds hit the same
+      # class of flake). Pull and build are retried with backoff so a
+      # transient registry blip doesn't read as an eval regression.
       - name: Start backend stack
-        run: docker compose up -d --build db redis api
+        run: |
+          retry() {
+            local n=1
+            until "$@"; do
+              if [ "$n" -ge 3 ]; then
+                echo "::error::'$*' failed after $n attempts"
+                return 1
+              fi
+              echo "'$*' failed (attempt $n) — retrying in $((n * 15))s"
+              sleep $((n * 15))
+              n=$((n + 1))
+            done
+          }
+          retry docker compose pull db redis
+          retry docker compose build api
+          docker compose up -d db redis api
 
       - name: Wait for api healthy
         run: |
