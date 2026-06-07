@@ -170,6 +170,7 @@ async def record_streamed_turn_row(
     billing_mode: str,
     prompt_tokens: int = 0,
     completion_tokens: int = 0,
+    feature: str = "tutor.stream",
 ) -> None:
     """Persist an ``llm_calls`` row for a terminal streamed tutor turn.
 
@@ -193,11 +194,21 @@ async def record_streamed_turn_row(
     ``completion_tokens`` would break the count-based contract pinned by
     ``test_streamed_turn_tokens_are_observability_only`` — change the test
     deliberately if that is ever the intent.
+
+    ``feature`` (streamed-trace-depth fix): the learner trace drill-down
+    filters ``llm_calls`` by the ``tutor.multi_agent`` prefix, so the
+    worker's SUCCESS path passes ``"tutor.multi_agent.synth"`` — the
+    ``.synth`` suffix makes the row the drill-down's main call and feeds
+    AGENT RUN TOTALS. Failure/abort paths keep the default
+    ``"tutor.stream"`` so a failed attempt never pollutes a successful
+    turn's totals. The request quota is COUNT-based over ALL rows
+    regardless of feature (``_user_request_count`` has no feature
+    filter), so this changes nothing about quota math.
     """
     await _persist_row(
         session,
         user_id=user_id,
-        feature="tutor.stream",
+        feature=feature,
         provider=provider,
         model=model,
         prompt_tokens=prompt_tokens,

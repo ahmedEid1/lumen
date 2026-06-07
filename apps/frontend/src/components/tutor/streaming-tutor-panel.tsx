@@ -18,18 +18,20 @@
  * follow-up + the L22 real LLM integration land.
  */
 
-import { useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowUp, Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Tutor } from "@/lib/api/endpoints";
 import { useT } from "@/lib/i18n/provider";
 import { useAuth } from "@/lib/auth/store";
 import { renderTutorBody } from "@/lib/tutor/citations";
 import { useTutorStream } from "@/lib/tutor/use-tutor-stream";
 import { DemoQuestionChipRail } from "@/components/tutor/demo-question-chip-rail";
+import { TutorMessage } from "@/components/tutor/tutor-message";
 import {
   CostCapClosingCta,
   isCostCapError,
@@ -83,7 +85,8 @@ export function StreamingTutorPanel({
   courseSlug,
 }: StreamingTutorPanelProps) {
   const t = useT();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const qc = useQueryClient();
   const [draft, setDraft] = useState(initialDraft ?? "");
   const [currentTurnId, setCurrentTurnId] = useState<string | null>(null);
   const [sentPrompt, setSentPrompt] = useState<string | null>(null);
@@ -94,6 +97,48 @@ export function StreamingTutorPanel({
   const conversationIdRef = useRef<string | null>(null);
 
   const stream = useTutorStream(currentTurnId);
+
+  // History on reopen (streaming-story loop): the persistence fix made
+  // streamed threads durable, but the panel only rendered the in-flight
+  // session — a reload opened visually empty and the next send forked a
+  // NEW conversation (the backend auto-creates one when conversation_id
+  // is absent). Load the course's newest thread on mount, render its
+  // messages as static rows, and adopt its id so a post-reload
+  // follow-up continues the SAME thread.
+  // staleTime: Infinity + no focus refetch — history is a MOUNT-TIME
+  // snapshot. The live session owns everything after it; a focus-driven
+  // refetch would pull the just-streamed turn into history while the
+  // live block still renders it, duplicating the turn on screen.
+  // Keys carry the authenticated user id — without it, a logout→login
+  // inside one SPA session would serve the PREVIOUS user's cached
+  // thread (Codex review P1). Token-gated so an anonymous mount never
+  // fires an unauthenticated request.
+  const viewerId = user?.id ?? "anon";
+  const convListQuery = useQuery({
+    queryKey: ["tutor", "conversations", viewerId, courseId],
+    queryFn: () => Tutor.listConversations(courseId, { page_size: 1 }, token ?? undefined),
+    enabled: Boolean(courseId) && Boolean(token),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  const latestConvId = convListQuery.data?.items?.[0]?.id ?? null;
+  const historyQuery = useQuery({
+    queryKey: ["tutor", "conversation", viewerId, latestConvId],
+    queryFn: () => Tutor.getConversation(latestConvId as string, token ?? undefined),
+    enabled: Boolean(latestConvId) && Boolean(token),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  const historyMessages = historyQuery.data?.messages ?? [];
+
+  useEffect(() => {
+    // Adopt the latest thread only when no id was established in THIS
+    // session — a send that raced the mount fetch wins (its id came
+    // straight from the server and is at least as fresh).
+    if (latestConvId && conversationIdRef.current === null) {
+      conversationIdRef.current = latestConvId;
+    }
+  }, [latestConvId]);
 
   const sendMut = useMutation({
     mutationFn: (content: string) =>
@@ -121,6 +166,11 @@ export function StreamingTutorPanel({
 
   const isInFlight =
     sendMut.isPending ||
+    // Hold the composer until the mount-time thread lookup settles — a
+    // send racing it would omit conversation_id and fork a NEW thread,
+    // the exact bug the adoption closes (Codex confirmation finding).
+    // False for anonymous mounts (a disabled query is never isLoading).
+    convListQuery.isLoading ||
     stream.phase === "planning" ||
     stream.phase === "tool" ||
     stream.phase === "synth";
@@ -131,12 +181,31 @@ export function StreamingTutorPanel({
     sendMut.mutate(text);
   }
 
-  // L32 — courseSlug now threads through to the backend which
-  // resolves it to a course_id and runs pgvector retrieval against
-  // that course's lessons. courseId stays in the prop signature for
-  // parity with the legacy panel; it isn't sent on the wire because
-  // the backend resolves the slug.
-  void courseId;
+  // Land the view on the latest turn when history hydrates and keep it
+  // pinned while the live stream grows (mirrors the legacy panel).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [historyMessages.length, sentPrompt, stream.text]);
+
+  // When a streamed turn settles, swap the live bubbles for the
+  // canonical persisted rows: invalidate the history snapshot (refetch
+  // now includes the new turn with citations + timestamp) and clear the
+  // live-session state. Only on "complete" — a failed stream keeps its
+  // inline error surface. invalidateQueries bypasses staleTime, so the
+  // snapshot semantics above stay intact for every other trigger.
+  useEffect(() => {
+    if (stream.phase !== "complete") return;
+    void qc
+      .invalidateQueries({ queryKey: ["tutor", "conversations", viewerId, courseId] })
+      .then(() =>
+        qc.invalidateQueries({ queryKey: ["tutor", "conversation", viewerId] }),
+      )
+      .then(() => {
+        setCurrentTurnId(null);
+        setSentPrompt(null);
+      });
+  }, [stream.phase, qc, viewerId, courseId]);
 
   return (
     <div
@@ -152,7 +221,7 @@ export function StreamingTutorPanel({
         </p>
       </div>
 
-      {!sentPrompt && (
+      {!sentPrompt && historyMessages.length === 0 && (
         <DemoQuestionChipRail
           courseSlug={courseSlug}
           onPick={(prompt) => handleSend(prompt)}
@@ -166,12 +235,20 @@ export function StreamingTutorPanel({
       >
         {postTimeCostCap && <CostCapClosingCta />}
 
-        {!sentPrompt && !postTimeCostCap && (
-          <div className="flex flex-col items-start gap-2 py-6 font-body text-sm text-muted-foreground">
-            <Sparkles className="h-4 w-4 text-primary" aria-hidden />
-            <p>{t("tutor.emptyPrompt")}</p>
-          </div>
-        )}
+        {!sentPrompt &&
+          !postTimeCostCap &&
+          !convListQuery.isLoading &&
+          !historyQuery.isLoading &&
+          historyMessages.length === 0 && (
+            <div className="flex flex-col items-start gap-2 py-6 font-body text-sm text-muted-foreground">
+              <Sparkles className="h-4 w-4 text-primary" aria-hidden />
+              <p>{t("tutor.emptyPrompt")}</p>
+            </div>
+          )}
+
+        {historyMessages.map((m) => (
+          <TutorMessage key={m.id} message={m} />
+        ))}
 
         {sentPrompt && (
           <div className="flex flex-col gap-1 items-end" data-testid="user-bubble">

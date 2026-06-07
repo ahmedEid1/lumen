@@ -44,6 +44,7 @@ from app.models.course import Course
 from app.models.llm_call import BILLING_BYOK, BILLING_PLATFORM, STATUS_ERROR, STATUS_OK
 from app.models.tutor_turn_job import TURN_STATUS_COMPLETE, TURN_STATUS_FAILED
 from app.services import account as account_service
+from app.services import agent_tracer
 from app.services import byok as byok_service
 from app.services.llm_call_log import record_streamed_turn_row
 from app.services.redis_streams import emit_event, set_stream_ttl
@@ -213,6 +214,21 @@ async def _run_turn_async(turn_id: str) -> None:
         # degrades to "no course context" but doesn't fail the turn.
         # The orchestrator decides whether to ground synth on the
         # chunks based on whether we hand any in.
+        # Trace-depth fix (BACKLOG P3, 2026-06-07): the learner drill-down
+        # reconstructs a turn's timeline temporally but filters on
+        # feature.startswith("tutor.multi_agent") — rows stamped
+        # "tutor.streaming"/"tutor.stream" existed and were filtered out,
+        # so streamed turns rendered an empty timeline with $0 totals.
+        # The drill-down rows (plan → sub_agent.retriever → synthesis)
+        # are recorded AT SUCCESS TIME, in the assistant-message
+        # transaction — never here. Recording them before the stream
+        # succeeds would leave committed multi_agent rows behind on a
+        # failed turn, and the temporal-window reconstruction would pull
+        # them into the user's NEXT successful turn's timeline (Codex
+        # review finding). run_retriever keeps its own legacy
+        # "tutor.streaming" trace row — invisible to the drill-down,
+        # still feeding admin observability.
+        retriever_note: str = ""
         if course_id and user_message_content.strip():
             with contextlib.suppress(Exception):
                 async with Session() as db:
@@ -235,6 +251,7 @@ async def _run_turn_async(turn_id: str) -> None:
                         )
                         retrieval_latency_ms = int((time.monotonic() - t0) * 1000)
                         retrieved_chunks = list(result.chunks)
+                        retriever_note = result.note
                         await db.commit()
 
         # Orchestrate + emit events to the Redis stream. The
@@ -269,6 +286,11 @@ async def _run_turn_async(turn_id: str) -> None:
         # be persisted to tutor_messages at turn_complete (the missing
         # write behind the 2026-06-06 "history empty after reload" bug).
         answer_parts: list[str] = []
+        # Set once the turn_complete handler lands the success llm_calls
+        # row in the message transaction; the terminal block falls back
+        # to writing it there so a persist failure can't skip the row
+        # entirely (Gate-B: every terminal transition persists a row).
+        synth_row_written = False
         async with Session() as hb_db:
             async for ev in orchestrate_stream(
                 turn_id=turn_id,
@@ -306,16 +328,125 @@ async def _run_turn_async(turn_id: str) -> None:
                     # (log.exception), never silent.
                     try:
                         answer_text = "".join(answer_parts)
+                        citations = extract_citation_dicts(answer_text, retrieved_chunks or [])
                         async with Session() as mdb:
                             message_id = await persist_stream_assistant_message(
                                 mdb,
                                 conversation_id=conversation_id,
                                 content=answer_text,
-                                citations=extract_citation_dicts(
-                                    answer_text, retrieved_chunks or []
+                                citations=citations,
+                            )
+                            # The success llm_calls row is written HERE — in
+                            # the same transaction as the assistant message —
+                            # not in the terminal block below. The drill-down
+                            # window is [msg.created_at - 120s, msg.created_at]
+                            # inclusive; a row written in a LATER transaction
+                            # falls just outside it and the totals read $0.
+                            # Same txn ⇒ same now() ⇒ inside the window.
+                            # The .synth namespace is gated on the
+                            # persisted message, like the trace rows: a
+                            # course-less /demo stream (or an empty answer)
+                            # has nothing to drill into, and its orphan row
+                            # would land in the NEXT real turn's temporal
+                            # window and inflate those totals (Codex
+                            # confirmation-pass finding). Such turns stay
+                            # on "tutor.stream".
+                            await record_streamed_turn_row(
+                                mdb,
+                                user_id=user_id,
+                                provider=_stream_provider_name(byok_dispatch),
+                                model=_stream_model_name(byok_dispatch),
+                                cost_usd=final_cost_usd,
+                                latency_ms=final_total_ms,
+                                status=STATUS_OK,
+                                error_kind=None,
+                                billing_mode=BILLING_BYOK if byok_dispatch else BILLING_PLATFORM,
+                                prompt_tokens=final_prompt_tokens,
+                                completion_tokens=final_completion_tokens,
+                                feature=(
+                                    "tutor.multi_agent.synth"
+                                    if message_id is not None
+                                    else "tutor.stream"
                                 ),
                             )
+                            if message_id is not None:
+                                # Drill-down trace rows (plan → retriever →
+                                # synthesis) land HERE, in the SAME txn as
+                                # the message: every row gets the txn's
+                                # now() == message.created_at, anchoring
+                                # them inside the page's [msg - 120s, msg]
+                                # window with step_index breaking the
+                                # equal-timestamp tie. Recording only on a
+                                # persisted success keeps failed attempts
+                                # out of the multi_agent namespace — a
+                                # failed turn's rows would otherwise leak
+                                # into the user's next successful turn's
+                                # temporal window. The streamed "plan" is
+                                # synthetic (fixed retrieve-then-synth
+                                # route, no planner LLM call) and says so;
+                                # no confidence_after_plan — the badge
+                                # honestly shows 0/5 for a route that
+                                # never scored itself.
+                                plan_trace = await agent_tracer.record_step(
+                                    mdb,
+                                    user_id=user_id,
+                                    feature="tutor.multi_agent",
+                                    step="plan",
+                                    step_index=0,
+                                    payload={
+                                        "tool_calls": [
+                                            {
+                                                "tool_name": "retriever",
+                                                "args": {"query": user_message_content[:200]},
+                                            }
+                                        ],
+                                        "route": "stream",
+                                        "synthetic": True,
+                                    },
+                                )
+                                plan_trace_id = plan_trace.id if plan_trace else None
+                                if retrieved_chunks or retriever_note:
+                                    await agent_tracer.record_step(
+                                        mdb,
+                                        user_id=user_id,
+                                        feature="tutor.multi_agent",
+                                        step="sub_agent.retriever",
+                                        step_index=1,
+                                        parent_trace_id=plan_trace_id,
+                                        payload={
+                                            "args": {
+                                                "query": user_message_content[:240],
+                                                "top_k": 6,
+                                            },
+                                            "result_summary": {
+                                                "chunk_count": len(retrieved_chunks),
+                                                "lesson_count": len(citations),
+                                                "note": retriever_note,
+                                            },
+                                        },
+                                        duration_ms=retrieval_latency_ms or 0,
+                                    )
+                                await agent_tracer.record_step(
+                                    mdb,
+                                    user_id=user_id,
+                                    feature="tutor.multi_agent",
+                                    step="synthesis",
+                                    step_index=2,
+                                    parent_trace_id=plan_trace_id,
+                                    payload={
+                                        "answer_head": answer_text[:240],
+                                        "citation_count": len(citations),
+                                        "tool_calls_in_synth": 1 if retrieved_chunks else 0,
+                                    },
+                                    duration_ms=final_total_ms,
+                                )
                             await mdb.commit()
+                        # Flag only AFTER the commit landed — the meter write
+                        # is savepoint-isolated best-effort, but a commit/txn
+                        # failure must leave the terminal fallback armed
+                        # (Codex review: flag-before-commit skipped the
+                        # fallback exactly when the row was lost).
+                        synth_row_written = True
                         ev["data"]["message_id"] = message_id
                     except Exception:
                         log.exception(
@@ -399,21 +530,34 @@ async def _run_turn_async(turn_id: str) -> None:
         # streamed turn visible to the non-dollar request windows and the
         # admin billing_mode rollup (Gate-B fix / ADR-0027 §Consequences —
         # streamed turns previously wrote no row at all).
+        # feature="tutor.multi_agent.synth": the .synth suffix makes this
+        # row the learner drill-down's main call + its AGENT RUN TOTALS
+        # (trace-depth fix); request quota is COUNT-based over all rows,
+        # unaffected by the feature string. Failure paths keep the
+        # "tutor.stream" default. The happy path writes the row in the
+        # message transaction (window timing — see the turn_complete
+        # handler); this is the fallback when that txn failed, so the
+        # quota/rollup row is never skipped.
         async with Session() as db:
             await mark_terminal(db, turn_id=turn_id, status=TURN_STATUS_COMPLETE)
-            await record_streamed_turn_row(
-                db,
-                user_id=user_id,
-                provider=_stream_provider_name(byok_dispatch),
-                model=_stream_model_name(byok_dispatch),
-                cost_usd=final_cost_usd,
-                latency_ms=final_total_ms,
-                status=STATUS_OK,
-                error_kind=None,
-                billing_mode=BILLING_BYOK if byok_dispatch else BILLING_PLATFORM,
-                prompt_tokens=final_prompt_tokens,
-                completion_tokens=final_completion_tokens,
-            )
+            if not synth_row_written:
+                # Fallback fires only when the message transaction failed —
+                # no persisted message, so the row stays on the stream
+                # namespace (default) instead of orphaning into the
+                # drill-down's temporal window.
+                await record_streamed_turn_row(
+                    db,
+                    user_id=user_id,
+                    provider=_stream_provider_name(byok_dispatch),
+                    model=_stream_model_name(byok_dispatch),
+                    cost_usd=final_cost_usd,
+                    latency_ms=final_total_ms,
+                    status=STATUS_OK,
+                    error_kind=None,
+                    billing_mode=BILLING_BYOK if byok_dispatch else BILLING_PLATFORM,
+                    prompt_tokens=final_prompt_tokens,
+                    completion_tokens=final_completion_tokens,
+                )
             await db.commit()
 
         with contextlib.suppress(Exception):

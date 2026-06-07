@@ -23,6 +23,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Streamed turns now carry full trace depth and the tutor panel
+  restores thread history on reopen** (the two follow-ups the
+  persistence fix left open). The learner trace drill-down filters
+  `agent_traces`/`llm_calls` on the `tutor.multi_agent` feature prefix
+  inside a `[message - 120s, message]` window — the streaming worker
+  stamped `tutor.streaming`/`tutor.stream`, so streamed turns rendered
+  an empty timeline with $0/0tok totals. The worker now mirrors the
+  non-streaming step vocabulary (synthetic `plan` → `sub_agent.retriever`
+  → `synthesis`, parented under one trace tree) and writes its success
+  `llm_calls` row as `tutor.multi_agent.synth` **in the same transaction
+  as the assistant message** (same `now()` ⇒ inside the window; the
+  terminal block keeps a fallback write so the quota/rollup row is never
+  skipped — failure paths stay on `tutor.stream`). Request quotas are
+  COUNT-based over all rows and unaffected. The streaming panel now
+  fetches the course's newest conversation on mount, renders its
+  persisted messages via a `TutorMessage` component shared with the
+  legacy panel, and adopts the thread id so a post-reload follow-up
+  continues the same conversation instead of forking one; history is a
+  mount-time snapshot (no focus refetch) so the live stream never
+  renders a turn twice.
+
 - **Streamed tutor turns never persisted their messages.** Found on prod
   2026-06-06 (BACKLOG P2): a streamed turn completed cleanly (job row
   `complete`, `llm_calls` row written, SSE delivered) while writing zero

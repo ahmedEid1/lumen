@@ -108,6 +108,15 @@ def _patch_worker_seams(monkeypatch, *, turn, mocks):
     monkeypatch.setattr(
         tutor_streaming, "persist_stream_assistant_message", AsyncMock(return_value="msg_x")
     )
+    # Trace-depth fix seam (DB-backed coverage in
+    # test_tutor_streaming_traces.py): record_step would touch the
+    # MagicMock session; stub it like the other DB seams. The returned
+    # row only needs an .id for parent threading.
+    _trace_row = MagicMock()
+    _trace_row.id = "trace_x"
+    monkeypatch.setattr(
+        tutor_streaming.agent_tracer, "record_step", AsyncMock(return_value=_trace_row)
+    )
 
     # S6.8 cooperative-cancellation heartbeat — a DB-free unit test mocks the
     # session, so the account.assert_account_active re-read can't run against the
