@@ -1,0 +1,53 @@
+name: Publish MCP registry record
+
+# Publishes apps/backend/app/mcp/registry_metadata.json to
+# registry.modelcontextprotocol.io under io.github.ahmedEid1/lumen.
+#
+# Auth is GitHub Actions OIDC (`mcp-publisher login github-oidc`) — the
+# runner's identity token proves repo ownership, so no interactive
+# device flow is needed. This replaced the operator-run device-flow
+# procedure in docs/mcp-registry-submission.md after four device codes
+# expired unauthorized during the 2026-06-07 2.0.0 re-publish attempt;
+# manual dispatch only (the registry is append-only per version — a
+# push-triggered publish would fail on every commit that doesn't bump
+# the version).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC token for the registry namespace check
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" \
+            | tar xz mcp-publisher
+          ./mcp-publisher --version
+
+      - name: Login (OIDC)
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish
+        run: ./mcp-publisher publish apps/backend/app/mcp/registry_metadata.json
+
+      - name: Verify listing
+        run: |
+          sleep 5
+          curl -fsS "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.ahmedEid1%2Flumen" \
+            | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          servers = data.get('servers') or data.get('items') or []
+          versions = [s.get('version') or s.get('server', {}).get('version') for s in servers]
+          print('registry versions seen:', versions)
+          assert any(v == '2.0.0' for v in versions), 'expected 2.0.0 in registry response'
+          print('registry serves 2.0.0')
+          "
