@@ -202,7 +202,13 @@ function wrapWithMark(child: JSX.Element | string, mark: BlockMark): JSX.Element
       return <u>{child}</u>;
     case "link": {
       const attrs = (mark.attrs ?? {}) as { href?: unknown; target?: unknown };
-      const href = typeof attrs.href === "string" ? attrs.href : "#";
+      // Malformed-content defense: a link mark without a string href used
+      // to fall back to a clickable href="#" that went nowhere. Render the
+      // text un-linked instead of promising a destination.
+      const href = typeof attrs.href === "string" ? attrs.href : null;
+      if (!href) {
+        return <>{child}</>;
+      }
       // `noopener noreferrer` on every link — instructors paste
       // arbitrary URLs and we don't want a learner click to leak
       // window.opener to a third party.

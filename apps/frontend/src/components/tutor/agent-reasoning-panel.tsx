@@ -193,8 +193,20 @@ function TraceRow({ call }: { call: ToolCallTrace }) {
   return (
     <>
       <tr
+        // tabIndex/onKeyDown: the expandable row was mouse-only — a keyboard
+        // user couldn't open a trace. Deliberately NOT role="button": a
+        // <table> requires row children, and aria-expanded is valid on the
+        // implicit row role (the expandable-row pattern).
+        tabIndex={0}
+        aria-expanded={open}
         className="cursor-pointer hover:bg-muted/40"
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen((v) => !v);
+          }
+        }}
         data-testid="agent-trace-row"
       >
         <td className="border-b border-border/40 py-2 pe-3 align-top">

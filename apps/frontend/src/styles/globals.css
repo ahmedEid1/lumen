@@ -192,6 +192,22 @@
     border-radius: 4px;
   }
 
+  /* Clickability is a visible contract. Tailwind v4's preflight gives
+     <button> `cursor: default`, and nothing in the app overrode it — so
+     every button (incl. Radix triggers, which render <button>) hovered
+     with the arrow cursor. Restore the pointer on anything actionable;
+     disabled controls keep the default arrow (the shared Button also
+     sets pointer-events-none when disabled, so it never matches :hover
+     at all). role="button" covers the rare non-button clickable;
+     summary covers <details> disclosure. Labels wired to a control get
+     the pointer too — clicking them IS clicking the control. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  label[for] {
+    cursor: pointer;
+  }
+
   /* Display face on h1-h4. Workbench tracks them tight — the
      headline is a label for the page, not a flourish. */
   h1, h2, h3, h4 {

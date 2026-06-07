@@ -130,7 +130,7 @@ export default function AdminMCPClientsPage() {
       </header>
 
       <section className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <label className="flex items-center gap-2 font-body text-sm text-muted-foreground">
+        <label className="flex cursor-pointer items-center gap-2 font-body text-sm text-muted-foreground">
           <input
             type="checkbox"
             checked={includeRevoked}

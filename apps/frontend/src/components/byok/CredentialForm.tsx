@@ -89,7 +89,7 @@ export function CredentialForm({ providers }: { providers: LLMProvider[] }) {
         <span className="text-muted-foreground text-xs">{t("byok.apiKey.writeOnly")}</span>
       </label>
 
-      <label className="flex items-center justify-between gap-3 text-sm">
+      <label className="flex cursor-pointer items-center justify-between gap-3 text-sm">
         <span>{t("byok.allowFallback")}</span>
         <Switch
           checked={allowFallback}

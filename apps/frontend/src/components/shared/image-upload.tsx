@@ -7,6 +7,7 @@ import { Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
 import { useT } from "@/lib/i18n/provider";
+import { cn } from "@/lib/utils";
 
 type PresignResponse = {
   method: "POST";
@@ -139,7 +140,19 @@ export function ImageUpload({
               }}
               disabled={busy}
             />
-            <span className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-border/60 bg-background px-4 font-body text-sm transition-colors hover:border-primary/60 hover:bg-primary/5 disabled:opacity-50">
+            {/* The <span> can never match :disabled (it's not a form
+                control), so the old disabled:opacity-50 was dead CSS — while
+                uploading, the picker kept full pointer + hover affordance
+                with the input disabled underneath (a false affordance).
+                Gate the appearance on `busy` instead. */}
+            <span
+              className={cn(
+                "inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border/60 bg-background px-4 font-body text-sm transition-colors",
+                busy
+                  ? "cursor-not-allowed opacity-50"
+                  : "cursor-pointer hover:border-primary/60 hover:bg-primary/5",
+              )}
+            >
               <Upload className="h-4 w-4 text-muted-foreground" />{" "}
               {busy ? t("upload.uploading") : t("upload.choose")}
             </span>

@@ -30,6 +30,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Every clickable element now shows the pointer cursor (and honest
+  hover affordances).** Tailwind v4's preflight gives `<button>`
+  `cursor: default` and nothing had overridden it — so nearly every
+  button in the app hovered with the arrow cursor. A global base rule
+  (`button:not(:disabled)`, `[role=button]`, `summary`, `label[for]`)
+  restores the pointer; disabled controls keep the arrow. A 131-file
+  audit also fixed the long tail: select scroll buttons that forced
+  `cursor-default`, switch/checkbox labels without `htmlFor` (BYOK
+  form/list, admin MCP clients), the image-upload picker keeping full
+  hover+pointer while disabled mid-upload, two dead `href="#"` links
+  (file lesson without a URL, malformed editor link marks) that
+  promised navigation and did nothing, a quiz option that could show
+  pointer after submission, keyboard access for the tutor trace's
+  expandable rows, and a hover treatment on the admin eval-report
+  disclosure rows.
+
 - **The notification prefs form is now driven by the server's kind
   list** — `course_cloned` had been firing in prod while the hardcoded
   form list silently hid it from the prefs UI (and its deep link was

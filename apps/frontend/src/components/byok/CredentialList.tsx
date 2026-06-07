@@ -81,7 +81,7 @@ export function CredentialList({ credentials }: { credentials: LLMCredentialPubl
             </div>
           </div>
           <div className="flex flex-wrap gap-6">
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
               <Switch
                 checked={c.enabled}
                 onCheckedChange={(enabled) => patch.mutate({ provider: c.provider, body: { enabled } })}
@@ -89,7 +89,7 @@ export function CredentialList({ credentials }: { credentials: LLMCredentialPubl
               />
               {t("byok.enabled")}
             </label>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
               <Switch
                 checked={c.is_active}
                 onCheckedChange={(is_active) =>

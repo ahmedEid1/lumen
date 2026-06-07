@@ -133,7 +133,7 @@ export default function ReportDetailPage() {
                   onClick={() =>
                     setExpanded((m) => ({ ...m, [row.id]: !m[row.id] }))
                   }
-                  className="flex w-full items-center justify-between gap-4 text-start"
+                  className="flex w-full items-center justify-between gap-4 rounded-sm text-start transition-colors duration-base hover:bg-muted/30"
                 >
                   <span className="flex items-center gap-3">
                     {isOpen ? (

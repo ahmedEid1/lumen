@@ -59,10 +59,23 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
           className="max-h-[600px] w-full rounded-md border border-border object-contain"
         />
       );
-    case "file":
+    case "file": {
+      // A missing public_url used to fall back to href="#" — a
+      // button-styled link with full pointer + hover affordance that only
+      // scrolled to top. Render an inert chip instead; the affordance is
+      // a promise the click must keep.
+      const fileUrl = typeof data.public_url === "string" ? data.public_url : "";
+      if (!fileUrl) {
+        return (
+          <span className="inline-flex items-center gap-2 rounded-md border border-border bg-muted px-4 py-2 font-body text-sm text-muted-foreground">
+            <Download className="h-4 w-4" />
+            {t("player.download", { name: String(data.filename ?? "") })}
+          </span>
+        );
+      }
       return (
         <a
-          href={String(data.public_url ?? "#")}
+          href={fileUrl}
           download={String(data.filename ?? "")}
           className="inline-flex items-center gap-2 rounded-md border border-border bg-muted px-4 py-2 font-body text-sm text-foreground transition-colors duration-[160ms] hover:border-foreground/40"
         >
@@ -70,6 +83,7 @@ export function LessonPlayer({ lesson }: { lesson: LessonOut }) {
           {t("player.download", { name: String(data.filename ?? "") })}
         </a>
       );
+    }
     case "quiz":
       return (
         <Quiz
@@ -358,12 +372,15 @@ function Quiz({
                       <label
                         htmlFor={checkboxId}
                         className={[
-                          "flex w-full cursor-pointer items-start gap-3 rounded-md border px-3 py-2 text-start font-body text-sm transition-colors duration-base",
+                          "flex w-full items-start gap-3 rounded-md border px-3 py-2 text-start font-body text-sm transition-colors duration-base",
                           selected
                             ? "border-foreground/40 bg-muted text-foreground"
                             : "border-border hover:border-foreground/30",
                           isCorrect ? "border-primary/60 bg-primary/10 text-primary" : "",
-                          submitted ? "cursor-not-allowed opacity-60" : "",
+                          // Cursor is per-state, never additive: pointer and
+                          // not-allowed at equal specificity resolve by
+                          // stylesheet order, not by intent.
+                          submitted ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                         ].join(" ")}
                       >
                         <Checkbox
