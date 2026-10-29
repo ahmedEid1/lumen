@@ -113,7 +113,9 @@ async def resolve_context(db: AsyncSession, *, user_id: str | None) -> LLMContex
     return LLMContext(user_id=user_id, credential_id=cred.id, foreground=True, mode="byok")
 
 
-async def build_provider(db: AsyncSession, ctx: LLMContext) -> tuple[LLMProvider, str]:
+async def build_provider(
+    db: AsyncSession, ctx: LLMContext, *, feature: str | None = None
+) -> tuple[LLMProvider, str]:
     """Return ``(provider, billing_mode)`` for a context — THE ONLY DECRYPT SITE.
 
     Precedence (ADR-0027 §4):
@@ -129,7 +131,7 @@ async def build_provider(db: AsyncSession, ctx: LLMContext) -> tuple[LLMProvider
           provider with the user's model → billing_mode="byok".
     """
     if not ctx.foreground or not ctx.credential_id or not _byok_enabled():
-        return llm_service.get_provider(), BILLING_PLATFORM
+        return llm_service.get_provider_for(feature), BILLING_PLATFORM
 
     cred = await cred_repo.get_by_id(db, ctx.credential_id)
     if (
@@ -140,15 +142,15 @@ async def build_provider(db: AsyncSession, ctx: LLMContext) -> tuple[LLMProvider
     ):
         # The credential vanished / was disabled / went invalid between
         # resolve and dispatch → platform (no decrypt).
-        return llm_service.get_provider(), BILLING_PLATFORM
+        return llm_service.get_provider_for(feature), BILLING_PLATFORM
 
     spec = get_spec(cred.provider)
     if spec is None:
         # Provider itself dropped out of the registry — treat as drift.
-        return await _handle_drift(db, cred)
+        return await _handle_drift(db, cred, feature)
 
     if cred.model not in spec.models:
-        return await _handle_drift(db, cred)
+        return await _handle_drift(db, cred, feature)
 
     # --- The single decrypt. Plaintext lives only in this local + the
     # request-scoped provider object that wraps it in SecretStr. ---
@@ -157,7 +159,9 @@ async def build_provider(db: AsyncSession, ctx: LLMContext) -> tuple[LLMProvider
     return provider, BILLING_BYOK
 
 
-async def _handle_drift(db: AsyncSession, cred: UserLLMCredential) -> tuple[LLMProvider, str]:
+async def _handle_drift(
+    db: AsyncSession, cred: UserLLMCredential, feature: str | None = None
+) -> tuple[LLMProvider, str]:
     """Model-allowlist drift (R-M11'). Fall back to platform with consent,
     else hard-fail. Never silently dispatch a disallowed model."""
     if cred.allow_platform_fallback:
@@ -171,7 +175,7 @@ async def _handle_drift(db: AsyncSession, cred: UserLLMCredential) -> tuple[LLMP
             credential_id=cred.id,
             provider=cred.provider,
         )
-        return llm_service.get_provider(), BILLING_PLATFORM
+        return llm_service.get_provider_for(feature), BILLING_PLATFORM
     raise ByokModelUnavailableError(
         "The selected model is no longer available.",
         details={"provider": cred.provider},

@@ -208,6 +208,12 @@ class Settings(BaseSettings):
     # so ``openai/gpt-oss-20b`` and the empty string compose passes when unset
     # both parse instead of failing boot with a SettingsError.
     llm_fallback_models: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    # A smaller model on the SAME provider/key/base for the short, structured
+    # authoring passes in app.services.llm.LIGHT_FEATURES (quizzes, the critics'
+    # scorecards). On Groq's free tier every model has its own per-minute token
+    # budget, so this takes ~6k of a build's ~20k tokens off LLM_MODEL. Platform
+    # only; BYOK keeps the user's model. Empty = everything on LLM_MODEL.
+    llm_light_model: str | None = None
     # GET /api/v1/health/llm: at most one tiny upstream call per TTL
     # fleet-wide (Redis lock). Never part of /health/ready.
     # One upstream call per TTL across the fleet; 900 s keeps a 5-minute monitor at

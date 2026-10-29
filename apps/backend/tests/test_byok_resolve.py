@@ -209,3 +209,20 @@ async def test_capabilities_can_use_byok(make_user) -> None:
     assert can_use_byok(active) is True
     active.is_active = False
     assert can_use_byok(active) is False
+
+
+@pytest.mark.asyncio
+async def test_byok_ignores_the_platform_light_model(db_session, make_user) -> None:
+    # L77: LLM_LIGHT_MODEL routes platform-billed quiz/critic passes only; a BYOK
+    # user keeps the model they chose for every feature (ADR-0027).
+    from unittest.mock import patch
+
+    from app.core.config import get_settings
+
+    user = await make_user()
+    await _store(db_session, user.id, provider="groq", model="openai/gpt-oss-120b")
+    ctx = await resolve_context(db_session, user_id=user.id)
+    with patch.object(get_settings(), "llm_light_model", "openai/gpt-oss-20b"):
+        provider, mode = await build_provider(db_session, ctx, feature="authoring.quiz")
+    assert mode == "byok"
+    assert provider._model == "openai/gpt-oss-120b"

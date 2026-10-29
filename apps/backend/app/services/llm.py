@@ -752,6 +752,12 @@ class FallbackProvider:
         return response.text
 
 
+# Short, structured authoring passes that run fine on a smaller model:
+# quiz generation and the critics' JSON scorecards. With LLM_LIGHT_MODEL set
+# they run on it first (the rest of the chain behind it).
+LIGHT_FEATURES = frozenset({"authoring.quiz", "authoring.critic", "authoring.final_critic"})
+
+
 def get_provider() -> LLMProvider:
     """Return the configured tutor LLM provider.
 
@@ -768,10 +774,28 @@ def get_provider() -> LLMProvider:
     since a non-streaming reply sends no bytes until it is complete (the same
     3600 s per 128k tokens the Anthropic SDK uses for its own estimate).
     """
+    return _chain_provider(platform_model_chain())
+
+
+def get_provider_for(feature: str | None) -> LLMProvider:
+    """:func:`get_provider`, except that :data:`LIGHT_FEATURES` run on
+    LLM_LIGHT_MODEL first, then the rest of the platform chain.
+
+    Platform only (BYOK dispatch never comes through here). Calls
+    :func:`get_provider` through the module global when nothing is routed, so
+    tests that patch it keep working.
+    """
+    s = get_settings()
+    light = (s.llm_light_model or "").strip()
+    if s.llm_provider == "noop" or not light or feature not in LIGHT_FEATURES:
+        return get_provider()
+    return _chain_provider([light, *(m for m in platform_model_chain() if m != light)])
+
+
+def _chain_provider(chain: list[str]) -> LLMProvider:
     s = get_settings()
     timeout = max(float(s.llm_provider_timeout_s), 3600.0 * s.llm_max_tokens / 128_000)
     retries = int(s.llm_max_retries)
-    chain = platform_model_chain()
     if len(chain) == 1:
         return build_platform_provider(chain[0], timeout=timeout, max_retries=retries)
     return FallbackProvider(
@@ -782,6 +806,7 @@ def get_provider() -> LLMProvider:
 __all__ = [
     "DEFAULT_ANTHROPIC_MODEL",
     "DEFAULT_OPENAI_MODEL",
+    "LIGHT_FEATURES",
     "NOOP_MODEL_NAME",
     "NOOP_REFUSAL",
     "NOOP_RESPONSE_PREFIX",
@@ -798,6 +823,7 @@ __all__ = [
     "error_code",
     "error_status",
     "get_provider",
+    "get_provider_for",
     "is_fallback_eligible",
     "platform_model_chain",
 ]

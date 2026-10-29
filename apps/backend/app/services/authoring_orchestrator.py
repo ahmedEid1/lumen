@@ -655,7 +655,7 @@ async def _chat_with_retry[M: BaseModel](
     """
     # S5.12/DR-8: BYOK for a user-initiated authoring draft; platform for the
     # default ctx. The decrypt happens inside byok.build_provider only.
-    provider, billing_mode = await byok_service.build_provider(db, ctx)
+    provider, billing_mode = await byok_service.build_provider(db, ctx, feature=feature)
     messages = [
         llm_service.ChatMessage(role="system", content=system),
         llm_service.ChatMessage(role="user", content=user),

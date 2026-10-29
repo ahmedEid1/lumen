@@ -188,7 +188,7 @@ Required edits in `.env.production`:
 | `WEB_BASE_URL`                  | `https://lumen.example.com`                                           |
 | `BADGES_ISSUER_URL`             | `https://lumen.example.com`                                           |
 | `LLM_PROVIDER` / `OPENAI_API_BASE` / `OPENAI_API_KEY` / `LLM_MODEL` | Groq path: `openai` / `https://api.groq.com/openai/v1` / `<groq-key>` / `openai/gpt-oss-120b` |
-| `LLM_FALLBACK_MODELS` / `LLM_MAX_TOKENS` / `LLM_REASONING_EFFORT` | `openai/gpt-oss-20b` / `4096` (includes reasoning tokens) / `low`. Point an external uptime monitor at `/api/v1/health/llm` (cached, one upstream call per 15 min), never at the container healthcheck or deploy smoke. |
+| `LLM_FALLBACK_MODELS` / `LLM_LIGHT_MODEL` / `LLM_MAX_TOKENS` / `LLM_REASONING_EFFORT` | `openai/gpt-oss-20b` / `openai/gpt-oss-20b` (quizzes and critic scorecards; on Groq's free tier each model has its own 8k tokens/min, so this shortens course builds) / `4096` (includes reasoning tokens) / `low`. Point an external uptime monitor at `/api/v1/health/llm` (cached, one upstream call per 15 min), never at the container healthcheck or deploy smoke. |
 | `SMTP_*`                        | Resend or any SMTP provider (free tier is fine for a demo)            |
 | `CORS_ORIGINS`                  | `["https://lumen.example.com"]`                                       |
 
