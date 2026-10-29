@@ -26,7 +26,7 @@ from typing import Literal, TypedDict
 # question. Used by the L25 eval suite to assert the actual tool path
 # matches the expected one (10/10 at temperature=0 to be canonical).
 DemoCategory = Literal[
-    "retriever-only",  # vector + BM25 hit, no other tool needed
+    "retriever-only",  # vector-search hit, no other tool needed
     "retriever-code-runner",  # retrieve a concept + run code to verify
     "retriever-web-searcher",  # retrieve background + fetch a current detail
     "refusal",  # out-of-scope / jailbreak attempt → must refuse
@@ -71,7 +71,7 @@ LIBRARY_VERSION = "2026-05-27.v1"
 
 DEMO_QUESTIONS: list[DemoQuestion] = [
     # ---------------------------------------------------------------- #
-    # Retriever-only — vector / BM25 hit, no tool chaining             #
+    # Retriever-only — vector-search hit, no tool chaining             #
     # ---------------------------------------------------------------- #
     {
         "id": "ts-generics-101",

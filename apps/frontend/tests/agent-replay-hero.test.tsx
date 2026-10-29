@@ -1,8 +1,8 @@
 /**
  * L29 — landing-page agent-replay hero.
  *
- * Asserts the replay surface renders the canonical question + both
- * tool labels + the Try-the-demo CTA. Animation is CSS only — we
+ * Asserts the replay surface renders the canonical question, the one
+ * retrieval the live web tutor runs, the cited lesson and the CTAs. Animation is CSS only — we
  * verify it stays inert under prefers-reduced-motion via the
  * inline <style> tag (the rule must reset the animations to none).
  */
@@ -15,14 +15,21 @@ describe("AgentReplayHero", () => {
   it("renders the canonical TS-variance question", () => {
     render(<AgentReplayHero />);
     expect(
-      screen.getByText(/Type 'string' is not assignable to type 'T'/i),
+      screen.getByText(/^I keep getting .*Type 'string' is not assignable to type 'T'/i),
     ).toBeInTheDocument();
   });
 
-  it("renders both expected tool rows (retriever + code_runner)", () => {
+  it("shows only the retriever step the live web tutor runs", () => {
     render(<AgentReplayHero />);
     expect(screen.getByText("retriever")).toBeInTheDocument();
-    expect(screen.getByText("code_runner")).toBeInTheDocument();
+    expect(screen.queryByText("code_runner")).not.toBeInTheDocument();
+  });
+
+  it("shows the lesson the answer cites and is captioned as an example", () => {
+    render(<AgentReplayHero />);
+    expect(screen.getByText(/^The canonical error:/)).toBeInTheDocument();
+    expect(screen.getByText("Example run, animated")).toBeInTheDocument();
+    expect(screen.queryByText(/live replay/i)).not.toBeInTheDocument();
   });
 
   it("renders the Try-the-demo and Read-the-evals CTAs", () => {
@@ -48,6 +55,6 @@ describe("AgentReplayHero", () => {
   it("labels the replay panel via role=img + aria-label", () => {
     render(<AgentReplayHero />);
     const panel = screen.getByRole("img");
-    expect(panel.getAttribute("aria-label")).toMatch(/animated replay/i);
+    expect(panel.getAttribute("aria-label")).toMatch(/animated example/i);
   });
 });

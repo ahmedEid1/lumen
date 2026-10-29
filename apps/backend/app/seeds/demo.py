@@ -563,7 +563,7 @@ async def run() -> None:
         instructor = await _ensure_user(
             db,
             email="teacher@lumen.test",
-            full_name="Tareq Hassan",
+            full_name="Lumen demo content",
             password="Teach!2026",
             role=Role.user,
         )
@@ -607,9 +607,9 @@ async def run() -> None:
             title="Data Structures Essentials",
             overview=(
                 "Arrays, hash tables, trees — the data structures every "
-                "working engineer reaches for weekly. Content imported via "
-                "Lumen's multi-modal ingest pipeline and reviewed by the "
-                "instructor."
+                "working engineer reaches for weekly. Hand-written demo "
+                "content, laid out the way Lumen's ingest pipeline "
+                "structures imported material."
             ),
             learning_outcomes=[
                 "Pick the right structure for a given access pattern",

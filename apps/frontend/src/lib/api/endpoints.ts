@@ -49,6 +49,7 @@ export const Catalog = {
     subject?: string;
     tag?: string;
     difficulty?: string;
+    featured?: boolean;
     sort?: string;
     page?: number;
     page_size?: number;

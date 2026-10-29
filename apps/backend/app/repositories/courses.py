@@ -142,6 +142,7 @@ async def search_courses(
     subject_slug: str | None = None,
     tag_slug: str | None = None,
     difficulty: str | None = None,
+    featured: bool | None = None,
     publicly_listed_only: bool = True,
     owner_id: str | None = None,
     sort: str = "-created_at",
@@ -163,6 +164,8 @@ async def search_courses(
         stmt = stmt.join(Course.tags).where(Tag.slug == tag_slug)
     if difficulty:
         stmt = stmt.where(Course.difficulty == difficulty)
+    if featured is not None:
+        stmt = stmt.where(Course.is_featured.is_(featured))
     # Search ranking: when ``q`` is set we hit the GIN-indexed
     # ``courses.search_vector`` column (a Postgres generated tsvector
     # over title + overview, maintained automatically). ILIKE stays as

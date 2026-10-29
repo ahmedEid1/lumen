@@ -153,7 +153,7 @@ async def _seed() -> None:
         # e2e / conftest maps teacher@/student@ → user.
         users = {
             "admin@lumen.test": ("Admin", Role.admin, "Admin!2026"),
-            "teacher@lumen.test": ("Tareq Hassan", Role.user, "Teach!2026"),
+            "teacher@lumen.test": ("Lumen demo content", Role.user, "Teach!2026"),
             "student@lumen.test": ("Lina Park", Role.user, "Learn!2026"),
         }
         created = {}
@@ -196,7 +196,9 @@ async def _seed() -> None:
                 visibility=Visibility.public,
                 moderation_state=ModerationState.approved,
                 published_at=datetime.now(UTC),
-                is_featured=True,
+                # Its lessons are one-line dev fixtures, so it stays out of
+                # the featured slots the home page shows (L49).
+                is_featured=False,
             )
             course.tags = [tags["python"], tags["fastapi"], tags["beginner"]]
             db.add(course)
