@@ -287,6 +287,7 @@ Next (as $ADMIN_USER — log out and back in so docker group takes effect):
   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
   docker compose -f docker-compose.prod.yml exec api alembic upgrade head
   # Your admin, with a generated password (never 'seed' here: its logins are public in the README):
+  # bootstrap-admin sets the password only for a new email (an existing one keeps its password).
   ADMIN_PW="\$(openssl rand -base64 24)"; echo "Admin password, store it now: \$ADMIN_PW"
   docker compose -f docker-compose.prod.yml exec api python -m app.cli bootstrap-admin --email you@example.com --password "\$ADMIN_PW"
   # Optional: 'demo-seed' adds the public demo account; it also creates teacher@

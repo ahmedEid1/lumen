@@ -249,8 +249,15 @@ docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 # ~1.8 GB used (of 2 GB) + minimal swap on a quiet box.
 
 docker compose -f docker-compose.prod.yml --env-file .env.production exec api alembic upgrade head
-docker compose -f docker-compose.prod.yml --env-file .env.production exec api python -m app.cli seed
-docker compose -f docker-compose.prod.yml --env-file .env.production exec api python -m app.cli demo-seed
+# Your admin, with a generated password. Don't run 'seed' here: it creates admin@,
+# teacher@ and student@ with the passwords printed in the README.
+# bootstrap-admin sets the password only for a NEW email; for an existing one it
+# just re-promotes the account and keeps its old password.
+ADMIN_PW="$(openssl rand -base64 24)"; echo "Admin password, store it now: $ADMIN_PW"
+docker compose -f docker-compose.prod.yml --env-file .env.production exec api python -m app.cli bootstrap-admin --email you@example.com --password "$ADMIN_PW"
+# Optional: the public demo account (demo@) and its courses. It also creates teacher@
+# with the README password: sign in as teacher@ and change its password right after.
+#   docker compose -f docker-compose.prod.yml --env-file .env.production exec -e LUMEN_ALLOW_PROD_SEED=1 api python -m app.cli demo-seed
 ```
 
 ### 3.7 Verify the live demo works
@@ -263,7 +270,7 @@ curl -sS https://<DOMAIN_NAME>/api/v1/health/live
 # From your laptop, open in a browser:
 https://<DOMAIN_NAME>
 # Should show the Lumen landing page with TLS green-lock.
-# Log in as student@lumen.test / Learn!2026 and click around.
+# Log in with the admin you just created, or open /demo for the public demo account.
 ```
 
 ⚠️ **If Caddy can't get a cert:** Let's Encrypt has rate limits (5 certs per domain per week). If you've been retrying, check `docker compose -f docker-compose.prod.yml logs proxy` for `ratelimited` errors. Fall back to ACME staging (`STAGING=1` env) for testing, then switch back to prod once everything else works.

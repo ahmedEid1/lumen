@@ -57,6 +57,7 @@ docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d db redis s3 search
 docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
 # Never run bootstrap-admin with its defaults on a public host: they are the README's local login.
+# bootstrap-admin sets the password only for a new email (an existing one keeps its password).
 ADMIN_PW="$(openssl rand -base64 24)"; echo "Admin password, store it now: $ADMIN_PW"
 docker compose -f docker-compose.prod.yml run --rm api python -m app.cli bootstrap-admin --email you@example.com --password "$ADMIN_PW"
 docker compose -f docker-compose.prod.yml up -d

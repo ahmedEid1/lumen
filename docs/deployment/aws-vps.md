@@ -220,6 +220,7 @@ docker compose -f docker-compose.prod.yml ps          # all healthy?
 docker compose -f docker-compose.prod.yml exec api alembic upgrade head
 # Your admin, with a generated password. Don't run 'seed' on a public host:
 # it creates admin@, teacher@ and student@ with the passwords printed in the README.
+# bootstrap-admin sets the password only for a new email (an existing one keeps its password).
 ADMIN_PW="$(openssl rand -base64 24)"; echo "Admin password, store it now: $ADMIN_PW"
 docker compose -f docker-compose.prod.yml exec api python -m app.cli bootstrap-admin --email you@example.com --password "$ADMIN_PW"
 # Optional: 'demo-seed' adds the public demo account (demo@) and its courses.
