@@ -707,10 +707,17 @@ class FallbackProvider:
     unchanged; the hops are visible as ``llm_model_fallback`` log events.
     """
 
-    def __init__(self, providers: list[LLMProvider]) -> None:
+    def __init__(
+        self, providers: list[LLMProvider], *, fallback_on_rate_limit: bool = False
+    ) -> None:
         if not providers:
             raise ValueError("FallbackProvider needs at least one provider")
         self._providers = providers
+        # A 429 normally doesn't move on (the SDK already retried, and a limit can
+        # be account-wide). Set for the LLM_LIGHT_MODEL chain only: its point is
+        # that the next model has a separate per-model budget (Groq), so a
+        # rate-limited light model should hand over to the primary.
+        self._fallback_on_rate_limit = fallback_on_rate_limit
         self.name: str = getattr(providers[0], "name", "unknown")
         self._model: str = getattr(providers[0], "_model", "unknown")
 
@@ -731,7 +738,8 @@ class FallbackProvider:
             try:
                 return await provider.chat_with_usage(messages, temperature=temperature)
             except Exception as exc:
-                if i == last or not is_fallback_eligible(exc):
+                rate_limited = self._fallback_on_rate_limit and error_status(exc) == 429
+                if i == last or not (is_fallback_eligible(exc) or rate_limited):
                     raise
                 log.warning(
                     "llm_model_fallback",
@@ -752,6 +760,12 @@ class FallbackProvider:
         return response.text
 
 
+# Short, structured authoring passes that run fine on a smaller model:
+# quiz generation and the critics' JSON scorecards. With LLM_LIGHT_MODEL set
+# they run on it first (the rest of the chain behind it).
+LIGHT_FEATURES = frozenset({"authoring.quiz", "authoring.critic", "authoring.final_critic"})
+
+
 def get_provider() -> LLMProvider:
     """Return the configured tutor LLM provider.
 
@@ -768,20 +782,42 @@ def get_provider() -> LLMProvider:
     since a non-streaming reply sends no bytes until it is complete (the same
     3600 s per 128k tokens the Anthropic SDK uses for its own estimate).
     """
+    return _chain_provider(platform_model_chain())
+
+
+def get_provider_for(feature: str | None) -> LLMProvider:
+    """:func:`get_provider`, except that :data:`LIGHT_FEATURES` run on
+    LLM_LIGHT_MODEL first, then the rest of the platform chain.
+
+    Platform only (BYOK dispatch never comes through here). Calls
+    :func:`get_provider` through the module global when nothing is routed, so
+    tests that patch it keep working.
+    """
+    s = get_settings()
+    light = (s.llm_light_model or "").strip()
+    if s.llm_provider == "noop" or not light or feature not in LIGHT_FEATURES:
+        return get_provider()
+    return _chain_provider(
+        [light, *(m for m in platform_model_chain() if m != light)], fallback_on_rate_limit=True
+    )
+
+
+def _chain_provider(chain: list[str], *, fallback_on_rate_limit: bool = False) -> LLMProvider:
     s = get_settings()
     timeout = max(float(s.llm_provider_timeout_s), 3600.0 * s.llm_max_tokens / 128_000)
     retries = int(s.llm_max_retries)
-    chain = platform_model_chain()
     if len(chain) == 1:
         return build_platform_provider(chain[0], timeout=timeout, max_retries=retries)
     return FallbackProvider(
-        [build_platform_provider(m, timeout=timeout, max_retries=retries) for m in chain]
+        [build_platform_provider(m, timeout=timeout, max_retries=retries) for m in chain],
+        fallback_on_rate_limit=fallback_on_rate_limit,
     )
 
 
 __all__ = [
     "DEFAULT_ANTHROPIC_MODEL",
     "DEFAULT_OPENAI_MODEL",
+    "LIGHT_FEATURES",
     "NOOP_MODEL_NAME",
     "NOOP_REFUSAL",
     "NOOP_RESPONSE_PREFIX",
@@ -798,6 +834,7 @@ __all__ = [
     "error_code",
     "error_status",
     "get_provider",
+    "get_provider_for",
     "is_fallback_eligible",
     "platform_model_chain",
 ]

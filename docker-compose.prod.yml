@@ -65,6 +65,8 @@ x-api-env: &api-env
   LLM_PROVIDER: ${LLM_PROVIDER:-noop}
   LLM_MODEL: ${LLM_MODEL:-}
   LLM_FALLBACK_MODELS: ${LLM_FALLBACK_MODELS:-}
+  # Quizzes and critic scorecards on a smaller model (its own Groq rate budget).
+  LLM_LIGHT_MODEL: ${LLM_LIGHT_MODEL:-}
   # Includes reasoning tokens on Groq gpt-oss; 1024 cut off lesson JSON.
   LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-4096}
   LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-low}

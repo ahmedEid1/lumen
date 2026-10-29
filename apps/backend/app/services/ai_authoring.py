@@ -526,9 +526,9 @@ async def _chat_with_retry[M: BaseModel](
     # session to decrypt against; otherwise (unmetered/backfill path) keep
     # the zero-arg platform provider.
     if session is not None:
-        provider, billing_mode = await byok_service.build_provider(session, ctx)
+        provider, billing_mode = await byok_service.build_provider(session, ctx, feature=feature)
     else:
-        provider, billing_mode = llm_service.get_provider(), "platform"
+        provider, billing_mode = llm_service.get_provider_for(feature), "platform"
     messages = [
         llm_service.ChatMessage(role="system", content=system),
         llm_service.ChatMessage(role="user", content=user),
