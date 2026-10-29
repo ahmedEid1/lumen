@@ -218,11 +218,13 @@ docker compose -f docker-compose.prod.yml --env-file .env.production pull
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 docker compose -f docker-compose.prod.yml ps          # all healthy?
 docker compose -f docker-compose.prod.yml exec api alembic upgrade head
-docker compose -f docker-compose.prod.yml exec api python -m app.cli seed
-# Optional: 'demo-seed' adds 3 extra browse-only courses on top of
-# the curated multi-agent tutor turn that 'seed' already lays down.
-# Skip it unless you specifically want a fuller catalog to click through.
-#   docker compose -f docker-compose.prod.yml exec api python -m app.cli demo-seed
+# Your admin, with a generated password. Don't run 'seed' on a public host:
+# it creates admin@, teacher@ and student@ with the passwords printed in the README.
+ADMIN_PW="$(openssl rand -base64 24)"; echo "Admin password, store it now: $ADMIN_PW"
+docker compose -f docker-compose.prod.yml exec api python -m app.cli bootstrap-admin --email you@example.com --password "$ADMIN_PW"
+# Optional: 'demo-seed' adds the public demo account (demo@) and its courses.
+# It also creates teacher@ with the README password: sign in as teacher@ and change its password right after.
+#   docker compose -f docker-compose.prod.yml exec -e LUMEN_ALLOW_PROD_SEED=1 api python -m app.cli demo-seed
 ```
 
 The `api` healthcheck takes ~30 s to flip green on first boot (model warmup + first DB connection). Watch `free -h` and `htop` the first time — if you see swap usage climb above 1 GB sustained, drop `CELERY_CONCURRENCY` lower or skip MinIO and switch to S3 (see "split deploy" below).

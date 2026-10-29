@@ -286,10 +286,12 @@ Next (as $ADMIN_USER — log out and back in so docker group takes effect):
   docker compose -f docker-compose.prod.yml --env-file .env.production pull
   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
   docker compose -f docker-compose.prod.yml exec api alembic upgrade head
-  docker compose -f docker-compose.prod.yml exec api python -m app.cli seed
-  # Optional — adds 3 extra browse-only courses on top of the curated
-  # multi-agent tutor demo that 'seed' already lays down:
-  #   docker compose -f docker-compose.prod.yml exec api python -m app.cli demo-seed
+  # Your admin, with a generated password (never 'seed' here: its logins are public in the README):
+  ADMIN_PW="\$(openssl rand -base64 24)"; echo "Admin password, store it now: \$ADMIN_PW"
+  docker compose -f docker-compose.prod.yml exec api python -m app.cli bootstrap-admin --email you@example.com --password "\$ADMIN_PW"
+  # Optional: 'demo-seed' adds the public demo account; it also creates teacher@
+  # with the README password: sign in as teacher@ and change its password right after.
+  #   docker compose -f docker-compose.prod.yml exec -e LUMEN_ALLOW_PROD_SEED=1 api python -m app.cli demo-seed
 
 Then point an A record for $APP_DOMAIN at this VM's Elastic IP and Caddy
 will obtain the Let's Encrypt cert on the first HTTPS request.

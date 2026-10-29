@@ -200,9 +200,9 @@ cp .env.example .env
 make up && make migrate && make seed
 ```
 
-Open <http://localhost:3000> and sign in:
+Open <http://localhost:3000> and sign in with one of the local seed logins. They exist only in the database `make seed` creates on your machine and don't work on the hosted app; to try that, open <https://lumen.ahmedhobeishy.tech/demo>, which signs you in to the public demo account.
 
-| Role | Email | Password |
+| Role | Email | Password (local only) |
 |---|---|---|
 | admin | `admin@lumen.test` | `Admin!2026` |
 | user | `teacher@lumen.test` | `Teach!2026` |
