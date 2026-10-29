@@ -48,6 +48,11 @@ async def get_current_user_optional(
         payload = decode_token(token)
     except jwt.PyJWTError:
         return None
+    # Password-reset, email-verify and email-change links are JWTs signed with
+    # the same key and issuer, marked by a ``purpose`` claim. They must never
+    # work as a login (L64); access tokens carry no purpose.
+    if payload.get("purpose"):
+        return None
     user = await users_repo.get_by_id(db, str(payload.get("sub", "")))
     if not user or not user.is_active:
         return None
