@@ -7,7 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The live LLM works again: Groq `openai/gpt-oss-120b` replaces the retired
+  `llama-3.3-70b-versatile` (Groq returned 404 `model_not_found`, so course
+  building, the tutor and the evals all failed).** gpt-oss is a reasoning model:
+  on Groq, requests now send `max_completion_tokens`, `reasoning_effort`
+  (`LLM_REASONING_EFFORT`, default `low`) and `include_reasoning=false`
+  (qwen/*: `reasoning_format=hidden`), gated on the exact `api.groq.com` host
+  so other providers' requests are unchanged. `LLM_MAX_TOKENS` defaults to
+  4096, because it includes reasoning tokens (1024 cut off lesson JSON). Cut-off
+  replies are logged (`llm_output_truncated`, `llm_stream_output_truncated`).
+- **Streamed tutor turns are priced.** The stream path imported a `cost_for`
+  that never existed, so every streamed turn was metered at $0 and the daily
+  budget guard never saw it. gpt-oss-120b and -20b are priced.
+
+### Changed
+
+- Groq BYOK models are `openai/gpt-oss-120b` and `openai/gpt-oss-20b`; the eval
+  CLI, workflows, README quickstart, `.env.example` and runbooks use them.
+- Sync SDK clients get an explicit timeout (they kept the SDK's 600 s default):
+  at least `LLM_PROVIDER_TIMEOUT_S`, and enough for a full `LLM_MAX_TOKENS` reply.
+- Platform Anthropic streaming with no `LLM_MODEL` now uses the same default as
+  the sync path (`claude-sonnet-4-6`) instead of the retired
+  `claude-3-5-haiku-latest`.
+
 ### Added
+
+- **Platform model fallback (`LLM_FALLBACK_MODELS`, comma-separated).** On a
+  model-availability error (404/410, a model-retired 400, 5xx, a read timeout)
+  the next model is tried, for sync calls and for streams before the first
+  token; never for BYOK, bad requests, auth errors, rate limits or connection
+  failures. Entries with a fallback behind them stream with no retries and a
+  20 s first-byte timeout, so a hung model hands over inside the tutor turn's
+  60 s sweep. The ledger records the model that actually answered.
+- **`GET /api/v1/health/llm`**: a cached LLM probe (one tiny upstream call per
+  `LLM_HEALTH_PROBE_TTL_S`, default 900 s, fleet-wide via Redis). Not part of
+  `/health/ready`, the container healthcheck or the deploy smoke.
 
 - **Notifications are now feature-complete: delete, clear, mark-unread,
   a full inbox page, and an accurate badge.** Per-row kebab actions

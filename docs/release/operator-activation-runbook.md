@@ -213,7 +213,7 @@ REDIS_PASSWORD=<paste output>
 LLM_PROVIDER=openai
 OPENAI_API_BASE=https://api.groq.com/openai/v1
 OPENAI_API_KEY=<paste GROQ_KEY from Step 3.1>
-LLM_MODEL=llama-3.3-70b-versatile
+LLM_MODEL=openai/gpt-oss-120b
 
 # --- production hardening ---
 ENVIRONMENT=production

@@ -579,6 +579,16 @@ async def call_logged(
 
     latency_ms = int((time.perf_counter() - started) * 1000)
     cost = compute_cost_usd(response.model, response.prompt_tokens, response.completion_tokens)
+    if response.finish_reason == "length":
+        # The reply hit the output limit; on a reasoning model the thinking can use
+        # most of it, which shows up downstream as unparseable JSON or empty text.
+        log.warning(
+            "llm_output_truncated",
+            feature=feature,
+            model=response.model,
+            completion_tokens=response.completion_tokens,
+            text_chars=len(response.text),
+        )
     await _persist_row(
         session,
         user_id=user_id,

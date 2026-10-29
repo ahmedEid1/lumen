@@ -142,7 +142,7 @@ async def test_patch_active_demotes_prior(client, make_user, _stub_validation) -
     )
     await client.put(
         "/api/v1/me/llm-credentials/groq",
-        json={"model": "llama-3.3-70b-versatile", "api_key": "gsk_bbbbbbbbbbbbbbbbbbbb"},
+        json={"model": "openai/gpt-oss-120b", "api_key": "gsk_bbbbbbbbbbbbbbbbbbbb"},
         headers=h,
     )
     await client.patch("/api/v1/me/llm-credentials/openai", json={"is_active": True}, headers=h)

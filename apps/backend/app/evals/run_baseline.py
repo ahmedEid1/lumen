@@ -9,12 +9,12 @@ Usage::
             --suite tutor \\
             --primary openai \\
             --primary-base https://api.groq.com/openai/v1 \\
-            --primary-model llama-3.3-70b-versatile \\
+            --primary-model openai/gpt-oss-120b \\
             --baseline mistral \\
             --baseline-model mistral-small-latest \\
             --judge openai \\
             --judge-base https://api.groq.com/openai/v1 \\
-            --judge-model llama-3.1-8b-instant \\
+            --judge-model openai/gpt-oss-20b \\
             --limit 10
 
 The script runs each question through both providers, has the judge
@@ -49,7 +49,7 @@ from app.evals.baseline import (
     run_comparison,
 )
 from app.evals.golden import SUITES, load_dataset, reports_dir
-from app.services.llm import ChatMessage
+from app.services.llm import ChatMessage, completion_limit_kwargs
 
 app = typer.Typer(no_args_is_help=True, help="Operator baseline-comparison runner (L41).")
 
@@ -77,7 +77,10 @@ async def _ask(
     resp = await client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": question}],
-        max_tokens=600,
+        # Reasoning models (Groq gpt-oss) spend part of the budget thinking.
+        **completion_limit_kwargs(
+            api_base, model, 2048 if model.startswith(("openai/gpt-oss", "qwen/")) else 600
+        ),
         temperature=0.2,
     )
     latency_ms = int((time.monotonic() - t0) * 1000)
@@ -218,7 +221,9 @@ async def _judge(
             {"role": "system", "content": _JUDGE_SYSTEM},
             {"role": "user", "content": user_prompt},
         ],
-        max_tokens=80,
+        **completion_limit_kwargs(
+            api_base, model, 1024 if model.startswith(("openai/gpt-oss", "qwen/")) else 80
+        ),
         temperature=0.0,
     )
     text = (resp.choices[0].message.content or "").strip()
@@ -267,7 +272,7 @@ def run(
     baseline_model: str = typer.Option("mistral-small-latest", "--baseline-model"),
     judge_base: str = typer.Option(..., "--judge-base"),
     judge_key_env: str = typer.Option("GROQ_API_KEY", "--judge-key-env"),
-    judge_model: str = typer.Option("llama-3.1-8b-instant", "--judge-model"),
+    judge_model: str = typer.Option("openai/gpt-oss-20b", "--judge-model"),
     limit: int | None = typer.Option(None, "--limit", help="Cap items for a smoke run."),
 ) -> None:
     """Drive the L36 `run_comparison` against real providers + write a JSONL report."""

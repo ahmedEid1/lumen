@@ -26,7 +26,7 @@ stack.
 #   LLM_PROVIDER=openai
 #   OPENAI_API_BASE=https://api.groq.com/openai/v1
 #   OPENAI_API_KEY=<your-groq-key>
-#   LLM_MODEL=llama-3.3-70b-versatile
+#   LLM_MODEL=openai/gpt-oss-120b
 # then:
 docker compose exec api python -m app.evals run --suite authoring     # full n=10
 docker compose exec api python -m app.evals run --suite tutor         # full n=30

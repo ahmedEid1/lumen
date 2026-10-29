@@ -104,7 +104,7 @@ jobs:
             -e LLM_PROVIDER=openai \
             -e OPENAI_API_BASE=https://api.groq.com/openai/v1 \
             -e OPENAI_API_KEY="${OPENAI_API_KEY}" \
-            -e LLM_MODEL=llama-3.3-70b-versatile \
+            -e LLM_MODEL=openai/gpt-oss-120b \
             api python -m app.evals run --suite tutor --limit 3 --out /app/evals/reports/ci-smoke.jsonl
 
       # The "noop" branch exercises the same code path without an

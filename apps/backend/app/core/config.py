@@ -9,10 +9,10 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Environment(StrEnum):
@@ -194,7 +194,26 @@ class Settings(BaseSettings):
     llm_model: str | None = None
     anthropic_api_key: SecretStr | None = None
     anthropic_api_base: str | None = None
-    llm_max_tokens: int = 1024
+    # Output cap per call; on Groq gpt-oss it includes reasoning tokens.
+    llm_max_tokens: int = 4096
+    # Groq openai/gpt-oss-* only (a reasoning model): how much it reasons before
+    # answering. Reasoning tokens count against LLM_MAX_TOKENS, so "medium" (Groq's
+    # default) cut off lesson JSON at 1024 tokens; "low" keeps answers whole.
+    llm_reasoning_effort: Literal["low", "medium", "high"] = "low"
+    # Ordered platform fallback chain: model ids on the SAME provider/key/
+    # base as LLM_MODEL, tried in order only when the model before failed
+    # with a model-availability error (app.services.llm.is_fallback_eligible).
+    # Empty = no fallback. Never applied to BYOK dispatch (ADR-0027 §4 item 4).
+    # Comma-separated, NOT JSON: NoDecode skips pydantic-settings' JSON decode
+    # so ``openai/gpt-oss-20b`` and the empty string compose passes when unset
+    # both parse instead of failing boot with a SettingsError.
+    llm_fallback_models: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    # GET /api/v1/health/llm: at most one tiny upstream call per TTL
+    # fleet-wide (Redis lock). Never part of /health/ready.
+    # One upstream call per TTL across the fleet; 900 s keeps a 5-minute monitor at
+    # ~96 requests a day against the free tier's 1K requests/day.
+    llm_health_probe_ttl_s: int = 900
+    llm_health_probe_timeout_s: float = 10.0
 
     # L41 — Mistral provider for the L25/L36 eval baseline + as a
     # second free-tier streaming option alongside Groq. Mistral's
@@ -442,6 +461,18 @@ class Settings(BaseSettings):
     hibp_enabled: bool = False
     hibp_api_base: str = "https://api.pwnedpasswords.com"
     hibp_timeout_seconds: float = 2.0
+
+    @field_validator("llm_fallback_models", mode="before")
+    @classmethod
+    def _split_llm_fallback_models(cls, v: object) -> object:
+        # Comma-separated; a JSON-looking list ('[]', '["a","b"]') is accepted
+        # too, so it can't become a model literally named "[]". Never raises.
+        if isinstance(v, str):
+            s = v.strip()
+            if s.startswith("[") and s.endswith("]"):
+                s = s[1:-1]
+            return [m.strip().strip("\"'") for m in s.split(",") if m.strip().strip("\"'")]
+        return v
 
     @field_validator("cors_origins", mode="before")
     @classmethod

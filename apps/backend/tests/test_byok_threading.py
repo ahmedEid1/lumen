@@ -31,7 +31,7 @@ def _byok_on(monkeypatch):
     secrets_crypto.reset_for_tests()
 
 
-async def _store(db, user_id, *, provider="groq", model="llama-3.3-70b-versatile"):
+async def _store(db, user_id, *, provider="groq", model="openai/gpt-oss-120b"):
     blob = secrets_crypto.encrypt(SENTINEL.encode())
     cred = UserLLMCredential(
         user_id=user_id,
@@ -82,7 +82,7 @@ async def test_stream_dispatch_for_turn_carries_registry_base(db_session, make_u
     )
     assert dispatch is not None
     assert dispatch["base_url"] == "https://api.groq.com/openai/v1"
-    assert dispatch["model"] == "llama-3.3-70b-versatile"
+    assert dispatch["model"] == "openai/gpt-oss-120b"
     assert dispatch["api_key"] == SENTINEL
     assert dispatch["transport"] == "openai"
 
@@ -123,7 +123,7 @@ async def test_stream_chat_byok_dispatch_bypasses_global_switch(monkeypatch) -> 
         "transport": "openai",
         "base_url": "https://api.groq.com/openai/v1",
         "api_key": SENTINEL,
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-120b",
     }
     chunks = [
         c

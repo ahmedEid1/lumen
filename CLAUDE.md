@@ -13,7 +13,7 @@ Project-specific guidance for Claude Code agents. Read this once at the start of
 
 What makes it more than a CRUD LMS — the **agentic layer** is the centerpiece (Lumen is a portfolio anchor for agentic-AI work):
 
-- **Custom multi-agent orchestrator (no LangChain)** drives the RAG tutor and AI authoring. LLM via Groq Llama 3.3 70B over an OpenAI-compatible client (`app/services/llm.py`); retrieval embeddings via Cloudflare Workers AI into the `pgvector` store.
+- **Custom multi-agent orchestrator (no LangChain)** drives the RAG tutor and AI authoring. LLM via Groq gpt-oss-120b (a reasoning model) over an OpenAI-compatible client (`app/services/llm.py`); retrieval embeddings via Cloudflare Workers AI into the `pgvector` store.
 - **RAG tutor with citations** — course-scoped retrieval; tutor subagents in `app/services/tutor_subagents/` (retriever, concept_explainer, quiz_generator, code_runner, web_searcher).
 - **AI authoring + multi-modal ingest** — brief→outline→lessons→quizzes and URL→draft course; `authoring_orchestrator` + `authoring_subagents/`; nothing auto-persists (instructor reviews before commit).
 - **MCP server** (`app/mcp/`) exposes Lumen tools to external agents; listed in the public MCP registry.
