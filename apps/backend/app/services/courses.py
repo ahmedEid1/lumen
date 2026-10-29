@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from slugify import slugify
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -672,9 +673,27 @@ async def update_lesson(
     return lesson
 
 
-async def delete_lesson(db: AsyncSession, *, lesson_id: str, owner: User) -> None:
+async def delete_lesson(db: AsyncSession, *, lesson_id: str, owner: User) -> str:
+    """Soft-delete the lesson; returns its course id for the reindex."""
     lesson = await _owned_lesson(db, lesson_id, owner)
     lesson.deleted_at = datetime.now(UTC)
+    return await course_id_for_module(db, lesson.module_id)
+
+
+async def course_id_for_module(db: AsyncSession, module_id: str) -> str:
+    return (await db.execute(select(Module.course_id).where(Module.id == module_id))).scalar_one()
+
+
+async def commit_and_reindex(db: AsyncSession, course_id: str) -> None:
+    """Commit a lesson write, then re-embed the course (L06).
+
+    The indexer runs in a worker on its own session, so it must see the
+    committed lessons; enqueueing before the request commit could index the
+    old text. Indexing covers drafts too, so an owner's edits reach the tutor
+    without a republish.
+    """
+    await db.commit()
+    _schedule_embedding_index(course_id)
 
 
 async def reorder_lessons(

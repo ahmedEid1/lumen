@@ -71,6 +71,7 @@ from app.services import byok as byok_service
 from app.services import llm as llm_service
 from app.services.byok import PLATFORM_CONTEXT, LLMContext
 from app.services.llm_call_log import call_logged
+from app.services.tutor import resolve_cited_lesson_id
 from app.services.tutor_subagents import (
     CodeRunResult,
     ConceptExplainResult,
@@ -453,9 +454,7 @@ def _serialise_for_synth(name: ToolName, result: BaseModel) -> str:
     if isinstance(result, RetrieverResult):
         if not result.chunks:
             return "RETRIEVER: (no relevant content)\n"
-        body = "\n\n".join(
-            f"Lesson L{c.lesson_id}: {c.lesson_title}\n{c.text}" for c in result.chunks
-        )
+        body = "\n\n".join(f"[L:{c.lesson_id}] {c.lesson_title}\n{c.text}" for c in result.chunks)
         return f"RETRIEVER (cite these with [L:<lesson_id>]):\n{body}\n"
     if isinstance(result, WebSearchResult):
         if not result.snippets:
@@ -563,7 +562,7 @@ async def _dispatch_tool(
     for r in retrieved:
         if isinstance(r, RetrieverResult):
             context_block = "\n\n".join(
-                f"Lesson L{c.lesson_id}: {c.lesson_title}\n{c.text}" for c in r.chunks
+                f"[L:{c.lesson_id}] {c.lesson_title}\n{c.text}" for c in r.chunks
             )
             break
 
@@ -612,8 +611,8 @@ def _validate_citations(answer: str, allowed_ids: set[str]) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
     for match in _CITATION_RE.finditer(answer or ""):
-        lid = match.group(1)
-        if lid in seen or lid not in allowed_ids:
+        lid = resolve_cited_lesson_id(match.group(1), allowed_ids)
+        if lid is None or lid in seen:
             continue
         seen.add(lid)
         out.append(lid)
@@ -1163,7 +1162,7 @@ async def _call_synthesiser(
     INTO the system message rather than the user turn. The Anthropic
     Messages API accepts arbitrarily-large system content, and the
     :class:`NoopProvider` parses the system prompt for
-    ``Lesson L<id>:`` headers to drive its deterministic citation
+    ``[L:<id>] <title>`` headers to drive its deterministic citation
     output — keeping the lesson context in the system message is what
     lets the existing Phase E1 noop-driven tests pin against citation
     extraction without changes here.

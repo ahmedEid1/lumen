@@ -35,10 +35,11 @@ from app.services.embeddings_retrieval import find_relevant_chunks
 
 log = get_logger(__name__)
 
-# Excerpt length surfaced in the trace + serialised into the
-# synthesiser's prompt. Long enough to anchor the model, short
-# enough that 6 chunks fit comfortably in the prompt budget.
-EXCERPT_CHARS = 600
+# Chunk text serialised into the synthesiser's prompt. One full chunk
+# (~500 tokens, about 2,000 characters): at 600 the model often never saw
+# the passage that made a chunk rank (L13/L73). Six chunks is about 3k
+# tokens. Citation pills cut their own 280-character excerpt.
+EXCERPT_CHARS = 2000
 
 
 class RetrieverChunk(BaseModel):

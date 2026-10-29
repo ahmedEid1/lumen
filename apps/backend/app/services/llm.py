@@ -53,6 +53,7 @@ metered path.
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol, runtime_checkable
 from urllib.parse import urlparse
@@ -90,6 +91,8 @@ NOOP_RESPONSE_PREFIX = "Based on the course content, "
 NOOP_REFUSAL = (
     "I don't have material in this course that covers that yet. Try a different question."
 )
+# Context-block header the tutor prompts now emit: ``[L:<lesson_id>] <title>``.
+_CONTEXT_HEADER_RE = re.compile(r"^\[L:([^\s\]]+)\] ")
 
 
 class ChatMessage(BaseModel):
@@ -457,8 +460,9 @@ class NoopProvider:
        can reasonably assert "the answer mentions X".
     3. Emits one ``[L:lesson_id]`` citation token for every lesson
        id found in the system prompt's context block. The tutor
-       service builds the context with ``Lesson L<lesson_id>:``
-       headers, so the noop provider parses those headers back out
+       prompts head each block ``[L:<lesson_id>] <title>`` (older
+       callers used ``Lesson L<lesson_id>:``; both are read), so the
+       noop provider parses those headers back out
        to produce realistic citation output. Tests exercise the
        citation parser without needing a live LLM.
 
@@ -502,12 +506,17 @@ class NoopProvider:
         )
 
         # Harvest lesson ids the system prompt's context section
-        # advertises. The tutor service emits one block per chunk
-        # prefixed with ``Lesson L<id>:``; we pluck those out so
-        # the canned response can cite them.
+        # advertises: one block per chunk headed ``[L:<id>] <title>``
+        # (or the older ``Lesson L<id>:``); we pluck those out so the
+        # canned response can cite them.
         lesson_ids: list[str] = []
         for raw_line in system.splitlines():
             line = raw_line.strip()
+            header = _CONTEXT_HEADER_RE.match(line)
+            if header:
+                if header.group(1) not in lesson_ids:
+                    lesson_ids.append(header.group(1))
+                continue
             if line.startswith("Lesson L"):
                 head = line.split(":", 1)[0]  # "Lesson L<id>"
                 token = head.removeprefix("Lesson ").strip()  # "L<id>"

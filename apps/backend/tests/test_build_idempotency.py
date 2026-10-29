@@ -279,6 +279,10 @@ async def test_endpoint_anonymous_401(client, monkeypatch) -> None:
 
 async def test_endpoint_active_user_builds(client, db_session, auth_headers, monkeypatch) -> None:
     _install_provider(monkeypatch, _happy_queue())
+    from app.services import courses as courses_service
+
+    scheduled: list[str] = []
+    monkeypatch.setattr(courses_service, "_schedule_embedding_index", scheduled.append)
     # Create the personal subject + a finalized brief for the logged-in user.
     await _personal_subject(db_session)
     headers = await auth_headers()
@@ -292,6 +296,8 @@ async def test_endpoint_active_user_builds(client, db_session, auth_headers, mon
     body = r.json()
     assert body["course_id"]
     assert body["draft_id"]
+    # A built course is a private draft; it is indexed without a publish (L06).
+    assert scheduled == [body["course_id"]]
 
 
 async def test_endpoint_suspended_denied(client, db_session, make_user, monkeypatch) -> None:
