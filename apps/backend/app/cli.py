@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 import typer
 from rich.console import Console
-from sqlalchemy import select
+from sqlalchemy import Select, select
 
 from app.core.config import Environment, get_settings
 from app.core.security import hash_password
@@ -337,9 +337,16 @@ def demo_seed() -> None:
 @cli.command(name="ingest-embeddings")
 def ingest_embeddings(
     only_slug: str = typer.Option(None, "--only-slug", help="Restrict to one course slug."),
+    all_courses: bool = typer.Option(
+        False,
+        "--all",
+        help="Every live, non-quarantined course that is published or already has chunks, "
+        "not only publicly listed ones (private AI-built courses are published unlisted).",
+    ),
 ) -> None:
     """L41-followup — ingest lesson_chunks (pgvector embeddings) for
-    all published courses.
+    publicly listed courses, or with --all for every live course that is
+    published or already has chunks (L62 backfill).
 
     The demo-seed inserts published courses but does NOT run the
     embedding pipeline — the L21-Sec `_schedule_index` Celery hook
@@ -353,18 +360,46 @@ def ingest_embeddings(
     invoke against prod (no schema change, no destructive ops; the
     embedding API calls cost money proportional to chunk count).
     """
-    asyncio.run(_ingest_embeddings(only_slug))
+    asyncio.run(_ingest_embeddings(only_slug, all_courses))
 
 
-async def _ingest_embeddings(only_slug: str | None) -> None:
-    from app.services.embeddings_ingest import ingest_course
+def ingest_scope(all_courses: bool = False) -> Select[tuple[Course]]:
+    """Which courses ``ingest-embeddings`` re-embeds.
+
+    Default: publicly listed courses, through the central authorizer. With
+    ``all_courses`` (L62 backfill): every live, non-quarantined course that is
+    published or already has chunks, because owners and enrolled learners use
+    the tutor on published-but-unlisted courses, and a course unpublished after
+    publishing keeps its chunks. That is a lifecycle trigger like the admin
+    reindex fan-out, not an access read.
+    """
+    from sqlalchemy import or_
+
+    from app.models.lesson_chunk import LessonChunk
     from app.services.visibility import publicly_listed_sql
+
+    if not all_courses:
+        return select(Course).where(publicly_listed_sql())
+    has_chunks = (
+        select(LessonChunk.id)
+        .join(Lesson, Lesson.id == LessonChunk.lesson_id)
+        .join(Module, Module.id == Lesson.module_id)
+        .where(Module.course_id == Course.id)
+        .exists()
+    )
+    return select(Course).where(
+        Course.deleted_at.is_(None),
+        Course.quarantined.is_(False),
+        or_(Course.status == CourseStatus.published, has_chunks),  # noqa: published-check — lifecycle stat
+    )
+
+
+async def _ingest_embeddings(only_slug: str | None, all_courses: bool = False) -> None:
+    from app.services.embeddings_ingest import ingest_course
 
     Session = get_sessionmaker()
     async with Session() as db:
-        # Enumerate only publicly-listed courses (S2.6 / ADR-0026 §3) through
-        # the central authorizer rather than the raw status proxy.
-        stmt = select(Course).where(publicly_listed_sql())
+        stmt = ingest_scope(all_courses)
         if only_slug:
             stmt = stmt.where(Course.slug == only_slug)
         courses = (await db.execute(stmt)).scalars().all()
