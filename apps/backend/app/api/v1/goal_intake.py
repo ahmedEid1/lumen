@@ -58,6 +58,8 @@ class DraftFromBriefResponse(BaseModel):
     lesson_count: int
     draft_id: str
     revisions_used: int
+    # Lessons whose drafter call failed and still hold the placeholder (L11).
+    placeholder_lessons: int = 0
 
 
 def _turn_response(brief, assistant_message: str, converged: bool) -> GoalTurnResponse:
@@ -177,4 +179,5 @@ async def build_course_from_brief(
         lesson_count=result.lesson_count,
         draft_id=result.draft_id,
         revisions_used=result.revisions_used,
+        placeholder_lessons=result.placeholder_lessons,
     )

@@ -103,6 +103,11 @@ from app.services import llm as llm_service
 from app.services.authoring_subagents import ResearchBundle, run_researcher
 from app.services.byok import PLATFORM_CONTEXT, LLMContext
 from app.services.courses import _unique_slug
+from app.services.lesson_placeholders import (
+    PLACEHOLDER_QUIZ_PROMPT,
+    PLACEHOLDER_TEXT,
+    is_placeholder_lesson_data,
+)
 from app.services.llm_call_log import call_logged
 
 log = get_logger(__name__)
@@ -196,6 +201,9 @@ class OrchestratorResult(BaseModel):
     module_count: int
     lesson_count: int
     final_score: CriticScores
+    # Lessons whose drafter call failed and still hold the placeholder; the
+    # course can't be published until they are regenerated or written.
+    placeholder_lessons: int = 0
     final_rationale: str
     draft_id: str
     revisions_used: int
@@ -791,7 +799,7 @@ def _placeholder_quiz_data() -> dict[str, Any]:
         "questions": [
             {
                 "id": "q1",
-                "prompt": "Draft question — replace before publishing",
+                "prompt": PLACEHOLDER_QUIZ_PROMPT,
                 "kind": "single",
                 "choices": [
                     {"id": "a", "text": "Option A"},
@@ -805,7 +813,7 @@ def _placeholder_quiz_data() -> dict[str, Any]:
 
 def _placeholder_text_data() -> dict[str, Any]:
     """Minimum-valid text payload — same shape as E2's commit_outline."""
-    placeholder = "Draft — replace before publishing."
+    placeholder = PLACEHOLDER_TEXT
     return {
         "type": "text",
         "body_markdown": placeholder,
@@ -1235,6 +1243,7 @@ async def _run_pipeline(
     # (its outline UPDATE already committed in its own txn), so a mid-loop cancel
     # lands promptly and the per-lesson fence sees it within one lesson (P1#1).
     lesson_count = 0
+    placeholder_lessons = 0
     for module in sorted(course.modules, key=lambda m: m.order):
         for lesson in sorted(module.lessons, key=lambda lsn: lsn.order):
             # R-S10 cooperative-cancel fence (S3.8): abort the lesson-drafting
@@ -1255,6 +1264,10 @@ async def _run_pipeline(
             lesson.data = data
             await db.flush()
             lesson_count += 1
+            # The drafter falls back to the placeholder when its call fails;
+            # say so in the trace instead of reporting it as drafted (L11).
+            fell_back = is_placeholder_lesson_data(data)
+            placeholder_lessons += int(fell_back)
             await _record_trace(
                 db,
                 draft_id=draft_id,
@@ -1264,12 +1277,16 @@ async def _run_pipeline(
                 step_index=step_index,
                 payload={
                     "prompt_summary": lesson.title[:240],
-                    "response_summary": (f"{data.get('type', 'unknown')} lesson drafted"),
+                    "response_summary": (
+                        "drafting failed; placeholder kept, regenerate it in the editor"
+                        if fell_back
+                        else f"{data.get('type', 'unknown')} lesson drafted"
+                    ),
                     "lesson_id": lesson.id,
                     "lesson_type": str(lesson.type),
                 },
                 duration_ms=int((time.perf_counter() - lesson_started) * 1000),
-                status=DRAFT_STATUS_OK,
+                status=DRAFT_STATUS_ERROR if fell_back else DRAFT_STATUS_OK,
             )
             step_index += 1
 
@@ -1317,6 +1334,7 @@ async def _run_pipeline(
         revisions_used=revisions_used,
         outline_phase_calls=outline_phase_calls,
         lesson_count=lesson_count,
+        placeholder_lessons=placeholder_lessons,
         final_mean=final_critique.scores.mean,
     )
 
@@ -1325,6 +1343,7 @@ async def _run_pipeline(
         slug=course.slug,
         module_count=len(course.modules),
         lesson_count=lesson_count,
+        placeholder_lessons=placeholder_lessons,
         final_score=final_critique.scores,
         final_rationale=final_critique.rationale,
         draft_id=draft_id,
