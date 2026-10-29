@@ -185,6 +185,104 @@ def test_chunk_lesson_image_uses_alt_or_falls_back_to_title_only() -> None:
     assert chunks == ["Empty lesson"]
 
 
+def test_chunk_lesson_ai_drafted_text_lesson_embeds_its_blocks() -> None:
+    # L62: the course builder stores drafted lessons as blocks with an empty
+    # body_markdown; their text must still reach the embeddings, not just the title.
+    lesson = _make_lesson(
+        title="Reading query plans",
+        data={
+            "type": "text",
+            "body_markdown": "",
+            "blocks": {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "heading",
+                        "attrs": {"level": 2},
+                        "content": [{"type": "text", "text": "EXPLAIN ANALYZE"}],
+                    },
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": "A sequential scan reads every row."}],
+                    },
+                ],
+            },
+        },
+    )
+    chunks = chunk_lesson(lesson)
+    assert len(chunks) == 1
+    assert "Reading query plans" in chunks[0]
+    assert "EXPLAIN ANALYZE" in chunks[0]
+    assert "sequential scan reads every row" in chunks[0]
+
+
+@pytest.mark.parametrize("body", ["", "   ", "\n", None])
+def test_chunk_lesson_empty_or_blank_body_markdown_falls_back_to_blocks(body: object) -> None:
+    data: dict = {
+        "type": "text",
+        "blocks": {
+            "type": "doc",
+            "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": "From blocks."}]}
+            ],
+        },
+    }
+    if body is not None:
+        data["body_markdown"] = body
+    assert "From blocks." in chunk_lesson(_make_lesson(data=data))[0]
+
+
+async def test_ingest_course_continues_past_a_malformed_drafted_lesson(
+    db_session: AsyncSession,
+) -> None:
+    course = await _seed_course_with_lessons(db_session, bodies=["A normal lesson body."])
+    db_session.add(
+        Lesson(
+            id="lsn_bad",
+            module_id="mod_x",
+            title="Malformed draft",
+            order=9,
+            type=LessonType.text,
+            data={
+                "type": "text",
+                "body_markdown": "",
+                "blocks": {
+                    "type": "doc",
+                    "content": [
+                        {"type": []},
+                        {"type": "paragraph", "content": [{"type": "text", "text": "Still here."}]},
+                    ],
+                },
+            },
+        )
+    )
+    await db_session.commit()
+    total = await ingest_course(db_session, course.id)
+    lesson_ids = {
+        r.lesson_id for r in (await db_session.execute(select(LessonChunk))).scalars().all()
+    }
+    assert total >= 2
+    assert {"lsn_0", "lsn_bad"} <= lesson_ids
+
+
+def test_chunk_lesson_prefers_body_markdown_when_both_exist() -> None:
+    lesson = _make_lesson(
+        data={
+            "type": "text",
+            "body_markdown": "Saved from the editor.",
+            "blocks": {
+                "type": "doc",
+                "content": [
+                    {"type": "paragraph", "content": [{"type": "text", "text": "Older draft."}]}
+                ],
+            },
+        },
+    )
+    chunks = chunk_lesson(lesson)
+    assert "Saved from the editor." in chunks[0]
+    assert "Older draft." not in chunks[0]
+
+
 def test_chunk_lesson_empty_text_lesson_returns_no_chunks() -> None:
     # A text lesson with no title (defensive) and no body produces nothing.
     lesson = Lesson(
@@ -324,6 +422,76 @@ async def test_ingest_course_walks_every_live_lesson(
     assert len(rows) == total
     lesson_ids = {r.lesson_id for r in rows}
     assert len(lesson_ids) == 3
+
+
+async def test_ingest_scope_all_reaches_unlisted_and_previously_indexed_courses(
+    db_session: AsyncSession,
+) -> None:
+    """L62 backfill: ``ingest-embeddings --all`` must reach AI-built courses, which
+    publish as private (unlisted), and courses that kept chunks after being
+    unpublished; the default scope stays publicly listed only."""
+    from app.cli import ingest_scope
+
+    owner = User(
+        id="usr_scope", email="scope@lumen.test", password_hash="x", full_name="O", role=Role.user
+    )
+    subject = Subject(id="subj_scope", title="S", slug="scope-subject")
+    db_session.add_all([owner, subject])
+    await db_session.flush()
+
+    def course(cid: str, **kw: object) -> Course:
+        base: dict = {
+            "status": CourseStatus.published,
+            "visibility": Visibility.public,
+            "moderation_state": ModerationState.approved,
+        }
+        base.update(kw)
+        return Course(
+            id=cid,
+            owner_id=owner.id,
+            subject_id=subject.id,
+            title=cid,
+            slug=cid,
+            overview="o",
+            difficulty=Difficulty.beginner,
+            **base,
+        )
+
+    db_session.add_all(
+        [
+            course("listed"),
+            course(
+                "private-published",
+                visibility=Visibility.private,
+                moderation_state=ModerationState.none,
+            ),
+            course("draft-indexed", status=CourseStatus.draft, visibility=Visibility.private),
+            course("draft-never", status=CourseStatus.draft, visibility=Visibility.private),
+            course("quarantined", quarantined=True),
+        ]
+    )
+    await db_session.flush()
+    module = Module(id="mod_scope", course_id="draft-indexed", title="M", order=0)
+    db_session.add(module)
+    await db_session.flush()
+    lesson = Lesson(
+        id="lsn_scope",
+        module_id=module.id,
+        title="Indexed once",
+        order=0,
+        type=LessonType.text,
+        data={"type": "text", "body_markdown": "Body kept from an earlier publish."},
+    )
+    db_session.add(lesson)
+    await db_session.flush()
+    await ingest_lesson(db_session, lesson, provider=NoopEmbeddingProvider())
+    await db_session.commit()
+
+    async def ids(all_courses: bool) -> set[str]:
+        return {c.id for c in (await db_session.execute(ingest_scope(all_courses))).scalars().all()}
+
+    assert await ids(False) == {"listed"}
+    assert await ids(True) == {"listed", "private-published", "draft-indexed"}
 
 
 # ---------- Retrieval ----------

@@ -18,7 +18,8 @@ retriever has something to point at. The chunk text combines the
 lesson title with whatever human-readable fields exist in
 ``lesson.data``:
 
-* ``text``    → ``body_markdown``
+* ``text``    → ``body_markdown``, or the text of its ``blocks`` doc when
+                that's empty (AI-drafted lessons; see :mod:`app.services.lesson_text`)
 * ``video``   → ``url`` (link metadata only — we don't transcribe; that
                 lands in Phase E3)
 * ``image``   → ``alt`` text
@@ -44,6 +45,7 @@ from app.core.logging import get_logger
 from app.models.course import Course, Lesson, Module
 from app.models.lesson_chunk import LessonChunk
 from app.services.embeddings import EmbeddingProvider, get_provider
+from app.services.lesson_text import blocks_to_text
 
 if TYPE_CHECKING:  # pragma: no cover
     pass
@@ -77,8 +79,12 @@ def _lesson_source_text(lesson: Lesson) -> str:
     lesson_type = str(lesson.type)
 
     if lesson_type == "text":
-        if md := data.get("body_markdown"):
-            parts.append(str(md))
+        # AI-drafted lessons have an empty body_markdown until someone saves them in
+        # the editor; their content is only in ``blocks``, so embed that instead.
+        md = data.get("body_markdown")
+        md = md.strip() if isinstance(md, str) else ""
+        if text := md or blocks_to_text(data.get("blocks")):
+            parts.append(text)
     elif lesson_type == "quiz":
         for q in data.get("questions") or []:
             if prompt := q.get("prompt"):
