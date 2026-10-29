@@ -25,8 +25,8 @@ See [`docs/architecture.md`](../../docs/architecture.md#4-module-layout--backend
 
 ```bash
 python -m app.cli --help
-python -m app.cli seed                # load demo data
-python -m app.cli bootstrap-admin     # create initial admin
+python -m app.cli seed                # load demo data (local only: README logins)
+python -m app.cli bootstrap-admin     # local admin; on a public host pass --email and --password
 python -m app.cli reindex             # reindex search
 ```
 
