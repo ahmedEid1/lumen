@@ -146,7 +146,7 @@ flowchart LR
 
     subgraph LLM[Swappable LLM layer]
       provider{LLM_PROVIDER dispatch}
-      groq[Groq · Llama 3.3 70B]
+      groq[Groq · gpt-oss-120b]
       byok[BYOK allowlist<br/>OpenAI · Anthropic · Mistral · Groq]
     end
 
@@ -214,7 +214,7 @@ Without an LLM key the AI features fall back to a deterministic `noop` provider 
 LLM_PROVIDER=openai
 OPENAI_API_BASE=https://api.groq.com/openai/v1
 OPENAI_API_KEY=<your-groq-key>
-LLM_MODEL=llama-3.3-70b-versatile
+LLM_MODEL=openai/gpt-oss-120b
 ```
 
 The same `LLMProvider` abstraction takes native Anthropic or OpenAI by env var — no code changes. Feature flags (`FEATURE_BYOK_ENABLED`, `FEATURE_PRIVATE_PUBLISH_ENABLED`, `CLONE_ENABLED`, `FEATURE_TUTOR_STREAMING`) default **off**; set them in `.env` once their prerequisites (e.g. a real BYOK master key) are in place. `make demo-seed` adds the richer agentic-demo bundle.

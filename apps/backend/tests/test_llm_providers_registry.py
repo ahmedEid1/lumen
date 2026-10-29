@@ -23,7 +23,8 @@ from app.services.llm_providers import PROVIDER_REGISTRY, ProviderSpec, is_allow
 def test_groq_present_with_fixed_base_url_and_model() -> None:
     spec = PROVIDER_REGISTRY["groq"]
     assert spec.base_url == "https://api.groq.com/openai/v1"
-    assert "llama-3.3-70b-versatile" in spec.models
+    assert "openai/gpt-oss-120b" in spec.models
+    assert "llama-3.3-70b-versatile" not in spec.models  # retired by Groq 2026-08-16
 
 
 def test_every_spec_is_well_formed() -> None:
@@ -87,7 +88,7 @@ async def test_llm_providers_endpoint_shape(client, auth_headers, _byok_on) -> N
     groq = by_key["groq"]
     # Public shape: provider/display_name/models ONLY.
     assert set(groq.keys()) == {"provider", "display_name", "models"}
-    assert "llama-3.3-70b-versatile" in groq["models"]
+    assert "openai/gpt-oss-120b" in groq["models"]
     # The SSRF lockdown surface (base_url) and any key field MUST be absent.
     for prov in body["providers"]:
         assert "base_url" not in prov

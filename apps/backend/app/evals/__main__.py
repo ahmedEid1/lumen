@@ -67,7 +67,7 @@ def _preflight_provider() -> None:
                 "Set it in your environment (or .env) before running the eval. "
                 "For a Groq-backed run, also point OPENAI_API_BASE at "
                 "https://api.groq.com/openai/v1 and set LLM_MODEL "
-                "(e.g. llama-3.3-70b-versatile).",
+                "(e.g. openai/gpt-oss-120b).",
                 param_hint="LLM_PROVIDER",
             )
         return
@@ -106,7 +106,7 @@ def run(
     LLM_MODEL overrides the per-provider default. For a Groq-backed
     run set LLM_PROVIDER=openai +
     OPENAI_API_BASE=https://api.groq.com/openai/v1 +
-    LLM_MODEL=llama-3.3-70b-versatile and put your Groq key in
+    LLM_MODEL=openai/gpt-oss-120b and put your Groq key in
     OPENAI_API_KEY. See docs/release/operator-activation-runbook.md for the
     full operator runbook.
     """

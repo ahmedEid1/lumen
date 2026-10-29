@@ -900,3 +900,32 @@ async def test_yielded_auth_failure_platform_dispatch_is_plain_failure(monkeypat
     _r_args, r_kwargs = mocks["record_row"].await_args
     assert r_kwargs["status"] == STATUS_ERROR
     assert r_kwargs["billing_mode"] == BILLING_PLATFORM
+
+
+@pytest.mark.asyncio
+async def test_platform_row_records_streamed_fallback_model(monkeypatch) -> None:
+    """LLM_FALLBACK_MODELS: the success row names the model that actually
+    streamed (carried on turn_complete), not settings.llm_model."""
+    turn = _make_turn(credential_id=None)
+    mocks: dict = {}
+    _patch_worker_seams(monkeypatch, turn=turn, mocks=mocks)
+    monkeypatch.setattr(
+        tutor_streaming.byok_service, "stream_dispatch_for_turn", AsyncMock(return_value=None)
+    )
+
+    def _orchestrate(**_kwargs):
+        async def _gen():
+            yield {"event": "synth_chunk", "data": {"delta": "a closure is..."}}
+            yield {
+                "event": "turn_complete",
+                "data": {"cost_usd": 0.0, "total_ms": 5, "model": "openai/gpt-oss-20b"},
+            }
+
+        return _gen()
+
+    monkeypatch.setattr(tutor_streaming, "orchestrate_stream", _orchestrate)
+    await tutor_streaming._run_turn_async("turn_fallback_model")
+
+    _args, kwargs = mocks["record_row"].await_args
+    assert kwargs["status"] == STATUS_OK
+    assert kwargs["model"] == "openai/gpt-oss-20b"

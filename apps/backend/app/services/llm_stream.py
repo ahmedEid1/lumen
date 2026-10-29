@@ -30,13 +30,23 @@ The function-level dispatcher ``stream_chat()`` reads
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+import contextlib
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.services.llm import ChatMessage, NoopProvider, get_provider
+from app.services.llm import (
+    ChatMessage,
+    NoopProvider,
+    completion_limit_kwargs,
+    error_code,
+    error_status,
+    get_provider,
+    is_fallback_eligible,
+    platform_model_chain,
+)
 
 log = get_logger(__name__)
 
@@ -137,16 +147,86 @@ async def stream_chat(
         # L41 — Mistral's Chat Completions API is OpenAI-compatible.
         # The OpenAI streaming code path works as-is when pointed at
         # Mistral's base URL with the Mistral key + default model.
-        async for chunk in _stream_chat_openai_compat(
-            messages,
-            temperature=temperature,
-            api_key=_mistral_key(),
-            api_base=get_settings().mistral_api_base,
-            model=get_settings().llm_model or get_settings().mistral_model,
+        api_key = _mistral_key()
+        api_base = get_settings().mistral_api_base
+        async for chunk in _stream_with_model_fallback(
+            get_settings().llm_model or get_settings().mistral_model,
+            lambda model, fail_fast: _stream_chat_openai_compat(
+                messages,
+                temperature=temperature,
+                api_key=api_key,
+                api_base=api_base,
+                model=model,
+                fail_fast=fail_fast,
+            ),
         ):
             yield chunk
         return
     raise ValueError(f"unknown LLM provider: {provider_name!r}")
+
+
+async def _stream_with_model_fallback(
+    primary: str,
+    open_stream: Callable[[str, bool], AsyncIterator[StreamChunk]],
+) -> AsyncIterator[StreamChunk]:
+    """Platform streaming over ``[primary, *LLM_FALLBACK_MODELS]``.
+
+    Moves to the next model only when the failure is fallback-eligible AND no
+    content delta has been yielded yet — once the user has seen tokens, a
+    second model would splice a different answer onto the first. Reasoning
+    deltas never reach here (the compat core yields ``delta.content`` only),
+    so a model that reasoned but showed nothing is still safe to replace.
+    Never used for BYOK (``stream_chat`` returns before reaching a platform
+    branch when ``byok_dispatch`` is set).
+
+    Every model but the last opens with ``fail_fast`` (no SDK retries, a short
+    first-byte timeout), so a hung primary hands over well inside the tutor
+    turn's 60 s sweep instead of after 3 x 60 s of retries.
+    """
+    models = [primary, *(m for m in platform_model_chain()[1:] if m != primary)]
+    for i, model in enumerate(models):
+        emitted = False
+        last = i == len(models) - 1
+        try:
+            async for chunk in open_stream(model, not last):
+                emitted = emitted or bool(chunk.delta)
+                yield chunk
+            return
+        except Exception as exc:
+            if emitted or last or not _stream_fallback_eligible(exc):
+                raise
+            log.warning(
+                "llm_stream_model_fallback",
+                from_model=model,
+                to_model=models[i + 1],
+                error_kind=type(exc).__name__,
+                status_code=error_status(exc),
+                error_code=error_code(exc),
+            )
+
+
+def _stream_fallback_eligible(exc: BaseException) -> bool:
+    """:func:`is_fallback_eligible`, plus what the SDKs raise *after* a stream opened.
+
+    Mid-stream the openai SDK doesn't wrap errors: a stall surfaces as a raw
+    httpx ``ReadTimeout`` (a ``TimeoutException``), and an SSE error frame as an
+    ``APIError`` with a vendor code but no status. Connect and pool timeouts
+    stay ineligible: every chain entry shares one host.
+    """
+    if is_fallback_eligible(exc):
+        return True
+    names = {c.__name__ for c in type(exc).__mro__}
+    if "TimeoutException" in names:
+        return type(exc).__name__ not in ("ConnectTimeout", "PoolTimeout")
+    return type(exc).__name__ == "APIError" and error_code(exc) in (
+        "model_not_found",
+        "model_decommissioned",
+    )
+
+
+# How long a chain entry that has a fallback behind it may take to open its
+# stream and to send its first content token (OpenAI-compatible path).
+_FAIL_FAST_TIMEOUT_S = 20.0
 
 
 def _mistral_key() -> str:
@@ -204,12 +284,17 @@ async def _stream_chat_openai(
             "OPENAI_API_KEY (or compatible-provider key) is required for "
             "LLM_PROVIDER=openai streaming"
         )
-    async for chunk in _stream_chat_openai_compat(
-        messages,
-        temperature=temperature,
-        api_key=api_key,
-        api_base=s.openai_api_base if s.openai_api_base else None,
-        model=s.llm_model or "gpt-4o-mini",
+    api_base = s.openai_api_base if s.openai_api_base else None
+    async for chunk in _stream_with_model_fallback(
+        platform_model_chain()[0],
+        lambda model, fail_fast: _stream_chat_openai_compat(
+            messages,
+            temperature=temperature,
+            api_key=api_key,
+            api_base=api_base,
+            model=model,
+            fail_fast=fail_fast,
+        ),
     ):
         yield chunk
 
@@ -221,6 +306,7 @@ async def _stream_chat_openai_compat(
     api_key: str,
     api_base: str | None,
     model: str,
+    fail_fast: bool = False,
 ) -> AsyncIterator[StreamChunk]:
     """L41 — shared core for any OpenAI-compatible streaming endpoint.
 
@@ -244,22 +330,50 @@ async def _stream_chat_openai_compat(
         ) from e
 
     s = get_settings()
-    client = AsyncOpenAI(
-        api_key=api_key,
-        base_url=api_base,
+    # fail_fast: another model waits behind this one, so give up quickly.
+    client = (
+        AsyncOpenAI(api_key=api_key, base_url=api_base, max_retries=0)
+        if fail_fast
+        else AsyncOpenAI(api_key=api_key, base_url=api_base)
     )
-
-    stream = await client.chat.completions.create(
+    # The output-limit kwargs differ per provider (max_tokens vs Groq's
+    # max_completion_tokens + reasoning params), which the SDK's typed overloads
+    # can't express for a spread dict.
+    opening = client.chat.completions.create(  # type: ignore[call-overload]
         model=model,
         messages=[{"role": m.role, "content": m.content} for m in messages],
         temperature=temperature,
-        max_tokens=s.llm_max_tokens,
+        **completion_limit_kwargs(api_base, model, s.llm_max_tokens),
         stream=True,
         stream_options={"include_usage": True},
+        # Per-read timeout (gap between bytes, not total). A hang at open raises
+        # APITimeoutError; after the stream opens the SDK raises the raw httpx
+        # ReadTimeout. _stream_fallback_eligible accepts both.
+        timeout=float(s.llm_provider_timeout_s),
     )
+    # fail_fast holds only the wait for the FIRST content token to the short
+    # budget (the window where a fallback is still possible); once the model is
+    # writing, pauses get the normal per-read timeout.
+    stream = await (asyncio.wait_for(opening, _FAIL_FAST_TIMEOUT_S) if fail_fast else opening)
+    chunks = stream.__aiter__()
+    waiting_for_content = fail_fast
 
     final_usage: dict[str, Any] = {}
-    async for chunk in stream:
+    finish_reason: str | None = None
+    while True:
+        try:
+            if waiting_for_content:
+                chunk = await asyncio.wait_for(chunks.__anext__(), _FAIL_FAST_TIMEOUT_S)
+            else:
+                chunk = await chunks.__anext__()
+        except StopAsyncIteration:
+            break
+        except TimeoutError:
+            with contextlib.suppress(Exception):
+                await stream.close()
+            raise
+        if chunk.choices:
+            finish_reason = getattr(chunk.choices[0], "finish_reason", None) or finish_reason
         # OpenAI's stream chunks have either `.choices[0].delta.content`
         # (token) OR `.usage` (final chunk when include_usage=true).
         if getattr(chunk, "usage", None):
@@ -283,9 +397,15 @@ async def _stream_chat_openai_compat(
         delta = chunk.choices[0].delta
         text = getattr(delta, "content", None) or ""
         if text:
+            waiting_for_content = False
             yield StreamChunk(delta=text, done=False)
 
-    yield StreamChunk(delta="", done=True, usage=final_usage)
+    if finish_reason == "length":
+        # Cut off at the output limit (a reasoning model can spend it thinking).
+        log.warning("llm_stream_output_truncated", model=model, **final_usage)
+    # ``model`` rides the terminal chunk so the worker's llm_calls row records
+    # the model that actually streamed (it may be a fallback).
+    yield StreamChunk(delta="", done=True, usage={**final_usage, "model": model})
 
 
 async def _stream_chat_anthropic(
@@ -314,12 +434,17 @@ async def _stream_chat_anthropic(
     api_key = s.anthropic_api_key.get_secret_value() if s.anthropic_api_key else ""
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is required for LLM_PROVIDER=anthropic streaming")
-    async for chunk in _stream_chat_anthropic_compat(
-        messages,
-        temperature=temperature,
-        api_key=api_key,
-        api_base=s.anthropic_api_base or None,
-        model=s.llm_model or "claude-3-5-haiku-latest",
+    api_base = s.anthropic_api_base or None
+    async for chunk in _stream_with_model_fallback(
+        platform_model_chain()[0],
+        lambda model, fail_fast: _stream_chat_anthropic_compat(
+            messages,
+            temperature=temperature,
+            api_key=api_key,
+            api_base=api_base,
+            model=model,
+            fail_fast=fail_fast,
+        ),
     ):
         yield chunk
 
@@ -331,6 +456,7 @@ async def _stream_chat_anthropic_compat(
     api_key: str,
     api_base: str | None,
     model: str,
+    fail_fast: bool = False,
 ) -> AsyncIterator[StreamChunk]:
     """S5.12 — Anthropic streaming with explicit key/base/model.
 
@@ -349,6 +475,8 @@ async def _stream_chat_anthropic_compat(
     client_kwargs: dict[str, Any] = {"api_key": api_key}
     if api_base:
         client_kwargs["base_url"] = api_base
+    if fail_fast:
+        client_kwargs["max_retries"] = 0
     client = AsyncAnthropic(**client_kwargs)
 
     # Messages API quirk: ``system`` is a top-level kwarg, not a
@@ -363,6 +491,9 @@ async def _stream_chat_anthropic_compat(
         "max_tokens": s.llm_max_tokens,
         "temperature": temperature,
         "messages": turns,
+        # fail_fast only drops the SDK retries here (set on the client above); the
+        # per-read timeout stays whole so a pause mid-answer doesn't fail the turn.
+        "timeout": float(s.llm_provider_timeout_s),
     }
     if system:
         stream_kwargs["system"] = system
@@ -385,6 +516,7 @@ async def _stream_chat_anthropic_compat(
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "cost_usd": _estimate_cost(model, prompt_tokens, completion_tokens),
+            "model": model,
         },
     )
 
@@ -392,14 +524,14 @@ async def _stream_chat_anthropic_compat(
 def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
     """Rough cost computation for the streaming path.
 
-    Best-effort: defers to ``app.services.llm_pricing.cost_for`` when
-    available. Returns 0.0 if pricing isn't wired for this model
-    (caller can fill in via the reconcile step).
+    Uses the same table as the chat path (``llm_pricing.compute_cost_usd``),
+    which returns 0 for an unpriced model. It used to import a ``cost_for``
+    that never existed, so every streamed turn was metered at $0.
     """
     try:
-        from app.services.llm_pricing import cost_for  # type: ignore[import-untyped]
+        from app.services.llm_pricing import compute_cost_usd
 
-        return float(cost_for(model, prompt_tokens, completion_tokens))
+        return float(compute_cost_usd(model, prompt_tokens, completion_tokens))
     except Exception as exc:
         log.debug("llm_stream_cost_estimate_unavailable", error=str(exc))
         return 0.0

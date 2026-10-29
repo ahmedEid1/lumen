@@ -85,14 +85,14 @@ async def test_no_credential_resolves_to_platform(db_session, make_user) -> None
 @pytest.mark.asyncio
 async def test_active_credential_resolves_to_byok(db_session, make_user) -> None:
     user = await make_user()
-    await _store(db_session, user.id, provider="groq", model="llama-3.3-70b-versatile")
+    await _store(db_session, user.id, provider="groq", model="openai/gpt-oss-120b")
     ctx = await resolve_context(db_session, user_id=user.id)
     assert ctx.credential_id is not None
     assert ctx.mode == "byok"
     provider, mode = await build_provider(db_session, ctx)
     assert mode == "byok"
     assert isinstance(provider, OpenAIProvider)  # groq uses openai transport
-    assert provider._model == "llama-3.3-70b-versatile"
+    assert provider._model == "openai/gpt-oss-120b"
     assert provider._api_base == "https://api.groq.com/openai/v1"
     # the decrypted key reached the provider (read via the redaction-aware accessor)
     assert provider._key_value() == SENTINEL_KEY

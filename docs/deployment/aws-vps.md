@@ -187,7 +187,8 @@ Required edits in `.env.production`:
 | `S3_ENDPOINT_URL`               | `http://s3:9000` (internal compose hostname)                          |
 | `WEB_BASE_URL`                  | `https://lumen.example.com`                                           |
 | `BADGES_ISSUER_URL`             | `https://lumen.example.com`                                           |
-| `LLM_PROVIDER` / `OPENAI_API_BASE` / `OPENAI_API_KEY` / `LLM_MODEL` | Groq path: `openai` / `https://api.groq.com/openai/v1` / `<groq-key>` / `llama-3.3-70b-versatile` |
+| `LLM_PROVIDER` / `OPENAI_API_BASE` / `OPENAI_API_KEY` / `LLM_MODEL` | Groq path: `openai` / `https://api.groq.com/openai/v1` / `<groq-key>` / `openai/gpt-oss-120b` |
+| `LLM_FALLBACK_MODELS` / `LLM_MAX_TOKENS` / `LLM_REASONING_EFFORT` | `openai/gpt-oss-20b` / `4096` (includes reasoning tokens) / `low`. Point an external uptime monitor at `/api/v1/health/llm` (cached, one upstream call per 15 min), never at the container healthcheck or deploy smoke. |
 | `SMTP_*`                        | Resend or any SMTP provider (free tier is fine for a demo)            |
 | `CORS_ORIGINS`                  | `["https://lumen.example.com"]`                                       |
 

@@ -175,12 +175,16 @@ async def orchestrate_stream(
     # (the provider billed nothing we can observe).
     prompt_tokens = 0
     completion_tokens = 0
+    # The model that actually streamed (a platform fallback may differ from
+    # LLM_MODEL); None when the provider doesn't report it.
+    synth_model: str | None = None
     try:
         async for chunk in stream_chat(messages, byok_dispatch=byok_dispatch):
             if chunk.done:
                 total_cost_usd = float(chunk.usage.get("cost_usd", 0.0) or 0.0)
                 prompt_tokens = int(chunk.usage.get("prompt_tokens", 0) or 0)
                 completion_tokens = int(chunk.usage.get("completion_tokens", 0) or 0)
+                synth_model = chunk.usage.get("model") or None
                 break
             if chunk.delta:
                 if first_token_ms is None:
@@ -226,6 +230,7 @@ async def orchestrate_stream(
             "cost_usd": total_cost_usd,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
+            "model": synth_model,
             "first_token_ms": first_token_ms,
             "total_ms": total_ms,
         },

@@ -132,6 +132,9 @@ async def _run_turn_async(turn_id: str) -> None:
     # stays COUNT-based (see record_streamed_turn_row's QUOTA INVARIANT note).
     final_prompt_tokens: int = 0
     final_completion_tokens: int = 0
+    # Model reported on turn_complete (a platform fallback may differ from
+    # LLM_MODEL). None → the settings/dispatch label, as before.
+    final_model: str | None = None
 
     try:
         async with Session() as db:
@@ -318,6 +321,7 @@ async def _run_turn_async(turn_id: str) -> None:
                     # COUNT-based).
                     final_prompt_tokens = int(ev["data"].get("prompt_tokens", 0) or 0)
                     final_completion_tokens = int(ev["data"].get("completion_tokens", 0) or 0)
+                    final_model = str(ev["data"].get("model") or "") or None
                     # Persist the assistant turn BEFORE the terminal event
                     # hits the wire, so the SSE consumer can link straight
                     # to the trace drill-down via a real message_id (the
@@ -355,7 +359,7 @@ async def _run_turn_async(turn_id: str) -> None:
                                 mdb,
                                 user_id=user_id,
                                 provider=_stream_provider_name(byok_dispatch),
-                                model=_stream_model_name(byok_dispatch),
+                                model=final_model or _stream_model_name(byok_dispatch),
                                 cost_usd=final_cost_usd,
                                 latency_ms=final_total_ms,
                                 status=STATUS_OK,
@@ -549,7 +553,7 @@ async def _run_turn_async(turn_id: str) -> None:
                     db,
                     user_id=user_id,
                     provider=_stream_provider_name(byok_dispatch),
-                    model=_stream_model_name(byok_dispatch),
+                    model=final_model or _stream_model_name(byok_dispatch),
                     cost_usd=final_cost_usd,
                     latency_ms=final_total_ms,
                     status=STATUS_OK,

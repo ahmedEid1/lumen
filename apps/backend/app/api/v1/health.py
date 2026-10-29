@@ -11,6 +11,7 @@ from sqlalchemy import text
 
 from app.api.deps import DBSession
 from app.core.config import get_settings
+from app.services import llm_health
 
 router = APIRouter()
 
@@ -45,3 +46,16 @@ async def ready(db: DBSession) -> Any:
         status_code=overall,
         content={"status": "ok" if overall == 200 else "degraded", "checks": checks},
     )
+
+
+@router.get("/health/llm", summary="LLM reachability (cached; not a readiness signal)")
+async def llm_probe() -> Any:
+    """Cached tiny call to the primary platform model — see app.services.llm_health.
+
+    503 only when the last probe failed, so an external uptime monitor can
+    alert on it. Do NOT wire this into a container healthcheck or the deploy
+    smoke: a vendor outage must not restart or roll back the api.
+    """
+    snap = await llm_health.get_snapshot()
+    code = status.HTTP_503_SERVICE_UNAVAILABLE if snap["status"] == "down" else status.HTTP_200_OK
+    return JSONResponse(status_code=code, content=snap)

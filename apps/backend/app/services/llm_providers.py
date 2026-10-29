@@ -49,8 +49,9 @@ class ProviderSpec:
 
 
 # The frozen registry. Keys are the on-the-wire provider slugs. ``groq`` is
-# a first-class entry (FR-BYOK-13) carrying llama-3.3-70b-versatile, the
-# free-tier default the platform itself runs on.
+# a first-class entry (FR-BYOK-13) carrying openai/gpt-oss-120b, the model the
+# platform itself runs on, and gpt-oss-20b (llama-3.3-70b-versatile was retired
+# by Groq on 2026-08-16 and now returns 404).
 PROVIDER_REGISTRY: dict[str, ProviderSpec] = {
     "openai": ProviderSpec(
         key="openai",
@@ -71,7 +72,7 @@ PROVIDER_REGISTRY: dict[str, ProviderSpec] = {
         display_name="Groq",
         base_url="https://api.groq.com/openai/v1",
         transport="openai",
-        models=("llama-3.3-70b-versatile",),
+        models=("openai/gpt-oss-120b", "openai/gpt-oss-20b"),
     ),
     "mistral": ProviderSpec(
         key="mistral",

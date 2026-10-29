@@ -39,9 +39,13 @@ log = get_logger(__name__)
 # include the date alongside any future update so we can track
 # drift.
 #
+# As of 2026-10-29 (console.groq.com/docs/model/openai/gpt-oss-120b and -20b):
+#   - Groq (the platform default since llama-3.3-70b-versatile was retired):
+#       openai/gpt-oss-120b:     $0.15 in / $0.60 out
+#       openai/gpt-oss-20b:      $0.075 in / $0.30 out
 # As of 2026-05-22:
-#   - Groq (free tier still on the cards, but priced once paid):
-#       llama-3.3-70b-versatile: $0.59 in / $0.79 out
+#   - Groq: llama-3.3-70b-versatile: $0.59 in / $0.79 out (retired by Groq
+#     2026-08-16; kept so historical rows and tests still price)
 #   - Anthropic:
 #       claude-sonnet-4-6:          $3.00 in / $15.00 out
 #       claude-haiku-4-5-20251001:  $1.00 in /  $5.00 out
@@ -49,6 +53,8 @@ log = get_logger(__name__)
 #       gpt-4o-mini:                $0.15 in /  $0.60 out
 #       gpt-4o:                     $2.50 in / $10.00 out
 MODEL_PRICING: dict[str, tuple[float, float]] = {
+    "openai/gpt-oss-120b": (0.15, 0.60),
+    "openai/gpt-oss-20b": (0.075, 0.30),
     "llama-3.3-70b-versatile": (0.59, 0.79),
     "claude-sonnet-4-6": (3.00, 15.00),
     "claude-haiku-4-5-20251001": (1.00, 5.00),

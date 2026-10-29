@@ -103,16 +103,16 @@ jobs:
                  api python -m app.evals.run_baseline \
                    --suite '$SUITE' \
                    --limit $LIMIT \
-                   --primary groq-llama-3.3 \
+                   --primary groq-gpt-oss-120b \
                    --primary-base https://api.groq.com/openai/v1 \
-                   --primary-model llama-3.3-70b-versatile \
+                   --primary-model openai/gpt-oss-120b \
                    --primary-key-env OPENAI_API_KEY \
                    --baseline mistral \
                    --baseline-base https://api.mistral.ai/v1 \
                    --baseline-model mistral-small-latest \
                    --baseline-key-env MISTRAL_API_KEY \
                    --judge-base https://api.groq.com/openai/v1 \
-                   --judge-model llama-3.3-70b-versatile \
+                   --judge-model openai/gpt-oss-20b \
                    --judge-key-env OPENAI_API_KEY")
 
           # Echo the full output (without the key) for operator
