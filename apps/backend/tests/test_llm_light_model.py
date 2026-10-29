@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.services import ai_authoring
 from app.services import authoring_orchestrator as orch
 from app.services.llm import (
+    HANDOVER_FEATURES,
     LIGHT_FEATURES,
     FallbackProvider,
     OpenAIProvider,
@@ -77,8 +78,13 @@ def test_light_model_without_fallbacks_is_a_bare_provider(groq_with_light) -> No
         quiz = get_provider_for("authoring.quiz")
         assert isinstance(quiz, FallbackProvider)  # light model, then the primary behind it
         assert _models(quiz) == ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]
-        lesson = get_provider_for("authoring.lesson")
-        assert isinstance(lesson, OpenAIProvider) and lesson._model == "openai/gpt-oss-120b"
+        outline = get_provider_for("authoring.outline")
+        assert isinstance(outline, OpenAIProvider) and outline._model == "openai/gpt-oss-120b"
+        # Lessons always get the rate-limit handover to the light model.
+        assert _models(get_provider_for("authoring.lesson")) == [
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+        ]
 
 
 def test_noop_is_never_routed() -> None:
@@ -143,6 +149,31 @@ async def test_the_main_chain_still_does_not_fall_back_on_429() -> None:
     assert fallback.calls == 0
 
 
-def test_only_the_light_chain_falls_back_on_rate_limit(groq_with_light) -> None:
+def test_only_the_light_and_lesson_chains_fall_back_on_rate_limit(groq_with_light) -> None:
     assert get_provider_for("authoring.quiz")._fallback_on_rate_limit is True
-    assert get_provider_for("authoring.lesson")._fallback_on_rate_limit is False
+    assert get_provider_for("authoring.lesson")._fallback_on_rate_limit is True
+    assert get_provider_for("authoring.outline")._fallback_on_rate_limit is False
+    assert get_provider()._fallback_on_rate_limit is False
+
+
+def test_lessons_stay_on_the_primary_and_hand_over_to_the_light_model(groq_with_light) -> None:
+    assert {"authoring.lesson"} == HANDOVER_FEATURES
+    lesson = get_provider_for("authoring.lesson")
+    assert _models(lesson) == ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+    # One short retry on the primary, then the light model (with full retries).
+    assert [p._max_retries for p in lesson._providers] == [1, get_settings().llm_max_retries]
+
+
+def test_lesson_handover_adds_the_light_model_when_it_is_not_a_fallback(groq_with_light) -> None:
+    with patch.object(get_settings(), "llm_fallback_models", []):
+        assert _models(get_provider_for("authoring.lesson")) == [
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+        ]
+
+
+def test_without_a_light_model_lessons_are_unchanged(groq_with_light) -> None:
+    with patch.object(get_settings(), "llm_light_model", ""):
+        lesson = get_provider_for("authoring.lesson")
+        assert lesson._fallback_on_rate_limit is False
+        assert [p._max_retries for p in lesson._providers] == [get_settings().llm_max_retries] * 2
