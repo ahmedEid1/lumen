@@ -51,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Groq's free tier each model has its own tokens-per-minute budget, so
   `openai/gpt-oss-20b` here takes ~6k tokens a build off `openai/gpt-oss-120b`
   (a build spent 60 of its 92 s waiting on 429s). `/health/llm` shows it.
+- **Course lessons hand over to `LLM_LIGHT_MODEL` when `LLM_MODEL` is
+  rate-limited** (one short retry first), instead of waiting out long
+  Retry-After waits or ending up as placeholder lessons: on Groq's free tier two
+  of three timed builds (10 lessons) each produced a placeholder and took
+  109-135 s. Lessons still run on `LLM_MODEL` whenever it has budget.
 - **Notifications are now feature-complete: delete, clear, mark-unread,
   a full inbox page, and an accurate badge.** Per-row kebab actions
   (delete, read/unread toggle) on an accessible row (real

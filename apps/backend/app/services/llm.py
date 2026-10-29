@@ -764,6 +764,10 @@ class FallbackProvider:
 # quiz generation and the critics' JSON scorecards. With LLM_LIGHT_MODEL set
 # they run on it first (the rest of the chain behind it).
 LIGHT_FEATURES = frozenset({"authoring.quiz", "authoring.critic", "authoring.final_critic"})
+# Course lessons stay on LLM_MODEL, but when it is rate-limited (Groq's limits
+# are per model) they hand over to LLM_LIGHT_MODEL instead of waiting out long
+# retries or ending up as placeholder lessons.
+HANDOVER_FEATURES = frozenset({"authoring.lesson"})
 
 
 def get_provider() -> LLMProvider:
@@ -795,11 +799,18 @@ def get_provider_for(feature: str | None) -> LLMProvider:
     """
     s = get_settings()
     light = (s.llm_light_model or "").strip()
-    if s.llm_provider == "noop" or not light or feature not in LIGHT_FEATURES:
+    if s.llm_provider == "noop" or not light:
         return get_provider()
-    return _chain_provider(
-        [light, *(m for m in platform_model_chain() if m != light)], fallback_on_rate_limit=True
-    )
+    chain = platform_model_chain()
+    if feature in LIGHT_FEATURES:
+        return _chain_provider(
+            [light, *(m for m in chain if m != light)], fallback_on_rate_limit=True
+        )
+    if feature in HANDOVER_FEATURES:
+        return _chain_provider(
+            [*chain, *([] if light in chain else [light])], fallback_on_rate_limit=True
+        )
+    return get_provider()
 
 
 def _chain_provider(chain: list[str], *, fallback_on_rate_limit: bool = False) -> LLMProvider:
@@ -808,8 +819,19 @@ def _chain_provider(chain: list[str], *, fallback_on_rate_limit: bool = False) -
     retries = int(s.llm_max_retries)
     if len(chain) == 1:
         return build_platform_provider(chain[0], timeout=timeout, max_retries=retries)
+    last = len(chain) - 1
+
+    def _retries(i: int) -> int:
+        # A rate-limit handover chain gives each model but the last one short
+        # retry before moving on: the next model has its own per-model budget,
+        # which beats waiting out a long Retry-After.
+        return min(retries, 1) if fallback_on_rate_limit and i < last else retries
+
     return FallbackProvider(
-        [build_platform_provider(m, timeout=timeout, max_retries=retries) for m in chain],
+        [
+            build_platform_provider(m, timeout=timeout, max_retries=_retries(i))
+            for i, m in enumerate(chain)
+        ],
         fallback_on_rate_limit=fallback_on_rate_limit,
     )
 
@@ -817,6 +839,7 @@ def _chain_provider(chain: list[str], *, fallback_on_rate_limit: bool = False) -
 __all__ = [
     "DEFAULT_ANTHROPIC_MODEL",
     "DEFAULT_OPENAI_MODEL",
+    "HANDOVER_FEATURES",
     "LIGHT_FEATURES",
     "NOOP_MODEL_NAME",
     "NOOP_REFUSAL",
