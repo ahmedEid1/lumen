@@ -246,3 +246,36 @@ def test_out_of_range_numbers_fall_back_to_defaults() -> None:
 
 def test_json_bomb_string_returns_empty() -> None:
     assert blocks_to_text("[" * 100000) == ""
+
+
+def test_non_string_node_types_are_treated_as_unknown() -> None:
+    # An LLM can put any JSON in "type"; a list or dict there must not raise
+    # (it would abort the whole course's indexing) or drop the text around it.
+    doc = {
+        "type": "doc",
+        "content": [
+            _p("Before."),
+            {"type": [], "content": [_p("Inside a list-typed node.")]},
+            {"type": {"x": 1}, "text": "ignored"},
+            {
+                "type": "paragraph",
+                "content": [
+                    _t("Inline "),
+                    {"type": ["link"], "content": [_t("wrapped")]},
+                    _t(" after."),
+                ],
+            },
+            {"type": "codeBlock", "content": [{"type": [], "content": [_t("code()")]}]},
+        ],
+    }
+    assert blocks_to_text(doc).split() == [
+        "Before.",
+        "Inside",
+        "a",
+        "list-typed",
+        "node.",
+        "Inline",
+        "wrapped",
+        "after.",
+        "code()",
+    ]

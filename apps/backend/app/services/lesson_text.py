@@ -51,7 +51,7 @@ def blocks_to_text(doc: Any) -> str:
             return _join_blocks(_children(doc), "\n\n")
         except RecursionError:
             return _flat_text(doc)
-    except (ValueError, RecursionError):
+    except (ValueError, TypeError, RecursionError):
         return ""
 
 
@@ -78,6 +78,12 @@ def _flat_text(doc: dict[str, Any]) -> str:
     return " ".join(" ".join(out).split())
 
 
+def _kind(node: dict[str, Any]) -> str | None:
+    """The node's type, or None when it isn't a string (an LLM can emit any JSON there)."""
+    kind = node.get("type")
+    return kind if isinstance(kind, str) else None
+
+
 def _children(node: Any) -> list[dict[str, Any]]:
     content = node.get("content") if isinstance(node, dict) else None
     if not isinstance(content, list):
@@ -91,7 +97,7 @@ def _join_blocks(nodes: list[dict[str, Any]], sep: str) -> str:
     parts: list[str] = []
     run: list[dict[str, Any]] = []
     for n in nodes:
-        if n.get("type") in _INLINE_KINDS:
+        if _kind(n) in _INLINE_KINDS:
             run.append(n)
             continue
         if run:
@@ -112,7 +118,7 @@ def _inline_raw(node: dict[str, Any]) -> str:
     # (links, mentions) keeps its spaces.
     out: list[str] = []
     for child in _children(node):
-        kind = child.get("type")
+        kind = _kind(child)
         if kind == "text":
             text = child.get("text")
             out.append(text if isinstance(text, str) else "")
@@ -129,7 +135,7 @@ def _raw_text(node: dict[str, Any]) -> str:
     """Code-block text: raw, line breaks kept, nested nodes included."""
     out: list[str] = []
     for c in _children(node):
-        kind = c.get("type")
+        kind = _kind(c)
         if kind == "text":
             s = c.get("text")
             out.append(s if isinstance(s, str) else "")
@@ -141,7 +147,7 @@ def _raw_text(node: dict[str, Any]) -> str:
 
 
 def _block(node: dict[str, Any]) -> str:
-    kind = node.get("type")
+    kind = _kind(node)
     raw_attrs = node.get("attrs")
     attrs: dict[str, Any] = raw_attrs if isinstance(raw_attrs, dict) else {}
     if kind == "paragraph":

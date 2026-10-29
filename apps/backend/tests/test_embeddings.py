@@ -232,6 +232,39 @@ def test_chunk_lesson_empty_or_blank_body_markdown_falls_back_to_blocks(body: ob
     assert "From blocks." in chunk_lesson(_make_lesson(data=data))[0]
 
 
+async def test_ingest_course_continues_past_a_malformed_drafted_lesson(
+    db_session: AsyncSession,
+) -> None:
+    course = await _seed_course_with_lessons(db_session, bodies=["A normal lesson body."])
+    db_session.add(
+        Lesson(
+            id="lsn_bad",
+            module_id="mod_x",
+            title="Malformed draft",
+            order=9,
+            type=LessonType.text,
+            data={
+                "type": "text",
+                "body_markdown": "",
+                "blocks": {
+                    "type": "doc",
+                    "content": [
+                        {"type": []},
+                        {"type": "paragraph", "content": [{"type": "text", "text": "Still here."}]},
+                    ],
+                },
+            },
+        )
+    )
+    await db_session.commit()
+    total = await ingest_course(db_session, course.id)
+    lesson_ids = {
+        r.lesson_id for r in (await db_session.execute(select(LessonChunk))).scalars().all()
+    }
+    assert total >= 2
+    assert {"lsn_0", "lsn_bad"} <= lesson_ids
+
+
 def test_chunk_lesson_prefers_body_markdown_when_both_exist() -> None:
     lesson = _make_lesson(
         data={
