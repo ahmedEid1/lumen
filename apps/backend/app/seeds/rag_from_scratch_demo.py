@@ -125,10 +125,9 @@ RAG_FROM_SCRATCH_MODULES: list[dict[str, Any]] = [
                     "   answer is wrong in a way you can debug.\n\n"
                     "Lumen's tutor prompt carries exactly that instruction, "
                     "and asks the model to cite each claim as `[L:<lesson "
-                    "id>]`. Before the answer is shown, any citation that "
-                    "points at a lesson outside the retrieved set is dropped, "
-                    "so a learner never gets a link to a source the model "
-                    "didn't see."
+                    "id>]`. Citation links are built only for lessons in the "
+                    "retrieved set, so a learner never gets a link to a "
+                    "source the model didn't see."
                 ),
             },
             {
@@ -280,7 +279,8 @@ RAG_FROM_SCRATCH_MODULES: list[dict[str, Any]] = [
                 "title": "The end-to-end loop",
                 "type": LessonType.text,
                 "data": _text(
-                    "One turn of Lumen's web tutor:\n\n"
+                    "One turn of Lumen's web tutor (the streamed path the "
+                    "live site runs):\n\n"
                     "1. **Embed the question.** One call to the embedding "
                     "   model turns it into a 384-dimensional vector.\n"
                     "2. **Retrieve the top chunks.** A single SQL query "
@@ -295,13 +295,15 @@ RAG_FROM_SCRATCH_MODULES: list[dict[str, Any]] = [
                     "4. **Generate.** One streamed call to the LLM "
                     "   (`gpt-oss-120b` on Groq, with a smaller model as "
                     "   fallback). The answer cites lessons inline.\n"
-                    "5. **Post-process.** Citations to lessons outside the "
-                    "   retrieved set are dropped; the rest become links.\n"
+                    "5. **Post-process.** Only citations to retrieved "
+                    "   lessons become links.\n"
                     "6. **Audit.** The query, the chunks returned and their "
                     "   distances are logged, so a bad answer can be traced "
                     "   to the retrieval that produced it.\n\n"
-                    "That's the whole loop. Rerankers, hybrid search and "
-                    "extra tools are refinements of steps 2 and 4."
+                    "That's the whole loop. Through the API and MCP, a "
+                    "planner model first picks which sub-agents to run and "
+                    "writes the retriever's query; rerankers and hybrid "
+                    "search would refine step 2."
                 ),
             },
             {

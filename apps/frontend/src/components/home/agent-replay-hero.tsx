@@ -124,9 +124,9 @@ export function AgentReplayHero() {
                 className="motion-replay__cursor ms-0.5 inline-block h-3 w-1 align-middle bg-primary"
                 aria-hidden
               />
-              <span className="motion-replay__citation mt-2 flex w-fit items-center gap-1.5 rounded border border-border bg-muted px-2 py-0.5 font-body text-xs text-foreground">
-                <BookOpen className="h-3 w-3 shrink-0 text-primary" aria-hidden />
-                <span className="line-clamp-1">{CANONICAL_CITATION}</span>
+              <span className="motion-replay__citation mt-2 flex w-fit items-start gap-1.5 rounded border border-border bg-muted px-2 py-0.5 font-body text-xs text-foreground">
+                <BookOpen className="mt-0.5 h-3 w-3 shrink-0 text-primary" aria-hidden />
+                <span>{CANONICAL_CITATION}</span>
               </span>
             </div>
 
