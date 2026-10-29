@@ -59,7 +59,7 @@ async comments plus the course-scoped AI tutor.
 | `beat`        | same as `api`                | Celery beat scheduler |
 | `db`          | `pgvector/pgvector:pg17`     | Primary datastore + pgvector for semantic search (Phase E0) |
 | `redis`       | `redis:7-alpine`             | Cache, broker, pub/sub |
-| `s3`          | `minio/minio`                | Object storage (lessons, avatars) |
+| `s3`          | `pgsty/minio`                | Object storage (lessons, avatars) |
 | `mail`        | `axllent/mailpit`            | Dev SMTP UI |
 | `proxy`       | `caddy:2-alpine`             | TLS termination + routing |
 | `prom`        | `prom/prometheus`            | (prod profile) metrics scrape |
