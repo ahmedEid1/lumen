@@ -62,6 +62,8 @@ async def _run_probe() -> dict[str, Any]:
         "provider": s.llm_provider,
         "model": chain[0],
         "fallback_models": chain[1:],
+        # Not probed; shown so a misconfigured LLM_LIGHT_MODEL is visible.
+        "light_model": (s.llm_light_model or "").strip() or None,
         "latency_ms": None,
         "error_kind": None,
         "http_status": None,

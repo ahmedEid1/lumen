@@ -44,7 +44,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`GET /api/v1/health/llm`**: a cached LLM probe (one tiny upstream call per
   `LLM_HEALTH_PROBE_TTL_S`, default 900 s, fleet-wide via Redis). Not part of
   `/health/ready`, the container healthcheck or the deploy smoke.
-
+- **`LLM_LIGHT_MODEL`** (optional, same provider/key/base as `LLM_MODEL`): quiz
+  generation and the critic scorecards (`authoring.quiz`, `authoring.critic`,
+  `authoring.final_critic`) run on it first, then the rest of the platform
+  chain; everything else is unchanged and BYOK keeps the user's model. On
+  Groq's free tier each model has its own tokens-per-minute budget, so
+  `openai/gpt-oss-20b` here takes ~6k tokens a build off `openai/gpt-oss-120b`
+  (a build spent 60 of its 92 s waiting on 429s). `/health/llm` shows it.
 - **Notifications are now feature-complete: delete, clear, mark-unread,
   a full inbox page, and an accurate badge.** Per-row kebab actions
   (delete, read/unread toggle) on an accessible row (real
