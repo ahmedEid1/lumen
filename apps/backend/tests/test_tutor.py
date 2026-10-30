@@ -301,7 +301,7 @@ async def test_ask_blank_message_returns_refusal(db_session: AsyncSession, make_
 async def test_build_system_prompt_emits_lesson_id_headers(
     db_session: AsyncSession, make_user
 ) -> None:
-    """The ``Lesson L<id>: <title>`` header is the citation handshake.
+    """The ``[L:<id>] <title>`` header is the citation handshake.
 
     The model is told to wrap claims with ``[L:<lesson_id>]`` and
     we test that the system prompt actually advertises lesson ids
@@ -322,7 +322,9 @@ async def test_build_system_prompt_emits_lesson_id_headers(
         await db_session.refresh(c, attribute_names=["lesson"])
 
     prompt = tutor_service.build_system_prompt(course, chunks)
-    assert f"Lesson L{chunks[0].lesson_id}:" in prompt
+    assert f"[L:{chunks[0].lesson_id}] " in prompt
+    # The old "Lesson L<id>:" label made real models cite [L:L<id>] (L12).
+    assert f"Lesson L{chunks[0].lesson_id}" not in prompt
     assert "[L:<lesson_id>]" in prompt
     assert course.title in prompt
 

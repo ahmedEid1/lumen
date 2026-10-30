@@ -472,7 +472,10 @@ async def create_lesson(
     lesson = await courses_service.create_lesson(
         db, module_id=module_id, owner=user, payload=payload
     )
-    return LessonOut.model_validate(lesson)
+    out = LessonOut.model_validate(lesson)
+    course_id = await courses_service.course_id_for_module(db, lesson.module_id)
+    await courses_service.commit_and_reindex(db, course_id)
+    return out
 
 
 @router.patch("/lessons/{lesson_id}", response_model=LessonOut)
@@ -482,12 +485,16 @@ async def update_lesson(
     lesson = await courses_service.update_lesson(
         db, lesson_id=lesson_id, owner=user, payload=payload
     )
-    return LessonOut.model_validate(lesson)
+    out = LessonOut.model_validate(lesson)
+    course_id = await courses_service.course_id_for_module(db, lesson.module_id)
+    await courses_service.commit_and_reindex(db, course_id)
+    return out
 
 
 @router.delete("/lessons/{lesson_id}", response_model=OkResponse)
 async def delete_lesson(lesson_id: str, user: RequireAuthor, db: DBSession) -> OkResponse:
-    await courses_service.delete_lesson(db, lesson_id=lesson_id, owner=user)
+    course_id = await courses_service.delete_lesson(db, lesson_id=lesson_id, owner=user)
+    await courses_service.commit_and_reindex(db, course_id)
     return OkResponse()
 
 

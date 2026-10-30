@@ -36,6 +36,7 @@ from app.schemas.learning_brief import (
 )
 from app.services import build as build_service
 from app.services import byok as byok_service
+from app.services import courses as courses_service
 from app.services import learning_brief as brief_service
 
 router = APIRouter()
@@ -172,6 +173,11 @@ async def build_course_from_brief(
     _ = idempotency_key  # reserved (brief_id is the v1 idempotency key)
     ctx = await byok_service.resolve_context(db, user_id=user.id)
     result = await build_service.build_from_brief(db, user=user, brief_id=payload.brief_id, ctx=ctx)
+    # A built course is a private draft, so the publish-time indexer never runs
+    # for it, and the learner lands in /learn with the tutor (L06). Commit the
+    # tree first so the worker reads the drafted lessons, then index them.
+    await db.commit()
+    courses_service._schedule_embedding_index(result.course_id)
     return DraftFromBriefResponse(
         course_id=result.course_id,
         slug=result.slug,

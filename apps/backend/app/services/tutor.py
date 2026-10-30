@@ -39,7 +39,7 @@ click through to a lesson the tutor didn't ground its answer in.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Container, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -67,10 +67,10 @@ log = get_logger(__name__)
 
 
 # How much of each chunk's text we put inside the system prompt's
-# context block. Long enough to anchor the model on real content;
-# short enough that ``top_k=5`` chunks fit comfortably inside the
-# context window without crowding the user's question.
-CONTEXT_EXCERPT_CHARS = 600
+# context block. One full chunk (~500 tokens, about 2,000 characters),
+# so the model reads the passage that made the chunk rank; ``top_k=5``
+# chunks stay around 3k tokens (L13).
+CONTEXT_EXCERPT_CHARS = 2000
 # How much of each chunk's text we surface back to the UI as the
 # citation excerpt. Smaller than the prompt excerpt so the pill
 # preview stays compact — the full lesson is one click away.
@@ -93,6 +93,21 @@ REFUSAL_TEXT = (
 # stray punctuation) still parses — the membership check against
 # the retrieval set is the real gate.
 CITATION_RE = re.compile(r"\[L:([^\s\]]+)\]")
+
+
+def resolve_cited_lesson_id(token: str, retrieved_ids: Container[str]) -> str | None:
+    """Map a cited token to a retrieved lesson id, or ``None`` to drop it.
+
+    Context blocks used to be headed ``Lesson L<id>:``, and real models
+    copied the prefix into ``[L:L<id>]``, which never matched (L12). The
+    headers now read ``[L:<id>]``; a stray leading ``L`` is still accepted
+    when the bare id is one we retrieved.
+    """
+    if token in retrieved_ids:
+        return token
+    if token.startswith("L") and token[1:] in retrieved_ids:
+        return token[1:]
+    return None
 
 
 @dataclass(frozen=True)
@@ -146,19 +161,19 @@ def build_system_prompt(course: Course, chunks: list[LessonChunk]) -> str:
     2. Hard constraint ("answer ONLY from the context below").
     3. Citation format ("wrap each claim with [L:<lesson_id>]").
     4. Refusal fallback ("if the context doesn't cover it, say so").
-    5. The retrieval context, one block per chunk, prefixed with
-       ``Lesson L<lesson_id>: <title>``.
+    5. The retrieval context, one block per chunk, headed
+       ``[L:<lesson_id>] <title>``.
 
-    The ``Lesson L<id>:`` header is what the model is told to cite,
-    and is also what :class:`~app.services.llm.NoopProvider` parses
-    back out to generate deterministic test responses.
+    The header carries the exact token the model is told to cite, and
+    is also what :class:`~app.services.llm.NoopProvider` parses back
+    out to generate deterministic test responses.
     """
     blocks: list[str] = []
     for chunk in chunks:
         lesson = chunk.lesson
         title = lesson.title or "Untitled lesson"
         excerpt = _excerpt(chunk.text, CONTEXT_EXCERPT_CHARS)
-        blocks.append(f"Lesson L{lesson.id}: {title}\n{excerpt}")
+        blocks.append(f"[L:{lesson.id}] {title}\n{excerpt}")
     context_block = "\n\n".join(blocks) if blocks else "(no relevant context found)"
 
     return (
@@ -214,13 +229,11 @@ def extract_citations(answer: str, chunks: list[LessonChunk]) -> list[Citation]:
     seen: set[str] = set()
     out: list[Citation] = []
     for match in CITATION_RE.finditer(answer):
-        lid = match.group(1)
-        if lid in seen:
+        lid = resolve_cited_lesson_id(match.group(1), by_lesson)
+        if lid is None or lid in seen:
             continue
         seen.add(lid)
-        cite = by_lesson.get(lid)
-        if cite is not None:
-            out.append(cite)
+        out.append(by_lesson[lid])
     return out
 
 
@@ -252,13 +265,11 @@ def extract_citation_dicts(answer: str, chunks: Sequence[Any]) -> list[dict[str,
     seen: set[str] = set()
     out: list[dict[str, str]] = []
     for match in CITATION_RE.finditer(answer):
-        lid = match.group(1)
-        if lid in seen:
+        lid = resolve_cited_lesson_id(match.group(1), by_lesson)
+        if lid is None or lid in seen:
             continue
         seen.add(lid)
-        cite = by_lesson.get(lid)
-        if cite is not None:
-            out.append(cite.to_dict())
+        out.append(by_lesson[lid].to_dict())
     return out
 
 

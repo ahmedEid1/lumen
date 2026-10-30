@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import asyncio
 
+from sqlalchemy import text
+
 from app.core.logging import get_logger
 from app.db import base as db_base
 from app.services.embeddings_ingest import ingest_course
@@ -26,6 +28,15 @@ async def _index_course_async(course_id: str) -> int:
     # raise "got Future attached to a different loop". See
     # app.db.base.worker_session_scope.
     async with db_base.worker_session_scope() as Session, Session() as db:
+        # Lesson writes now enqueue a reindex each, and workers run in
+        # parallel. Serialise jobs per course: without this, a job that read
+        # the lessons before an edit could commit its older chunks after the
+        # newer job (L06 follow-up, L76). ingest_course commits once at the
+        # end, which releases the transaction-scoped lock.
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+            {"key": f"lumen:index_course:{course_id}"},
+        )
         return await ingest_course(db, course_id)
 
 
