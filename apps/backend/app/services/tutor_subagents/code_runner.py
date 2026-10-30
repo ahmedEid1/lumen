@@ -21,12 +21,14 @@ guard:
 * ``print`` is captured into an in-memory list; we return its join
   as the result ``stdout``.
 
-A hard wall-clock timeout (5 s by default) terminates runaway loops
-via :func:`signal.SIGALRM` on POSIX. On Windows :func:`signal.SIGALRM`
-is unavailable, so we fall back to a thread-based deadline that
-*detects* timeout but doesn't forcibly kill the worker — the
-attacker would still have to land arbitrary code through the
-synthesiser's prompt, which RestrictedPython already gates.
+On POSIX (production) the code runs in a child process
+(:mod:`app.services.code_runner_subprocess`) under RLIMIT_CPU and
+RLIMIT_AS, and is SIGKILLed when it overruns the wall-clock deadline
+(5 s by default). Before L21 it ran on a thread inside the API process:
+``asyncio.wait_for`` stopped *waiting* after the deadline but couldn't
+stop the thread, so ``while True: pass`` kept a CPU core until a restart.
+Where :mod:`resource` is missing (Windows dev boxes) the old in-process
+thread is the fallback, with that known limit.
 
 **Operator note.** This is the "safe stub" Phase J will replace with
 a proper Pyodide-in-WASM runner. The current sandbox is appropriate
@@ -43,6 +45,7 @@ result carries the compile error in ``error_msg`` and an empty
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -51,6 +54,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.models.agent_trace import TRACE_STATUS_ERROR, TRACE_STATUS_OK
 from app.services import agent_tracer
+from app.services.code_runner_subprocess import execute_in_subprocess
+
+# The child process sets rlimits with ``resource``, which only POSIX has.
+_SUBPROCESS_SANDBOX = importlib.util.find_spec("resource") is not None
 
 log = get_logger(__name__)
 
@@ -316,17 +323,21 @@ async def run(
         )
         return result
 
-    try:
-        result = await asyncio.wait_for(
-            asyncio.to_thread(_execute, code, timeout=timeout_seconds),
-            timeout=timeout_seconds,
-        )
-    except TimeoutError:
-        result = CodeRunResult(
-            stdout="",
-            exit_code=1,
-            error_msg=f"execution exceeded {timeout_seconds}s deadline",
-        )
+    if _SUBPROCESS_SANDBOX:
+        sub = await execute_in_subprocess(code, wall_timeout_seconds=timeout_seconds)
+        result = CodeRunResult(stdout=sub.stdout, exit_code=sub.exit_code, error_msg=sub.error_msg)
+    else:  # pragma: no cover - non-POSIX dev fallback
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_execute, code, timeout=timeout_seconds),
+                timeout=timeout_seconds,
+            )
+        except TimeoutError:
+            result = CodeRunResult(
+                stdout="",
+                exit_code=1,
+                error_msg=f"execution exceeded {timeout_seconds}s deadline",
+            )
 
     trace_status = TRACE_STATUS_OK if result.exit_code == 0 else TRACE_STATUS_ERROR
     await agent_tracer.record_step(

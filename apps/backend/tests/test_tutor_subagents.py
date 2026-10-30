@@ -405,3 +405,24 @@ async def test_concept_explainer_tolerates_missing_analogy(
     )
     assert "Mitochondria generate ATP" in result.explanation
     assert result.analogy is None
+
+
+async def test_code_runner_kills_an_endless_loop_out_of_process(
+    db_session: AsyncSession, make_user
+) -> None:
+    """L21: an endless loop must not keep running inside the API process.
+
+    The run goes through the subprocess sandbox, so the deadline is a real
+    kill, and no thread of this process is left spinning afterwards.
+    """
+    import threading
+    import time
+
+    threads_before = threading.active_count()
+    started = time.monotonic()
+    result = await code_runner.run(
+        db_session, code="while True:\n    pass", user_id=_uid(), timeout_seconds=2
+    )
+    assert result.exit_code == 1
+    assert time.monotonic() - started < 6
+    assert threading.active_count() <= threads_before
