@@ -182,6 +182,17 @@ async def app(_engine):
 
 
 @pytest.fixture(autouse=True)
+def _no_embedding_index_enqueue(monkeypatch):
+    """Lesson writes, builds and publishes enqueue a Celery reindex. Tests have
+    no broker, and each attempt to reach one stalled the suite for seconds,
+    so the enqueue is a no-op here. Tests that check it patch it themselves."""
+    from app.services import courses as courses_service
+
+    monkeypatch.setattr(courses_service, "_schedule_embedding_index", lambda course_id: None)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _reset_rate_limiter():
     """Give every test a fresh in-memory limiter so buckets don't leak across tests."""
     from app.core import ratelimit as ratelimit_mod

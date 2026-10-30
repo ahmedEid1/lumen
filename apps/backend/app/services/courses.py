@@ -230,7 +230,9 @@ def _schedule_embedding_index(course_id: str) -> None:
         # still works.
         from app.workers.tasks.embeddings import index_course_embeddings
 
-        index_course_embeddings.delay(course_id)
+        # retry=False: fail fast if the broker is down instead of holding
+        # the request through kombu's connection retries.
+        index_course_embeddings.apply_async((course_id,), retry=False)
     except Exception:  # pragma: no cover — broker may be down
         log.warning("embedding_index_enqueue_failed", course_id=course_id)
 
