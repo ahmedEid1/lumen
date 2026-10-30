@@ -122,12 +122,12 @@ Current sandbox:
 * **Banned:** `__import__` of anything else, `open`, `exec`, `eval`,
   `compile`, `input`, `getattr` on dunders, network, filesystem,
   subprocess, sockets.
-* **Hard timeout:** 5 seconds (default). Enforced via
-  `asyncio.wait_for` around a `to_thread`-wrapped synchronous
-  execution; on POSIX the inner `signal.SIGALRM` adds a second
-  layer. On Windows the timeout is detected but not forcibly
-  killed — the cooperative wait still terminates the orchestrator
-  step.
+* **Isolation and limits:** on POSIX (production) the code runs in a
+  child process (`app/services/code_runner_subprocess.py`) with
+  `RLIMIT_CPU` 2 s and `RLIMIT_AS` 256 MB, and the whole process group
+  is SIGKILLed at the 5-second wall-clock deadline. Where `resource` is
+  missing (Windows dev boxes) it falls back to a thread in the API
+  process, whose timeout stops the wait but can't stop the thread.
 * **Output cap:** 4000 chars of stdout, ellipsis on overflow.
 
 Failure modes (each returns a `CodeRunResult` without raising):
