@@ -76,3 +76,31 @@ async def test_other_users_are_not_affected(client: AsyncClient, make_user) -> N
     r = await client.patch("/api/v1/users/me", json={"full_name": "Renamed"}, headers=headers)
     assert r.status_code == 200, r.text
     assert r.json()["full_name"] == "Renamed"
+
+
+# ---------- L65: bootstrap-admin can't recreate the published admin login ----------
+
+
+@pytest.mark.parametrize(
+    ("email", "password"),
+    [("admin@lumen.test", "Fresh!Passw0rd"), ("me@example.com", "Admin!2026")],
+)
+def test_bootstrap_admin_refuses_the_public_login_in_production(
+    monkeypatch, email: str, password: str
+) -> None:
+    import typer
+
+    from app import cli
+    from app.core.config import Environment
+
+    monkeypatch.setattr(cli.get_settings(), "env", Environment.production)
+    with pytest.raises(typer.Exit):
+        cli._refuse_public_admin_in_prod(email, password)
+
+
+def test_bootstrap_admin_defaults_still_work_locally(monkeypatch) -> None:
+    from app import cli
+    from app.core.config import Environment
+
+    monkeypatch.setattr(cli.get_settings(), "env", Environment.development)
+    cli._refuse_public_admin_in_prod("admin@lumen.test", "Admin!2026")  # no exit

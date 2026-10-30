@@ -79,12 +79,32 @@ async def _get_or_create(db, model, *, lookup: dict, defaults: dict):
     return obj
 
 
+# The README's local admin login; never valid on a public host.
+_LOCAL_ADMIN_PASSWORD = "Admin!2026"  # noqa: S105
+
+
 @cli.command()
 def bootstrap_admin(
     email: str = "admin@lumen.test", password: str = "Admin!2026", full_name: str = "Admin"
 ) -> None:
-    """Create or upsert an admin user."""
+    """Create or upsert an admin user.
+
+    The defaults are the README's local login. In production (L65) they are
+    refused: pass a real --email and --password.
+    """
+    _refuse_public_admin_in_prod(email, password)
     asyncio.run(_bootstrap_admin(email, password, full_name))
+
+
+def _refuse_public_admin_in_prod(email: str, password: str) -> None:
+    if get_settings().env != Environment.production:
+        return
+    if email.lower().endswith("@lumen.test") or password == _LOCAL_ADMIN_PASSWORD:
+        console.print(
+            "[red]bootstrap-admin refuses the published local login in production.[/red]\n"
+            "Pass --email with a real address and a new --password."
+        )
+        raise typer.Exit(code=2)
 
 
 async def _bootstrap_admin(email: str, password: str, full_name: str) -> None:
