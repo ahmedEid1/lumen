@@ -83,6 +83,12 @@ legacy/media/
 .claude/ralph-loop.local.md
 .claude/worktrees/
 
+# ---- coding-agent notes ----
+# Private session notes and memory for the coding agent; they stay on
+# the developer's machine, not in the public repo.
+.claude/memory-snapshot/
+.claude/HANDOVER.md
+
 # ---- Playwright MCP transient state ----
 # Playwright MCP browser tooling writes per-session state here when
 # Claude drives the browser; not useful in git.
