@@ -393,6 +393,7 @@ export const en = {
   // Site footer
   "footer.copyright": "© {year} Lumen · MIT licensed",
   "footer.docs": "API docs",
+  "footer.builtBy": "Built by Ahmed Hobeishy",
 
   // Admin / courses — curator's shelf
   "adminCourses.cartouche": "Catalogue",
@@ -1116,10 +1117,15 @@ export const en = {
   "eval.cartouche": "Public eval",
   "eval.headline": "How the tutor scores. Receipts only.",
   "eval.subline":
-    "Lumen's tutor is graded against golden datasets via an LLM-as-judge, and against a 15-probe adversarial corpus by a string-match refusal heuristic. This page is frozen on admin-promoted runs.",
-  "eval.sealedRunPending":
-    "First sealed run pending — ships with the streaming-flag flip",
+    "Lumen is graded on golden datasets by an LLM judge. This page shows only runs an admin has promoted. A 15-probe adversarial set and its string-match scorer are in the repo, but nothing runs the probes yet.",
+  "eval.loading": "Loading promoted runs",
+  "eval.sealedRunPending": "No promoted run yet",
   "eval.sealedRunLive": "Sealed run",
+  "eval.honest.heading": "How to read these numbers",
+  "eval.honest.body":
+    "Three golden suites, published whole, weak scores included. They ran on 2026-05-25 with Groq Llama 3.3 70B, now retired, as both model and judge. Authoring scored 3.85/5 (n=10). The tutor scored 2.33/5 (n=10). Its low citation score (0.9/5) came from a label bug: excerpts were headed \"Lesson L<id>\", the model cited [L:L<id>], and validation dropped those citations. The fix is in PR #21; the suite has not been re-run since. Ingest scored 0.83/5 on the 4 items that ran. The other 6 failed: one video went over the 200-lesson module cap, one Notion item had no token in the eval setup, and four dataset URLs had no Notion page ID. The card below is a different measurement: a comparison against a model with no retrieval. Every PR runs a CI smoke that exercises the harness on a noop provider; the score gate needs a model key and doesn't run yet.",
+  "eval.suites.baseline.tutor20260528":
+    "Lumen tutor (Llama 3.3 70B with retrieval) vs Mistral Small with no retrieval, run on 2026-05-28. Judged by Llama 3.3 70B, now retired, the same model as the tutor side.",
   "eval.suites.deltaCaption":
     "Δ = Lumen score − baseline score; positive favours Lumen",
   "eval.suites.judge": "Judge",
@@ -1132,17 +1138,17 @@ export const en = {
   "eval.workedExample.toolPathLabel": "Expected tool path",
   "eval.workedExample.measurementLabel": "Measurement",
   "eval.workedExample.measurementPending":
-    "First-token / total / cost numbers land with the next sealed run.",
+    "Not measured. No latency or cost numbers are published for this question.",
   "eval.suites.cartouche": "Suite trends",
-  "eval.suites.heading": "Tutor, authoring, ingest",
+  "eval.suites.heading": "Promoted runs",
   "eval.suites.empty":
-    "No published runs yet on this surface. The /admin/evals dashboard shows the operator view in the meantime.",
+    "No run has been promoted to this page. The raw reports are in docs/eval in the repo.",
   "eval.adversarial.cartouche": "Adversarial probes",
   "eval.adversarial.heading": "Refusal rate, 15-probe corpus.",
   "eval.adversarial.body":
     "Prompt-injection + system-prompt-extraction + jailbreak + out-of-scope + indirect-injection categories. The corpus is in-repo for audit; per-result outputs are NOT disclosed here — that would just be a roadmap of things to try.",
   "eval.adversarial.measurementPending":
-    "Refusal-rate published with the first sealed run.",
+    "Not run yet. The probes and the scorer are in the repo, but nothing sends the probes to the tutor, so no refusal rate is published.",
   "eval.footer.body":
     "Want the methodology, the corpus shape, or to talk shop?",
   "eval.footer.methodology": "Methodology",
@@ -1214,7 +1220,7 @@ export const en = {
   "caseStudy.origin.p1":
     "I started Lumen in November 2020 as a Django side-project — a learning platform for myself. Five years and one model revolution later, the original prototype is gone and what remains is the question: can an agent actually teach? Not just summarize and quote.",
   "caseStudy.origin.p2":
-    "So I rebuilt it. Custom orchestrator, no LangChain. Groq Llama 3.3 for the latency-per-dollar that makes \"watch it think\" real. Public evals so you can audit the agent's competence yourself.",
+    "So I rebuilt it. Custom orchestrator, no LangChain. Groq for fast inference: today openai/gpt-oss-120b, with openai/gpt-oss-20b as the fallback and for quizzes and critic scorecards. Public evals so you can audit the agent's competence yourself.",
   "caseStudy.origin.p3":
     "Lumen runs on AWS t4g.small (Graviton2 ARM, 2 vCPU + 2 GB RAM). The cost ceiling is a feature, not an apology — it forced every architectural decision to defend itself against a finite LLM-spend budget.",
   "caseStudy.arch.cartouche": "Architecture",
@@ -1232,7 +1238,7 @@ export const en = {
   "caseStudy.turn.step2":
     "Celery task claims the row via an atomic phase fence (`UPDATE ... WHERE status='pending' RETURNING id`). Only one worker proceeds.",
   "caseStudy.turn.step3":
-    "Orchestrator runs: embedding → retriever → optional code_runner / web_searcher → synth. Each tool emits an event into the Redis Stream the browser is subscribed to.",
+    "Retrieve, then answer: the task fetches the top 6 chunks from the course, then streams one answer. This live path makes no planner call; the planner with five sub-agents runs behind the tutor API and the MCP ask_tutor tool. Each step emits an event into the Redis Stream the browser is subscribed to.",
   "caseStudy.turn.step4":
     "Synth streams tokens via `stream_options={\"include_usage\": True}` — first-token-ms drops on the first chunk; cost is reconciled exactly via the include_usage payload (no estimation drift).",
   "caseStudy.turn.step5":
@@ -1242,9 +1248,9 @@ export const en = {
   "caseStudy.prompt.cartouche": "Prompt iteration",
   "caseStudy.prompt.heading": "Two failure modes, two rewrites.",
   "caseStudy.prompt.p1":
-    "Iteration 1: a single 800-word system prompt that tried to do everything. Refused too aggressively (the model interpreted \"stay in scope\" as \"refuse anything off-topic-ish\"). Refusal-rate against legitimate questions was 18%.",
+    "Iteration 1: a single 800-word system prompt that tried to do everything. Refused too aggressively (the model interpreted \"stay in scope\" as \"refuse anything off-topic-ish\").",
   "caseStudy.prompt.p2":
-    "Iteration 4: split into a planner prompt + per-sub-agent prompts. Planner picks tools; sub-agents have one job each. The synth prompt has its own scope rules. Legitimate-question refusal dropped to 3%; adversarial-prompt refusal stayed >90%.",
+    "Iteration 4: split into a planner prompt + per-sub-agent prompts. Planner picks tools; sub-agents have one job each. The synth prompt has its own scope rules. I reviewed these iterations by hand and did not measure a refusal rate, so there are no numbers here.",
   "caseStudy.prompt.p3":
     "What I'd do differently: invest in the LLM-as-judge calibration loop earlier. I rewrote the prompts based on hand-review for iterations 1-3; a structured eval would have surfaced the over-refusal pattern two weeks earlier.",
   "caseStudy.notUsed.cartouche": "What I did not use",
@@ -1256,7 +1262,7 @@ export const en = {
   "caseStudy.notUsed.fineTune":
     "Fine-tuning — wrong tool for this problem. Lumen needs to teach NEW lesson content the model has never seen. Retrieval ingests that content per-deploy; fine-tuning would require re-training on every content update.",
   "caseStudy.notUsed.vectorDB":
-    "Pinecone / Weaviate / Chroma — pgvector inside the same Postgres I was already running cost zero extra infrastructure. The index pattern (ivfflat with vector_cosine_ops, 100 lists) handles the demo corpus comfortably.",
+    "Pinecone / Weaviate / Chroma — pgvector inside the same Postgres I was already running cost zero extra infrastructure. The index is HNSW with vector_cosine_ops and the pgvector defaults (m=16, ef_construction=64).",
   "caseStudy.notUsed.judge":
     "LLM-as-judge for adversarial probes — the judge LLM is itself susceptible to the same jailbreak prompts. String-match refusal heuristic + ambiguous-flag for human review = far more honest signal.",
   "caseStudy.lessons.cartouche": "Lessons",

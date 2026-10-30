@@ -150,7 +150,7 @@ export function EvalMethodologyView() {
             <Link href="/eval">{t("evalMethodology.footer.backToEval")}</Link>
           </Button>
           <Button asChild size="sm" variant="default">
-            <a href="mailto:ahmedhobeishy.tools@gmail.com?subject=Lumen%20eval%20methodology%20question">
+            <a href="mailto:ahmedhobeishy@gmail.com?subject=Lumen%20eval%20methodology%20question">
               {t("evalMethodology.footer.contact")}
             </a>
           </Button>

@@ -45,6 +45,19 @@ describe("CaseStudyView", () => {
     expect(
       screen.getByRole("link", { name: /Read the evals/i }),
     ).toHaveAttribute("href", "/eval");
-    expect(screen.getByRole("link", { name: /Email me/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Email me/i })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^mailto:ahmedhobeishy@gmail\.com\?/),
+    );
+  });
+
+  it("states only what the code does: HNSW, retrieve-then-answer, no refusal-rate numbers", () => {
+    const { container } = render(<CaseStudyView />);
+    const text = container.textContent ?? "";
+    expect(text).toContain("HNSW");
+    expect(text).not.toMatch(/ivfflat/i);
+    expect(text).toMatch(/Retrieve, then answer/);
+    expect(text).not.toMatch(/18%|3%|>90%/);
+    expect(text).not.toMatch(/Llama 3\.3/);
   });
 });

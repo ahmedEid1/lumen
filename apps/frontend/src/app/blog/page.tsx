@@ -11,6 +11,9 @@ export const metadata: Metadata = {
       "Notes from building Lumen. Architecture decisions, prompt-iteration journals, cost-latency math.",
     type: "website",
   },
+  // No posts yet: keep the empty index out of search results. It is
+  // also left out of sitemap.ts. Drop both once the first post lands.
+  robots: { index: false, follow: true },
 };
 
 export default function BlogIndexPage() {

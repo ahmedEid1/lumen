@@ -67,7 +67,7 @@ function _hoursUntil(when: Date | null | undefined): number | null {
 
 export function CostCapClosingCta({
   resetAt = null,
-  contactEmail = "ahmedhobeishy.tools@gmail.com",
+  contactEmail = "ahmedhobeishy@gmail.com",
   calendlyUrl = undefined,
 }: CostCapClosingCtaProps) {
   const t = useT();

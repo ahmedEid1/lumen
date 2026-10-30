@@ -23,11 +23,11 @@ import { EvalPublicView } from "./eval-public-view";
 export const metadata: Metadata = {
   title: "Eval",
   description:
-    "Public eval surface — how the Lumen tutor scores on its golden datasets and adversarial probe corpus. Frozen on admin-promoted runs.",
+    "Public eval surface: how Lumen scores on its golden datasets, judged by an LLM. Shows admin-promoted runs only.",
   openGraph: {
     title: "Lumen — Public eval",
     description:
-      "How the tutor scores. Golden datasets + LLM-as-judge + adversarial refusal-rate; frozen on admin-promoted runs.",
+      "How Lumen scores. Golden datasets judged by an LLM, weak scores included; admin-promoted runs only.",
     type: "website",
   },
 };
