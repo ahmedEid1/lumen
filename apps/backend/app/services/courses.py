@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from slugify import slugify
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +46,7 @@ from app.services import visibility as visibility_service
 
 # Re-export the central authorizer's can_view_course (ADR-0026 §3 / S2.4) so
 # existing callers of ``courses.can_view_course`` are unchanged.
+from app.services.lesson_placeholders import is_placeholder_lesson_data
 from app.services.visibility import can_view_course
 
 log = get_logger(__name__)
@@ -197,6 +199,7 @@ async def _transition_status(db: AsyncSession, course: Course, target: CourseSta
                 "Add at least one lesson before publishing",
                 code="course.no_lessons",
             )
+        await _assert_no_placeholder_lessons(db, course.id)
         course.published_at = datetime.now(UTC)
     course.status = target
     if target in (CourseStatus.draft, CourseStatus.archived):
@@ -209,6 +212,27 @@ async def _transition_status(db: AsyncSession, course: Course, target: CourseSta
         course.is_featured = False
     if target == CourseStatus.published:  # noqa: published-check — state-machine write
         _schedule_embedding_index(course.id)
+
+
+async def _assert_no_placeholder_lessons(db: AsyncSession, course_id: str) -> None:
+    """Refuse publish/share while a lesson still holds the builder placeholder (L11).
+
+    A lesson whose drafter call failed keeps "Draft — replace before
+    publishing"; that is how a course of placeholders once went public.
+    """
+    rows = await db.execute(
+        select(Lesson.title, Lesson.data)
+        .join(Module, Module.id == Lesson.module_id)
+        .where(Module.course_id == course_id, Lesson.deleted_at.is_(None))
+    )
+    unfinished = [title for title, data in rows.all() if is_placeholder_lesson_data(data)]
+    if unfinished:
+        raise ValidationAppError(
+            f"{len(unfinished)} lesson(s) still hold the draft placeholder; "
+            "regenerate or write them before publishing",
+            code="course.placeholder_lessons",
+            details={"lessons": unfinished[:20]},
+        )
 
 
 def _schedule_embedding_index(course_id: str) -> None:
@@ -439,6 +463,7 @@ async def share_course(db: AsyncSession, *, course_id: str, owner: User) -> Cour
         )
     if not visibility_service.can_publish_public(owner):
         raise ForbiddenError("You cannot publish publicly", code="course.publish_public_forbidden")
+    await _assert_no_placeholder_lessons(db, course.id)
 
     from_state = str(course.moderation_state)
     events = await courses_repo.moderation_events_for_course(db, course.id)

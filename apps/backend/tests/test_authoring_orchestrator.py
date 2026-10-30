@@ -477,3 +477,80 @@ def test_critic_scores_reject_out_of_range() -> None:
     """Each axis is 0-5 inclusive — out-of-range is a validation error."""
     with pytest.raises(Exception):
         authoring_orchestrator.CriticScores(coverage=6, learning_arc=3, scope=3)
+
+
+# ---------- L11: a failed lesson draft is reported, and blocks publish ----------
+
+
+def test_placeholder_detection_matches_the_builder_payloads() -> None:
+    from app.services.lesson_placeholders import is_placeholder_lesson_data
+
+    assert is_placeholder_lesson_data(authoring_orchestrator._placeholder_text_data())
+    assert is_placeholder_lesson_data(authoring_orchestrator._placeholder_quiz_data())
+    edited = authoring_orchestrator._placeholder_text_data() | {"body_markdown": "Real text."}
+    assert not is_placeholder_lesson_data(edited)
+    assert not is_placeholder_lesson_data({"type": "text", "body_markdown": "", "blocks": {}})
+    assert not is_placeholder_lesson_data(None)
+
+
+async def test_failed_lesson_draft_is_an_error_step_and_blocks_publish(
+    db_session: AsyncSession, make_user, monkeypatch
+) -> None:
+    from app.core.errors import ValidationAppError
+    from app.models.course import CourseStatus as Status
+    from app.services import courses as courses_service
+
+    user = await make_user(role=Role.instructor)
+    subject = await _make_subject(db_session)
+
+    # The first text lesson's drafter call fails (as a rate limit would), so
+    # its reply never leaves the queue.
+    lesson_replies = _lesson_drafter_replies(_VALID_OUTLINE)
+    lesson_replies.remove(_VALID_LESSON_DOC)
+    replies = [
+        json.dumps(_VALID_OUTLINE),
+        _critic_json(coverage=5, learning_arc=5, scope=5),
+        *lesson_replies,
+        _critic_json(coverage=4, learning_arc=4, scope=4, rationale="ready"),
+    ]
+    _install_provider(monkeypatch, replies)
+    real_body = authoring_orchestrator.ai_authoring.generate_lesson_body
+    calls = {"n": 0}
+
+    async def flaky_body(**kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("rate limited")
+        return await real_body(**kwargs)
+
+    monkeypatch.setattr(authoring_orchestrator.ai_authoring, "generate_lesson_body", flaky_body)
+
+    result = await authoring_orchestrator.draft_course_from_text(
+        db_session,
+        user=user,
+        brief="Teach FastAPI to absolute beginners.",
+        subject_slug=subject.slug,
+    )
+    assert result.placeholder_lessons == 1
+
+    drafter_rows = (
+        (
+            await db_session.execute(
+                select(CourseDraftTrace).where(
+                    CourseDraftTrace.draft_id == result.draft_id,
+                    CourseDraftTrace.step == DRAFT_STEP_LESSON_DRAFTER,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    failed = [t for t in drafter_rows if t.status != DRAFT_STATUS_OK]
+    assert len(failed) == 1
+    assert "placeholder kept" in failed[0].payload["response_summary"]
+
+    course = await db_session.get(Course, result.course_id)
+    course.overview = course.overview or "Overview"
+    with pytest.raises(ValidationAppError) as exc:
+        await courses_service._transition_status(db_session, course, Status.published)
+    assert exc.value.code == "course.placeholder_lessons"

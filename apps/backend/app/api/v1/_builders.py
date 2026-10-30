@@ -77,11 +77,22 @@ def list_item(
     )
 
 
-def _lesson_out(lesson: Any, completed_ids: set[str]) -> LessonOut:
+def _lesson_out(lesson: Any, completed_ids: set[str], *, readable: bool = True) -> LessonOut:
     base = LessonOut.model_validate(lesson)
+    if not readable:
+        # The syllabus keeps title, type and duration; the body (and a quiz's
+        # answer keys) stays behind the same gate as GET /lessons/{id} (L14).
+        base = base.model_copy(update={"data": {"type": str(lesson.type)}})
     if lesson.id in completed_ids:
         base = base.model_copy(update={"completed": True})
     return base
+
+
+def _can_read_all_lessons(course: Course, viewer: User | None, *, is_enrolled: bool) -> bool:
+    """Mirror ``GET /courses/lessons/{id}``: enrolled, owner or admin."""
+    if viewer is None:
+        return False
+    return is_enrolled or viewer.is_admin() or course.owner_id == viewer.id
 
 
 def detail(
@@ -97,6 +108,10 @@ def detail(
 ) -> CourseDetail:
     base = list_item(course, stats, viewer=viewer, origin=origin)
     done = completed_lesson_ids or set()
+    full_access = _can_read_all_lessons(course, viewer, is_enrolled=is_enrolled)
+    # A free preview is readable only on a publicly listed course, as in
+    # GET /lessons/{id}.
+    previews_open = visibility_service.is_publicly_listed(course)
     return CourseDetail(
         **base.model_dump(),
         modules=[
@@ -106,7 +121,11 @@ def detail(
                 description=m.description,
                 order=m.order,
                 lessons=[
-                    _lesson_out(lesson, done)
+                    _lesson_out(
+                        lesson,
+                        done,
+                        readable=full_access or (bool(lesson.is_preview) and previews_open),
+                    )
                     for lesson in m.lessons
                     if getattr(lesson, "deleted_at", None) is None
                 ],
