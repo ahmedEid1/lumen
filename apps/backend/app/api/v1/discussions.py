@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query, Request, Response, status
 
-from app.api.deps import CurrentUser, DBSession, OptionalUser
+from app.api.deps import CurrentUser, DBSession, DenyDemoAccount, OptionalUser
 from app.core.errors import NotFoundError
 from app.core.ratelimit import limiter
 from app.repositories import courses as courses_repo
@@ -95,6 +95,7 @@ async def list_discussions(
     "/courses/{course_id}/discussions",
     response_model=DiscussionDetail,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[DenyDemoAccount],
 )
 @limiter.limit("10/minute")
 async def create_discussion(
@@ -125,7 +126,9 @@ async def get_discussion(
     return _to_detail(d)
 
 
-@router.patch("/discussions/{discussion_id}", response_model=DiscussionDetail)
+@router.patch(
+    "/discussions/{discussion_id}", response_model=DiscussionDetail, dependencies=[DenyDemoAccount]
+)
 async def update_discussion(
     discussion_id: str,
     payload: DiscussionUpdate,
@@ -139,7 +142,9 @@ async def update_discussion(
     return _to_detail(fresh)
 
 
-@router.delete("/discussions/{discussion_id}", response_model=OkResponse)
+@router.delete(
+    "/discussions/{discussion_id}", response_model=OkResponse, dependencies=[DenyDemoAccount]
+)
 async def delete_discussion(discussion_id: str, user: CurrentUser, db: DBSession) -> OkResponse:
     await discussions_service.delete_discussion(db, discussion_id=discussion_id, user=user)
     return OkResponse()
@@ -149,6 +154,7 @@ async def delete_discussion(discussion_id: str, user: CurrentUser, db: DBSession
     "/discussions/{discussion_id}/replies",
     response_model=DiscussionReplyOut,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[DenyDemoAccount],
 )
 @limiter.limit("20/minute")
 async def reply_to_discussion(
@@ -163,7 +169,9 @@ async def reply_to_discussion(
     return _to_reply(r, author=user)
 
 
-@router.delete("/discussions/replies/{reply_id}", response_model=OkResponse)
+@router.delete(
+    "/discussions/replies/{reply_id}", response_model=OkResponse, dependencies=[DenyDemoAccount]
+)
 async def delete_reply(reply_id: str, user: CurrentUser, db: DBSession) -> OkResponse:
     await discussions_service.delete_reply(db, reply_id=reply_id, user=user)
     return OkResponse()

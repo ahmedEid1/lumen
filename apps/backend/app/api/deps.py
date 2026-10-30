@@ -66,6 +66,25 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_current_user_optional)]
 
 
+def is_demo_account(user: User) -> bool:
+    return user.email.lower() == get_settings().demo_account_email.lower()
+
+
+async def reject_demo_account(user: OptionalUser) -> None:
+    """Route dependency: 403 for the shared demo login (L45).
+
+    Anonymous callers pass through; the route's own auth answers them.
+    """
+    if user is not None and is_demo_account(user):
+        raise ForbiddenError(
+            "The shared demo account can't do this. Create a free account to use it.",
+            code="demo.read_only",
+        )
+
+
+DenyDemoAccount = Depends(reject_demo_account)
+
+
 def require_role(*roles: Role):
     async def _dep(user: CurrentUser) -> User:
         if user.role not in roles and not user.is_admin():

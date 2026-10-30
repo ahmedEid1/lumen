@@ -14,6 +14,7 @@ from starlette.responses import Response as StarletteResponse
 from app.api.deps import (
     CurrentUser,
     DBSession,
+    DenyDemoAccount,
     OptionalUser,
     RequireAuthor,
     RequireClone,
@@ -293,7 +294,7 @@ async def restore_course(course_id: str, user: RequireAuthor, db: DBSession) -> 
     return await _render_detail(db, course_id, user)
 
 
-@router.post("/{course_id}/share", response_model=CourseDetail)
+@router.post("/{course_id}/share", response_model=CourseDetail, dependencies=[DenyDemoAccount])
 async def share_course(course_id: str, user: RequireAuthor, db: DBSession) -> CourseDetail:
     _require_private_publish_enabled()
     await courses_service.share_course(db, course_id=course_id, owner=user)

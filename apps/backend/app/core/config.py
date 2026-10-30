@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     # ---------- Crypto ----------
     secret_key: SecretStr = SecretStr("change-me")
     jwt_secret: SecretStr = SecretStr("change-me")
+    # The shared public demo login shown on /login?demo=1. Every visitor uses it,
+    # so it can't change its credentials or profile, revoke sessions, store API
+    # keys, or post anything public (L45).
+    demo_account_email: str = "demo@lumen.test"
     jwt_algorithm: str = "HS256"
     access_token_ttl_seconds: int = 900
     refresh_token_ttl_seconds: int = 60 * 60 * 24 * 14
