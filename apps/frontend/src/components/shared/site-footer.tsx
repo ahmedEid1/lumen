@@ -21,6 +21,12 @@ export function SiteFooter() {
           >
             GitHub
           </a>
+          <a
+            className="transition-colors duration-[160ms] hover:text-foreground"
+            href="https://ahmedhobeishy.tech"
+          >
+            {t("footer.builtBy")}
+          </a>
         </nav>
       </div>
     </footer>

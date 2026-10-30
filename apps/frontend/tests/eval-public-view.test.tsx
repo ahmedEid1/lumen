@@ -64,13 +64,43 @@ describe("EvalPublicView", () => {
       screen.getByText(/How the tutor scores. Receipts only./i),
     ).toBeInTheDocument();
     // Wait for the query to settle — the empty branch keeps the
-    // "first sealed run pending" badge.
+    // "no promoted run yet" badge.
     await waitFor(() => {
       expect(screen.getByTestId("eval-sealed-pending")).toBeInTheDocument();
     });
     expect(screen.getByTestId("eval-suites-empty")).toHaveTextContent(
-      /No published runs yet/i,
+      /No run has been promoted/i,
     );
+  });
+
+  it("says it is loading, not that a run is pending, before the query settles", () => {
+    // Never resolves: this is the server-rendered / pre-hydration state.
+    fetchMock.mockReturnValue(new Promise(() => {}));
+    renderWithQuery(<EvalPublicView />);
+    expect(screen.getByTestId("eval-sealed-loading")).toHaveTextContent(
+      /Loading promoted runs/i,
+    );
+    expect(screen.getByTestId("eval-suites-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("eval-sealed-pending")).not.toBeInTheDocument();
+    expect(screen.queryByText(/pending/i)).not.toBeInTheDocument();
+  });
+
+  it("explains the weak scores with their real causes", () => {
+    fetchMock.mockResolvedValue(emptySuites());
+    renderWithQuery(<EvalPublicView />);
+    const banner = screen.getByTestId("eval-honest-numbers-banner");
+    expect(banner).toHaveTextContent("[L:L<id>]");
+    expect(banner).toHaveTextContent(/label bug/i);
+    expect(banner).toHaveTextContent(/noop provider/i);
+    expect(banner).toHaveTextContent(/score gate needs a model key/i);
+    expect(banner).not.toHaveTextContent(/gated by a CI smoke/i);
+  });
+
+  it("says the adversarial probes have not been run", () => {
+    fetchMock.mockResolvedValue(emptySuites());
+    renderWithQuery(<EvalPublicView />);
+    expect(screen.getByText(/nothing sends the probes to the tutor/i)).toBeInTheDocument();
+    expect(screen.queryByText(/published with the first sealed run/i)).not.toBeInTheDocument();
   });
 
   it("renders the canonical worked example with the tool path", () => {
@@ -90,7 +120,10 @@ describe("EvalPublicView", () => {
     expect(
       screen.getByRole("link", { name: /Methodology/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Email me/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Email me/i })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^mailto:ahmedhobeishy@gmail\.com\?/),
+    );
   });
 
   it("renders a SuiteCard with deltas + judge metadata when a suite is promoted", async () => {
@@ -110,6 +143,37 @@ describe("EvalPublicView", () => {
     expect(card).toHaveTextContent("+1.00");
     expect(card).toHaveTextContent("n=10");
     expect(card).toHaveTextContent("llama-3.1-8b-instant");
+    // An unknown report gets no setup label rather than a wrong one.
+    expect(screen.queryByTestId("eval-suite-setup-tutor")).not.toBeInTheDocument();
+  });
+
+  it("names the baseline setup of the promoted 2026-05-28 tutor report", async () => {
+    fetchMock.mockResolvedValue({
+      json: async () => ({
+        suites: {
+          tutor: {
+            suite: "tutor",
+            mean_overall: 1.2111,
+            axes: { grounding: 3.3333, accuracy: -0.0556, style: 0.3556 },
+            items_judged: 9,
+            finished_at: "2026-05-28T01:45:45.369081+00:00",
+            judge_provider: "openai-compat",
+            judge_model: "llama-3.3-70b-versatile",
+            report_id: "tutor-baseline-20260528-014421",
+          },
+          authoring: null,
+          ingest: null,
+        },
+      }),
+      ok: true,
+    });
+    renderWithQuery(<EvalPublicView />);
+    const setup = await screen.findByTestId("eval-suite-setup-tutor");
+    expect(setup).toHaveTextContent(/vs Mistral Small with no retrieval/i);
+    expect(setup).toHaveTextContent(/Llama 3\.3 70B, now retired/i);
+    const card = screen.getByTestId("eval-suite-card-tutor");
+    expect(card).toHaveTextContent("Δ +1.21");
+    expect(card).toHaveTextContent("n=9");
   });
 
   it("does NOT render fake numbers when no sealed run exists", async () => {

@@ -8,19 +8,18 @@
  *   2. The worked example (canonical demo question + what its
  *      ideal answer + tool path look like — placeholder until a
  *      sealed run lands).
- *   3. Suite-level cards (currently honest-empty), the adversarial
- *      refusal-rate placeholder, and the methodology link.
+ *   3. Cards for admin-promoted runs, the adversarial section (not
+ *      run yet), and the methodology link.
  *
- * No data yet → no fake numbers. The page renders honest-empty
- * states with explicit "pending" badges so a recruiter reading
- * doesn't see hallucinated metrics. L28 will pair this with the
- * methodology page where the framing is the focus.
+ * No data → no fake numbers. While the query loads the page says so,
+ * and with nothing promoted it says that, instead of promising a run.
  */
 
 import { Clock, ExternalLink, Mail, ShieldCheck, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useEvalPublic, type PublicSuiteSummary } from "@/lib/api/eval-public";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 import { useT } from "@/lib/i18n/provider";
 
 const CANONICAL_QUESTION_SLUG = "ts-variance-canonical";
@@ -29,6 +28,12 @@ const CANONICAL_PROMPT =
   "I keep getting `Type 'string' is not assignable to type 'T'` on this function — here's my code, why does this happen and how do I fix it?";
 
 const EXPECTED_TOOL_PATH = ["retriever", "code_runner"] as const;
+
+// The public endpoint returns only the judge, so the setup of each
+// promoted baseline report is named here, keyed by report id.
+const BASELINE_SETUP: Partial<Record<string, MessageKey>> = {
+  "tutor-baseline-20260528-014421": "eval.suites.baseline.tutor20260528",
+};
 
 export function EvalPublicView() {
   const t = useT();
@@ -39,6 +44,7 @@ export function EvalPublicView() {
       )
     : [];
   const hasPromoted = promotedSuites.length > 0;
+  const loading = evalQ.isPending;
   return (
     <div className="container mx-auto max-w-5xl px-6 py-14">
       {/* Hero */}
@@ -66,10 +72,10 @@ export function EvalPublicView() {
         ) : (
           <div
             className="mt-1 inline-flex w-fit items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-2.5 py-1 font-mono text-xs uppercase tracking-wider text-muted-foreground"
-            data-testid="eval-sealed-pending"
+            data-testid={loading ? "eval-sealed-loading" : "eval-sealed-pending"}
           >
             <Clock className="h-3 w-3" aria-hidden />
-            <span>{t("eval.sealedRunPending")}</span>
+            <span>{t(loading ? "eval.loading" : "eval.sealedRunPending")}</span>
           </div>
         )}
       </header>
@@ -84,18 +90,10 @@ export function EvalPublicView() {
       >
         <div className="mb-2 flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
           <ShieldCheck className="h-3 w-3 text-primary" aria-hidden />
-          <span id="eval-honest-numbers-heading">How to read these numbers</span>
+          <span id="eval-honest-numbers-heading">{t("eval.honest.heading")}</span>
         </div>
         <p className="max-w-3xl font-body text-sm leading-relaxed text-muted-foreground">
-          Three golden suites, judged honestly and published whole — strong and
-          weak alike. Authoring scores 3.85/5 (n=10). Tutor (2.33/5) and ingest
-          (0.83/5) are early, with documented causes: the tutor&apos;s low
-          citation score is a mismatch between the eval&apos;s expected citations
-          and what the retriever pulls (relevant chunks land, just not the
-          hardcoded ones), and ingest scored only the items that fully ingested
-          while the v1 chunker emits one module per video. The point of
-          publishing the weak numbers is that every score is measured,
-          reproducible, and gated by a CI smoke on every PR.
+          {t("eval.honest.body")}
         </p>
       </section>
 
@@ -176,6 +174,13 @@ export function EvalPublicView() {
               {t("eval.suites.caveat")}
             </p>
           </>
+        ) : loading ? (
+          <p
+            className="font-body text-sm text-muted-foreground"
+            data-testid="eval-suites-loading"
+          >
+            {t("eval.loading")}
+          </p>
         ) : (
           <p
             className="font-body text-sm text-muted-foreground"
@@ -186,7 +191,7 @@ export function EvalPublicView() {
         )}
       </section>
 
-      {/* Adversarial refusal-rate — placeholder; never shows the prompts */}
+      {/* Adversarial probes — not run yet; never shows the prompts */}
       <section
         className="surface mb-10 p-6"
         aria-labelledby="eval-adversarial-heading"
@@ -222,7 +227,7 @@ export function EvalPublicView() {
             </a>
           </Button>
           <Button asChild size="sm" variant="default">
-            <a href="mailto:ahmedhobeishy.tools@gmail.com?subject=Lumen%20eval%20conversation">
+            <a href="mailto:ahmedhobeishy@gmail.com?subject=Lumen%20eval%20conversation">
               <Mail className="me-1.5 h-3.5 w-3.5" aria-hidden />
               {t("eval.footer.contact")}
             </a>
@@ -252,6 +257,7 @@ function SuiteCard({
   const t = useT();
   const fmt = (n: number | null | undefined) =>
     n === null || n === undefined ? "—" : (n >= 0 ? "+" : "") + n.toFixed(2);
+  const setupKey = BASELINE_SETUP[summary.report_id];
   return (
     <li
       className="rounded-md border border-border bg-muted/30 p-4"
@@ -271,6 +277,14 @@ function SuiteCard({
       <p className="mb-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
         {t("eval.suites.deltaCaption")}
       </p>
+      {setupKey && (
+        <p
+          className="mb-3 font-body text-xs text-muted-foreground"
+          data-testid={`eval-suite-setup-${name}`}
+        >
+          {t(setupKey)}
+        </p>
+      )}
       <dl className="grid grid-cols-3 gap-2 text-xs">
         {Object.entries(summary.axes).map(([axis, delta]) => (
           <div key={axis}>

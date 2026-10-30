@@ -236,7 +236,7 @@ export function CaseStudyView() {
             <Link href="/eval">{t("caseStudy.footer.eval")}</Link>
           </Button>
           <Button asChild size="sm" variant="ghost">
-            <a href="mailto:ahmedhobeishy.tools@gmail.com?subject=Lumen%20case-study%20conversation">
+            <a href="mailto:ahmedhobeishy@gmail.com?subject=Lumen%20case-study%20conversation">
               <Mail className="me-1.5 h-3.5 w-3.5" aria-hidden />
               {t("caseStudy.footer.email")}
             </a>
