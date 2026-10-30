@@ -1,7 +1,10 @@
 # CI / CD on the main branch
 
-This page documents how code lands in front of users at
-`https://lumen.ahmedhobeishy.tech`. The whole gate is one workflow:
+This page documents how code reached users at
+`https://lumen.ahmedhobeishy.tech` until the hosted demo was retired on
+2026-10-30. Since then the `deploy` job also needs the repo variable
+`DEPLOY_ENABLED=true`, so pushes to `main` run every gate but deploy
+nothing ([REDEPLOY.md](deployment/REDEPLOY.md)). The whole gate is one workflow:
 
 - **`.github/workflows/ci.yml`** — six chained jobs (backend, frontend,
   build-images, e2e, accessibility, deploy) wired together by `needs:`.

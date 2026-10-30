@@ -1,0 +1,91 @@
+# Redeploying Lumen
+
+**Status:** the hosted demo at `lumen.ahmedhobeishy.tech` ran from 2026-05-25 to 2026-10-30 on one AWS EC2 t4g.small (eu-central-1, Graviton, 2 vCPU, 2 GB RAM, 30 GB gp3), built with [Terraform](../../infra/aws/). It was taken down on 2026-10-30. The domain now redirects to this repository. Recordings of the last live version are in [`docs/demo/2026-10-30/`](../demo/2026-10-30/) (walkthrough video: [`video/lumen-walkthrough.mp4`](../demo/2026-10-30/video/lumen-walkthrough.mp4)).
+
+This guide brings the same stack back on a fresh host, with the last production data.
+
+## What survived the teardown
+
+| Piece | Where |
+|---|---|
+| App images | `ghcr.io/ahmedeid1/lumen-api` and `lumen-web`, public, tagged by commit SHA, `main` and `latest`. Built for **linux/arm64 only**. |
+| Infra code | [`infra/aws/`](../../infra/aws/) (Terraform), [`scripts/aws-bootstrap.sh`](../../scripts/aws-bootstrap.sh), the full runbook [`aws-vps.md`](aws-vps.md) |
+| Data | The final `pg_dump -Fc` and the production env file from 2026-10-30, kept by the owner **outside git**. The final dump was restore-tested: 43 courses, 412 lessons, 185 embedded chunks, 21 users, schema at migration 0053. Uploaded files: none (MinIO held no objects). |
+| CI/CD | `ci.yml` → `deploy.yml` (SSH deploy with a smoke test and rollback). It is off until the repo variable `DEPLOY_ENABLED` is `true`. |
+
+## 1. Pick a host
+
+- **AWS (the documented path).** Run `terraform apply` in `infra/aws/` (≈90 min the first time, including DNS and TLS). A t4g.small costs about $21 a month on demand in eu-central-1: instance $14.0, public IPv4 $3.7, 30 GB gp3 $2.9. A t4g.medium (4 GB) removes the swap pressure and costs about $35.
+- **Any other arm64 Ubuntu 24.04 VPS** with ≥ 2 GB RAM (4 GB preferred) and ≥ 30 GB disk. Run `scripts/aws-bootstrap.sh` non-interactively, as described in [`infra/aws/README.md`](../../infra/aws/README.md). Two things only the Terraform user data does: the passwordless-sudo rule for the `lumen` user, and opening 80/443. On another provider, do both by hand before the bootstrap disables root SSH.
+- **amd64 hosts** also need an amd64 leg in the `build-images` job of `ci.yml` and in `release.yml`. All third-party images are already multi-arch.
+
+## 2. Build the box
+
+AWS:
+
+```bash
+cd infra/aws
+terraform init
+terraform apply -var admin_email=<you@example.com>
+terraform output -raw public_ip
+$(terraform output -raw ssh_command)
+```
+
+The instance ignores later edits to the bootstrap script and new AMIs (`lifecycle.ignore_changes`), so re-applying does not replace the box. To rebuild it on purpose, use `terraform apply -replace=aws_instance.lumen`. That deletes the root volume, so back up first.
+
+## 3. Restore the configuration
+
+1. Copy the saved env file to the box as `~/.env.production` (mode 600).
+2. Before starting anything, change these values:
+   - `BADGES_SIGNING_KEY`: **generate a new Ed25519 key**. The old one was exposed in a log on 2026-10-30. Badges issued earlier stop verifying, which is fine, since the old issuer URL was offline.
+   - `OPENAI_API_KEY` (Groq) and `EMBEDDING_OPENAI_API_KEY` (Cloudflare Workers AI): new keys if the old ones were revoked. The embedding model must stay `@cf/baai/bge-small-en-v1.5` (384 dimensions), or the stored chunks no longer match and you must run `ingest-embeddings --all`.
+   - `APP_DOMAIN`, `WEB_BASE_URL`, `API_BASE_URL`, `NEXT_PUBLIC_*`, `CORS_ORIGINS` and `BADGES_ISSUER_URL`: only if the domain changes.
+   - Keep `BYOK_MASTER_KEYS`. Without it, the users' saved model keys can't be decrypted.
+   - Keep `REDIS_MAXMEMORY=64mb` and `CELERY_CONCURRENCY=1` on a 2 GB box.
+
+## 4. Restore the data
+
+```bash
+git clone https://github.com/ahmedEid1/lumen.git ~/lumen && cd ~/lumen
+C="docker compose -f docker-compose.prod.yml --env-file $HOME/.env.production"
+$C pull
+$C up -d db redis s3
+# copy the dump to the box first, e.g. scp lumen-<ts>.dump lumen@<host>:~/
+$C exec -T db sh -c 'pg_restore --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < ~/lumen-<ts>.dump
+$C up -d
+$C exec -T api alembic upgrade head
+```
+
+The dump was taken at commit `067eb81` with the schema at head. The chunks and their embeddings are inside it, so no reindex is needed.
+
+## 5. DNS and TLS
+
+1. In Cloudflare → Workers & Pages → `lumen-retired` → Settings → Domains & Routes, remove the custom domain `lumen.ahmedhobeishy.tech`. You can then delete the Worker.
+2. Add `A lumen → <new IP>`, **DNS only** (grey cloud). Caddy on the box gets the Let's Encrypt certificate itself and needs ports 80 and 443 to reach it.
+
+## 6. Turn CI deploys back on
+
+```bash
+gh secret set AWS_SSH_HOST --body <host-or-ip>
+gh secret set AWS_SSH_USER --body lumen
+gh secret set AWS_SSH_PRIVATE_KEY < <path-to-deploy-key>
+ssh-keyscan -H <host> | gh secret set AWS_KNOWN_HOSTS
+gh secret set APP_DOMAIN --body lumen.ahmedhobeishy.tech
+gh variable set DEPLOY_ENABLED --body true
+```
+
+The `production` environment is created again on the first deploy. After that, every green push to `main` deploys. To deploy one image by hand: `gh workflow run deploy.yml -f image_tag=<sha>`.
+
+## 7. Smoke test
+
+```bash
+curl -fsS https://lumen.ahmedhobeishy.tech/api/v1/health/ready
+curl -fsS https://lumen.ahmedhobeishy.tech/api/v1/health/llm
+curl -fsS -o /dev/null -w '%{http_code}\n' https://lumen.ahmedhobeishy.tech/demo
+```
+
+Then ask the tutor one question in the featured course and check that the answer cites a lesson.
+
+## 8. Undo the retirement notes
+
+Change the README status line back to "Live", and, in the owner's materials, the CV, portfolio, LinkedIn and cover-letter lines that say the demo is retired.

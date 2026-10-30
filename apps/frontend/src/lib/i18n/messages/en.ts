@@ -1222,7 +1222,7 @@ export const en = {
   "caseStudy.origin.p2":
     "So I rebuilt it. Custom orchestrator, no LangChain. Groq for fast inference: today openai/gpt-oss-120b, with openai/gpt-oss-20b as the fallback and for quizzes and critic scorecards. Public evals so you can audit the agent's competence yourself.",
   "caseStudy.origin.p3":
-    "Lumen runs on AWS t4g.small (Graviton2 ARM, 2 vCPU + 2 GB RAM). The cost ceiling is a feature, not an apology — it forced every architectural decision to defend itself against a finite LLM-spend budget.",
+    "The hosted demo ran on AWS t4g.small (Graviton2 ARM, 2 vCPU + 2 GB RAM) from May to October 2026. The cost ceiling is a feature, not an apology — it forced every architectural decision to defend itself against a finite LLM-spend budget.",
   "caseStudy.arch.cartouche": "Architecture",
   "caseStudy.arch.heading": "Six boxes, two protocols.",
   "caseStudy.arch.intro":
