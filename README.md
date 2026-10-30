@@ -2,8 +2,8 @@
 
 # Lumen
 
-**Type a one-sentence learning goal — an AI orchestrator builds you a private course in ~50 seconds,
-a RAG tutor with citations teaches it, and you can audit every agent decision it made.**
+**Type a one-sentence learning goal. An AI orchestrator builds you a private course (about 45 s for 10 lessons),
+a course-scoped RAG tutor teaches it with lesson citations, and you can audit every agent decision it made.**
 
 <sub>Custom multi-agent system, no LangChain · public evals with the weak scores kept in · live in production</sub>
 
@@ -16,7 +16,8 @@ a RAG tutor with citations teaches it, and you can audit every agent decision it
 
 <img src="docs/screenshots/gifs/define-build.gif" alt="Real production recording. A one-sentence goal becomes a learning brief, then the authoring orchestrator builds a 4-module, 16-lesson private course." width="900">
 
-<sub>Real production recording (Groq Llama 3.3 70B). Intake trimmed 6×, the ~50 s build 16× — the brief and the finished course are real-time.<br>
+<sub>Production recording from May 2026, on Groq Llama 3.3 70B (since retired). Intake sped up 6×, build 16×; the brief and the finished course play in real time.<br>
+Today a 10-lesson course builds in about 45 s after the intake, on Groq gpt-oss-120b (median of 3 production builds, October 2026).<br>
 Try it yourself: [the one-click demo](https://lumen.ahmedhobeishy.tech/demo) pre-fills `demo@lumen.test` / `Demo!2026` and drops you into the tutor (free-tier box — give a cold page a few seconds).</sub>
 
 </div>
@@ -38,11 +39,15 @@ Shipped to production as **2.0.0-two-role** ([CHANGELOG](CHANGELOG.md)) — buil
 
 ## The agentic layer
 
-Every item below is on production today, with the code one click away.
+Everything below runs in production, with the code one click away. One exception: the web tutor streams a simpler retrieve-then-answer path (next section).
 
 ### Custom multi-agent orchestrator — no frameworks
 
-The tutor picks per-turn among five sub-agents in [`tutor_subagents/`](apps/backend/app/services/tutor_subagents/) — `retriever`, `web_searcher`, `code_runner`, `quiz_generator`, `concept_explainer` — under a hard cap on tool-call rounds ([streaming variant](apps/backend/app/services/tutor_orchestrator_stream.py)). The authoring side runs a six-stage pipeline — researcher → outliner → critic → reviser → lesson-drafter → final-critic — in [`authoring_orchestrator.py`](apps/backend/app/services/authoring_orchestrator.py), capped at six revise/critic calls.
+The tutor's planner picks per turn among five sub-agents in [`tutor_subagents/`](apps/backend/app/services/tutor_subagents/) — `retriever`, `web_searcher`, `code_runner`, `quiz_generator`, `concept_explainer` — with a cap of five tool-call rounds ([`tutor_orchestrator.py`](apps/backend/app/services/tutor_orchestrator.py)). The planner runs behind the tutor API (`POST /api/v1/tutor/conversations/{id}/messages`) and the MCP `ask_tutor` tool. `web_searcher` is off in production, because no Tavily key is set there.
+
+The live web tutor streams a shorter path ([`tutor_orchestrator_stream.py`](apps/backend/app/services/tutor_orchestrator_stream.py)): one course-scoped retrieval (top 6 chunks) and one streamed answer. It shows a plan step, but no planner call runs.
+
+The authoring side runs a six-stage pipeline — researcher → outliner → critic → reviser → lesson-drafter → final-critic — in [`authoring_orchestrator.py`](apps/backend/app/services/authoring_orchestrator.py), capped at six revise/critic calls.
 
 <div align="center">
 <img src="docs/screenshots/gifs/tutor.gif" alt="The RAG tutor streaming an answer: question sent, retriever sub-agent fires with its latency visible, answer streams in (2× speed)" width="900">
@@ -52,7 +57,7 @@ The tutor picks per-turn among five sub-agents in [`tutor_subagents/`](apps/back
 
 ### Course-scoped RAG with citations, behind one authorizer
 
-Retrieval is scoped per course and routed through a single ACL clause ([`visibility.py`](apps/backend/app/services/visibility.py), ADR-0029) so private and cloned courses never leak chunks. Embeddings via Cloudflare Workers AI (`bge-small-en-v1.5`, 384-dim) into `pgvector`; answers cite specific lesson chunks.
+Retrieval is scoped per course and routed through a single ACL clause ([`visibility.py`](apps/backend/app/services/visibility.py), ADR-0029) so private and cloned courses never leak chunks. Embeddings come from Cloudflare Workers AI (`@cf/baai/bge-small-en-v1.5`, 384 dims) and are stored in `pgvector` with an HNSW cosine index. Lessons are split into chunks of about 500 tokens with a 50-token overlap. Retrieval is cosine top-k, with the access check in the same SQL query. Answers cite the lessons they draw on (`[L:<lesson_id>]`), and links are built only for lessons that were retrieved.
 
 ### Every agent decision is auditable
 
@@ -68,15 +73,15 @@ Each LLM call logs prompt/completion tokens, USD cost, latency, and outcome to t
 
 ### Eval harness with LLM-as-judge — published whole
 
-Three golden suites (30-item tutor, 10 authoring, 10 ingest) under [`evals/`](apps/backend/evals/), judged 0–5 per axis, plus adversarial probes. A 3-item smoke gates every PR ([workflow](.github/workflows/pnpm-eval-smoke.yml)); results are public at [/eval](https://lumen.ahmedhobeishy.tech/eval).
+Three golden suites (30-item tutor, 10 authoring, 10 ingest) under [`evals/`](apps/backend/evals/), judged 0–5 per axis, plus adversarial probes. Every PR runs a CI smoke that exercises the harness on a noop provider ([workflow](.github/workflows/pnpm-eval-smoke.yml)); the score gate needs a model key and doesn't run yet. Results are public at [/eval](https://lumen.ahmedhobeishy.tech/eval).
 
-**The point isn't the scores — it's the harness**: LLM-as-judge applied honestly to one strong subsystem and two early ones, every number reproducible with `make eval suite=…` and smoke-gated in CI.
+The harness matters more than the scores: LLM-as-judge on one strong subsystem and two early ones, and every number can be re-run with `make eval suite=…`. All three runs below are from 2026-05-25, with Groq Llama 3.3 70B (now retired) as both model and judge.
 
 | Suite | Judged | LLM-judge score | Reading |
 |---|---:|---:|---|
 | Authoring | 10 / 10 | **3.85 / 5** | Strong — the headline number, backed by [the raw JSONL](docs/eval/authoring-n10-groq-20260525.jsonl) |
-| Tutor | 10 / 30 | 2.33 / 5 | Early — citation-format mismatch between the judge's expected citations and what the retriever pulls; 20 items skipped, cause documented |
-| Ingest | 4 / 10 | 0.83 / 5 | Early — v1 chunker emits one module per video; 6 items failed upstream transcript fetch before judging |
+| Tutor | 10 / 30 | 2.33 / 5 | Early — citation_correctness 0.9/5 comes from a label bug: the synthesiser headed excerpts `Lesson L<id>`, the model cited `[L:L<id>]`, and validation dropped those citations. 6 of the 7 answers that didn't refuse cited the right lesson in that form. The fix is in [PR #21](https://github.com/ahmedEid1/lumen/pull/21); the suite has not been re-run since. 20 items were skipped because their two courses were not seeded |
+| Ingest | 4 / 10 | 0.83 / 5 | Early — the 4 judged items scored low on chapter count and structure, because the v1 chunker makes one module per video. 6 items errored: one 465-lesson video broke the 200-lesson module cap, one Notion item had no `NOTION_TOKEN` in the eval env, and four dataset URLs are Notion help-center pages with no page ID |
 
 The weak scores are published whole, on purpose. [Methodology](https://lumen.ahmedhobeishy.tech/eval/methodology) · [raw reports](docs/eval/).
 
@@ -233,14 +238,15 @@ The same `LLMProvider` abstraction takes native Anthropic or OpenAI by env var �
 ## Status, limits, and honesty
 
 - **Live** at [lumen.ahmedhobeishy.tech](https://lumen.ahmedhobeishy.tech) — 2.0.0-two-role, shipped 2026-06-06. Free tier end-to-end: Groq + Cloudflare Workers AI + one AWS t4g.small (runbook: [docs/deployment/aws-vps.md](docs/deployment/aws-vps.md)). Budget guards and request quotas cap spend; expect free-tier latency under load.
+- **Models in production:** Groq `openai/gpt-oss-120b`, falling back to `openai/gpt-oss-20b`; quizzes and critic scorecards run on `openai/gpt-oss-20b` (`LLM_LIGHT_MODEL`), all with reasoning effort low.
 - **Email verification is off in prod** (`EMAIL_ENABLED=false` — no SMTP configured). A flag, not a code limitation.
 - **Eval scores include the weak ones**, with causes documented — see the table above and [docs/eval/](docs/eval/) for raw JSONL.
 - **Test counts are release-time snapshots** (the suites keep moving with `main`); CI is the live source of truth.
 
 ## Built by
 
-**Ahmed Hobeishy** — AI / Agent Engineer in Essen, Germany. Lumen started as a 2020 Django side-project; five years and one model revolution later it's the centrepiece of my agentic-AI work: agents that are **measured** (golden evals, LLM-as-judge), **auditable** (per-call cost/latency traces, citation checks), and **shipped** (live, CI-gated, self-hostable).
+**Ahmed Hobeishy**, AI Engineer for agentic systems, Germany.
 
-**Open to AI / Agent Engineer roles in Germany where evaluation and observability are first-class.**
+Lumen started as a 2020 Django side project. Today it is where I build agentic systems and course-scoped RAG: a multi-agent course builder, a RAG tutor that cites the lessons it draws on, per-call cost and latency traces, and public evals that keep the weak scores in.
 
-[LinkedIn](https://www.linkedin.com/in/ahmedhobeishy/) · [GitHub](https://github.com/ahmedEid1) · or open an issue here.
+[Portfolio](https://ahmedhobeishy.tech) · [LinkedIn](https://www.linkedin.com/in/ahmedhobeishy/) · [GitHub](https://github.com/ahmedEid1) · [ahmedhobeishy@gmail.com](mailto:ahmedhobeishy@gmail.com) · or open an issue here.
