@@ -1,5 +1,8 @@
 name: Prod demo-seed (one-shot)
 
+# The hosted demo was retired on 2026-10-30. This needs the box, the secrets
+# and DEPLOY_ENABLED=true from docs/deployment/REDEPLOY.md.
+
 # Run `python -m app.cli demo-seed` against the prod box. Wraps the
 # L21-Sec "refuse seed in production" guard by setting
 # LUMEN_ALLOW_PROD_SEED=1 for the duration of the docker exec call
@@ -35,6 +38,7 @@ jobs:
   seed:
     name: Run demo-seed on prod
     runs-on: ubuntu-24.04
+    if: vars.DEPLOY_ENABLED == 'true'
     timeout-minutes: 10
     environment:
       name: production

@@ -54,7 +54,7 @@ Validate with `make config.check` (calls `docker compose -f docker-compose.prod.
 
 ```bash
 docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d db redis s3 search
+docker compose -f docker-compose.prod.yml up -d db redis s3
 docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
 # Never run bootstrap-admin with its defaults on a public host: they are the README's local login.
 # bootstrap-admin sets the password only for a new email (an existing one keeps its password).

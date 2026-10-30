@@ -61,8 +61,10 @@ resource "aws_instance" "lumen" {
     public_ip        = aws_eip.lumen.public_ip
   })
 
-  # The user_data hash is in user_data_replace_on_change, so changing the
-  # bootstrap or template will force an instance replacement.
+  # The bootstrap runs once, on first boot. Edits to the script and newer
+  # AMIs are ignored (lifecycle below) so a later `terraform apply` can't
+  # replace the box and delete its root volume, which holds all the data.
+  # To rebuild on purpose: back up, then `terraform apply -replace=aws_instance.lumen`.
   user_data_replace_on_change = true
 
   root_block_device {
@@ -83,6 +85,10 @@ resource "aws_instance" "lumen" {
 
   tags = {
     Name = "${var.project}-prod"
+  }
+
+  lifecycle {
+    ignore_changes = [ami, user_data]
   }
 }
 

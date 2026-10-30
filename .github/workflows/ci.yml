@@ -669,7 +669,9 @@ jobs:
     # workflow isn't supported. Manual deploys (rollback / pin)
     # go via `gh workflow run deploy.yml` directly, which keeps
     # all gates skippable for emergency operator use.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # The hosted demo was retired on 2026-10-30, so deploys also need the
+    # repo variable DEPLOY_ENABLED=true (docs/deployment/REDEPLOY.md).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     # Reusable-workflow call. deploy.yml's `deploy` job runs under the
     # `production` environment, but that environment has no required
     # reviewers (cleared in 4c6ef4d), so the deploy proceeds

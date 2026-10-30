@@ -1,7 +1,10 @@
 # CI / CD on the main branch
 
-This page documents how code lands in front of users at
-`https://lumen.ahmedhobeishy.tech`. The whole gate is one workflow:
+This page documents how code reached users at
+`https://lumen.ahmedhobeishy.tech` until the hosted demo was retired on
+2026-10-30. Since then the `deploy` job also needs the repo variable
+`DEPLOY_ENABLED=true`, so pushes to `main` run every gate but deploy
+nothing ([REDEPLOY.md](deployment/REDEPLOY.md)). The whole gate is one workflow:
 
 - **`.github/workflows/ci.yml`** — six chained jobs (backend, frontend,
   build-images, e2e, accessibility, deploy) wired together by `needs:`.
@@ -46,11 +49,11 @@ flowchart LR
 | Branch / event | What fires | Result |
 |---|---|---|
 | PR (any → `main`) | ci.yml's `backend`, `frontend`, `e2e`, `accessibility` jobs + `pnpm-eval-smoke.yml`, `gitleaks.yml`, `codeql.yml`. **No** `build-images` or `deploy`. | red blocks merge |
-| Push to `main` | Same as above **plus** `build-images` (publishes `:<sha>`, `:main`, `:latest`) **plus** `deploy` (runs under the `production` environment) | new images on GHCR; deploy auto-proceeds on green — no approval click |
+| Push to `main` | Same as above **plus** `build-images` (publishes `:<sha>`, `:main`, `:latest`) **plus** `deploy` (runs under the `production` environment) **only when the repo variable `DEPLOY_ENABLED` is `true`** (unset since the hosted demo was retired on 2026-10-30) | new images on GHCR; with the variable set, deploy auto-proceeds on green — no approval click |
 | Tag `v*.*.*` | `release.yml` | images tagged `:vX.Y.Z` + `:latest`, GitHub Release drafted |
 | Manual | `workflow_dispatch` on `deploy.yml` | operator picks image tag + optional rollback commit_sha; runs immediately (no approval click) |
 
-**Auto-deploy, no approval gate.** The `deploy` job in
+**Auto-deploy, no approval gate.** When `DEPLOY_ENABLED` is `true`, the `deploy` job in
 ci.yml fires automatically on every green push to `main` (it
 `needs:` every upstream gate, so it can't fire until all five
 predecessors pass). It then SSHes to the box immediately —
@@ -63,8 +66,10 @@ build) is the gate; a click that mostly got forgotten was not adding
 signal. To re-introduce a human gate, set Required reviewers on the
 `production` environment (see "Editing the pipelines" below).
 
-The environment also enforces a branch policy: only refs that match
-`main` can deploy to `production`. So a stray push to a personal
+The environment enforced a branch policy: only refs that match
+`main` could deploy to `production`. The environment was deleted when
+the hosted demo was retired; [REDEPLOY.md](deployment/REDEPLOY.md) step 6
+recreates it with the same policy. So a stray push to a personal
 branch can't accidentally route through the deploy job even if
 some future edit relaxes the `if:` condition.
 
@@ -159,10 +164,10 @@ adjusted healthchecks). Passing both keeps the rollout coherent.
 
 | Name | Value | Used by |
 |---|---|---|
-| `AWS_SSH_HOST` | `lumen.ahmedhobeishy.tech` (or the EIP `3.74.54.147`) | deploy.yml |
+| `AWS_SSH_HOST` | the host, or the IP from `terraform output -raw public_ip` (the old EIP was released with the demo) | deploy.yml |
 | `AWS_SSH_USER` | `lumen` | deploy.yml |
 | `AWS_SSH_PRIVATE_KEY` | full PEM contents of `~/.ssh/lumen-prod.pem` | deploy.yml |
-| `AWS_KNOWN_HOSTS` | output of `ssh-keyscan -H lumen.ahmedhobeishy.tech` (locks down first-connect trust) | deploy.yml |
+| `AWS_KNOWN_HOSTS` | output of `ssh-keyscan -H <the same value as AWS_SSH_HOST>` (locks down first-connect trust) | deploy.yml |
 | `APP_DOMAIN` | `lumen.ahmedhobeishy.tech` | deploy.yml smokes |
 | `GHCR_PULL_TOKEN` | classic GitHub PAT, `read:packages` scope only | deploy.yml (omit if images are public) |
 
@@ -202,8 +207,8 @@ re-runs `docker login` each time using `GHCR_PULL_TOKEN`.
   reviewer (or a team) here to require an explicit "Approve and
   deploy" click before the SSH steps run.
 - **Loosen the deploy branch policy**: `Settings → Environments →
-  production → Deployment branches and tags`. The current policy
-  allows `main` only.
+  production → Deployment branches and tags`. REDEPLOY.md recreates
+  it allowing `main` only.
 - **Cut a release**: `git tag v1.2.3 && git push --tags` —
   `release.yml` handles the rest. The auto-deploy chain doesn't
   fire on tags; release-tag deploys still go via manual

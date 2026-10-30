@@ -1219,7 +1219,7 @@ export const ar: Record<MessageKey, string> = {
   "caseStudy.origin.p2":
     "لذا أعدتُ بناءها. منسّق مخصّص، بدون LangChain. Groq لسرعة الاستدلال: اليوم openai/gpt-oss-120b، مع openai/gpt-oss-20b بديلًا احتياطيًا ولتوليد الاختبارات وبطاقات تقييم الناقد. تقييمات عامة كي تُدقّق كفاءة الوكيل بنفسك.",
   "caseStudy.origin.p3":
-    "Lumen يعمل على AWS t4g.small. سقف التكلفة ميزة لا اعتذار — أجبر كل قرار معماري على الدفاع عن نفسه أمام ميزانية إنفاق LLM محدودة.",
+    "عمل العرض المستضاف لـ Lumen على AWS t4g.small من مايو إلى أكتوبر 2026. سقف التكلفة ميزة لا اعتذار — أجبر كل قرار معماري على الدفاع عن نفسه أمام ميزانية إنفاق LLM محدودة.",
   "caseStudy.arch.cartouche": "البنية",
   "caseStudy.arch.heading": "ستة صناديق، بروتوكولان.",
   "caseStudy.arch.intro":

@@ -1,5 +1,7 @@
 # AWS EC2 t4g.small — Lumen live demo
 
+> **Retired 2026-10-30.** This runbook built the hosted demo that ran from 2026-05-25 to 2026-10-30. To bring it back with the last production data, start with [REDEPLOY.md](REDEPLOY.md). The cost figures below date from May 2026; see REDEPLOY.md for today's.
+
 This is the operator runbook for putting Lumen on the public internet
 using AWS's t4g.small (Graviton2 ARM) free-trial allowance. One ARM VM,
 the unmodified `docker-compose.prod.yml`, containerised Caddy for TLS,
