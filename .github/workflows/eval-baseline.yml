@@ -1,5 +1,8 @@
 name: Run eval baseline (one-shot)
 
+# The hosted demo was retired on 2026-10-30. This needs the box, the secrets
+# and DEPLOY_ENABLED=true from docs/deployment/REDEPLOY.md.
+
 # L41 — operator-driven baseline-comparison run against prod.
 #
 # What it does:
@@ -53,6 +56,7 @@ jobs:
   run:
     name: Run baseline + promote
     runs-on: ubuntu-24.04
+    if: vars.DEPLOY_ENABLED == 'true'
     timeout-minutes: 30
     environment:
       name: production

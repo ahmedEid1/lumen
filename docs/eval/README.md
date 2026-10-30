@@ -72,8 +72,8 @@ For the tutor suite to score meaningfully you need real embeddings. Either
 add `sentence-transformers` to the API image, or set
 `EMBEDDING_PROVIDER=openai` and point it at any OpenAI-compatible embeddings
 endpoint with `EMBEDDING_OPENAI_API_BASE` and `EMBEDDING_OPENAI_API_KEY`
-(they fall back to `OPENAI_API_BASE` / `OPENAI_API_KEY` when unset). Production
-uses Cloudflare Workers AI this way
+(they fall back to `OPENAI_API_BASE` / `OPENAI_API_KEY` when unset). The hosted
+demo used Cloudflare Workers AI this way
 (`EMBEDDING_OPENAI_API_BASE=https://api.cloudflare.com/client/v4/accounts/<id>/ai/v1`,
 `EMBEDDING_MODEL_OPENAI=@cf/baai/bge-small-en-v1.5`). Groq has no embeddings
 endpoint, so the Groq key alone is not enough.

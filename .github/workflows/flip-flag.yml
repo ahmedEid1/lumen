@@ -1,5 +1,8 @@
 name: Flip prod env flag
 
+# The hosted demo was retired on 2026-10-30. This needs the box, the secrets
+# and DEPLOY_ENABLED=true from docs/deployment/REDEPLOY.md.
+
 # One-shot manual flag flip on the prod box.
 #
 # What it does:
@@ -68,6 +71,7 @@ jobs:
   flip:
     name: Flip env flag on prod
     runs-on: ubuntu-24.04
+    if: vars.DEPLOY_ENABLED == 'true'
     timeout-minutes: 10
     # Same `production` environment the deploy workflow uses. It has
     # no required reviewers (cleared in 4c6ef4d), so the SSH steps fire

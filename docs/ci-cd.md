@@ -66,8 +66,10 @@ build) is the gate; a click that mostly got forgotten was not adding
 signal. To re-introduce a human gate, set Required reviewers on the
 `production` environment (see "Editing the pipelines" below).
 
-The environment also enforces a branch policy: only refs that match
-`main` can deploy to `production`. So a stray push to a personal
+The environment enforced a branch policy: only refs that match
+`main` could deploy to `production`. The environment was deleted when
+the hosted demo was retired; [REDEPLOY.md](deployment/REDEPLOY.md) step 6
+recreates it with the same policy. So a stray push to a personal
 branch can't accidentally route through the deploy job even if
 some future edit relaxes the `if:` condition.
 
@@ -162,10 +164,10 @@ adjusted healthchecks). Passing both keeps the rollout coherent.
 
 | Name | Value | Used by |
 |---|---|---|
-| `AWS_SSH_HOST` | `lumen.ahmedhobeishy.tech` (or the EIP `3.74.54.147`) | deploy.yml |
+| `AWS_SSH_HOST` | the host, or the IP from `terraform output -raw public_ip` (the old EIP was released with the demo) | deploy.yml |
 | `AWS_SSH_USER` | `lumen` | deploy.yml |
 | `AWS_SSH_PRIVATE_KEY` | full PEM contents of `~/.ssh/lumen-prod.pem` | deploy.yml |
-| `AWS_KNOWN_HOSTS` | output of `ssh-keyscan -H lumen.ahmedhobeishy.tech` (locks down first-connect trust) | deploy.yml |
+| `AWS_KNOWN_HOSTS` | output of `ssh-keyscan -H <the same value as AWS_SSH_HOST>` (locks down first-connect trust) | deploy.yml |
 | `APP_DOMAIN` | `lumen.ahmedhobeishy.tech` | deploy.yml smokes |
 | `GHCR_PULL_TOKEN` | classic GitHub PAT, `read:packages` scope only | deploy.yml (omit if images are public) |
 
@@ -205,8 +207,8 @@ re-runs `docker login` each time using `GHCR_PULL_TOKEN`.
   reviewer (or a team) here to require an explicit "Approve and
   deploy" click before the SSH steps run.
 - **Loosen the deploy branch policy**: `Settings → Environments →
-  production → Deployment branches and tags`. The current policy
-  allows `main` only.
+  production → Deployment branches and tags`. REDEPLOY.md recreates
+  it allowing `main` only.
 - **Cut a release**: `git tag v1.2.3 && git push --tags` —
   `release.yml` handles the rest. The auto-deploy chain doesn't
   fire on tags; release-tag deploys still go via manual
