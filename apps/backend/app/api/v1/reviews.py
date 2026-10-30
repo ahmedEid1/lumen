@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import CurrentUser, DBSession
+from app.api.deps import CurrentUser, DBSession, DenyDemoAccount
 from app.core.errors import NotFoundError
 from app.repositories import courses as courses_repo
 from app.schemas.common import OkResponse
@@ -39,7 +39,12 @@ async def list_reviews(
     ]
 
 
-@router.put("/{course_id}/reviews", response_model=ReviewOut, status_code=status.HTTP_200_OK)
+@router.put(
+    "/{course_id}/reviews",
+    response_model=ReviewOut,
+    status_code=status.HTTP_200_OK,
+    dependencies=[DenyDemoAccount],
+)
 async def upsert_review(
     course_id: str, payload: ReviewCreate, user: CurrentUser, db: DBSession
 ) -> ReviewOut:
@@ -57,7 +62,7 @@ async def upsert_review(
     )
 
 
-@router.delete("/{course_id}/reviews", response_model=OkResponse)
+@router.delete("/{course_id}/reviews", response_model=OkResponse, dependencies=[DenyDemoAccount])
 async def delete_review(course_id: str, user: CurrentUser, db: DBSession) -> OkResponse:
     course = await courses_repo.get_course(db, course_id)
     if not course:

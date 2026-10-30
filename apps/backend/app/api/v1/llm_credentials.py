@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response
 
-from app.api.deps import CurrentUser, DBSession
+from app.api.deps import CurrentUser, DBSession, DenyDemoAccount
 from app.core.config import get_settings
 from app.core.ratelimit import limiter
 from app.repositories import user_llm_credentials as cred_repo
@@ -41,7 +41,11 @@ async def list_my_credentials(user: CurrentUser, db: DBSession) -> list[LLMCrede
     return [LLMCredentialPublic.model_validate(r) for r in rows]
 
 
-@router.put("/me/llm-credentials/{provider}", response_model=LLMCredentialPublic)
+@router.put(
+    "/me/llm-credentials/{provider}",
+    response_model=LLMCredentialPublic,
+    dependencies=[DenyDemoAccount],
+)
 @limiter.limit("10/minute")
 async def upsert_credential(
     provider: str,
@@ -63,7 +67,11 @@ async def upsert_credential(
     return LLMCredentialPublic.model_validate(cred)
 
 
-@router.patch("/me/llm-credentials/{provider}", response_model=LLMCredentialPublic)
+@router.patch(
+    "/me/llm-credentials/{provider}",
+    response_model=LLMCredentialPublic,
+    dependencies=[DenyDemoAccount],
+)
 @limiter.limit("20/minute")
 async def patch_credential(
     provider: str,
@@ -85,14 +93,20 @@ async def patch_credential(
     return LLMCredentialPublic.model_validate(cred)
 
 
-@router.delete("/me/llm-credentials/{provider}", response_model=OkResponse)
+@router.delete(
+    "/me/llm-credentials/{provider}", response_model=OkResponse, dependencies=[DenyDemoAccount]
+)
 async def delete_credential(provider: str, user: CurrentUser, db: DBSession) -> OkResponse:
     """Soft-delete + clear active. Resolution falls back to platform."""
     await svc.delete(db, user=user, provider=provider)
     return OkResponse()
 
 
-@router.post("/me/llm-credentials/{provider}/validate", response_model=LLMCredentialValidateOut)
+@router.post(
+    "/me/llm-credentials/{provider}/validate",
+    response_model=LLMCredentialValidateOut,
+    dependencies=[DenyDemoAccount],
+)
 @limiter.limit("10/minute")
 async def validate_credential(
     provider: str,

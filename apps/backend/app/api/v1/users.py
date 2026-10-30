@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import desc, func, select
 
-from app.api.deps import CurrentUser, DBSession, client_ip, user_agent
+from app.api.deps import CurrentUser, DBSession, DenyDemoAccount, client_ip, user_agent
 from app.core.config import get_settings
 from app.core.email_type import Email
 from app.core.errors import NotFoundError, UnauthorizedError, ValidationAppError
@@ -57,7 +57,7 @@ async def get_me(user: CurrentUser) -> UserOut:
     return UserOut.model_validate(user)
 
 
-@router.patch("/me", response_model=UserOut)
+@router.patch("/me", response_model=UserOut, dependencies=[DenyDemoAccount])
 async def update_me(payload: UserUpdate, user: CurrentUser, db: DBSession) -> UserOut:
     if payload.full_name is not None:
         user.full_name = payload.full_name
@@ -69,7 +69,7 @@ async def update_me(payload: UserUpdate, user: CurrentUser, db: DBSession) -> Us
     return UserOut.model_validate(user)
 
 
-@router.post("/me/change-password", response_model=OkResponse)
+@router.post("/me/change-password", response_model=OkResponse, dependencies=[DenyDemoAccount])
 async def change_password(
     payload: ChangePasswordRequest,
     user: CurrentUser,
@@ -137,13 +137,15 @@ async def list_my_sessions(user: CurrentUser, db: DBSession) -> list[SessionOut]
     return [SessionOut.model_validate(r) for r in rows]
 
 
-@router.delete("/me/sessions", response_model=OkResponse)
+@router.delete("/me/sessions", response_model=OkResponse, dependencies=[DenyDemoAccount])
 async def revoke_all_my_sessions(user: CurrentUser, db: DBSession) -> OkResponse:
     await users_repo.revoke_all_refresh_tokens(db, user.id)
     return OkResponse()
 
 
-@router.delete("/me/sessions/{session_id}", response_model=OkResponse)
+@router.delete(
+    "/me/sessions/{session_id}", response_model=OkResponse, dependencies=[DenyDemoAccount]
+)
 async def revoke_my_session(session_id: str, user: CurrentUser, db: DBSession) -> OkResponse:
     row = await db.get(RefreshToken, session_id)
     if not row or row.user_id != user.id:
@@ -162,7 +164,7 @@ class EmailChangeConfirm(BaseModel):
     token: str = Field(min_length=10, max_length=400)
 
 
-@router.post("/me/email/request", response_model=OkResponse)
+@router.post("/me/email/request", response_model=OkResponse, dependencies=[DenyDemoAccount])
 async def request_email_change(
     payload: EmailChangeRequest, user: CurrentUser, db: DBSession
 ) -> OkResponse:
@@ -183,7 +185,7 @@ async def request_email_change(
     return OkResponse()
 
 
-@router.post("/me/email/confirm", response_model=UserOut)
+@router.post("/me/email/confirm", response_model=UserOut, dependencies=[DenyDemoAccount])
 async def confirm_email_change(payload: EmailChangeConfirm, db: DBSession) -> UserOut:
     """Step 2: token from the email link → applies the change, revokes
     all refresh tokens so any parallel session has to re-authenticate
@@ -193,7 +195,7 @@ async def confirm_email_change(payload: EmailChangeConfirm, db: DBSession) -> Us
     return UserOut.model_validate(user)
 
 
-@router.delete("/me", response_model=OkResponse)
+@router.delete("/me", response_model=OkResponse, dependencies=[DenyDemoAccount])
 async def delete_me(
     payload: DeleteAccountRequest,
     user: CurrentUser,
