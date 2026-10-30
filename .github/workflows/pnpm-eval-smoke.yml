@@ -1,15 +1,18 @@
 name: Eval smoke (tutor)
 
-# Phase H2 gate. Runs a 3-item subset of the tutor golden dataset
-# end-to-end against the live FastAPI stack and judges with the
-# configured LLM. If ``OPENAI_API_KEY`` (Groq key — Groq accepts the
-# OpenAI-compat client via OPENAI_API_BASE) is set in repo secrets,
-# the smoke runs against Llama 3.3 70B and fails the build on
-# ``mean_overall < 3.5``. If the secret is missing, the smoke
-# still runs with ``LLM_PROVIDER=noop`` so we at least exercise
-# the runner code path and surface regressions there — but the
-# pass/fail score gate is skipped because the noop judge always
+# Runs a 3-item subset of the tutor golden dataset against the
+# FastAPI stack and judges with the configured LLM. If
+# ``OPENAI_API_KEY`` (a Groq key — Groq accepts the OpenAI-compat
+# client via OPENAI_API_BASE) is set in repo secrets, the smoke runs
+# against Groq openai/gpt-oss-120b and fails the build on
+# ``mean_overall < 3.5``. The repo has no such secret today, so the
+# smoke runs with ``LLM_PROVIDER=noop``: it exercises the runner code
+# path, and the score gate is skipped because the noop judge always
 # scores zero (noop replies don't parse as JSON).
+#
+# Embeddings are always noop here. .env.example selects ``local``
+# (sentence-transformers), which is not a dependency, so retrieval
+# would fail on the import.
 #
 # The JSONL report is uploaded as an artifact so any drop in mean
 # score can be diff'd against the previous run by downloading the
@@ -36,7 +39,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Prepare .env
-        run: cp .env.example .env
+        run: |
+          cp .env.example .env
+          {
+            echo ""
+            echo "# eval-smoke override: sentence-transformers is not installed"
+            echo "EMBEDDING_PROVIDER=noop"
+          } >> .env
 
       # Start only the services the eval needs: db (Postgres with
       # pgvector), redis (Celery broker), and the api container. We
@@ -93,8 +102,7 @@ jobs:
           fi
 
       # The "real" branch runs against Groq's OpenAI-compatible
-      # endpoint with Llama 3.3 70B — matches the spec addendum's
-      # locked execution path.
+      # endpoint with openai/gpt-oss-120b.
       - name: Run eval smoke (real LLM)
         if: steps.backend.outputs.mode == 'real'
         env:
