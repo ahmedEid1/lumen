@@ -51,12 +51,19 @@ from app.services.tutor_subagents.retriever import RetrieverChunk
 
 log = get_logger(__name__)
 
+# Courses can be on any subject, so the prompt names the course instead of
+# assuming programming (L25).
 _BASE_SYSTEM_PROMPT = (
-    "You are Lumen, an AI tutor. Answer the learner's question concisely "
-    "and only using established programming knowledge. Refuse anything "
-    "off-topic from learning programming + adjacent technologies. Cite "
-    "specific concept names where possible. Keep responses under 300 words."
+    "You are Lumen, the AI tutor for the course {course}. Answer the "
+    "learner's question concisely and accurately. Stay on the course's "
+    "subject and closely related topics, and politely decline unrelated "
+    "requests. Cite specific concept names where possible. Keep responses "
+    "under 300 words."
 )
+
+# How many earlier messages (user and assistant) the live tutor sees (L26),
+# the same window the API path sends.
+HISTORY_TURNS = 6
 
 # Appended when retrieved_chunks is non-empty. The citation contract
 # is "[L:<lesson_id>]" — the frontend renderer (and a future
@@ -66,14 +73,26 @@ _GROUNDING_INSTRUCTION = (
     "in your answer comes from one of these excerpts, cite the lesson "
     "inline using the exact token ``[L:<lesson_id>]`` — no Markdown link "
     "syntax. If the excerpts do not cover the question, say so and "
-    "answer from your general programming knowledge without inventing "
+    "answer from your general knowledge of the subject without inventing "
     "citations."
+)
+
+# Used when the course search itself failed (L39), so the learner hears that
+# instead of an answer that looks grounded.
+_RETRIEVAL_FAILED_INSTRUCTION = (
+    "\n\nSearching the course lessons failed for this question. Start by "
+    "telling the learner you couldn't check the course materials just now, "
+    "then answer briefly from general knowledge without citations."
 )
 
 
 def _build_synth_messages(
     user_message: str,
     chunks: list[RetrieverChunk] | None,
+    *,
+    course_title: str | None = None,
+    history: list[dict[str, str]] | None = None,
+    retrieval_failed: bool = False,
 ) -> list[ChatMessage]:
     """Compose the synth-stage prompt.
 
@@ -83,15 +102,20 @@ def _build_synth_messages(
     its lesson_id + title + text so the model has a stable handle
     for the ``[L:<id>]`` citation token.
     """
-    system_text = _BASE_SYSTEM_PROMPT
-    if chunks:
+    course = f'"{course_title}"' if course_title else "this course"
+    system_text = _BASE_SYSTEM_PROMPT.format(course=course)
+    if retrieval_failed:
+        system_text += _RETRIEVAL_FAILED_INSTRUCTION
+    elif chunks:
         system_text += _GROUNDING_INSTRUCTION + "\n\n--- Lesson excerpts ---\n"
         for c in chunks:
             system_text += f"\n[L:{c.lesson_id}] {c.lesson_title}\n{c.text}\n"
-    return [
-        ChatMessage(role="system", content=system_text),
-        ChatMessage(role="user", content=user_message or "(empty)"),
-    ]
+    messages = [ChatMessage(role="system", content=system_text)]
+    for turn in (history or [])[-HISTORY_TURNS:]:
+        if turn.get("role") in ("user", "assistant") and turn.get("content"):
+            messages.append(ChatMessage(role=turn["role"], content=turn["content"]))
+    messages.append(ChatMessage(role="user", content=user_message or "(empty)"))
+    return messages
 
 
 class StreamEvent(TypedDict):
@@ -110,6 +134,9 @@ async def orchestrate_stream(
     retrieved_chunks: list[RetrieverChunk] | None = None,
     retrieval_latency_ms: int | None = None,
     byok_dispatch: dict[str, str] | None = None,
+    course_title: str | None = None,
+    history: list[dict[str, str]] | None = None,
+    retrieval_failed: bool = False,
 ) -> AsyncIterator[StreamEvent]:
     """Yield a stream of events for a tutor turn.
 
@@ -151,6 +178,16 @@ async def orchestrate_stream(
                 ),
             },
         }
+    elif retrieval_failed:
+        yield {
+            "event": "tool_call_result",
+            "data": {
+                "tool": "retriever",
+                "status": "error",
+                "latency_ms": retrieval_latency_ms or 0,
+                "summary": "course search failed",
+            },
+        }
     else:
         yield {
             "event": "tool_call_result",
@@ -167,7 +204,13 @@ async def orchestrate_stream(
         }
 
     # 3. Real synthesiser via the streaming LLM client.
-    messages = _build_synth_messages(user_message, retrieved_chunks)
+    messages = _build_synth_messages(
+        user_message,
+        retrieved_chunks,
+        course_title=course_title,
+        history=history,
+        retrieval_failed=retrieval_failed,
+    )
     total_cost_usd = 0.0
     # S7: carry the provider's reported token usage off the terminal chunk so
     # the worker can persist it on the streamed turn's llm_calls row. Defaults

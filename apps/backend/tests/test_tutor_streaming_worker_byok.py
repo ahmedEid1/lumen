@@ -105,6 +105,7 @@ def _patch_worker_seams(monkeypatch, *, turn, mocks):
     # see test_tutor_streaming_message_persistence.py. These DB-free
     # dispatch-wiring tests stub the seams like every other DB call.
     monkeypatch.setattr(tutor_streaming, "persist_stream_user_message", AsyncMock())
+    monkeypatch.setattr(tutor_streaming, "recent_conversation_turns", AsyncMock(return_value=[]))
     monkeypatch.setattr(
         tutor_streaming, "persist_stream_assistant_message", AsyncMock(return_value="msg_x")
     )
