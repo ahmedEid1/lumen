@@ -98,3 +98,25 @@ async def test_lesson_writes_reindex_the_draft_course(
     assert deleted.status_code == 200, deleted.text
 
     assert scheduled == [course_id, course_id, course_id]
+
+
+async def test_index_jobs_for_one_course_run_one_at_a_time(db_session: AsyncSession) -> None:
+    """Two reindex jobs for one course must not interleave (an older read
+    could otherwise commit last). The job waits for the course's advisory
+    lock, which another transaction holds here."""
+    import asyncio
+
+    from sqlalchemy import text
+
+    from app.workers.tasks.embeddings import _index_course_async
+
+    course_id = f"lockcheck-{uuid.uuid4().hex[:8]}"
+    await db_session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+        {"key": f"lumen:index_course:{course_id}"},
+    )
+    job = asyncio.create_task(_index_course_async(course_id))
+    await asyncio.sleep(0.5)
+    assert not job.done()  # blocked behind the held lock
+    await db_session.rollback()  # releases it
+    assert await asyncio.wait_for(job, timeout=10) == 0  # missing course: nothing indexed
