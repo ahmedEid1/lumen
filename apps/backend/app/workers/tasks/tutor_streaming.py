@@ -49,7 +49,7 @@ from app.services import byok as byok_service
 from app.services.llm_call_log import record_streamed_turn_row
 from app.services.redis_streams import emit_event, set_stream_ttl
 from app.services.tutor import extract_citation_dicts
-from app.services.tutor_orchestrator_stream import orchestrate_stream
+from app.services.tutor_orchestrator_stream import HISTORY_TURNS, orchestrate_stream
 from app.services.tutor_subagents.retriever import RetrieverChunk
 from app.services.tutor_subagents.retriever import run as run_retriever
 from app.services.tutor_turn_service import (
@@ -57,6 +57,8 @@ from app.services.tutor_turn_service import (
     mark_terminal,
     persist_stream_assistant_message,
     persist_stream_user_message,
+    recent_conversation_turns,
+    retrieval_query,
     set_reserved_cost,
 )
 from app.workers.celery_app import celery
@@ -157,8 +159,14 @@ async def _run_turn_async(turn_id: str) -> None:
             # clean audit trail"). Without this row a streamed turn was
             # invisible to conversation history entirely — the 2026-06-06
             # prod finding (BACKLOG P2).
-            await persist_stream_user_message(
+            user_message_id = await persist_stream_user_message(
                 db, conversation_id=conversation_id, content=user_message_content
+            )
+            history = await recent_conversation_turns(
+                db,
+                conversation_id=conversation_id,
+                exclude_message_id=user_message_id,
+                limit=HISTORY_TURNS,
             )
             await db.commit()
 
@@ -232,13 +240,16 @@ async def _run_turn_async(turn_id: str) -> None:
         # "tutor.streaming" trace row — invisible to the drill-down,
         # still feeding admin observability.
         retriever_note: str = ""
+        retrieval_failed = False
+        course_title: str | None = None
         if course_id and user_message_content.strip():
-            with contextlib.suppress(Exception):
+            try:
                 async with Session() as db:
                     course = (
                         await db.execute(select(Course).where(Course.id == course_id))
                     ).scalar_one_or_none()
                     if course is not None:
+                        course_title = course.title
                         t0 = time.monotonic()
                         # Course-scoped retrieval. ``audit=True`` (the
                         # default) inside the sub-agent writes a
@@ -247,7 +258,7 @@ async def _run_turn_async(turn_id: str) -> None:
                         result = await run_retriever(
                             db,
                             course=course,
-                            query=user_message_content,
+                            query=retrieval_query(user_message_content, history),
                             user_id=user_id,
                             top_k=6,
                             feature="tutor.streaming",
@@ -256,6 +267,17 @@ async def _run_turn_async(turn_id: str) -> None:
                         retrieved_chunks = list(result.chunks)
                         retriever_note = result.note
                         await db.commit()
+            except Exception as exc:
+                # Best-effort still (the turn goes on), but no longer silent:
+                # an embedding outage or a bad key used to look like "no
+                # relevant content" and produce an answer that seemed grounded
+                # (L39). Log it, show the learner, and keep the turn honest.
+                retrieval_failed = True
+                retrieved_chunks = []
+                log.warning(
+                    "tutor_stream_retrieval_failed",
+                    extra={"turn_id": turn_id, "error_kind": type(exc).__name__},
+                )
 
         # Orchestrate + emit events to the Redis stream. The
         # orchestrator yields events; we relay each to Redis.
@@ -303,6 +325,9 @@ async def _run_turn_async(turn_id: str) -> None:
                 retrieved_chunks=retrieved_chunks or None,
                 retrieval_latency_ms=retrieval_latency_ms,
                 byok_dispatch=byok_dispatch,
+                course_title=course_title,
+                history=history,
+                retrieval_failed=retrieval_failed,
             ):
                 # If the user was suspended/deleted mid-stream, assert_account_
                 # active raises account.access_revoked and we stop emitting /

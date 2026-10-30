@@ -296,6 +296,49 @@ async def persist_stream_user_message(
     return msg.id
 
 
+async def recent_conversation_turns(
+    db: AsyncSession,
+    *,
+    conversation_id: str | None,
+    exclude_message_id: str | None,
+    limit: int = 6,
+) -> list[dict[str, str]]:
+    """The conversation's last ``limit`` messages before this turn, oldest first.
+
+    The live tutor used to see only the newest message, so a follow-up such as
+    "explain that more simply" lost its context (L26).
+    """
+    if not conversation_id:
+        return []
+    from sqlalchemy import select
+
+    from app.models.tutor_conversation import TutorMessage
+
+    stmt = (
+        select(TutorMessage.role, TutorMessage.content)
+        .where(TutorMessage.conversation_id == conversation_id)
+        .order_by(TutorMessage.created_at.desc())
+        .limit(limit + 1)
+    )
+    if exclude_message_id:
+        stmt = stmt.where(TutorMessage.id != exclude_message_id)
+    rows = (await db.execute(stmt)).all()[:limit]
+    return [{"role": str(role), "content": content} for role, content in reversed(rows) if content]
+
+
+# A follow-up this short ("why?", "explain that more simply") rarely names its
+# topic, so retrieval also gets the learner's previous question.
+FOLLOW_UP_MAX_WORDS = 12
+
+
+def retrieval_query(message: str, history: list[dict[str, str]]) -> str:
+    """The text to search the course with for this turn (L26)."""
+    if len(message.split()) > FOLLOW_UP_MAX_WORDS:
+        return message
+    previous = next((t["content"] for t in reversed(history) if t["role"] == "user"), "")
+    return f"{previous}\n{message}".strip() if previous else message
+
+
 async def persist_stream_assistant_message(
     db: AsyncSession,
     *,
