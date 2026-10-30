@@ -94,3 +94,30 @@ async def test_known_sort_keys_work(
     for sort in ("-created_at", "created_at", "-published_at", "title", "-is_featured"):
         r = await client.get(f"/api/v1/courses?sort={sort}")
         assert r.status_code == 200, f"{sort=} → {r.status_code} {r.text}"
+
+
+async def test_featured_filter_returns_only_featured(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, seed_lesson
+) -> None:
+    """The home page asks for ``featured=true``; it must not fall back to
+    the newest courses, and ``featured=false`` must return the rest."""
+    from sqlalchemy import update
+
+    from app.models.course import Course
+
+    await _seed(client, auth_headers, db_session, seed_lesson)
+    await db_session.execute(update(Course).where(Course.title == "Bravo").values(is_featured=True))
+    await db_session.commit()
+
+    r = await client.get("/api/v1/courses?featured=true&sort=-published_at")
+    assert r.status_code == 200, r.text
+    titles = [c["title"] for c in r.json()["items"]]
+    assert "Bravo" in titles
+    assert "Alpha" not in titles
+    assert all(c["is_featured"] for c in r.json()["items"])
+
+    r = await client.get("/api/v1/courses?featured=false")
+    assert r.status_code == 200, r.text
+    titles = [c["title"] for c in r.json()["items"]]
+    assert "Alpha" in titles
+    assert "Bravo" not in titles

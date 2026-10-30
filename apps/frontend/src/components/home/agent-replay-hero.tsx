@@ -8,9 +8,10 @@
  * we'd literally subscribe to a seeded demo SSE stream; today the
  * flag is off, so this component is the next-honest thing:
  *
- *   - A pure-CSS animation that walks through the canonical
- *     event sequence (planner_start → tool_call_start ×2 → synth
- *     chunks → turn_complete).
+ *   - A pure-CSS animation of an example turn, captioned as such:
+ *     the one course-scoped retrieval the live web tutor runs, then
+ *     the answer with the lesson chip it cites (L59). Not a replay of
+ *     a stored run, so it shows no latencies.
  *   - Each event row matches the wire shape the real `StreamingTutorPanel`
  *     renders, so a recruiter who clicks /demo and sees the live
  *     thing recognises it.
@@ -24,7 +25,7 @@
  */
 
 import Link from "next/link";
-import { ArrowRight, Code2, Search, Sparkles } from "lucide-react";
+import { ArrowRight, BookOpen, Search, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n/provider";
@@ -34,6 +35,11 @@ const CANONICAL_QUESTION =
 
 const CANONICAL_RESPONSE_HEAD =
   "TypeScript thinks `T` could be anything the caller picks, so returning a `string` from a function declared `<T>(x: T): T` violates the contract. Three fixes…";
+
+// The seeded typescript-variance lesson the real tutor cites for this
+// question. The live tutor runs one course-scoped retrieval (top 6
+// chunks) and then answers; it has no code-runner step on the web path.
+const CANONICAL_CITATION = "The canonical error: Type 'string' is not assignable to type 'T'";
 
 export function AgentReplayHero() {
   const t = useT();
@@ -79,7 +85,7 @@ export function AgentReplayHero() {
 
         {/* Right column — the animated replay panel. */}
         <div
-          className="motion-replay surface min-h-[420px] flex-1 overflow-hidden p-5 sm:p-6"
+          className="motion-replay surface min-h-[340px] flex-1 overflow-hidden p-5 sm:p-6"
           role="img"
           aria-label={t("home.replayHeroAriaLabel")}
         >
@@ -104,15 +110,8 @@ export function AgentReplayHero() {
               <li className="motion-replay__tool motion-replay__tool-1 flex items-center gap-2">
                 <Search className="h-3 w-3 text-primary" aria-hidden />
                 <span>retriever</span>
-                <span className="motion-replay__tool-latency tabular-nums text-foreground/80">
-                  82 ms
-                </span>
-              </li>
-              <li className="motion-replay__tool motion-replay__tool-2 flex items-center gap-2">
-                <Code2 className="h-3 w-3 text-primary" aria-hidden />
-                <span>code_runner</span>
-                <span className="motion-replay__tool-latency tabular-nums text-foreground/80">
-                  214 ms
+                <span className="motion-replay__tool-latency normal-case tracking-normal text-foreground/80">
+                  {t("home.replayHeroRetrieverDetail")}
                 </span>
               </li>
             </ul>
@@ -125,6 +124,10 @@ export function AgentReplayHero() {
                 className="motion-replay__cursor ms-0.5 inline-block h-3 w-1 align-middle bg-primary"
                 aria-hidden
               />
+              <span className="motion-replay__citation mt-2 flex w-fit items-start gap-1.5 rounded border border-border bg-muted px-2 py-0.5 font-body text-xs text-foreground">
+                <BookOpen className="mt-0.5 h-3 w-3 shrink-0 text-primary" aria-hidden />
+                <span>{CANONICAL_CITATION}</span>
+              </span>
             </div>
 
             <p className="motion-replay__caption font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -153,9 +156,6 @@ export function AgentReplayHero() {
         @keyframes lumenReplayTool1 {
           0%, 100% { opacity: 1; }
         }
-        @keyframes lumenReplayTool2 {
-          0%, 100% { opacity: 1; }
-        }
         @keyframes lumenReplaySynth {
           0%, 40% { opacity: 0; transform: translateY(4px); }
           48%, 100% { opacity: 1; transform: translateY(0); }
@@ -163,10 +163,6 @@ export function AgentReplayHero() {
         @keyframes lumenReplayLatency {
           0%, 24% { opacity: 0; }
           32%, 100% { opacity: 1; }
-        }
-        @keyframes lumenReplayLatency2 {
-          0%, 36% { opacity: 0; }
-          44%, 100% { opacity: 1; }
         }
         @keyframes lumenReplayCursor {
           0%, 100% { opacity: 0; }
@@ -186,30 +182,24 @@ export function AgentReplayHero() {
         .motion-replay__tool-1 .motion-replay__tool-latency {
           animation: lumenReplayLatency 14s ease-out infinite;
         }
-        .motion-replay__tool-2 {
-          animation: lumenReplayTool2 14s ease-out infinite;
-        }
-        .motion-replay__tool-2 .motion-replay__tool-latency {
-          animation: lumenReplayLatency2 14s ease-out infinite;
-        }
         .motion-replay__synth {
           animation: lumenReplaySynth 14s ease-out infinite;
         }
         .motion-replay__cursor {
           animation: lumenReplayCursor 14s ease-in-out infinite;
         }
-        .motion-replay__caption {
+        .motion-replay__caption,
+        .motion-replay__citation {
           animation: lumenReplayCaption 14s ease-out infinite;
         }
 
         @media (prefers-reduced-motion: reduce) {
           .motion-replay__user,
           .motion-replay__tool-1,
-          .motion-replay__tool-2,
           .motion-replay__tool-1 .motion-replay__tool-latency,
-          .motion-replay__tool-2 .motion-replay__tool-latency,
           .motion-replay__synth,
-          .motion-replay__caption {
+          .motion-replay__caption,
+          .motion-replay__citation {
             animation: none;
             opacity: 1;
             transform: none;
