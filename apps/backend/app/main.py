@@ -23,6 +23,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app import __version__
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.errors import install_handlers
@@ -340,7 +341,7 @@ async def _grandfather_unverified_on_boot() -> None:
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
-        version="1.0.0-rebuild",
+        version=__version__,
         default_response_class=ORJSONResponse,
         docs_url="/docs",
         redoc_url=None,
@@ -412,7 +413,7 @@ def create_app() -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     async def root() -> dict[str, str]:
-        return {"name": settings.app_name, "version": "1.0.0-rebuild", "docs": "/docs"}
+        return {"name": settings.app_name, "version": __version__, "docs": "/docs"}
 
     if settings.sentry_dsn:  # pragma: no cover - depends on env
         import sentry_sdk
