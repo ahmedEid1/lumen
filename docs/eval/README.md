@@ -7,7 +7,7 @@ stack.
 ## Latest real runs (2026-05-25, Groq Llama 3.3 70B)
 
 Groq Llama 3.3 70B was both the model and the judge in these runs. It has
-since been retired; production now runs on Groq `openai/gpt-oss-120b`. The
+since been retired; the hosted demo later ran on Groq `openai/gpt-oss-120b`. The
 scores below come from the older setup.
 
 | File | Suite | n | Mean overall | Notes |
@@ -22,6 +22,24 @@ scores below come from the older setup.
 | File | Notes |
 |------|-------|
 | [`tutor-smoke-n3.jsonl`](tutor-smoke-n3.jsonl) | 3-item smoke run executed against the `noop` LLM provider on 2026-05-25 *before* the Groq key was wired. All items errored on the missing `sentence-transformers` dep; the summary line confirmed loader + judge plumbing was structurally correct. Kept as a record of the harness chain's failure mode pre-fix. |
+
+## Baseline comparison (promoted on the hosted demo, 2026-05-28)
+
+`eval-baseline.yml` ran the tutor suite on the hosted demo against a
+no-retrieval baseline and promoted the result to `/eval`. Lumen's tutor
+(Groq Llama 3.3 70B with course retrieval) against Mistral Small with no
+retrieval, judged by Llama 3.3 70B, the same model as the tutor side:
+
+| n | Δ overall | Δ grounding | Δ accuracy | Δ style |
+|---|---|---|---|---|
+| 9 | **+1.21** | +3.33 | −0.06 | +0.36 |
+
+Δ is Lumen's score minus the baseline's, so positive favours Lumen. This is
+a small sample with a same-family judge. The raw per-item report lived in the
+server's `eval-reports` volume and was lost when the hosted demo was taken
+down on 2026-10-30, and the workflow's log has expired. The numbers above are
+copied from the last live `/eval` page
+([screenshot](../demo/2026-10-30/screenshots/17-eval.png)).
 
 ## CI smoke
 

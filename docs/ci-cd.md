@@ -49,11 +49,11 @@ flowchart LR
 | Branch / event | What fires | Result |
 |---|---|---|
 | PR (any → `main`) | ci.yml's `backend`, `frontend`, `e2e`, `accessibility` jobs + `pnpm-eval-smoke.yml`, `gitleaks.yml`, `codeql.yml`. **No** `build-images` or `deploy`. | red blocks merge |
-| Push to `main` | Same as above **plus** `build-images` (publishes `:<sha>`, `:main`, `:latest`) **plus** `deploy` (runs under the `production` environment) | new images on GHCR; deploy auto-proceeds on green — no approval click |
+| Push to `main` | Same as above **plus** `build-images` (publishes `:<sha>`, `:main`, `:latest`) **plus** `deploy` (runs under the `production` environment) **only when the repo variable `DEPLOY_ENABLED` is `true`** (unset since the hosted demo was retired on 2026-10-30) | new images on GHCR; with the variable set, deploy auto-proceeds on green — no approval click |
 | Tag `v*.*.*` | `release.yml` | images tagged `:vX.Y.Z` + `:latest`, GitHub Release drafted |
 | Manual | `workflow_dispatch` on `deploy.yml` | operator picks image tag + optional rollback commit_sha; runs immediately (no approval click) |
 
-**Auto-deploy, no approval gate.** The `deploy` job in
+**Auto-deploy, no approval gate.** When `DEPLOY_ENABLED` is `true`, the `deploy` job in
 ci.yml fires automatically on every green push to `main` (it
 `needs:` every upstream gate, so it can't fire until all five
 predecessors pass). It then SSHes to the box immediately —

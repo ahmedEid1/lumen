@@ -13,6 +13,8 @@ This guide brings the same stack back on a fresh host, with the last production 
 | Data | The final `pg_dump -Fc` and the production env file from 2026-10-30, kept by the owner **outside git**. The final dump was restore-tested: 43 courses, 412 lessons, 185 embedded chunks, 21 users, schema at migration 0053. Uploaded files: none (MinIO held no objects). |
 | CI/CD | `ci.yml` → `deploy.yml` (SSH deploy with a smoke test and rollback). It is off until the repo variable `DEPLOY_ENABLED` is `true`. |
 
+Not kept: the `eval-reports` volume (the promoted baseline run that `/eval` showed; its summary is in [`docs/eval/README.md`](../eval/README.md) and screenshot 17, but the raw report was lost with the server), Redis (queue and cache only), the Prometheus history, and Caddy's certificates (Caddy requests new ones on its own). After a redeploy, `/eval` shows no promoted runs until you run `eval-baseline.yml` and promote a report again.
+
 ## 1. Pick a host
 
 - **AWS (the documented path).** Run `terraform apply` in `infra/aws/` (≈90 min the first time, including DNS and TLS). A t4g.small costs about $21 a month on demand in eu-central-1: instance $14.0, public IPv4 $3.7, 30 GB gp3 $2.9. A t4g.medium (4 GB) removes the swap pressure and costs about $35.
@@ -28,8 +30,11 @@ cd infra/aws
 terraform init
 terraform apply -var admin_email=<you@example.com>
 terraform output -raw public_ip
-$(terraform output -raw ssh_command)
+$(terraform output -raw ssh_command)      # as ubuntu
+sudo tail -f /var/log/lumen-first-boot.log # wait for the bootstrap to finish
 ```
+
+Then reconnect as the deploy user, `ssh -i keys/lumen-prod.pem lumen@<ip>`. The bootstrap gives `lumen` Docker access, and `deploy.yml` expects `~/lumen` and `~/.env.production` in its home, so run steps 3 and 4 as `lumen`.
 
 The instance ignores later edits to the bootstrap script and new AMIs (`lifecycle.ignore_changes`), so re-applying does not replace the box. To rebuild it on purpose, use `terraform apply -replace=aws_instance.lumen`. That deletes the root volume, so back up first.
 
@@ -41,20 +46,23 @@ The instance ignores later edits to the bootstrap script and new AMIs (`lifecycl
    - `OPENAI_API_KEY` (Groq) and `EMBEDDING_OPENAI_API_KEY` (Cloudflare Workers AI): new keys if the old ones were revoked. The embedding model must stay `@cf/baai/bge-small-en-v1.5` (384 dimensions), or the stored chunks no longer match and you must run `ingest-embeddings --all`.
    - `APP_DOMAIN`, `WEB_BASE_URL`, `API_BASE_URL`, `NEXT_PUBLIC_*`, `CORS_ORIGINS` and `BADGES_ISSUER_URL`: only if the domain changes.
    - Keep `BYOK_MASTER_KEYS`. Without it, the users' saved model keys can't be decrypted.
-   - Keep `REDIS_MAXMEMORY=64mb` and `CELERY_CONCURRENCY=1` on a 2 GB box.
+   - On a 2 GB box, add `REDIS_MAXMEMORY=64mb` and `CELERY_CONCURRENCY=1`. The old env file didn't have them, and the box ran 1.5 GB into swap.
 
 ## 4. Restore the data
 
 ```bash
+set -euo pipefail
 git clone https://github.com/ahmedEid1/lumen.git ~/lumen && cd ~/lumen
 C="docker compose -f docker-compose.prod.yml --env-file $HOME/.env.production"
 $C pull
-$C up -d db redis s3
-# copy the dump to the box first, e.g. scp lumen-<ts>.dump lumen@<host>:~/
-$C exec -T db sh -c 'pg_restore --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < ~/lumen-<ts>.dump
+$C up -d --wait db redis s3   # returns once the healthchecks pass
+# copy the dump to the box first, e.g. scp lumen-final-<ts>.dump lumen@<host>:~/
+$C exec -T db sh -c 'pg_restore --no-owner --no-privileges --exit-on-error -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < ~/lumen-final-<ts>.dump
 $C up -d
 $C exec -T api alembic upgrade head
 ```
+
+The restore goes into the fresh, empty database the `db` container creates, and stops at the first error, so the app never starts on half the data. These flags were tested against the final dump on a clean `pgvector/pgvector:pg17` container.
 
 The dump was taken at commit `067eb81` with the schema at head. The chunks and their embeddings are inside it, so no reindex is needed.
 
